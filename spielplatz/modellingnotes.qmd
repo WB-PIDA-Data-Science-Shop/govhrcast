@@ -1,0 +1,215 @@
+#########################################################################
+######## THE SIMULATION SCHEMA FOR WAGE BILL PROJECTION MODELLING #######
+#########################################################################
+
+The purpose of this package is to develop a simulation system with a suit of functions that 
+allows users (i.e. country teams across regions of the World Bank) to simulate either specific
+workforce policies or the entire wage bill under specific or baseline scenarios by creating
+something of a plug and play system. 
+
+
+A government of time t, that has been in existence for $N$ year(s) (where N >= 1). 
+The government has a certain number of contracts (C) at time t (those contracts and their characteristics are harmonized according to the dictionary in govhr::harmonization_dict(), and is of the format govhr::bra_hrmis_contract). All C contracts are assigned to P people (where C >= P, since each person hired by the government can have more than 1 contract). 
+
+In order to estimate the wage bill in each year under specific policy scenarios, we need an engine that will
+simulate baseline or policy scenarios unto the contract and personnel modules. Below is the overall process
+
+(1) Start with time t = 0, compute the wage bill statistics of interest (to be specified later)
+
+(2) Add 1 period (i.e. 1 year, 1 month or 1 day as the case maybe, depending on simulation period interval 
+selected), to the reference date (ref_date variable assuming harmonized data). 
+
+(3) Retire workers (according to policies of interest)
+
+(4) Hire workers (according)
+
+(5) Promote workers to higher paygrades / seniority and transfer some to other units
+
+(6) Repeat steps (2) to (5) for t >= 2 depending how many periods to be simulated
+
+
+- Simulation Blueprint
+
+I will start by creating modules for retirement, hiring, promotion and transfer policies
+
+Retirement Module (we already have code inside govhrsim for this but I want to make some
+minor adjustments)
+
+- Inputs: contract and personnel modules according to govhr::harmonization_dict(). 
+
+Process: 
+
+simulate_retirement(contract_dt, personnel_dt){
+
+  ### perform checks on contract and personnel data
+  check_retirement_inputs() 
+
+  ### applies retirement policy (uses switch function to compute
+  ### which policy to apply)
+
+
+  ### compute summary statistics
+
+
+  ### returns a list containing summary table, contract and personnel modules
+  ### after simulation has been applied to the modules
+
+}
+
+replace all validate_ functions to read "check_" instead and all calculate_ functions with
+compute_
+for instance:
+check_retirement_inputs(){
+
+  ## simply convert the existing validate_retirement_inputs function to be become
+  ## check_retirement_inputs
+
+} 
+
+convert the calculate_age to say compute_age
+compute_years(start_date, end_date){
+
+  ### function takes two vectors start_date and end_date and 
+  ### computes the time elapsed in years. Can be used to 
+  ### compute age or tenure
+
+  ### this should create a numeric vector with years_value
+
+
+}
+
+compute_age(personnel_dt, birth_date, ref_date){
+
+  ### simple function to use compute_years to compute how old each personnel is
+  
+}
+
+compute_tenure(contract_dt, start_date, end_date, ref_date, personnel_id, contract_id){
+
+  #### the minimum start_date by contract_id and create a data.table of the following columns:
+  #### contract_dt[, c("start_date", "end_date", "personnel_id", "contract_id")]
+
+  #### for those where end_date is NA we assume the ref_date (implying they are still working)
+
+  #### use compute_years to compute the difference between start_date and end_date
+
+  #### sum the ages for each personnel_id and call it tenure
+
+  #### return a data.table with personnel_ids and years_value
+
+}
+
+compute_pension <- function(retiree_dt, policy_type, params) {
+  
+  pension <- switch(policy_type,
+    
+    "db"     = compute_db_pension(retiree_dt, params), ### defined benefit pensions
+    "dc"     = compute_dc_pension(retiree_dt, params), ### defined contribution pensions
+    "flat"   = compute_flat_pension(retiree_dt, params), ### flat pensions
+    "hybrid" = compute_hybrid_pension(retiree_dt, params), ### hybrid pensions
+    
+    stop("Unknown pension policy type.")
+  )
+  
+  return(pension)
+}
+
+### example of params for db function
+params <- list(
+  accrual_rate = 0.02,
+  ref_type = "final_average",  # "final", "final_average", "career_average"
+  ref_cols = c("salary_t_1","salary_t_2","salary_t_3"),
+  max_years = 35,
+  replacement_cap = 0.80
+)
+
+
+compute_db_pension <- function(dt, params) {
+  
+  # Reference wage selection
+  ref_wage <- switch(params$ref_type,
+                     
+    "final" = dt[["final_salary"]],
+    
+    "final_average" = dt[, rowMeans(.SD), .SDcols = params$ref_cols],
+    
+    "career_average" = dt[["career_avg_salary"]],
+    
+    stop("Unknown reference salary type.")
+  )
+  
+  # Apply service cap
+  years <- pmin(dt[["years_service"]], params$max_years)
+  
+  # Gross pension
+  gross <- params$accrual_rate * years * ref_wage
+  
+  # Replacement cap
+  max_allowed <- params$replacement_cap * ref_wage
+  
+  pension <- pmin(gross, max_allowed)
+  
+  return(pension)
+}
+
+
+
+### parameters for dc pensions
+params <- list(
+  type = "NDC",  # "DC" or "NDC"
+  notional_rate = 0.015,
+  annuity_factor = 18
+)
+
+compute_dc_pension <- function(dt, params) {
+  
+  balance <- switch(params$type,
+                    
+    "DC"  = dt[["balance"]],
+    
+    "NDC" = dt[["balance"]] * (1 + params$notional_rate),
+    
+    stop("Unknown DC type.")
+  )
+  
+  pension <- balance / params$annuity_factor
+  
+  return(pension)
+}
+
+
+params <- list(
+  flat_amount = 15000
+)
+
+compute_flat_pension <- function(dt, params) {
+  
+  pension <- rep.int(params$flat_amount, nrow(dt))
+  
+  return(pension)
+}
+
+
+params <- list(
+  db_params = list(...),
+  dc_params = list(...)
+)
+
+compute_hybrid_pension <- function(dt, params) {
+  
+  db_part <- calc_db_pension(dt, params$db_params)
+  dc_part <- calc_dc_pension(dt, params$dc_params)
+  
+  pension <- db_part + dc_part
+  
+  return(pension)
+}
+
+
+
+
+- Outputs: 
+    * summary table (# of retired, total pension bill), 
+    * contract and personnel modules post simulation (with modified retirees)
+
+
