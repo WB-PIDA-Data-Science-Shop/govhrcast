@@ -34,43 +34,40 @@ NULL
 #' @return Updated contract_dt with retirement status changes
 #' @keywords internal
 update_contracts_for_retirees <- function(contract_dt,
-                                         retirees_dt,
-                                         ref_date,
-                                         personnel_id_col = "personnel_id",
-                                         contract_id_col = "contract_id",
-                                         start_date_col = "start_date",
-                                         end_date_col = "end_date",
-                                         salary_col = "gross_salary_lcu",
-                                         contract_type_col = "contract_type_code") {
-  
-  # Create working copy to avoid modifying original
-  dt <- data.table::copy(contract_dt)
+                                          retirees_dt,
+                                          ref_date,
+                                          personnel_id_col = "personnel_id",
+                                          contract_id_col = "contract_id",
+                                          start_date_col = "start_date",
+                                          end_date_col = "end_date",
+                                          salary_col = "gross_salary_lcu",
+                                          contract_type_col = "contract_type_code") {
   
   # If no retirees, return unchanged
   if (nrow(retirees_dt) == 0) {
-    return(dt)
+    return(contract_dt)
   }
   
   # Extract retiree IDs
   retiree_ids <- unique(retirees_dt[[personnel_id_col]])
   
   # Create retire flag in contract_dt
-  dt[, retire := fifelse(get(personnel_id_col) %in% retiree_ids, 1L, 0L)]
+  contract_dt[, retire := fifelse(get(personnel_id_col) %in% retiree_ids, 1L, 0L)]
   
   # Identify active contracts
-  dt[, active_flag := fifelse(
+  contract_dt[, active_flag := fifelse(
     is.na(get(end_date_col)) & get(contract_type_col) != "inactive",
     1L,
     0L
   )]
   
   # Filter to active contracts of retirees
-  retiree_active <- dt[retire == 1L & active_flag == 1L]
+  retiree_active <- contract_dt[retire == 1L & active_flag == 1L]
   
   # If no active contracts to update, return unchanged
   if (nrow(retiree_active) == 0) {
-    dt[, c("retire", "active_flag") := NULL]
-    return(dt)
+    contract_dt[, c("retire", "active_flag") := NULL]
+    return(contract_dt)
   }
   
   # Rank contracts within each personnel by priority
@@ -86,7 +83,7 @@ update_contracts_for_retirees <- function(contract_dt,
   primary_contract_ids <- retiree_active[priority_rank == 1][[contract_id_col]]
   
   # Update contract types and end dates
-  dt[get(contract_id_col) %in% primary_contract_ids & retire == 1L & active_flag == 1L,
+  contract_dt[get(contract_id_col) %in% primary_contract_ids & retire == 1L & active_flag == 1L,
      c(contract_type_col, end_date_col) := list("pensioner", ref_date)]
   
   # Get non-primary active retiree contracts
@@ -94,14 +91,14 @@ update_contracts_for_retirees <- function(contract_dt,
   
   # Update non-primary contracts
   if (length(non_primary_contract_ids) > 0) {
-    dt[get(contract_id_col) %in% non_primary_contract_ids & retire == 1L & active_flag == 1L,
+    contract_dt[get(contract_id_col) %in% non_primary_contract_ids & retire == 1L & active_flag == 1L,
        c(contract_type_col, end_date_col) := list("closed_due_to_retirement", ref_date)]
   }
   
   # Clean temporary columns
-  dt[, c("retire", "active_flag") := NULL]
+  contract_dt[, c("retire", "active_flag") := NULL]
   
-  return(dt)
+  return(contract_dt)
 }
 
 
@@ -120,13 +117,10 @@ update_contracts_for_retirees <- function(contract_dt,
 #' @return Updated personnel_dt with retirement status changes
 #' @keywords internal
 update_personnel_for_retirees <- function(personnel_dt,
-                                         contract_dt,
-                                         personnel_id_col = "personnel_id",
-                                         contract_type_col = "contract_type_code",
-                                         status_col = "status") {
-  
-  # Create working copy
-  dt <- data.table::copy(personnel_dt)
+                                          contract_dt,
+                                          personnel_id_col = "personnel_id",
+                                          contract_type_col = "contract_type_code",
+                                          status_col = "status") {
   
   # Get unique personnel_ids with pensioner contracts
   pensioner_ids <- unique(
@@ -135,9 +129,9 @@ update_personnel_for_retirees <- function(personnel_dt,
   
   # Update status for pensioners
   if (length(pensioner_ids) > 0) {
-    dt[get(personnel_id_col) %in% pensioner_ids, 
+    personnel_dt[get(personnel_id_col) %in% pensioner_ids, 
        (status_col) := "inactive"]
   }
   
-  return(dt)
+  return(personnel_dt)
 }

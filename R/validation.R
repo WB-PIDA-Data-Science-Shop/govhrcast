@@ -78,8 +78,18 @@ validate_columns_exist <- function(dt, colnames, varname) {
 #' @return Invisible TRUE if valid, stops with error otherwise
 #' @keywords internal
 validate_date_format <- function(date, varname) {
+  # Accept both Date objects and character strings
+  if (is.character(date)) {
+    tryCatch({
+      date <- as.Date(date)
+    }, error = function(e) {
+      stop(varname, " must be a valid date string (e.g., '2024-01-01') or Date object. ",
+           "Error: ", e$message, call. = FALSE)
+    })
+  }
+  
   if (!inherits(date, "Date")) {
-    stop(varname, " must be a Date object", call. = FALSE)
+    stop(varname, " must be a Date object or date string (e.g., '2024-01-01')", call. = FALSE)
   }
   
   if (length(date) != 1) {
@@ -90,7 +100,7 @@ validate_date_format <- function(date, varname) {
     stop(varname, " cannot be NA", call. = FALSE)
   }
   
-  return(invisible(TRUE))
+  return(date)
 }
 
 #' Validate Positive Number
@@ -239,13 +249,27 @@ validate_required_params <- function(params, required_params, context) {
 #' @param personnel_dt data.table. Personnel data
 #' @param policy_params List. Policy parameters
 #' @param ref_date Date. Reference date
+#' @param personnel_id_col Character. Personnel ID column name
+#' @param birth_date_col Character. Birth date column name
+#' @param contract_id_col Character. Contract ID column name
+#' @param start_date_col Character. Start date column name
+#' @param end_date_col Character. End date column name
+#' @param contract_type_col Character. Contract type column name
+#' @param status_col Character. Status column name
 #'
 #' @return Invisible TRUE if valid, stops with error otherwise
 #' @keywords internal
 check_retirement_inputs <- function(contract_dt, 
                                     personnel_dt, 
                                     policy_params,
-                                    ref_date) {
+                                    ref_date,
+                                    personnel_id_col = "personnel_id",
+                                    birth_date_col = "birth_date",
+                                    contract_id_col = "contract_id",
+                                    start_date_col = "start_date",
+                                    end_date_col = "end_date",
+                                    contract_type_col = "contract_type_code",
+                                    status_col = "status") {
   
   # Validate data tables
   validate_datatable(contract_dt, "contract_dt")
@@ -286,7 +310,7 @@ check_retirement_inputs <- function(contract_dt,
            policy_params$eligibility_type, "'", call. = FALSE)
     }
     validate_positive_number(policy_params$min_age, "min_age")
-    validate_column_exists(personnel_dt, "birth_date", "personnel_dt")
+    validate_column_exists(personnel_dt, birth_date_col, "personnel_dt")
   }
   
   if (policy_params$eligibility_type %in% c("tenure_only", "age_and_tenure")) {
@@ -303,13 +327,163 @@ check_retirement_inputs <- function(contract_dt,
   }
   
   # Check required contract_dt columns
-  required_contract_cols <- c("contract_id", "personnel_id", "start_date", 
-                              "end_date", "contract_type_code")
+  required_contract_cols <- c(contract_id_col, personnel_id_col, start_date_col, 
+                              end_date_col, contract_type_col)
   validate_columns_exist(contract_dt, required_contract_cols, "contract_dt")
   
   # Check required personnel_dt columns
-  required_personnel_cols <- c("personnel_id", "status")
+  required_personnel_cols <- c(personnel_id_col, status_col)
   validate_columns_exist(personnel_dt, required_personnel_cols, "personnel_dt")
+  
+  return(invisible(TRUE))
+}
+
+
+#' Check Hiring Module Inputs
+#'
+#' @description
+#' Validates inputs for simulate_hiring function. Checks data tables,
+#' column existence, policy parameters, and hiring-specific requirements.
+#'
+#' @param contract_dt data.table. Contract data
+#' @param personnel_dt data.table. Personnel data
+#' @param policy_params List. Policy parameters
+#' @param ref_date Date. Reference date
+#' @param personnel_id_col Character. Personnel ID column name
+#' @param birth_date_col Character. Birth date column name
+#' @param contract_id_col Character. Contract ID column name
+#' @param start_date_col Character. Start date column name
+#' @param end_date_col Character. End date column name
+#' @param contract_type_col Character. Contract type column name
+#' @param status_col Character. Status column name
+#'
+#' @return Invisible TRUE if valid, stops with error otherwise
+#' @keywords internal
+check_hiring_inputs <- function(contract_dt,
+                                personnel_dt,
+                                policy_params,
+                                ref_date,
+                                personnel_id_col = "personnel_id",
+                                birth_date_col = "birth_date",
+                                contract_id_col = "contract_id",
+                                start_date_col = "start_date",
+                                end_date_col = "end_date",
+                                contract_type_col = "contract_type_code",
+                                status_col = "status") {
+  
+  # Validate data tables
+  validate_datatable(contract_dt, "contract_dt")
+  validate_datatable(personnel_dt, "personnel_dt")
+  
+  # Validate ref_date
+  validate_date_format(ref_date, "ref_date")
+  
+  # Validate policy_params is a list
+  if (!is.list(policy_params)) {
+    stop("policy_params must be a list", call. = FALSE)
+  }
+  
+  # Validate mode
+  if (is.null(policy_params$mode)) {
+    stop("policy_params must contain 'mode'", call. = FALSE)
+  }
+  
+  valid_modes <- c("flow", "stock", "combined")
+  validate_choice(policy_params$mode, valid_modes, "mode")
+  
+  # Validate mode-specific parameters
+  if (policy_params$mode %in% c("flow", "combined")) {
+    if (is.null(policy_params$replacement_rate)) {
+      stop("replacement_rate is required for mode '", policy_params$mode, "'", 
+           call. = FALSE)
+    }
+    
+    # If replacement_rate is data.table, validate structure
+    if (data.table::is.data.table(policy_params$replacement_rate)) {
+      if (!"replacement_rate" %in% names(policy_params$replacement_rate)) {
+        stop("replacement_rate data.table must contain 'replacement_rate' column", 
+             call. = FALSE)
+      }
+      
+      # Check group_cols present
+      if (is.null(policy_params$group_cols) || length(policy_params$group_cols) == 0) {
+        stop("group_cols must be specified when replacement_rate is a data.table", 
+             call. = FALSE)
+      }
+      
+      validate_columns_exist(
+        policy_params$replacement_rate,
+        policy_params$group_cols,
+        "replacement_rate"
+      )
+    } else {
+      # Scalar replacement_rate
+      validate_positive_number(policy_params$replacement_rate, "replacement_rate")
+    }
+  }
+  
+  if (policy_params$mode %in% c("stock", "combined")) {
+    if (is.null(policy_params$stock_targets)) {
+      stop("stock_targets is required for mode '", policy_params$mode, "'", 
+           call. = FALSE)
+    }
+    
+    if (!data.table::is.data.table(policy_params$stock_targets)) {
+      stop("stock_targets must be a data.table", call. = FALSE)
+    }
+    
+    if (!"target_stock" %in% names(policy_params$stock_targets)) {
+      stop("stock_targets must contain 'target_stock' column", call. = FALSE)
+    }
+    
+    # Validate group_cols if specified
+    if (!is.null(policy_params$group_cols) && length(policy_params$group_cols) > 0) {
+      validate_columns_exist(
+        policy_params$stock_targets,
+        policy_params$group_cols,
+        "stock_targets"
+      )
+    }
+  }
+  
+  # Validate salary_scale if provided
+  if (!is.null(policy_params$salary_scale)) {
+    if (!data.table::is.data.table(policy_params$salary_scale)) {
+      stop("salary_scale must be a data.table", call. = FALSE)
+    }
+    
+    # Check for salary column (default name)
+    if (!"gross_salary_lcu" %in% names(policy_params$salary_scale)) {
+      warning("salary_scale does not contain 'gross_salary_lcu' column. ",
+              "Ensure it contains the appropriate salary column.", 
+              call. = FALSE)
+    }
+  }
+  
+  # Validate group_cols exist in contract_dt if specified
+  if (!is.null(policy_params$group_cols) && length(policy_params$group_cols) > 0) {
+    validate_columns_exist(contract_dt, policy_params$group_cols, "contract_dt")
+  }
+  
+  # Check required contract_dt columns
+  required_contract_cols <- c(contract_id_col, personnel_id_col, start_date_col,
+                              end_date_col, contract_type_col)
+  validate_columns_exist(contract_dt, required_contract_cols, "contract_dt")
+  
+  # Check required personnel_dt columns
+  required_personnel_cols <- c(personnel_id_col, status_col)
+  validate_columns_exist(personnel_dt, required_personnel_cols, "personnel_dt")
+  
+  # For flow mode, validate retirement eligibility parameters if retirees_dt not provided
+  # (these are needed if compute_flow_demand needs to calculate retirements internally)
+  if (policy_params$mode == "flow") {
+    # Birth date may be needed for retirement calculation
+    if (!is.null(policy_params$eligibility_type)) {
+      if (policy_params$eligibility_type %in% c("age_only", "age_and_tenure")) {
+        validate_column_exists(personnel_dt, birth_date_col, "personnel_dt")
+      }
+    }
+  }
   
   return(invisible(TRUE))
 }

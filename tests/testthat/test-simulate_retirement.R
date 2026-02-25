@@ -12,6 +12,7 @@ create_integration_test_data <- function() {
   contract_dt <- data.table(
     contract_id = c("C001", "C002", "C003", "C004", "C005"),
     personnel_id = c("P001", "P002", "P003", "P003", "P004"),
+    ref_date = as.Date("2024-01-01"),  # Add ref_date for panel data structure
     start_date = as.Date(c("1995-01-01", "2000-01-01", "2000-01-01", "2010-01-01", "2015-01-01")),
     end_date = as.Date(c(NA, NA, NA, NA, NA)),
     contract_type_code = c("perm", "perm", "perm", "perm", "perm"),

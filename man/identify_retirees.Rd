@@ -4,7 +4,17 @@
 \alias{identify_retirees}
 \title{Identify Personnel Eligible for Retirement}
 \usage{
-identify_retirees(contract_dt, personnel_dt, policy_params, ref_date)
+identify_retirees(
+  contract_dt,
+  personnel_dt,
+  policy_params,
+  ref_date,
+  personnel_id_col = "personnel_id",
+  birth_date_col = "birth_date",
+  start_date_col = "start_date",
+  end_date_col = "end_date",
+  contract_type_col = "contract_type_code"
+)
 }
 \arguments{
 \item{contract_dt}{data.table. Contract data}
@@ -19,6 +29,16 @@ identify_retirees(contract_dt, personnel_dt, policy_params, ref_date)
 }}
 
 \item{ref_date}{Date. Reference date for eligibility calculation}
+
+\item{personnel_id_col}{Character. Name of personnel ID column (default: "personnel_id")}
+
+\item{birth_date_col}{Character. Name of birth date column (default: "birth_date")}
+
+\item{start_date_col}{Character. Name of start date column (default: "start_date")}
+
+\item{end_date_col}{Character. Name of end date column (default: "end_date")}
+
+\item{contract_type_col}{Character. Name of contract type column (default: "contract_type_code")}
 }
 \value{
 data.table with columns: personnel_id, retire (0/1), age, tenure_years

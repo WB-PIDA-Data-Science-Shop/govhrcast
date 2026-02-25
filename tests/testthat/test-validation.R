@@ -80,14 +80,15 @@ test_that("validate_columns_exist handles empty column vector", {
 
 test_that("validate_date_format accepts valid Date", {
   date <- as.Date("2025-01-01")
-  expect_invisible(validate_date_format(date, "test_date"))
+  result <- validate_date_format(date, "test_date")
+  expect_true(inherits(result, "Date"))
+  expect_equal(result, date)
 })
 
-test_that("validate_date_format rejects character string", {
-  expect_error(
-    validate_date_format("2025-01-01", "test_date"),
-    "must be a Date object"
-  )
+test_that("validate_date_format accepts character string and converts", {
+  result <- validate_date_format("2025-01-01", "test_date")
+  expect_true(inherits(result, "Date"))
+  expect_equal(result, as.Date("2025-01-01"))
 })
 
 test_that("validate_date_format rejects numeric", {
@@ -404,9 +405,15 @@ test_that("check_retirement_inputs validates ref_date", {
     pension_params = list(amount = 1000)
   )
   
+  # Invalid date string should error
   expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, "2025-01-01"),
-    "ref_date must be a Date object"
+    check_retirement_inputs(contract_dt, personnel_dt, policy_params, "not-a-date"),
+    "must be a valid date"
+  )
+  
+  # Valid date string should be accepted
+  expect_no_error(
+    check_retirement_inputs(contract_dt, personnel_dt, policy_params, "2025-01-01")
   )
 })
 

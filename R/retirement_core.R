@@ -25,13 +25,23 @@ NULL
 #'     \item min_tenure: Minimum years of service (required for tenure-based eligibility)
 #'   }
 #' @param ref_date Date. Reference date for eligibility calculation
+#' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
+#' @param birth_date_col Character. Name of birth date column (default: "birth_date")
+#' @param start_date_col Character. Name of start date column (default: "start_date")
+#' @param end_date_col Character. Name of end date column (default: "end_date")
+#' @param contract_type_col Character. Name of contract type column (default: "contract_type_code")
 #'
 #' @return data.table with columns: personnel_id, retire (0/1), age, tenure_years
 #' @keywords internal
 identify_retirees <- function(contract_dt,
                               personnel_dt,
                               policy_params,
-                              ref_date) {
+                              ref_date,
+                              personnel_id_col = "personnel_id",
+                              birth_date_col = "birth_date",
+                              start_date_col = "start_date",
+                              end_date_col = "end_date",
+                              contract_type_col = "contract_type_code") {
   
   eligibility_type <- policy_params$eligibility_type
   
@@ -40,13 +50,13 @@ identify_retirees <- function(contract_dt,
     age_dt <- compute_age(
       personnel_dt = personnel_dt,
       ref_date = ref_date,
-      birth_date_col = "birth_date",
-      personnel_id_col = "personnel_id"
+      birth_date_col = birth_date_col,
+      personnel_id_col = personnel_id_col
     )
   } else {
     # Create placeholder with NA age
     age_dt <- data.table::data.table(
-      personnel_id = unique(personnel_dt$personnel_id),
+      personnel_id = unique(personnel_dt[[personnel_id_col]]),
       age = NA_real_
     )
   }
@@ -56,27 +66,35 @@ identify_retirees <- function(contract_dt,
     tenure_dt <- compute_tenure(
       contract_dt = contract_dt,
       ref_date = ref_date,
-      personnel_id_col = "personnel_id",
-      start_date_col = "start_date",
-      end_date_col = "end_date",
-      contract_type_col = "contract_type_code"
+      personnel_id_col = personnel_id_col,
+      start_date_col = start_date_col,
+      end_date_col = end_date_col,
+      contract_type_col = contract_type_col
     )
   } else {
     # Create placeholder with NA tenure
     tenure_dt <- data.table::data.table(
-      personnel_id = unique(contract_dt$personnel_id),
+      personnel_id = unique(contract_dt[[personnel_id_col]]),
       tenure_years = NA_real_,
       tenure_days = NA_real_
     )
   }
   
-  # Merge age and tenure
-  eligibility_dt <- merge(
-    age_dt,
-    tenure_dt,
-    by = "personnel_id",
-    all = TRUE
-  )
+  # Merge age and tenure using data.table full join
+  # Need full join to preserve all personnel from both age_dt and tenure_dt
+  data.table::setnames(age_dt, "personnel_id", personnel_id_col)
+  data.table::setnames(tenure_dt, "personnel_id", personnel_id_col)
+  
+  # Get all unique personnel_ids
+  all_ids <- unique(c(age_dt[[personnel_id_col]], tenure_dt[[personnel_id_col]]))
+  
+  # Create base table with all IDs
+  eligibility_dt <- data.table::data.table(id = all_ids)
+  data.table::setnames(eligibility_dt, "id", personnel_id_col)
+  
+  # Left join age and tenure
+  eligibility_dt <- age_dt[eligibility_dt, on = personnel_id_col]
+  eligibility_dt <- tenure_dt[eligibility_dt, on = personnel_id_col]
   
   # Determine eligibility using switch
   eligibility_dt[, retire := switch(
@@ -97,7 +115,11 @@ identify_retirees <- function(contract_dt,
   # Handle NA values (set to 0 - not eligible)
   eligibility_dt[is.na(retire), retire := 0L]
   
-  return(eligibility_dt[, .(personnel_id, retire, age, tenure_years)])
+  # Return with standardized column names
+  result <- eligibility_dt[, c(personnel_id_col, "retire", "age", "tenure_years"), with = FALSE]
+  data.table::setnames(result, personnel_id_col, "personnel_id")
+  
+  return(result)
 }
 
 
@@ -105,7 +127,8 @@ identify_retirees <- function(contract_dt,
 #'
 #' @description
 #' Aggregates key statistics about retirees including count, total pension cost,
-#' average age, and average tenure.
+#' average age, and average tenure. Uses data.table for efficient computation
+#' on large datasets.
 #'
 #' @param retirees_dt data.table. Retiree data with pension amounts
 #' @param contract_dt data.table. Original contract data (for wage bill comparison)
@@ -126,14 +149,14 @@ compute_retirement_summary <- function(retirees_dt, contract_dt = NULL) {
     return(summary_tbl)
   }
   
-  # Compute summary statistics
-  summary_tbl <- data.table::data.table(
-    n_retired = nrow(retirees_dt),
-    total_pension = sum(retirees_dt$pension, na.rm = TRUE),
-    avg_pension = mean(retirees_dt$pension, na.rm = TRUE),
-    avg_age = mean(retirees_dt$age, na.rm = TRUE),
-    avg_tenure = mean(retirees_dt$tenure_years, na.rm = TRUE)
-  )
+  # Compute summary statistics using data.table for efficiency
+  summary_tbl <- retirees_dt[, .(
+    n_retired = .N,
+    total_pension = sum(pension, na.rm = TRUE),
+    avg_pension = mean(pension, na.rm = TRUE),
+    avg_age = mean(age, na.rm = TRUE),
+    avg_tenure = mean(tenure_years, na.rm = TRUE)
+  )]
   
   return(summary_tbl)
 }
@@ -149,13 +172,25 @@ compute_retirement_summary <- function(retirees_dt, contract_dt = NULL) {
 #' @param contract_dt data.table. Contract data
 #' @param personnel_dt data.table. Personnel data
 #' @param ref_date Date. Reference date
+#' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
+#' @param contract_id_col Character. Name of contract ID column (default: "contract_id")
+#' @param start_date_col Character. Name of start date column (default: "start_date")
+#' @param end_date_col Character. Name of end date column (default: "end_date")
+#' @param salary_col Character. Name of salary column (default: "gross_salary_lcu")
+#' @param contract_type_col Character. Name of contract type column (default: "contract_type_code")
 #'
 #' @return data.table with retiree information ready for pension calculation
 #' @keywords internal
 prepare_retiree_data <- function(eligibility_dt,
                                  contract_dt,
                                  personnel_dt,
-                                 ref_date) {
+                                 ref_date,
+                                 personnel_id_col = "personnel_id",
+                                 contract_id_col = "contract_id",
+                                 start_date_col = "start_date",
+                                 end_date_col = "end_date",
+                                 salary_col = "gross_salary_lcu",
+                                 contract_type_col = "contract_type_code") {
   
   # Filter to eligible retirees only
   retirees_only <- eligibility_dt[retire == 1]
@@ -169,30 +204,26 @@ prepare_retiree_data <- function(eligibility_dt,
   active_contracts <- get_active_contracts(
     contract_dt = contract_dt,
     ref_date = ref_date,
-    start_date_col = "start_date",
-    end_date_col = "end_date",
-    contract_type_col = "contract_type_code"
+    start_date_col = start_date_col,
+    end_date_col = end_date_col,
+    contract_type_col = contract_type_col
   )
   
   # Filter to retirees only
-  retiree_contracts <- active_contracts[personnel_id %in% retirees_only$personnel_id]
+  retiree_contracts <- active_contracts[get(personnel_id_col) %in% retirees_only$personnel_id]
   
   # Get primary contract for each retiree
   primary_contracts <- get_primary_contract(
     contract_dt = retiree_contracts,
-    personnel_id_col = "personnel_id",
-    contract_id_col = "contract_id",
-    start_date_col = "start_date",
-    salary_col = "gross_salary_lcu"
+    personnel_id_col = personnel_id_col,
+    contract_id_col = contract_id_col,
+    start_date_col = start_date_col,
+    salary_col = salary_col
   )
   
-  # Merge with eligibility data (age, tenure)
-  retirees_dt <- merge(
-    primary_contracts,
-    retirees_only[, .(personnel_id, age, tenure_years)],
-    by = "personnel_id",
-    all.x = TRUE
-  )
+  # Merge with eligibility data (age, tenure) using data.table join
+  retirees_dt <- primary_contracts[retirees_only[, .(personnel_id, age, tenure_years)], 
+                                   on = personnel_id_col]
   
   return(retirees_dt)
 }

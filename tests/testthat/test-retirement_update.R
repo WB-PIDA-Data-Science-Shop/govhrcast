@@ -203,7 +203,7 @@ test_that("update_contracts_for_retirees handles empty retirees list", {
   expect_true(all(result$contract_type_code %in% c("perm", "inactive")))
 })
 
-test_that("update_contracts_for_retirees does not modify original data.table", {
+test_that("update_contracts_for_retirees modifies input data.table in place", {
   contract_dt <- create_test_contracts_for_update()
   original_contract_dt <- copy(contract_dt)
   
@@ -212,11 +212,12 @@ test_that("update_contracts_for_retirees does not modify original data.table", {
   
   result <- update_contracts_for_retirees(contract_dt, retirees_dt, ref_date)
   
-  # Original should be unchanged
-  expect_equal(contract_dt, original_contract_dt)
+  # Input should be modified (same object returned)
+  expect_true(identical(contract_dt, result))
   
-  # Result should have changes
-  expect_true(any(result$contract_type_code == "pensioner"))
+  # Should have changes compared to original
+  expect_false(identical(contract_dt, original_contract_dt))
+  expect_true(any(contract_dt$contract_type_code == "pensioner"))
 })
 
 test_that("update_contracts_for_retirees handles NA salaries in ranking", {
@@ -317,7 +318,7 @@ test_that("update_personnel_for_retirees handles no pensioners", {
   expect_true(all(result$status == "active"))
 })
 
-test_that("update_personnel_for_retirees does not modify original data.table", {
+test_that("update_personnel_for_retirees modifies input data.table in place", {
   personnel_dt <- create_test_personnel_for_update()
   original_personnel_dt <- copy(personnel_dt)
   
@@ -329,11 +330,12 @@ test_that("update_personnel_for_retirees does not modify original data.table", {
   
   result <- update_personnel_for_retirees(personnel_dt, contract_dt)
   
-  # Original should be unchanged
-  expect_equal(personnel_dt, original_personnel_dt)
+  # Input should be modified (same object returned)
+  expect_true(identical(personnel_dt, result))
   
-  # Result should have changes
-  expect_equal(result[personnel_id == "P001"]$status, "inactive")
+  # Should have changes compared to original
+  expect_false(identical(personnel_dt, original_personnel_dt))
+  expect_equal(personnel_dt[personnel_id == "P001"]$status, "inactive")
 })
 
 test_that("update_personnel_for_retirees handles personnel with multiple contracts", {

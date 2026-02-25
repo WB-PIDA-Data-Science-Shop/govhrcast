@@ -18,6 +18,15 @@
 #'     \item{pension_params}{List. Parameters specific to the chosen pension type}
 #'   }
 #' @param ref_date Date. Reference date for retirement simulation
+#' @param ref_date_col Character. Name of reference date column in panel data (default: "ref_date")
+#' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
+#' @param birth_date_col Character. Name of birth date column (default: "birth_date")
+#' @param contract_id_col Character. Name of contract ID column (default: "contract_id")
+#' @param start_date_col Character. Name of start date column (default: "start_date")
+#' @param end_date_col Character. Name of end date column (default: "end_date")
+#' @param salary_col Character. Name of salary column (default: "gross_salary_lcu")
+#' @param contract_type_col Character. Name of contract type column (default: "contract_type_code")
+#' @param status_col Character. Name of status column (default: "status")
 #'
 #' @return List containing:
 #'   \describe{
@@ -65,9 +74,18 @@
 #'
 #' @export
 simulate_retirement <- function(contract_dt,
-                               personnel_dt,
-                               policy_params,
-                               ref_date) {
+                                personnel_dt,
+                                policy_params,
+                                ref_date,
+                                ref_date_col = "ref_date",
+                                personnel_id_col = "personnel_id",
+                                birth_date_col = "birth_date",
+                                contract_id_col = "contract_id",
+                                start_date_col = "start_date",
+                                end_date_col = "end_date",
+                                salary_col = "gross_salary_lcu",
+                                contract_type_col = "contract_type_code",
+                                status_col = "status") {
   
   # ========================================
   # 1. Input Validation
@@ -76,35 +94,73 @@ simulate_retirement <- function(contract_dt,
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
     policy_params = policy_params,
-    ref_date = ref_date
+    ref_date = ref_date,
+    personnel_id_col = personnel_id_col,
+    birth_date_col = birth_date_col,
+    contract_id_col = contract_id_col,
+    start_date_col = start_date_col,
+    end_date_col = end_date_col,
+    contract_type_col = contract_type_col,
+    status_col = status_col
   )
   
-  # Convert to data.table if not already
+  # Convert to data.table and create working copies
+  # We copy here to avoid modifying the user's input data
   if (!data.table::is.data.table(contract_dt)) {
     contract_dt <- data.table::as.data.table(contract_dt)
+  } else {
+    contract_dt <- data.table::copy(contract_dt)
   }
+  
   if (!data.table::is.data.table(personnel_dt)) {
     personnel_dt <- data.table::as.data.table(personnel_dt)
+  } else {
+    personnel_dt <- data.table::copy(personnel_dt)
   }
   
   # ========================================
-  # 2. Identify Retirees
+  # 2. Select Nearest Reference Date
+  # ========================================
+  # Find the reference date in the data closest to (but not after) the specified ref_date
+  if (ref_date_col %in% names(contract_dt)) {
+    selected_ref_date <- select_nearest_ref_date(contract_dt[[ref_date_col]], ref_date)
+    
+    # Subset both datasets to the selected reference date
+    contract_dt <- contract_dt[get(ref_date_col) == selected_ref_date]
+    if (ref_date_col %in% names(personnel_dt)) {
+      personnel_dt <- personnel_dt[get(ref_date_col) == selected_ref_date]
+    }
+  }
+  
+  # ========================================
+  # 3. Identify Retirees
   # ========================================
   eligibility_dt <- identify_retirees(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
     policy_params = policy_params,
-    ref_date = ref_date
+    ref_date = ref_date,  # Use user's ref_date for age/tenure calculation
+    personnel_id_col = personnel_id_col,
+    birth_date_col = birth_date_col,
+    start_date_col = start_date_col,
+    end_date_col = end_date_col,
+    contract_type_col = contract_type_col
   )
   
   # ========================================
-  # 3. Prepare Retiree Data
+  # 4. Prepare Retiree Data
   # ========================================
   retirees_dt <- prepare_retiree_data(
     eligibility_dt = eligibility_dt,
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
-    ref_date = ref_date
+    ref_date = ref_date,  # Use user's ref_date
+    personnel_id_col = personnel_id_col,
+    contract_id_col = contract_id_col,
+    start_date_col = start_date_col,
+    end_date_col = end_date_col,
+    salary_col = salary_col,
+    contract_type_col = contract_type_col
   )
   
   # Handle case of no retirees
@@ -126,7 +182,7 @@ simulate_retirement <- function(contract_dt,
   }
   
   # ========================================
-  # 4. Compute Pensions
+  # 5. Compute Pensions
   # ========================================
   retirees_dt[, pension := compute_pension(
     retirees_dt = .SD,
@@ -135,33 +191,33 @@ simulate_retirement <- function(contract_dt,
   )]
   
   # ========================================
-  # 5. Update State
+  # 6. Update State
   # ========================================
   
-  # Update contracts
-  updated_contract_dt <- update_contracts_for_retirees(
+  # Update contracts (modifies contract_dt in place)
+  update_contracts_for_retirees(
     contract_dt = contract_dt,
     retirees_dt = retirees_dt,
-    ref_date = ref_date,
-    personnel_id_col = "personnel_id",
-    contract_id_col = "contract_id",
-    start_date_col = "start_date",
-    end_date_col = "end_date",
-    salary_col = "gross_salary_lcu",
-    contract_type_col = "contract_type_code"
+    ref_date = ref_date,  # Use user's ref_date
+    personnel_id_col = personnel_id_col,
+    contract_id_col = contract_id_col,
+    start_date_col = start_date_col,
+    end_date_col = end_date_col,
+    salary_col = salary_col,
+    contract_type_col = contract_type_col
   )
   
-  # Update personnel
-  updated_personnel_dt <- update_personnel_for_retirees(
+  # Update personnel (modifies personnel_dt in place)
+  update_personnel_for_retirees(
     personnel_dt = personnel_dt,
-    contract_dt = updated_contract_dt,
-    personnel_id_col = "personnel_id",
-    contract_type_col = "contract_type_code",
-    status_col = "status"
+    contract_dt = contract_dt,
+    personnel_id_col = personnel_id_col,
+    contract_type_col = contract_type_col,
+    status_col = status_col
   )
   
   # ========================================
-  # 6. Compute Summary Statistics
+  # 7. Compute Summary Statistics
   # ========================================
   summary_tbl <- compute_retirement_summary(
     retirees_dt = retirees_dt,
@@ -169,12 +225,13 @@ simulate_retirement <- function(contract_dt,
   )
   
   # ========================================
-  # 7. Return Results
+  # 8. Return Results
   # ========================================
   return(list(
     summary = summary_tbl,
-    contract_dt = updated_contract_dt,
-    personnel_dt = updated_personnel_dt,
+    contract_dt = contract_dt,
+    personnel_dt = personnel_dt,
     retirees_dt = retirees_dt
   ))
 }
+

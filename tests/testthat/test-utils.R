@@ -49,6 +49,110 @@ test_that("compute_years handles edge cases", {
 })
 
 
+# =============================================================================
+# Tests for select_nearest_ref_date()
+# =============================================================================
+
+test_that("select_nearest_ref_date returns closest date not exceeding ref_date", {
+  # Basic case
+  dates <- as.Date(c("2015-01-01", "2016-01-01", "2017-01-01"))
+  result <- select_nearest_ref_date(dates, as.Date("2016-06-01"))
+  expect_equal(result, as.Date("2016-01-01"))
+  
+  # Exact match
+  result_exact <- select_nearest_ref_date(dates, as.Date("2016-01-01"))
+  expect_equal(result_exact, as.Date("2016-01-01"))
+  
+  # ref_date after all dates - should return max
+  result_max <- select_nearest_ref_date(dates, as.Date("2020-01-01"))
+  expect_equal(result_max, as.Date("2017-01-01"))
+  
+  # ref_date between two dates
+  result_between <- select_nearest_ref_date(dates, as.Date("2015-06-15"))
+  expect_equal(result_between, as.Date("2015-01-01"))
+})
+
+test_that("select_nearest_ref_date handles duplicate dates", {
+  # Duplicates should be handled by unique()
+  dates <- as.Date(c("2015-01-01", "2016-01-01", "2016-01-01", "2017-01-01"))
+  result <- select_nearest_ref_date(dates, as.Date("2016-06-01"))
+  expect_equal(result, as.Date("2016-01-01"))
+  expect_length(result, 1)
+})
+
+test_that("select_nearest_ref_date handles unordered dates", {
+  # Dates not in chronological order
+  dates <- as.Date(c("2017-01-01", "2015-01-01", "2016-01-01"))
+  result <- select_nearest_ref_date(dates, as.Date("2016-06-01"))
+  expect_equal(result, as.Date("2016-01-01"))
+})
+
+test_that("select_nearest_ref_date returns single value", {
+  dates <- as.Date(c("2015-01-01", "2016-01-01", "2017-01-01"))
+  result <- select_nearest_ref_date(dates, as.Date("2016-06-01"))
+  expect_length(result, 1)
+  expect_type(result, "double")
+  expect_s3_class(result, "Date")
+})
+
+test_that("select_nearest_ref_date handles single date input", {
+  single_date <- as.Date("2015-01-01")
+  
+  # ref_date after single date
+  result <- select_nearest_ref_date(single_date, as.Date("2016-01-01"))
+  expect_equal(result, as.Date("2015-01-01"))
+  
+  # ref_date exactly the single date
+  result_exact <- select_nearest_ref_date(single_date, as.Date("2015-01-01"))
+  expect_equal(result_exact, as.Date("2015-01-01"))
+})
+
+test_that("select_nearest_ref_date errors when no valid dates", {
+  dates <- as.Date(c("2015-01-01", "2016-01-01", "2017-01-01"))
+  
+  # ref_date before all dates
+  expect_error(
+    select_nearest_ref_date(dates, as.Date("2014-01-01")),
+    "No dates found on or before"
+  )
+})
+
+test_that("select_nearest_ref_date handles empty input", {
+  empty_dates <- as.Date(character(0))
+  
+  expect_error(
+    select_nearest_ref_date(empty_dates, as.Date("2016-01-01")),
+    "No dates found on or before"
+  )
+})
+
+test_that("select_nearest_ref_date handles NA values appropriately", {
+  # NA values should be excluded by the <= comparison
+  dates_with_na <- as.Date(c("2015-01-01", NA, "2016-01-01", "2017-01-01"))
+  result <- select_nearest_ref_date(dates_with_na, as.Date("2016-06-01"))
+  expect_equal(result, as.Date("2016-01-01"))
+  expect_false(is.na(result))
+})
+
+test_that("select_nearest_ref_date works with monthly panel data", {
+  # Realistic scenario: monthly snapshots
+  monthly_dates <- seq(as.Date("2015-01-01"), as.Date("2017-12-01"), by = "month")
+  
+  # Should select 2016-06-01 for ref_date 2016-06-15
+  result <- select_nearest_ref_date(monthly_dates, as.Date("2016-06-15"))
+  expect_equal(result, as.Date("2016-06-01"))
+  
+  # Should select 2016-12-01 for ref_date 2016-12-31
+  result2 <- select_nearest_ref_date(monthly_dates, as.Date("2016-12-31"))
+  expect_equal(result2, as.Date("2016-12-01"))
+})
+
+
+# =============================================================================
+# Tests for compute_age()
+# =============================================================================
+
+
 test_that("compute_age calculates ages correctly", {
   # Create test personnel data
   personnel_dt <- data.table(

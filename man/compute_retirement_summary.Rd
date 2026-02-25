@@ -16,6 +16,7 @@ data.table with summary statistics
 }
 \description{
 Aggregates key statistics about retirees including count, total pension cost,
-average age, and average tenure.
+average age, and average tenure. Uses data.table for efficient computation
+on large datasets.
 }
 \keyword{internal}

@@ -1,0 +1,46 @@
+###################################################################################################
+################### SANDBOXING THE RETIREMENT CODE TO ENSURE ITS INTUITION ########################
+###################################################################################################
+
+# Define retirement policy of interest
+policy_params <- list(
+  eligibility_type = "age_and_tenure",
+  min_age = 60,
+  min_tenure = 20,
+  pension_type = "db",
+  pension_params = list(
+    accrual_rate = 0.02,
+    ref_wage_col = "gross_salary_lcu",
+    max_years = 35,
+    replacement_cap = 0.80
+  )
+)
+
+# Run simulation
+results <- simulate_retirement(
+  contract_dt = bra_hrmis_contract,
+  personnel_dt = bra_hrmis_personnel,
+  policy_params = policy_params,
+  ref_date = as.Date("2014-01-01")
+)
+
+
+### lets take the simulate_retirement sub-functions piece by piece
+
+check_retirement_inputs(contract_dt = bra_hrmis_contract, 
+                        personnel_dt = bra_hrmis_personnel,
+                        policy_params = policy_params,
+                        ref_date = as.Date("2014-01-01"))
+
+
+eligibility_dt <- identify_retirees(
+                          contract_dt = bra_hrmis_contract,
+                          personnel_dt = bra_hrmis_personnel,
+                          policy_params = policy_params,
+                          ref_date = as.Date("2014-01-01"),  # Use user's ref_date for age/tenure calculation
+                          personnel_id_col = "personnel_id",
+                          birth_date_col = "birth_date",
+                          start_date_col = "start_date",
+                          end_date_col = "end_date",
+                          contract_type_col = "contract_type_code"
+                        )                        

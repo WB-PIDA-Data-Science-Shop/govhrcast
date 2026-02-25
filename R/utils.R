@@ -261,6 +261,38 @@ create_empty_events <- function(event_type = "event") {
 }
 
 
+#' Select Nearest Reference Date
+#'
+#' @description
+#' Finds the reference date in a vector that is closest to (but not after)
+#' a specified target date. Used to select appropriate snapshot from panel data.
+#'
+#' @param x Date vector. Available reference dates to choose from
+#' @param ref_date Date. Target reference date
+#'
+#' @return Date. Single date value (closest to ref_date without exceeding it)
+#' @keywords internal
+#'
+#' @examples
+#' \dontrun{
+#' dates <- as.Date(c("2015-01-01", "2016-01-01", "2017-01-01"))
+#' select_nearest_ref_date(dates, as.Date("2016-06-01"))
+#' # Returns: 2016-01-01
+#' }
+select_nearest_ref_date <- function(x, ref_date) {
+  unique_dates <- unique(x)
+  # Remove NA values before comparison
+  unique_dates <- unique_dates[!is.na(unique_dates)]
+  valid_dates <- unique_dates[unique_dates <= ref_date]
+  
+  if (length(valid_dates) == 0) {
+    stop("No dates found on or before ", ref_date, call. = FALSE)
+  }
+  
+  max(valid_dates)
+}
+
+
 #' Format Date as YYYYMMDD String
 #'
 #' @description

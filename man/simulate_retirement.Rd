@@ -4,7 +4,21 @@
 \alias{simulate_retirement}
 \title{Simulate Retirement Module}
 \usage{
-simulate_retirement(contract_dt, personnel_dt, policy_params, ref_date)
+simulate_retirement(
+  contract_dt,
+  personnel_dt,
+  policy_params,
+  ref_date,
+  ref_date_col = "ref_date",
+  personnel_id_col = "personnel_id",
+  birth_date_col = "birth_date",
+  contract_id_col = "contract_id",
+  start_date_col = "start_date",
+  end_date_col = "end_date",
+  salary_col = "gross_salary_lcu",
+  contract_type_col = "contract_type_code",
+  status_col = "status"
+)
 }
 \arguments{
 \item{contract_dt}{data.table. Contract data in govhr harmonized format}
@@ -21,6 +35,24 @@ simulate_retirement(contract_dt, personnel_dt, policy_params, ref_date)
 }}
 
 \item{ref_date}{Date. Reference date for retirement simulation}
+
+\item{ref_date_col}{Character. Name of reference date column in panel data (default: "ref_date")}
+
+\item{personnel_id_col}{Character. Name of personnel ID column (default: "personnel_id")}
+
+\item{birth_date_col}{Character. Name of birth date column (default: "birth_date")}
+
+\item{contract_id_col}{Character. Name of contract ID column (default: "contract_id")}
+
+\item{start_date_col}{Character. Name of start date column (default: "start_date")}
+
+\item{end_date_col}{Character. Name of end date column (default: "end_date")}
+
+\item{salary_col}{Character. Name of salary column (default: "gross_salary_lcu")}
+
+\item{contract_type_col}{Character. Name of contract type column (default: "contract_type_code")}
+
+\item{status_col}{Character. Name of status column (default: "status")}
 }
 \value{
 List containing:

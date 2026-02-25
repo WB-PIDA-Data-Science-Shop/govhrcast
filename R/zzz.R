@@ -13,5 +13,12 @@ utils::globalVariables(c(
   "priority_rank",
   "retire",
   "tenure_days",
-  "tenure_years"
+  "tenure_years",
+  "flow_demand",
+  "current_stock",
+  "target_stock",
+  "stock_demand",
+  "total_hires",
+  "exit_count",
+  "head"
 ))

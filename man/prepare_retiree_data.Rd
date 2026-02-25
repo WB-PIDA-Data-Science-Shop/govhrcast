@@ -4,7 +4,18 @@
 \alias{prepare_retiree_data}
 \title{Prepare Retiree Data for Pension Calculation}
 \usage{
-prepare_retiree_data(eligibility_dt, contract_dt, personnel_dt, ref_date)
+prepare_retiree_data(
+  eligibility_dt,
+  contract_dt,
+  personnel_dt,
+  ref_date,
+  personnel_id_col = "personnel_id",
+  contract_id_col = "contract_id",
+  start_date_col = "start_date",
+  end_date_col = "end_date",
+  salary_col = "gross_salary_lcu",
+  contract_type_col = "contract_type_code"
+)
 }
 \arguments{
 \item{eligibility_dt}{data.table. Output from identify_retirees()}
@@ -14,6 +25,18 @@ prepare_retiree_data(eligibility_dt, contract_dt, personnel_dt, ref_date)
 \item{personnel_dt}{data.table. Personnel data}
 
 \item{ref_date}{Date. Reference date}
+
+\item{personnel_id_col}{Character. Name of personnel ID column (default: "personnel_id")}
+
+\item{contract_id_col}{Character. Name of contract ID column (default: "contract_id")}
+
+\item{start_date_col}{Character. Name of start date column (default: "start_date")}
+
+\item{end_date_col}{Character. Name of end date column (default: "end_date")}
+
+\item{salary_col}{Character. Name of salary column (default: "gross_salary_lcu")}
+
+\item{contract_type_col}{Character. Name of contract type column (default: "contract_type_code")}
 }
 \value{
 data.table with retiree information ready for pension calculation
