@@ -310,10 +310,221 @@ See `spielplatz/functiontesting/hiring.r` for comprehensive examples:
 ## Future Enhancements (Not Implemented)
 
 1. **Skill-based matching**: Match new hires to specific occupations/skills
-2. **Promotion simulation**: Internal mobility before external hiring
-3. **Cost-constrained hiring**: Hire within budget limits
-4. **Stochastic hiring**: Random variation in outcomes
-5. **Multi-period simulation**: Sequential hiring over time
+2. **Cost-constrained hiring**: Hire within budget limits
+3. **Multi-period simulation**: Sequential hiring over time
+
+---
+
+---
+
+# Movements Module Implementation Log
+**Package**: govhrcast v0.0.0.9000  
+**Date**: February 26, 2026  
+**Status**: ✅ Complete — 608 tests passing (0 failures, 1 intentional skip)
+
+---
+
+## Overview
+
+Implemented a complete promotions and transfers module (internal labour mobility).
+Handles:
+- Baseline estimation from panel data (empirical transition matrices)
+- Policy-multiplier-based demand projection
+- Stochastic rounding of fractional mover counts
+- Three promotion strategies: `tenure`, `wage_based`, `random`
+- Three transfer strategies: `tenure`, `random`, `reverse_tenure`
+- Multi-column group states (e.g., `c("est_id", "paygrade")`)
+- Integration with retirement and hiring modules
+
+---
+
+## Files Created/Modified
+
+### New R Files
+1. **R/movement_core.R** (~565 lines)
+   - Pure demand estimation (no state modification)
+   - `compute_time_in_grade()` — years each person has been in current group state, using earliest panel snapshot where they appear in that state
+   - `estimate_movement_baseline()` — transition probability matrix averaged across all consecutive panel periods; includes both movement (from≠to) and stay (from==to) rows
+   - `compute_movement_demand()` — applies `promotion_multiplier` / `transfer_multiplier` to baseline probs, multiplies by current stock, returns integer mover counts via `stochastic_round()`
+   - `compute_movement_summary()` — aggregates statistics (headcount before/after, promotions, transfers, historical rates)
+
+2. **R/movement_update.R** (~465 lines)
+   - State modification functions
+   - `stochastic_round(x)` — `floor(x) + Bernoulli(x - floor(x))`, unbiased integer rounding
+   - `identify_movers()` — selects exactly `n_movers` individuals per `from→to` pair; builds a global deduplicated set across all transitions to prevent double-selection
+   - `update_state_with_movement()` — ONLY function that modifies state; updates `group_cols` values and salary in `contract_dt` for each mover; warns (does not error) on unmatched salary scale entries
+
+3. **R/simulate_promotions_transfers.R** (~348 lines)
+   - Main user-facing orchestrator
+   - `simulate_promotions_transfers()` — validates inputs → estimates baseline from full panel → selects nearest ref_date snapshot → computes demand → identifies movers → updates state → computes summary
+   - Passes through gracefully with message when only 1 snapshot available (no baseline)
+
+### Modified Files
+4. **R/validation.R**
+   - Added `check_movement_inputs()` — validates contract_dt, personnel_dt, policy_params (group_cols, salary_scale, multipliers, strategies), ref_date
+   - Fixed salary column regex: was `salary|wage|pay|compensation`; changed to `salary|wage|compensation|remuneration` to avoid false match on `paygrade`
+
+### Test Files
+5. **tests/testthat/test-movement_core.R** (30 tests, 1 skip)
+6. **tests/testthat/test-movement_update.R** (33 tests)
+7. **tests/testthat/test-simulate_promotions_transfers.R** (27 tests)
+
+### Example File
+8. **spielplatz/functiontesting/movements.r**
+   - 5 scenarios + individual function demos using Brazil HRMIS data
+
+---
+
+## Architecture & Design Decisions
+
+### 1. Transition Matrix Approach
+Movement is modelled as a Markov transition:
+- States defined by `group_cols` (concatenated with `||` as separator)
+- Baseline matrix estimated from empirical panel data
+- Policy multipliers scale the off-diagonal probabilities
+- Diagonal ("no movement") absorbs the remaining probability mass
+
+### 2. Stochastic Rounding
+`demand * stock` is often fractional. Rather than always rounding down (bias) or always ceiling (over-hiring), we use stochastic rounding:
+
+```r
+stochastic_round <- function(x) {
+  floor(x) + rbinom(1, 1, x - floor(x))
+}
+```
+
+### 3. Movement Type Classification
+- **Promotion**: transition where the destination group ranks higher in `salary_scale_dt` (higher median salary = higher grade)
+- **Transfer**: all other off-diagonal transitions (same or lateral grade change)
+- Classification is computed inside `compute_movement_demand()`
+
+### 4. Selection Strategies
+
+| Strategy | Applies to | Logic |
+|---|---|---|
+| `tenure` | promotions, transfers | Longest `start_date` age first (earliest start) |
+| `wage_based` | promotions | Lowest salary ratio (`salary / max_salary_in_grade`) first |
+| `random` | transfers | Random shuffle, no ranking |
+| `reverse_tenure` | transfers | Shortest tenure first (latest `start_date`); implements LIFO |
+
+### 5. No-Double-Selection Guarantee
+`identify_movers()` maintains a `selected_ids` exclusion set updated after each `from→to` pair is processed. Subsequent pairs cannot select an already-moved person.
+
+### 6. Copy-Once Pattern
+Matches hiring and retirement modules:
+```r
+contract_dt  <- data.table::copy(contract_dt)
+personnel_dt <- data.table::copy(personnel_dt)
+```
+Original inputs are never modified.
+
+---
+
+## Key Functions
+
+### compute_time_in_grade(contract_dt, ref_date, group_cols, ...)
+Calculates continuous time in current group state using panel history.
+
+**Logic**: For each person, walks backwards through panel snapshots to find the earliest date they were already in their current state. Falls back to `start_date` for single-snapshot data.
+
+**Returns**: `data.table(personnel_id, time_in_grade)` — time in years
+
+### estimate_movement_baseline(contract_dt, group_cols, ...)
+Estimates empirical transition matrix from full panel.
+
+**Returns**: `data.table(from_group, to_group, avg_prob, n_periods)`
+
+### compute_movement_demand(contract_dt, personnel_dt, baseline_matrix, policy_params, salary_scale_dt, ref_date, ...)
+Applies multipliers and converts to integer counts.
+
+**Returns**: `data.table(from_group, to_group, movement_type, adj_prob, current_stock, n_movers)`
+
+### identify_movers(contract_dt, personnel_dt, demand_dt, policy_params, ref_date, ...)
+Selects individual personnel per transition.
+
+**Returns**: `data.table(personnel_id, from_group, to_group, movement_type)`
+
+### update_state_with_movement(contract_dt, personnel_dt, movers_dt, policy_params, ref_date, ...)
+Updates `group_cols` and salary for movers.
+
+**Returns**: `list(contract_dt, personnel_dt, movers_dt)`
+
+### simulate_promotions_transfers(contract_dt, personnel_dt, policy_params, ref_date, ...)
+Full orchestration.
+
+**Returns**: `list(summary, contract_dt, personnel_dt, movers_dt, baseline_matrix, demand_dt)`
+
+---
+
+## policy_params Structure
+
+```r
+policy_params <- list(
+  group_cols           = c("est_id"),           # Required. State columns.
+  salary_scale         = salary_scale_dt,        # Required. data.table keyed on group_cols.
+  promotion_multiplier = 1.0,                    # Optional. Default = 1.0 (status quo)
+  transfer_multiplier  = 1.0,                    # Optional. Default = 1.0
+  promotion_strategy   = "tenure",               # Optional. "tenure"|"wage_based"|"random"
+  transfer_strategy    = "random"                # Optional. "random"|"tenure"|"reverse_tenure"
+)
+```
+
+---
+
+## Integration with Other Modules
+
+### Pattern: Retirement → Movements → Hiring
+```r
+# Step 1: Retire
+ret <- simulate_retirement(contract_dt, personnel_dt, policy_retirement, ref_date)
+
+# Step 2: Internal movements on post-retirement workforce
+mov <- simulate_promotions_transfers(
+  ret$contract_dt,
+  ret$personnel_dt,
+  policy_movements,
+  ref_date = ref_date
+)
+
+# Step 3: Hire to backfill vacancies
+hir <- simulate_hiring(
+  mov$contract_dt,
+  mov$personnel_dt,
+  policy_hiring,
+  retirees_dt = ret$retirees_dt[retire == 1],
+  ref_date = ref_date
+)
+```
+
+---
+
+## Test Coverage
+
+- **test-movement_core.R**: 30 pass, 1 skip — baseline estimation, time-in-grade, demand computation
+- **test-movement_update.R**: 33 pass — stochastic rounding, mover selection (all strategies), state update
+- **test-simulate_promotions_transfers.R**: 27 pass — integration, validation, single-snapshot graceful fallback
+
+**Total package tests**: 608 passing, 0 failures, 1 skip
+
+---
+
+## Common Issues & Fixes Encountered
+
+| Issue | Root Cause | Fix |
+|---|---|---|
+| `setorderv: column contract_id not found` | Test data missing `contract_id` column; `get_primary_contract()` requires it | Added `contract_id` to all test helpers |
+| Broken `snap_contract_dt[char_vector]` without `on=` | Dead code block in `simulate_promotions_transfers.R` before the working version | Removed duplicate block |
+| `paygrade` matched salary regex | Pattern `salary\|wage\|pay\|compensation`; "pay" ⊂ "paygrade" | Changed to `salary\|wage\|compensation\|remuneration` |
+| `expect_message()` returns condition, not value | testthat 3.x: `expect_message` returns the condition object, not the expression value | Capture value via `result <- NULL; expect_message({ result <- f() }, ...)` |
+
+---
+
+## Example Usage
+
+See `spielplatz/functiontesting/movements.r`:
+- Part 1: Individual core functions (compute_time_in_grade, estimate_movement_baseline, compute_movement_demand)
+- Part 2: Individual update functions (stochastic_round, identify_movers, update_state_with_movement)
+- Part 3: Five full-orchestration scenarios (status quo, 2× promotions, no transfers, wage_based, retirement→movements chain)
 
 ---
 

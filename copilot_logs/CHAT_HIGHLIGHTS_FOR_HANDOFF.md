@@ -1,12 +1,13 @@
-# Chat Highlights - Hiring Module Implementation
+# Chat Highlights - govhrcast Module Implementation
 **For LLM Handoff Context**  
 **Last Updated**: February 26, 2026
 
 ---
 
-## What We Built
+## Modules Implemented
 
-A complete **hiring module** for the govhrcast R package that simulates hiring/downsizing in public sector organizations. Works with the existing retirement module.
+1. **Hiring module** — `simulate_hiring()` (complete, 518 tests)
+2. **Movements module** — `simulate_promotions_transfers()` (complete, +90 tests, total 608)
 
 ---
 
@@ -289,10 +290,172 @@ These are features for future enhancement, not bugs.
 
 ## If Starting Fresh / Picking Up Work
 
-1. Check `spielplatz/HIRING_MODULE_IMPLEMENTATION_LOG.md` for technical details
-2. Look at `spielplatz/functiontesting/hiring.r` for working examples
-3. Run tests: `devtools::test()` - should see 518 passing
-4. Check original spec: `spielplatz/promptsystem/govhrcast_03_hiring_module.prompt.md`
+1. Check `copilot_logs/HIRING_MODULE_IMPLEMENTATION_LOG.md` for full technical details (hiring + movements)
+2. Look at `spielplatz/functiontesting/hiring.r` and `movements.r` for working examples
+3. Run tests: `devtools::test()` — should see **608 passing**
+4. Prompt specs: `spielplatz/promptsystem/`
+
+---
+
+---
+
+# Movements Module Highlights
+**Added**: February 26, 2026
+
+---
+
+## What We Built
+
+A complete **promotions and transfers module** (`simulate_promotions_transfers()`) implementing internal labour mobility for public sector workforce forecasting.
+
+---
+
+## Critical Context
+
+### 1. Design Philosophy (same as hiring)
+- Copy-once-modify-by-reference pattern
+- No hardcoded column names
+- data.table throughout
+- Pure functions (core) / single state-mutating function (update)
+
+### 2. Key Architectural Decisions
+
+#### Transition Matrix
+- States = concatenated `group_cols` values (joined with `||`)
+- Baseline estimated from ALL consecutive panel period pairs, averaged
+- `promotion_multiplier` / `transfer_multiplier` scale off-diagonal probs
+- "Stay" probability absorbs the remainder (row sums preserved ≤ 1)
+
+#### Movement Type Classification
+Determined from `salary_scale_dt` ordering:
+- **Promotion**: destination has higher median salary than origin
+- **Transfer**: all other off-diagonal moves (lateral or downward)
+
+#### Stochastic Rounding
+`demand × stock` is fractional → `floor(x) + Bernoulli(x - floor(x))`
+Unbiased; avoids systematic under/over-hiring
+
+#### No-Double-Selection
+`identify_movers()` maintains an exclusion set. Once selected, a person cannot appear in any other `from→to` pair in the same simulation step.
+
+### 3. Strategies
+
+```r
+# Promotion candidates
+promotion_strategy = "tenure"      # Longest time in current grade first
+promotion_strategy = "wage_based"  # Lowest salary ratio (salary/max_in_grade) first
+promotion_strategy = "random"      # Random shuffle
+
+# Transfer candidates
+transfer_strategy = "tenure"          # Longest total tenure first
+transfer_strategy = "random"          # Random shuffle
+transfer_strategy = "reverse_tenure"  # Shortest tenure first (LIFO)
+```
+
+### 4. Single-Snapshot Fallback
+When `contract_dt` has only one `ref_date` (no panel baseline), the function:
+- Emits `message("No movement baseline available...")`
+- Returns input data unchanged + empty `movers_dt`
+- Allows graceful pipeline continuation without crashing
+
+---
+
+## Files Structure
+
+```
+R/
+├── movement_core.R          # Pure functions: time-in-grade, baseline, demand
+├── movement_update.R        # stochastic_round, identify_movers, update_state
+├── simulate_promotions_transfers.R  # Main orchestrator
+└── validation.R             # check_movement_inputs() added
+
+tests/testthat/
+├── test-movement_core.R     # 30 pass, 1 skip
+├── test-movement_update.R   # 33 pass
+└── test-simulate_promotions_transfers.R  # 27 pass
+
+spielplatz/functiontesting/
+└── movements.r              # 5 scenarios + per-function demos
+```
+
+---
+
+## Policy Params Quick Reference
+
+```r
+policy_params <- list(
+  group_cols           = c("est_id"),        # Required
+  salary_scale         = salary_scale_dt,    # Required: data.table keyed on group_cols
+  promotion_multiplier = 1.0,               # Optional, default 1.0
+  transfer_multiplier  = 1.0,               # Optional, default 1.0
+  promotion_strategy   = "tenure",           # Optional, default "tenure"
+  transfer_strategy    = "random"            # Optional, default "random"
+)
+```
+
+---
+
+## Return Value
+
+```r
+results <- simulate_promotions_transfers(...)
+results$summary          # 1-row data.table: n_promotions, n_transfers, headcount_*
+results$contract_dt      # Updated snapshot contracts (movers have new est_id + salary)
+results$personnel_dt     # Unchanged
+results$movers_dt        # One row per mover: personnel_id, from_group, to_group, movement_type
+results$baseline_matrix  # Estimated transition matrix from panel data
+results$demand_dt        # Policy-adjusted demand by transition
+```
+
+---
+
+## Common Q&A
+
+### Q: "Why are 0 movements happening?"
+- Check `baseline_matrix` has off-diagonal rows: `results$baseline_matrix[from_group != to_group]`
+- Check `policy_params$promotion_multiplier` and `transfer_multiplier` are > 0
+- Check `demand_dt$n_movers` — if 0, demand is 0 (tiny baseline × small stock)
+
+### Q: "How do I use pre-computed baseline?"
+```r
+baseline <- estimate_movement_baseline(contract_dt, group_cols = "est_id")
+# Then pass it in:
+results <- simulate_promotions_transfers(
+  ...,
+  baseline_matrix = baseline  # Skips estimation step
+)
+```
+
+### Q: "How do I chain retirement → movements → hiring?"
+```r
+ret <- simulate_retirement(contract_dt, personnel_dt, policy_ret, ref_date)
+mov <- simulate_promotions_transfers(ret$contract_dt, ret$personnel_dt, policy_mov, ref_date)
+hir <- simulate_hiring(mov$contract_dt, mov$personnel_dt, policy_hir,
+                       retirees_dt = ret$retirees_dt[retire == 1], ref_date)
+```
+
+### Q: "Salary column regex hits paygrade?"
+Pattern changed from `salary|wage|pay|compensation` to `salary|wage|compensation|remuneration`.
+`pay` was a substring of `paygrade` causing false positives.
+
+---
+
+## Bugs Fixed During Implementation
+
+1. **Test data missing `contract_id`**: `get_primary_contract()` calls `setorderv(contract_id_col)` — all test helpers needed `contract_id` column
+2. **Dead code `snap_contract_dt[char_vector]`**: A superseded block tried to subset by character vector without `on=` — removed it
+3. **Salary regex false positive**: `pay` in pattern matched `paygrade` — narrowed pattern
+4. **`expect_message()` returns condition not value**: Fixed integration test to capture return value separately inside the `expect_message({...})` block
+
+---
+
+## What's Next (Not Yet Done)
+
+1. **Skills / occupation matching**: `occ_code` movement constraints
+2. **Budget-constrained movements**: Cap total salary bill change from promotions
+3. **Multi-period simulation**: Sequential steps with compounding effects
+4. **Wage bill impact reporting**: Extended summary with payroll change
+5. **Next prompt**: Check `spielplatz/promptsystem/` for govhrcast_05_*
 
 ---
 

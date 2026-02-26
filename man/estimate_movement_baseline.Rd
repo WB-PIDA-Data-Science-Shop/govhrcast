@@ -46,7 +46,8 @@ for promotions and transfers. Compares consecutive snapshots (T0->T1, T1->T2,
 etc.) and calculates the average probability P_ij = (sum of movements i->j) /
 (sum of total population in state i at start of each period).
 
-States are defined by the concatenated values of \code{group_cols}. A "no
-movement" state is represented by \code{from_group == to_group}.
+States are defined by the concatenated values of \code{group_cols}. Only
+actual transitions (\code{from_group != to_group}) are returned; stay rows
+and rows with NA in any group_col are dropped.
 }
 \keyword{internal}

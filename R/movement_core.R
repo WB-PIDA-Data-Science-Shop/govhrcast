@@ -144,8 +144,9 @@ compute_time_in_grade <- function(contract_dt,
 #' etc.) and calculates the average probability P_ij = (sum of movements i->j) /
 #' (sum of total population in state i at start of each period).
 #'
-#' States are defined by the concatenated values of \code{group_cols}. A "no
-#' movement" state is represented by \code{from_group == to_group}.
+#' States are defined by the concatenated values of \code{group_cols}. Only
+#' actual transitions (\code{from_group != to_group}) are returned; stay rows
+#' and rows with NA in any group_col are dropped.
 #'
 #' @param contract_dt data.table. Contract data in long (panel) format.
 #'   Must contain ref_date_col for panel identification.
@@ -215,6 +216,8 @@ estimate_movement_baseline <- function(contract_dt,
 
     # One row per person at T0 (primary contract determines group state)
     state_t0 <- unique(active_t0[, c(personnel_id_col, group_cols), with = FALSE])
+    # Drop rows where any group_col is NA
+    state_t0 <- stats::na.omit(state_t0, cols = group_cols)
     state_t0[, from_group := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
     data.table::setnames(state_t0, personnel_id_col, ".pid")
 
@@ -227,6 +230,8 @@ estimate_movement_baseline <- function(contract_dt,
     ]
 
     state_t1 <- unique(active_t1[, c(personnel_id_col, group_cols), with = FALSE])
+    # Drop rows where any group_col is NA
+    state_t1 <- stats::na.omit(state_t1, cols = group_cols)
     state_t1[, to_group := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
     data.table::setnames(state_t1, personnel_id_col, ".pid")
 
@@ -268,6 +273,16 @@ estimate_movement_baseline <- function(contract_dt,
     avg_prob  = mean(period_prob, na.rm = TRUE),
     n_periods = data.table::uniqueN(period_key)
   ), by = .(from_group, to_group)]
+
+  # Drop stay rows (from_group == to_group): we only want actual transitions
+  baseline_matrix <- baseline_matrix[from_group != to_group]
+
+  # Drop any rows where from_group or to_group encodes an NA value ("NA" string
+  # or literal NA) — these arise when group_cols contains NAs in the data
+  baseline_matrix <- baseline_matrix[
+    !is.na(from_group) & !is.na(to_group) &
+    from_group != "NA"  & to_group  != "NA"
+  ]
 
   # Check for duplicate from_group/to_group (should not occur, but guard)
   if (anyDuplicated(baseline_matrix, by = c("from_group", "to_group"))) {
@@ -349,9 +364,17 @@ compute_movement_demand <- function(contract_dt,
     contract_type_col = contract_type_col
   )
 
-  active_personnel <- active_contracts[
-    personnel_dt[get(status_col) == "active"],
-    on = personnel_id_col,
+  # Deduplicate to one row per person (panel data has one row per snapshot).
+  # We only need group_cols here, so take the unique person × group combination.
+  person_group_unique <- unique(
+    active_contracts[, c(personnel_id_col, group_cols), with = FALSE]
+  )
+  # Drop rows where any group_col is NA
+  person_group_unique <- stats::na.omit(person_group_unique, cols = group_cols)
+
+  active_personnel <- person_group_unique[
+    personnel_dt[get(status_col) == "active", .(personnel_id = get(personnel_id_col))],
+    on = c(personnel_id_col),
     nomatch = NULL
   ]
 
@@ -366,8 +389,8 @@ compute_movement_demand <- function(contract_dt,
     ))
   }
 
-  # Get unique person per group (one row per person)
-  person_states <- unique(active_personnel[, c(personnel_id_col, group_cols), with = FALSE])
+  # Build group-state key per person (already one row per person after dedup above)
+  person_states <- data.table::copy(active_personnel)
   person_states[, from_group := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
 
   stock_dt <- person_states[, .(current_stock = .N), by = from_group]
