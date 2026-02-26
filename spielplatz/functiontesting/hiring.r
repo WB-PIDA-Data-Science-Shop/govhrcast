@@ -50,11 +50,11 @@ retirees_all <- identify_retirees(
   contract_dt = contract_dt,
   personnel_dt = personnel_dt,
   policy_params = policy_params_retirement,
-  ref_date = "2016-09-01"  # Can pass as string or Date object
+  ref_date = as.Date("2016-09-01")  # Can pass as string or Date object
 )
 
 # Filter to only actual retirees (retiree == 1)
-retirees_dt <- retirees_all[retiree == 1]
+retirees_dt <- retirees_all[retire == 1]
 
 cat("Number of retirees identified:", nrow(retirees_dt), "\n\n")
 
@@ -271,7 +271,7 @@ retirement_results <- simulate_retirement(
   contract_dt = contract_dt,
   personnel_dt = personnel_dt,
   policy_params = policy_params_retirement,
-  ref_date = "2016-09-01"
+  ref_date = as.Date("2016-09-01")
 )
 
 cat("Retirements processed:", retirement_results$summary$n_retired, "\n")
@@ -289,14 +289,14 @@ policy_params_replace <- list(
 
 # Use updated contract_dt and personnel_dt from retirement simulation
 # Filter retirees_dt to only those with retiree == 1
-retirees_only <- retirement_results$retirees_dt[retiree == 1]
+retirees_only <- retirement_results$retirees_dt[retire == 1]
 
 hiring_results <- simulate_hiring(
   contract_dt = retirement_results$contract_dt,
   personnel_dt = retirement_results$personnel_dt,
   policy_params = policy_params_replace,
-  retirees_dt = retirees_only,  # Only actual retirees
-  ref_date = "2016-09-01"
+  retirees_dt = retirement_results$retirees_dt,  # Only actual retirees
+  ref_date = as.Date("2016-09-01")
 )
 
 cat("New hires:", hiring_results$summary$n_new_hires, "\n")

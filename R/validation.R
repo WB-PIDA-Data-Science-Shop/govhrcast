@@ -487,3 +487,117 @@ check_hiring_inputs <- function(contract_dt,
   
   return(invisible(TRUE))
 }
+
+
+#' Check Promotions and Transfers Module Inputs
+#'
+#' @description
+#' Validates all inputs for simulate_promotions_transfers. Checks data tables,
+#' required columns, and policy parameter structure.
+#'
+#' @param contract_dt data.table. Contract data
+#' @param personnel_dt data.table. Personnel data
+#' @param policy_params List. Policy parameters
+#' @param ref_date Date or character. Reference date
+#' @param personnel_id_col Character. Personnel ID column name
+#' @param start_date_col Character. Start date column name
+#' @param end_date_col Character. End date column name
+#' @param contract_type_col Character. Contract type column name
+#' @param status_col Character. Status column name
+#'
+#' @return Invisible TRUE if valid, stops with error otherwise
+#' @keywords internal
+check_movement_inputs <- function(contract_dt,
+                                  personnel_dt,
+                                  policy_params,
+                                  ref_date,
+                                  personnel_id_col  = "personnel_id",
+                                  start_date_col    = "start_date",
+                                  end_date_col      = "end_date",
+                                  contract_type_col = "contract_type_code",
+                                  status_col        = "status") {
+
+  # Validate data tables
+  validate_datatable(contract_dt,  "contract_dt")
+  validate_datatable(personnel_dt, "personnel_dt")
+
+  # Validate ref_date
+  validate_date_format(ref_date, "ref_date")
+
+  # Validate policy_params
+  if (!is.list(policy_params)) {
+    stop("policy_params must be a list", call. = FALSE)
+  }
+
+  # Required: group_cols
+  if (is.null(policy_params$group_cols) || length(policy_params$group_cols) == 0) {
+    stop("policy_params must contain 'group_cols' (character vector of state-defining columns)",
+         call. = FALSE)
+  }
+  if (!is.character(policy_params$group_cols)) {
+    stop("policy_params$group_cols must be a character vector", call. = FALSE)
+  }
+
+  # Required: salary_scale
+  if (is.null(policy_params$salary_scale)) {
+    stop("policy_params must contain 'salary_scale' (data.table keyed on group_cols)",
+         call. = FALSE)
+  }
+  if (!data.table::is.data.table(policy_params$salary_scale)) {
+    stop("policy_params$salary_scale must be a data.table", call. = FALSE)
+  }
+
+  # salary_scale must contain group_cols
+  validate_columns_exist(policy_params$salary_scale, policy_params$group_cols, "salary_scale")
+
+  # salary_scale must contain a salary column
+  # Match salary/wage/compensation as whole words or substrings, but avoid
+  # false positives like 'paygrade' (which contains 'pay' but is not a salary col)
+  salary_pattern    <- "salary|wage|compensation|remuneration"
+  salary_candidates <- grep(salary_pattern, names(policy_params$salary_scale),
+                            value = TRUE, ignore.case = TRUE)
+  if (length(salary_candidates) == 0) {
+    stop("salary_scale must contain a salary column matching 'salary|wage|compensation|remuneration'",
+         call. = FALSE)
+  }
+
+  # Optional: validate promotion_multiplier if present
+  if (!is.null(policy_params$promotion_multiplier)) {
+    validate_positive_number(policy_params$promotion_multiplier,
+                             "promotion_multiplier", allow_zero = TRUE)
+  }
+
+  # Optional: validate transfer_multiplier if present
+  if (!is.null(policy_params$transfer_multiplier)) {
+    validate_positive_number(policy_params$transfer_multiplier,
+                             "transfer_multiplier", allow_zero = TRUE)
+  }
+
+  # Optional: validate promotion_strategy if present
+  if (!is.null(policy_params$promotion_strategy)) {
+    validate_choice(policy_params$promotion_strategy,
+                    c("tenure", "wage_based"),
+                    "promotion_strategy")
+  }
+
+  # Optional: validate transfer_strategy if present
+  if (!is.null(policy_params$transfer_strategy)) {
+    validate_choice(policy_params$transfer_strategy,
+                    c("random", "tenure", "reverse_tenure"),
+                    "transfer_strategy")
+  }
+
+  # Validate group_cols exist in contract_dt
+  validate_columns_exist(contract_dt, policy_params$group_cols, "contract_dt")
+
+  # Required contract_dt columns
+  required_contract_cols <- c(personnel_id_col, start_date_col,
+                              end_date_col, contract_type_col)
+  validate_columns_exist(contract_dt, required_contract_cols, "contract_dt")
+
+  # Required personnel_dt columns
+  required_personnel_cols <- c(personnel_id_col, status_col)
+  validate_columns_exist(personnel_dt, required_personnel_cols, "personnel_dt")
+
+  return(invisible(TRUE))
+}
