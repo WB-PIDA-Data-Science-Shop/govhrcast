@@ -151,15 +151,16 @@ simulate_retirement <- function(contract_dt,
   # 4. Prepare Retiree Data
   # ========================================
   retirees_dt <- prepare_retiree_data(
-    eligibility_dt = eligibility_dt,
-    contract_dt = contract_dt,
-    personnel_dt = personnel_dt,
-    ref_date = ref_date,  # Use user's ref_date
-    personnel_id_col = personnel_id_col,
-    contract_id_col = contract_id_col,
-    start_date_col = start_date_col,
-    end_date_col = end_date_col,
-    salary_col = salary_col,
+    eligibility_dt    = eligibility_dt,
+    contract_dt       = contract_dt,
+    personnel_dt      = personnel_dt,
+    ref_date          = ref_date,  # Use user's ref_date
+    personnel_id_col  = personnel_id_col,
+    birth_date_col    = birth_date_col,
+    contract_id_col   = contract_id_col,
+    start_date_col    = start_date_col,
+    end_date_col      = end_date_col,
+    salary_col        = salary_col,
     contract_type_col = contract_type_col
   )
   

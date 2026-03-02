@@ -15,7 +15,9 @@ Imports:
     data.table
 Suggests:
     testthat (>= 3.0.0),
-    govhr
+    govhr,
+    future,
+    future.apply
 Depends: 
     R (>= 3.5)
 LazyData: true

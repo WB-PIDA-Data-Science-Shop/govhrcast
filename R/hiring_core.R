@@ -48,7 +48,23 @@ compute_current_stock <- function(contract_dt,
     contract_type_col = contract_type_col
   )
   
-  # Merge with personnel to get active personnel only
+  # Merge with personnel to get active personnel only.
+  # NOTE: both contract_dt and personnel_dt must already be single-snapshot data.
+  # The orchestrators (simulate_hiring, simulate_retirement) pre-filter to the
+  # nearest ref_date before calling this function. If calling directly with raw
+  # panel data, subset to a single snapshot first.
+  #
+  # personnel_dt is expected to be unique at the personnel_id level. If it is not,
+  # the join below will produce a cartesian product. Check upfront and error clearly.
+  if (anyDuplicated(personnel_dt, by = personnel_id_col)) {
+    stop(
+      "personnel_dt has duplicate rows for the same ", personnel_id_col, ". ",
+      "Ensure personnel_dt is unique at the ", personnel_id_col,
+      " level before calling compute_current_stock().",
+      call. = FALSE
+    )
+  }
+
   active_personnel <- active_contracts[
     personnel_dt[get(status_col) == "active"],
     on = personnel_id_col,
@@ -416,17 +432,220 @@ compute_combined_demand <- function(contract_dt,
 }
 
 
+#' Estimate Historical Hiring Rates from Panel Data
+#'
+#' @description
+#' Uses \code{govhr::detect_personnel_event()} to detect hire events across the
+#' full historical panel, joins them to contract data to recover grouping
+#' variables, computes per-group hiring rates (hires / active stock) for each
+#' snapshot, and returns the mean rate per group.
+#'
+#' @param panel_contract_dt data.table. Full panel of contract data (all ref_dates).
+#' @param panel_personnel_dt data.table. Full panel of personnel data (all ref_dates).
+#' @param group_cols Character vector. Columns to group by (e.g. \code{"est_id"}).
+#'   Pass \code{NULL} for overall (ungrouped) rates.
+#' @param freq Character. Frequency passed to \code{govhr::detect_personnel_event()}.
+#'   Default \code{"year"}.
+#' @param personnel_id_col Character. Personnel ID column. Default \code{"personnel_id"}.
+#' @param ref_date_col Character. Reference-date column in both panel tables.
+#'   Default \code{"ref_date"}.
+#' @param start_date_col Character. Contract start-date column. Default \code{"start_date"}.
+#' @param end_date_col Character. Contract end-date column. Default \code{"end_date"}.
+#' @param contract_type_col Character. Contract-type column. Default \code{"contract_type_code"}.
+#' @param status_col Character. Personnel status column. Default \code{"status"}.
+#'
+#' @return data.table with \code{group_cols} (if specified) and \code{hiring_rate} column.
+#' @export
+estimate_historical_hiring_rates <- function(
+    panel_contract_dt,
+    panel_personnel_dt,
+    group_cols,
+    freq              = "year",
+    personnel_id_col  = "personnel_id",
+    ref_date_col      = "ref_date",
+    start_date_col    = "start_date",
+    end_date_col      = "end_date",
+    contract_type_col = "contract_type_code",
+    status_col        = "status") {
+
+  panel_dates <- sort(unique(panel_personnel_dt[[ref_date_col]]))
+  start_str   <- format(min(panel_dates, na.rm = TRUE))
+  end_str     <- format(max(panel_dates, na.rm = TRUE))
+
+  # Detect hire events across the full panel
+  hire_events <- govhr::detect_personnel_event(
+    data       = panel_personnel_dt,
+    id_col     = personnel_id_col,
+    event_type = "hire",
+    start_date = start_str,
+    end_date   = end_str,
+    freq       = freq
+  )
+  # hire_events columns: personnel_id_col, ref_date, type_event
+
+  # Join to contract panel to retrieve group_cols per hire
+  if (!is.null(group_cols) && length(group_cols) > 0) {
+    contract_groups <- unique(
+      panel_contract_dt[, c(personnel_id_col, ref_date_col, group_cols), with = FALSE]
+    )
+    hire_events <- contract_groups[hire_events, on = c(personnel_id_col, ref_date_col)]
+
+    hire_counts <- hire_events[
+      !is.na(get(group_cols[[1]])),   # drop hires without a matching group
+      .(n_hires = .N),
+      by = c(ref_date_col, group_cols)
+    ]
+  } else {
+    hire_counts <- hire_events[, .(n_hires = .N), by = ref_date_col]
+  }
+
+  # Compute active stock per snapshot per group (re-uses compute_current_stock)
+  stock_list <- lapply(panel_dates, function(snap) {
+    ct_snap <- panel_contract_dt[get(ref_date_col) == snap]
+    pt_snap <- panel_personnel_dt[get(ref_date_col) == snap]
+    ct_snap <- ct_snap[, !ref_date_col, with = FALSE]
+    pt_snap <- pt_snap[, !ref_date_col, with = FALSE]
+
+    s <- compute_current_stock(
+      contract_dt       = ct_snap,
+      personnel_dt      = pt_snap,
+      ref_date          = snap,
+      group_cols        = group_cols,
+      personnel_id_col  = personnel_id_col,
+      start_date_col    = start_date_col,
+      end_date_col      = end_date_col,
+      contract_type_col = contract_type_col,
+      status_col        = status_col
+    )
+    s[, (ref_date_col) := snap]
+    s
+  })
+  stock_dt <- data.table::rbindlist(stock_list, fill = TRUE)
+
+  # Merge hire counts with stock to compute per-snapshot hiring rates
+  join_keys <- if (!is.null(group_cols) && length(group_cols) > 0) {
+    c(ref_date_col, group_cols)
+  } else {
+    ref_date_col
+  }
+
+  rate_dt <- hire_counts[stock_dt, on = join_keys]
+  rate_dt[is.na(n_hires), n_hires := 0L]
+  rate_dt[, hiring_rate := data.table::fifelse(
+    current_stock > 0,
+    n_hires / current_stock,
+    0
+  )]
+
+  # Average rate across snapshots per group
+  if (!is.null(group_cols) && length(group_cols) > 0) {
+    result <- rate_dt[, .(hiring_rate = mean(hiring_rate, na.rm = TRUE)), by = group_cols]
+  } else {
+    result <- data.table::data.table(hiring_rate = mean(rate_dt$hiring_rate, na.rm = TRUE))
+  }
+
+  result
+}
+
+
+#' Compute Status-Quo Hiring Demand
+#'
+#' @description
+#' Replicates the historical hiring rate observed in the panel to generate
+#' period-specific hiring demand.  The rate is estimated once via
+#' \code{estimate_historical_hiring_rates()} (using panel data injected into
+#' \code{policy_params} by \code{simulate_horizon()}), then scaled by
+#' \code{policy_params$rate_mult} (default 1), and applied to the current
+#' active stock.
+#'
+#' @param contract_dt data.table. Current-period contract snapshot (no ref_date column).
+#' @param personnel_dt data.table. Current-period personnel snapshot (no ref_date column).
+#' @param policy_params List. Must contain:
+#'   \itemize{
+#'     \item panel_contract_dt: Full historical contract panel (injected by simulate_horizon).
+#'     \item panel_personnel_dt: Full historical personnel panel (injected by simulate_horizon).
+#'     \item group_cols: Character vector or NULL.
+#'     \item rate_mult: Numeric scalar (default 1). Scales the estimated historical rate.
+#'     \item salary_scale: data.table used for salary assignment of new hires.
+#'   }
+#' @param ref_date Date. Reference date for current-period stock calculation.
+#' @param personnel_id_col Character. Default \code{"personnel_id"}.
+#' @param start_date_col Character. Default \code{"start_date"}.
+#' @param end_date_col Character. Default \code{"end_date"}.
+#' @param contract_type_col Character. Default \code{"contract_type_code"}.
+#' @param status_col Character. Default \code{"status"}.
+#'
+#' @return data.table with \code{group_cols} (if specified) and \code{total_hires} column.
+#' @keywords internal
+compute_status_quo_hiring <- function(contract_dt,
+                                      personnel_dt,
+                                      policy_params,
+                                      ref_date,
+                                      personnel_id_col  = "personnel_id",
+                                      start_date_col    = "start_date",
+                                      end_date_col      = "end_date",
+                                      contract_type_col = "contract_type_code",
+                                      status_col        = "status") {
+
+  group_cols <- policy_params$group_cols
+  rate_mult  <- if (!is.null(policy_params$rate_mult)) policy_params$rate_mult else 1
+
+  # Estimate historical rates from panel (panel was injected by simulate_horizon)
+  rates <- estimate_historical_hiring_rates(
+    panel_contract_dt  = policy_params$panel_contract_dt,
+    panel_personnel_dt = policy_params$panel_personnel_dt,
+    group_cols         = group_cols,
+    personnel_id_col   = personnel_id_col,
+    start_date_col     = start_date_col,
+    end_date_col       = end_date_col,
+    contract_type_col  = contract_type_col,
+    status_col         = status_col
+  )
+  rates[, hiring_rate := hiring_rate * rate_mult]
+
+  # Current active stock in this period
+  stock <- compute_current_stock(
+    contract_dt       = contract_dt,
+    personnel_dt      = personnel_dt,
+    ref_date          = ref_date,
+    group_cols        = group_cols,
+    personnel_id_col  = personnel_id_col,
+    start_date_col    = start_date_col,
+    end_date_col      = end_date_col,
+    contract_type_col = contract_type_col,
+    status_col        = status_col
+  )
+
+  # Merge rates onto stock
+  if (!is.null(group_cols) && length(group_cols) > 0) {
+    demand <- rates[stock, on = group_cols]
+  } else {
+    demand <- cbind(stock, rates)
+  }
+
+  demand[is.na(hiring_rate), hiring_rate := 0]
+  demand[, total_hires := pmax(0L, as.integer(round(current_stock * hiring_rate)))]
+
+  if (!is.null(group_cols) && length(group_cols) > 0) {
+    demand[, c(group_cols, "total_hires"), with = FALSE]
+  } else {
+    demand[, .(total_hires)]
+  }
+}
+
+
 #' Estimate Hiring Demand
 #'
 #' @description
 #' Wrapper function that routes to appropriate demand calculation based on
-#' policy mode: "flow", "stock", or "combined". Pure function - no state modification.
+#' policy mode: \code{"flow"}, \code{"stock"}, \code{"combined"}, or
+#' \code{"status_quo"}. Pure function — no state modification.
 #'
 #' @param contract_dt data.table. Contract data
 #' @param personnel_dt data.table. Personnel data
 #' @param policy_params List. Must contain:
 #'   \itemize{
-#'     \item mode: "flow", "stock", or "combined"
+#'     \item mode: \code{"flow"}, \code{"stock"}, \code{"combined"}, or \code{"status_quo"}
 #'     \item Other parameters depending on mode (see specific functions)
 #'   }
 #' @param retirees_dt data.table. Optional. Output from simulate_retirement (default: NULL)
@@ -493,8 +712,20 @@ estimate_hiring_demand <- function(contract_dt,
       contract_type_col = contract_type_col,
       status_col = status_col
     ),
-    
-    stop("Unknown hiring mode: ", mode, ". Must be 'flow', 'stock', or 'combined'", 
+
+    "status_quo" = compute_status_quo_hiring(
+      contract_dt       = contract_dt,
+      personnel_dt      = personnel_dt,
+      policy_params     = policy_params,
+      ref_date          = ref_date,
+      personnel_id_col  = personnel_id_col,
+      start_date_col    = start_date_col,
+      end_date_col      = end_date_col,
+      contract_type_col = contract_type_col,
+      status_col        = status_col
+    ),
+
+    stop("Unknown hiring mode: ", mode, ". Must be 'flow', 'stock', 'combined', or 'status_quo'",
          call. = FALSE)
   )
   
@@ -506,12 +737,18 @@ estimate_hiring_demand <- function(contract_dt,
 #'
 #' @description
 #' Aggregates key statistics about hiring including new hires count,
-#' net headcount change, total headcount, and total new salary cost.
+#' net headcount change, total headcount, and total salary cost impact.
 #' Uses data.table for efficient computation.
+#'
+#' For hiring scenarios, `total_new_salary_cost` is the annual salary bill added
+#' (sum of new hire salaries). For downsizing scenarios it is the annual salary
+#' bill removed (sum of terminated worker salaries, reported as a negative number
+#' to indicate savings). Mixed scenarios sum both.
 #'
 #' @param adjustment_dt data.table. Adjustment data with net_change column
 #' @param new_hires_dt data.table. New hire personnel data (optional)
 #' @param new_contracts_dt data.table. New hire contract data with salary (optional)
+#' @param terminated_contracts_dt data.table. Terminated contract data with salary (optional)
 #' @param total_headcount Integer. Current total headcount after adjustment
 #'
 #' @return data.table with summary statistics
@@ -519,19 +756,34 @@ estimate_hiring_demand <- function(contract_dt,
 compute_hiring_summary <- function(adjustment_dt,
                                    new_hires_dt = NULL,
                                    new_contracts_dt = NULL,
+                                   terminated_contracts_dt = NULL,
                                    total_headcount = NA_integer_) {
   
   # Calculate statistics
   n_new_hires <- if (!is.null(new_hires_dt)) nrow(new_hires_dt) else 0L
   net_change <- if (nrow(adjustment_dt) > 0) sum(adjustment_dt$net_change, na.rm = TRUE) else 0L
   
-  # Calculate new salary cost if contracts provided
-  if (!is.null(new_contracts_dt) && nrow(new_contracts_dt) > 0 && 
-      "gross_salary_lcu" %in% names(new_contracts_dt)) {
-    new_salary_cost <- sum(new_contracts_dt$gross_salary_lcu, na.rm = TRUE)
+  salary_col <- "gross_salary_lcu"
+  
+  # New hire salary cost (positive)
+  hire_cost <- if (!is.null(new_contracts_dt) && nrow(new_contracts_dt) > 0 &&
+                   salary_col %in% names(new_contracts_dt)) {
+    sum(new_contracts_dt[[salary_col]], na.rm = TRUE)
   } else {
-    new_salary_cost <- NA_real_
+    0
   }
+  
+  # Terminated salary savings (reported as negative — cost removed from payroll)
+  downsize_cost <- if (!is.null(terminated_contracts_dt) && nrow(terminated_contracts_dt) > 0 &&
+                        salary_col %in% names(terminated_contracts_dt)) {
+    -sum(terminated_contracts_dt[[salary_col]], na.rm = TRUE)
+  } else {
+    0
+  }
+  
+  # Combined: positive = net new cost, negative = net savings
+  total_salary_impact <- hire_cost + downsize_cost
+  new_salary_cost <- if (hire_cost == 0 && downsize_cost == 0) NA_real_ else total_salary_impact
   
   summary_tbl <- data.table::data.table(
     n_new_hires = as.integer(n_new_hires),

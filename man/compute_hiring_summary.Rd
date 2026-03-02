@@ -8,6 +8,7 @@ compute_hiring_summary(
   adjustment_dt,
   new_hires_dt = NULL,
   new_contracts_dt = NULL,
+  terminated_contracts_dt = NULL,
   total_headcount = NA_integer_
 )
 }
@@ -18,6 +19,8 @@ compute_hiring_summary(
 
 \item{new_contracts_dt}{data.table. New hire contract data with salary (optional)}
 
+\item{terminated_contracts_dt}{data.table. Terminated contract data with salary (optional)}
+
 \item{total_headcount}{Integer. Current total headcount after adjustment}
 }
 \value{
@@ -25,7 +28,12 @@ data.table with summary statistics
 }
 \description{
 Aggregates key statistics about hiring including new hires count,
-net headcount change, total headcount, and total new salary cost.
+net headcount change, total headcount, and total salary cost impact.
 Uses data.table for efficient computation.
+
+For hiring scenarios, \code{total_new_salary_cost} is the annual salary bill added
+(sum of new hire salaries). For downsizing scenarios it is the annual salary
+bill removed (sum of terminated worker salaries, reported as a negative number
+to indicate savings). Mixed scenarios sum both.
 }
 \keyword{internal}

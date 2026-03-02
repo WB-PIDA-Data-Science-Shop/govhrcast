@@ -388,7 +388,7 @@ check_hiring_inputs <- function(contract_dt,
     stop("policy_params must contain 'mode'", call. = FALSE)
   }
   
-  valid_modes <- c("flow", "stock", "combined")
+  valid_modes <- c("flow", "stock", "combined", "status_quo")
   validate_choice(policy_params$mode, valid_modes, "mode")
   
   # Validate mode-specific parameters
@@ -417,8 +417,9 @@ check_hiring_inputs <- function(contract_dt,
         "replacement_rate"
       )
     } else {
-      # Scalar replacement_rate
-      validate_positive_number(policy_params$replacement_rate, "replacement_rate")
+      # Scalar replacement_rate — 0 is valid (hiring policy active but zero flow)
+      validate_positive_number(policy_params$replacement_rate, "replacement_rate",
+                               allow_zero = TRUE)
     }
   }
   

@@ -1,0 +1,612 @@
+###################################################################################################
+#################### SANDBOXING THE HIRING CODE TO ENSURE ITS INTUITION ##########################
+###################################################################################################
+
+devtools::load_all()
+library(data.table)
+
+# Panel data — keep full copies for orchestrators (simulate_hiring etc.) which
+# handle snapshot selection internally
+contract_panel  <- data.table::copy(bra_hrmis_contract)
+personnel_panel <- data.table::copy(bra_hrmis_personnel)
+
+REF_DATE <- as.Date("2016-09-01")   # latest panel snapshot
+
+# Quick orientation
+range(contract_panel$ref_date)
+uniqueN(contract_panel$personnel_id)
+names(contract_panel)    # what grouping columns are available?
+names(personnel_panel)
+
+# Single-snapshot copies — used when calling sub-functions directly.
+# The orchestrators pre-filter internally; sub-functions like compute_current_stock()
+# expect single-snapshot data and will cartesian-join if passed raw panel data.
+contract  <- contract_panel[ref_date  == REF_DATE]
+personnel <- personnel_panel[ref_date == REF_DATE]
+
+
+###################################################################################################
+# PART 1: compute_current_stock() --------------------------------------------------------------
+# Counts active headcount at REF_DATE; optionally grouped
+###################################################################################################
+
+# --- 1a. Overall headcount ---
+compute_current_stock(
+  contract_dt = contract,
+  personnel_dt = personnel,
+  ref_date = REF_DATE
+)
+
+# --- 1b. Headcount by establishment ---
+stock_by_est <- compute_current_stock(
+  contract_dt      = contract,
+  personnel_dt     = personnel,
+  ref_date         = REF_DATE,
+  group_cols       = "est_id",
+  personnel_id_col = "personnel_id",
+  start_date_col   = "start_date",
+  end_date_col     = "end_date",
+  contract_type_col = "contract_type_code",
+  status_col       = "status"
+)
+
+stock_by_est[order(-current_stock)]
+summary(stock_by_est$current_stock)
+
+
+###################################################################################################
+# PART 2: check_hiring_inputs() ----------------------------------------------------------------
+# Validates inputs before simulation; should return silently on valid inputs
+###################################################################################################
+
+# Build a minimal valid salary scale (one row, used in several checks below)
+salary_scale_simple <- data.table(gross_salary_lcu = 5000)
+
+# --- 2a. Valid flow policy (should pass silently) ---
+policy_flow_valid <- list(
+  mode             = "flow",
+  group_cols       = NULL,
+  replacement_rate = 1.0,
+  eligibility_type = "age_and_tenure",
+  min_age          = 60,
+  min_tenure       = 20,
+  salary_scale     = salary_scale_simple
+)
+
+check_hiring_inputs(
+  contract_dt   = contract,
+  personnel_dt  = personnel,
+  policy_params = policy_flow_valid,
+  ref_date      = REF_DATE
+)
+# No output = passed
+
+
+# --- 2b. Invalid: unknown mode ---
+tryCatch(
+  check_hiring_inputs(
+    contract_dt   = contract,
+    personnel_dt  = personnel,
+    policy_params = modifyList(policy_flow_valid, list(mode = "quota")),
+    ref_date      = REF_DATE
+  ),
+  error = function(e) message("Expected error: ", conditionMessage(e))
+)
+
+
+# --- 2c. Invalid: stock mode missing stock_targets ---
+tryCatch(
+  check_hiring_inputs(
+    contract_dt   = contract,
+    personnel_dt  = personnel,
+    policy_params = list(mode = "stock", group_cols = NULL,
+                         salary_scale = salary_scale_simple),
+    ref_date      = REF_DATE
+  ),
+  error = function(e) message("Expected error: ", conditionMessage(e))
+)
+
+
+# --- 2d. Invalid: flow mode missing replacement_rate ---
+tryCatch(
+  check_hiring_inputs(
+    contract_dt   = contract,
+    personnel_dt  = personnel,
+    policy_params = list(mode = "flow", group_cols = NULL,
+                         salary_scale = salary_scale_simple),
+    ref_date      = REF_DATE
+  ),
+  error = function(e) message("Expected error: ", conditionMessage(e))
+)
+
+
+###################################################################################################
+# PART 3: estimate_hiring_demand() — all three modes -----------------------------------------
+# Pure function: computes demand without touching state
+###################################################################################################
+
+# First run retirement to get retirees_dt (used by flow mode below)
+ret_result <- simulate_retirement(
+  contract_dt   = bra_hrmis_contract,
+  personnel_dt  = bra_hrmis_personnel,
+  policy_params = list(
+    eligibility_type = "age_and_tenure",
+    min_age          = 60,
+    min_tenure       = 20,
+    pension_type     = "db",
+    pension_params   = list(
+      accrual_rate    = 0.02,
+      ref_wage_col    = "gross_salary_lcu",
+      max_years       = 35,
+      replacement_cap = 0.80
+    )
+  ),
+  ref_date = REF_DATE
+)
+
+retirees_dt <- ret_result$retirees_dt
+ret_result$summary   # how many retirees at this snapshot?
+
+
+# --- 3a. Flow mode: demand = exits × replacement_rate (overall, no grouping) ---
+demand_flow_overall <- estimate_hiring_demand(
+  contract_dt   = contract,
+  personnel_dt  = personnel,
+  policy_params = list(
+    mode             = "flow",
+    group_cols       = NULL,
+    replacement_rate = 1.0
+  ),
+  retirees_dt = retirees_dt,
+  ref_date    = REF_DATE
+)
+
+demand_flow_overall   # total_hires = n_retirees × 1.0
+
+
+# --- 3b. Flow mode: partial replacement (80%) ---
+demand_flow_80 <- estimate_hiring_demand(
+  contract_dt   = contract,
+  personnel_dt  = personnel,
+  policy_params = list(
+    mode             = "flow",
+    group_cols       = NULL,
+    replacement_rate = 0.80
+  ),
+  retirees_dt = retirees_dt,
+  ref_date    = REF_DATE
+)
+
+demand_flow_80
+
+
+# --- 3c. Flow mode grouped by establishment (scalar replacement rate) ---
+demand_flow_by_est <- estimate_hiring_demand(
+  contract_dt   = contract,
+  personnel_dt  = personnel,
+  policy_params = list(
+    mode             = "flow",
+    group_cols       = "est_id",
+    replacement_rate = 1.0,
+    # retirement params used internally when retirees_dt is not passed
+    eligibility_type = "age_and_tenure",
+    min_age          = 60,
+    min_tenure       = 20
+  ),
+  retirees_dt = retirees_dt,
+  ref_date    = REF_DATE
+)
+
+demand_flow_by_est[order(-total_hires)]
+
+
+# --- 3d. Stock mode: demand = target_stock − current_stock ---
+current_overall <- compute_current_stock(contract, personnel, ref_date = REF_DATE)
+
+demand_stock_10pct <- estimate_hiring_demand(
+  contract_dt   = contract,
+  personnel_dt  = personnel,
+  policy_params = list(
+    mode         = "stock",
+    group_cols   = NULL,
+    stock_targets = data.table(target_stock = ceiling(current_overall$current_stock * 1.10))
+  ),
+  ref_date = REF_DATE
+)
+
+demand_stock_10pct   # should be ~10% of current headcount
+
+
+# --- 3e. Stock mode: downsizing (target below current) ---
+demand_downsize_5pct <- estimate_hiring_demand(
+  contract_dt   = contract,
+  personnel_dt  = personnel,
+  policy_params = list(
+    mode         = "stock",
+    group_cols   = NULL,
+    stock_targets = data.table(target_stock = floor(current_overall$current_stock * 0.95))
+  ),
+  ref_date = REF_DATE
+)
+
+demand_downsize_5pct   # negative total_hires = downsizing signal
+
+
+# --- 3f. Combined mode: flow + stock by establishment ---
+stock_targets_by_est <- stock_by_est[, .(est_id, target_stock = current_stock + 3L)]
+
+demand_combined_by_est <- estimate_hiring_demand(
+  contract_dt   = contract,
+  personnel_dt  = personnel,
+  policy_params = list(
+    mode             = "combined",
+    group_cols       = "est_id",
+    replacement_rate = 0.80,
+    stock_targets    = stock_targets_by_est
+  ),
+  ref_date = REF_DATE
+)
+
+demand_combined_by_est[order(-total_hires)]
+demand_combined_by_est[, sum(total_hires)]   # total gross hiring demand
+
+
+###################################################################################################
+# PART 4: generate_new_personnel() / generate_new_contracts() / assign_compensation() ---------
+# Low-level record-creation helpers (internal, accessible via load_all)
+###################################################################################################
+
+# --- 4a. generate_new_personnel(): create 5 new hires ---
+new_people <- generate_new_personnel(
+  n          = 5,
+  ref_date   = REF_DATE,
+  group_vals = list(est_id = "EST001"),
+  status_col = "status"
+)
+
+new_people
+
+
+# --- 4b. generate_new_contracts(): create matching contracts ---
+new_contracts_raw <- generate_new_contracts(
+  personnel_ids     = new_people$personnel_id,
+  ref_date          = REF_DATE,
+  group_vals        = list(est_id = "EST001"),
+  contract_type_col = "contract_type_code"
+)
+
+new_contracts_raw
+
+
+# --- 4c. assign_compensation(): single flat salary (no join key needed) ---
+# When salary_scale_dt has exactly one row and no columns in common with the
+# contracts table, assign_compensation() broadcasts the single value directly.
+salary_scale_single <- data.table(gross_salary_lcu = 5000)
+
+contracts_with_salary <- assign_compensation(
+  new_contracts_dt = new_contracts_raw,
+  salary_scale_dt  = salary_scale_single
+)
+
+contracts_with_salary[, .(contract_id, personnel_id, gross_salary_lcu)]
+
+# If salary_scale_dt has >1 row but still no join key, it errors (ambiguous).
+tryCatch(
+  assign_compensation(
+    new_contracts_dt = new_contracts_raw,
+    salary_scale_dt  = data.table(gross_salary_lcu = c(5000, 7500))
+  ),
+  error = function(e) message("Expected error: ", conditionMessage(e))
+)
+
+
+# --- 4d. assign_compensation() with group-matched salary scale ---
+salary_scale_by_est <- data.table(
+  est_id           = c("EST001", "EST002"),
+  gross_salary_lcu = c(5000, 7500)
+)
+
+# Add a second group to show group-matched join
+new_contracts_grp <- generate_new_contracts(
+  personnel_ids     = c("P_DEMO_1", "P_DEMO_2"),
+  ref_date          = REF_DATE,
+  group_vals        = list(est_id = "EST002"),
+  contract_type_col = "contract_type_code"
+)
+
+assign_compensation(
+  new_contracts_dt = new_contracts_grp,
+  salary_scale_dt  = salary_scale_by_est,
+  join_cols        = "est_id"
+)[, .(contract_id, personnel_id, est_id, gross_salary_lcu)]
+
+
+# --- 4e. assign_compensation(): unmatched rows produce a warning (not error) ---
+salary_scale_partial <- data.table(
+  est_id           = "EST999",    # won't match anything
+  gross_salary_lcu = 9999
+)
+
+withCallingHandlers(
+  assign_compensation(
+    new_contracts_dt = new_contracts_raw,
+    salary_scale_dt  = salary_scale_partial,
+    join_cols        = "est_id"
+  ),
+  warning = function(w) message("Expected warning: ", conditionMessage(w))
+)
+
+
+###################################################################################################
+# PART 5: select_personnel_to_remove() --------------------------------------------------------
+# Identifies which workers to cut in a downsizing scenario
+###################################################################################################
+
+# --- 5a. Last hired first (LIFO) ---
+ids_to_cut_lifo <- select_personnel_to_remove(
+  contract_dt      = contract,
+  personnel_dt     = personnel,
+  n_remove         = 10,
+  strategy         = "last_hired_first",
+  group_vals       = NULL,
+  ref_date         = REF_DATE
+)
+
+ids_to_cut_lifo   # 10 most recently hired personnel IDs
+
+# Check their start dates (should be latest in the data)
+contract[personnel_id %in% ids_to_cut_lifo & is.na(end_date),
+         .(personnel_id, start_date)][order(-start_date)]
+
+
+# --- 5b. Random removal ---
+set.seed(42)
+ids_to_cut_random <- select_personnel_to_remove(
+  contract_dt = contract,
+  personnel_dt = personnel,
+  n_remove    = 10,
+  strategy    = "random",
+  ref_date    = REF_DATE
+)
+
+ids_to_cut_random
+
+
+###################################################################################################
+# PART 6: simulate_hiring() — all three modes, with and without retirement integration --------
+###################################################################################################
+
+# Rebuild clean data for each scenario
+fresh <- function() list(
+  c = data.table::copy(bra_hrmis_contract),
+  p = data.table::copy(bra_hrmis_personnel)
+)
+
+
+# --- 6a. Flow mode — 100% replacement, no grouping ---
+d <- fresh()
+res_flow_100 <- simulate_hiring(
+  contract_dt   = d$c,
+  personnel_dt  = d$p,
+  policy_params = list(
+    mode             = "flow",
+    group_cols       = NULL,
+    replacement_rate = 1.0,
+    eligibility_type = "age_and_tenure",
+    min_age          = 60,
+    min_tenure       = 20,
+    salary_scale     = data.table(gross_salary_lcu = 5000)
+  ),
+  ref_date = REF_DATE
+)
+res_flow_100$summary
+
+
+# --- 6b. Flow mode — 80% replacement, no grouping ---
+d <- fresh()
+res_flow_80 <- simulate_hiring(
+  contract_dt   = d$c,
+  personnel_dt  = d$p,
+  policy_params = list(
+    mode             = "flow",
+    group_cols       = NULL,
+    replacement_rate = 0.80,
+    eligibility_type = "age_and_tenure",
+    min_age          = 60,
+    min_tenure       = 20,
+    salary_scale     = data.table(gross_salary_lcu = 5000)
+  ),
+  ref_date = REF_DATE
+)
+res_flow_80$summary
+
+
+# --- 6c. Stock mode — +10% growth target ---
+# Note: compute_current_stock() expects single-snapshot data; reuse the
+# already-computed value from Part 3 to avoid passing raw panel data.
+d <- fresh()
+current_hc <- current_overall$current_stock
+
+res_stock_growth <- simulate_hiring(
+  contract_dt   = d$c,
+  personnel_dt  = d$p,
+  policy_params = list(
+    mode         = "stock",
+    group_cols   = NULL,
+    stock_targets = data.table(target_stock = ceiling(current_hc * 1.10)),
+    salary_scale = data.table(gross_salary_lcu = 5000)
+  ),
+  ref_date = REF_DATE
+)
+res_stock_growth$summary
+
+
+# --- 6d. Stock mode — downsizing by 5% ---
+d <- fresh()
+res_stock_downsize <- simulate_hiring(
+  contract_dt   = d$c,
+  personnel_dt  = d$p,
+  policy_params = list(
+    mode         = "stock",
+    group_cols   = NULL,
+    removal_strategy = "last_hired_first",
+    stock_targets = data.table(target_stock = floor(current_hc * 0.95)),
+    salary_scale = data.table(gross_salary_lcu = 5000)
+  ),
+  ref_date = REF_DATE
+)
+res_stock_downsize$summary
+
+# Verify terminations
+res_stock_downsize$contract_dt[contract_type_code == "terminated", .N]
+
+
+# --- 6e. Stock mode — grouped by establishment, each +5 hires ---
+# Reuse stock_by_est from Part 1 (single-snapshot data already computed).
+d <- fresh()
+stock_targets_est <- data.table::copy(stock_by_est)
+stock_targets_est[, target_stock := current_stock + 5L]
+# Use est_ids from stock_by_est (establishments active at REF_DATE, not all panel IDs)
+salary_scale_est <- data.table(
+  est_id           = stock_by_est$est_id,
+  gross_salary_lcu = 5000
+)
+
+res_stock_by_est <- simulate_hiring(
+  contract_dt   = d$c,
+  personnel_dt  = d$p,
+  policy_params = list(
+    mode         = "stock",
+    group_cols   = "est_id",
+    stock_targets = stock_targets_est[, .(est_id, target_stock)],
+    salary_scale = salary_scale_est
+  ),
+  ref_date = REF_DATE
+)
+res_stock_by_est$summary
+res_stock_by_est$adjustment_dt[order(-net_change)]
+
+
+# --- 6f. Combined mode — flow (80% replacement) + stock (+3 per establishment) ---
+# Reuse stock_by_est from Part 1 (single-snapshot data already computed).
+d <- fresh()
+stock_targets_combined <- data.table::copy(stock_by_est)
+stock_targets_combined[, target_stock := current_stock + 3L]
+
+res_combined <- simulate_hiring(
+  contract_dt   = d$c,
+  personnel_dt  = d$p,
+  policy_params = list(
+    mode             = "combined",
+    group_cols       = "est_id",
+    replacement_rate = 0.80,
+    stock_targets    = stock_targets_combined[, .(est_id, target_stock)],
+    salary_scale     = salary_scale_est
+  ),
+  ref_date = REF_DATE
+)
+res_combined$summary
+res_combined$adjustment_dt[order(-net_change)]
+
+
+###################################################################################################
+# PART 7: Retirement → Hiring integration pipeline -------------------------------------------
+# Simulate retirement first, feed updated state + retirees_dt into hiring
+###################################################################################################
+
+d <- fresh()
+
+# Step 1: Retirements
+ret <- simulate_retirement(
+  contract_dt   = d$c,
+  personnel_dt  = d$p,
+  policy_params = list(
+    eligibility_type = "age_and_tenure",
+    min_age          = 60,
+    min_tenure       = 20,
+    pension_type     = "db",
+    pension_params   = list(
+      accrual_rate    = 0.02,
+      ref_wage_col    = "gross_salary_lcu",
+      max_years       = 35,
+      replacement_cap = 0.80
+    )
+  ),
+  ref_date = REF_DATE
+)
+
+ret$summary
+
+
+# Step 2: Hiring — 100% replacement, no grouping
+hire_100 <- simulate_hiring(
+  contract_dt   = ret$contract_dt,
+  personnel_dt  = ret$personnel_dt,
+  policy_params = list(
+    mode             = "flow",
+    group_cols       = NULL,
+    replacement_rate = 1.0,
+    salary_scale     = data.table(gross_salary_lcu = 5000)
+  ),
+  retirees_dt = ret$retirees_dt,
+  ref_date    = REF_DATE
+)
+
+hire_100$summary
+
+
+# Step 3: Hiring — 80% replacement, no grouping
+hire_80 <- simulate_hiring(
+  contract_dt   = ret$contract_dt,
+  personnel_dt  = ret$personnel_dt,
+  policy_params = list(
+    mode             = "flow",
+    group_cols       = NULL,
+    replacement_rate = 0.80,
+    salary_scale     = data.table(gross_salary_lcu = 5000)
+  ),
+  retirees_dt = ret$retirees_dt,
+  ref_date    = REF_DATE
+)
+
+hire_80$summary
+
+
+# Step 4: Hiring — 100% replacement grouped by establishment
+salary_scale_est <- data.table(
+  est_id           = unique(bra_hrmis_contract$est_id),
+  gross_salary_lcu = 5000
+)
+
+hire_by_est <- simulate_hiring(
+  contract_dt   = ret$contract_dt,
+  personnel_dt  = ret$personnel_dt,
+  policy_params = list(
+    mode             = "flow",
+    group_cols       = "est_id",
+    replacement_rate = 1.0,
+    salary_scale     = salary_scale_est
+  ),
+  retirees_dt = ret$retirees_dt,
+  ref_date    = REF_DATE
+)
+
+hire_by_est$summary
+hire_by_est$adjustment_dt[order(-net_change)]
+
+
+###################################################################################################
+# PART 8: Scenario comparison ------------------------------------------------------------------
+###################################################################################################
+
+scenario_summary <- rbindlist(list(
+  cbind(scenario = "flow_100pct_replacement",  res_flow_100$summary),
+  cbind(scenario = "flow_80pct_replacement",   res_flow_80$summary),
+  cbind(scenario = "stock_growth_10pct",       res_stock_growth$summary),
+  cbind(scenario = "stock_downsize_5pct",      res_stock_downsize$summary),
+  cbind(scenario = "combined_est_level",       res_combined$summary),
+  cbind(scenario = "retire_then_hire_100pct",  hire_100$summary),
+  cbind(scenario = "retire_then_hire_80pct",   hire_80$summary)
+))
+
+scenario_summary[order(-n_new_hires)]

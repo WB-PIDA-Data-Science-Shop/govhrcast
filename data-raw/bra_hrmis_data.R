@@ -65,6 +65,22 @@ setkey(personnel_with_hire, personnel_id)
 bra_hrmis_personnel[, birth_date := NULL]  # Remove old column first
 bra_hrmis_personnel[personnel_with_hire, birth_date := i.birth_date]
 
+# ========================================
+# Deduplicate personnel to (personnel_id, ref_date)
+# ========================================
+# The source data may contain multiple rows per person per snapshot (e.g. a
+# person recorded with both "active" and "inactive" status due to conflicting
+# source records). govhrcast expects personnel_dt to be unique at the
+# (personnel_id, ref_date) level — the same requirement that would apply to
+# any real HRMIS extract. Retain the "active" row where a conflict exists; if
+# still tied after that, keep the first row.
+bra_hrmis_personnel <- bra_hrmis_personnel[
+  order(ref_date, personnel_id,
+        match(status, c("active", "inactive"), nomatch = 99L)),
+  .SD[1L],
+  by = c("ref_date", "personnel_id")
+]
+
 # Reorder columns
 setcolorder(bra_hrmis_personnel, 
             c("ref_date", "personnel_id", "birth_date", "gender", "educat7", 

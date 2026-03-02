@@ -25,7 +25,7 @@ estimate_hiring_demand(
 
 \item{policy_params}{List. Must contain:
 \itemize{
-\item mode: "flow", "stock", or "combined"
+\item mode: \code{"flow"}, \code{"stock"}, \code{"combined"}, or \code{"status_quo"}
 \item Other parameters depending on mode (see specific functions)
 }}
 
@@ -50,6 +50,7 @@ data.table with group_cols (if specified) and total_hires column
 }
 \description{
 Wrapper function that routes to appropriate demand calculation based on
-policy mode: "flow", "stock", or "combined". Pure function - no state modification.
+policy mode: \code{"flow"}, \code{"stock"}, \code{"combined"}, or
+\code{"status_quo"}. Pure function — no state modification.
 }
 \keyword{internal}

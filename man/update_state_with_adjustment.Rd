@@ -56,6 +56,7 @@ List containing:
 \item personnel_dt: Updated personnel data
 \item new_personnel_dt: New personnel added (for reporting)
 \item new_contracts_dt: New contracts added (for reporting)
+\item terminated_contracts_dt: Contracts terminated in downsizing (salary reflects cost saved)
 }
 }
 \description{

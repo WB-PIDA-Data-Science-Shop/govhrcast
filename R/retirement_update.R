@@ -85,7 +85,13 @@ update_contracts_for_retirees <- function(contract_dt,
   # Update contract types and end dates
   contract_dt[get(contract_id_col) %in% primary_contract_ids & retire == 1L & active_flag == 1L,
      c(contract_type_col, end_date_col) := list("pensioner", ref_date)]
-  
+
+  # Zero out salary on primary pensioner contracts.
+  # Pension cost is tracked separately in the pensioner_register via pension_amount.
+  # Zeroing here ensures sum(salary_col) never double-counts pension obligations.
+  contract_dt[get(contract_id_col) %in% primary_contract_ids & retire == 1L & active_flag == 1L,
+     (salary_col) := 0]
+
   # Get non-primary active retiree contracts
   non_primary_contract_ids <- retiree_active[priority_rank > 1][[contract_id_col]]
   
@@ -93,6 +99,9 @@ update_contracts_for_retirees <- function(contract_dt,
   if (length(non_primary_contract_ids) > 0) {
     contract_dt[get(contract_id_col) %in% non_primary_contract_ids & retire == 1L & active_flag == 1L,
        c(contract_type_col, end_date_col) := list("closed_due_to_retirement", ref_date)]
+    # Also zero salary on closed secondary contracts
+    contract_dt[get(contract_id_col) %in% non_primary_contract_ids & retire == 1L & active_flag == 1L,
+       (salary_col) := 0]
   }
   
   # Clean temporary columns

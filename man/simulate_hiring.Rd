@@ -28,7 +28,7 @@ simulate_hiring(
 
 \item{policy_params}{List. Hiring policy parameters including:
 \describe{
-\item{mode}{Character. One of: "flow", "stock", "combined"}
+\item{mode}{Character. One of: "flow", "stock", "combined", "status_quo"}
 \item{group_cols}{Character vector. Grouping columns (e.g., c("department", "grade")). NULL for overall.}
 \item{replacement_rate}{Numeric scalar or data.table. For "flow" and "combined" modes.}
 \item{stock_targets}{data.table. For "stock" and "combined" modes. Must contain group_cols + target_stock.}
@@ -68,7 +68,9 @@ List containing:
 \item{contract_dt}{Updated contract data with new hires}
 \item{personnel_dt}{Updated personnel data with new hires}
 \item{adjustment_dt}{data.table of adjustments by group}
-\item{new_hires_dt}{data.table of new hires (empty if downsizing only)}
+\item{new_hires_dt}{data.table of new hire personnel records (empty if downsizing only)}
+\item{new_hire_contracts_dt}{data.table of new hire contract records with salary column populated
+(empty if no new hires). Used by \code{compute_hiring_effect()}.}
 }
 }
 \description{

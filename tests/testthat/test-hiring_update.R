@@ -474,3 +474,231 @@ test_that("update_state_with_adjustment handles overall adjustment (no grouping)
   expect_equal(nrow(result$personnel_dt), initial_n_personnel + 5)
   expect_true(all(result$new_contracts_dt$gross_salary_lcu == 55000))
 })
+
+# =============================================================================
+# Tests for terminated_contracts_dt in downsizing
+# =============================================================================
+
+test_that("update_state_with_adjustment returns terminated_contracts_dt for grouped downsize", {
+  test_data <- create_test_data_for_update()
+
+  adjustment_dt <- data.table(department = "IT", net_change = -2L)
+  policy_params <- list(
+    group_cols       = "department",
+    salary_scale     = NULL,
+    removal_strategy = "last_hired_first"
+  )
+
+  result <- update_state_with_adjustment(
+    contract_dt  = test_data$contract_dt,
+    personnel_dt = test_data$personnel_dt,
+    adjustment_dt = adjustment_dt,
+    policy_params = policy_params,
+    ref_date      = as.Date("2024-06-01")
+  )
+
+  expect_true("terminated_contracts_dt" %in% names(result))
+  expect_s3_class(result$terminated_contracts_dt, "data.table")
+  # Exactly 2 contracts captured before termination
+  expect_equal(nrow(result$terminated_contracts_dt), 2L)
+  # Salaries should be present and numeric
+  expect_true("gross_salary_lcu" %in% names(result$terminated_contracts_dt))
+  expect_true(all(is.finite(result$terminated_contracts_dt$gross_salary_lcu)))
+})
+
+test_that("update_state_with_adjustment returns terminated_contracts_dt for ungrouped downsize", {
+  test_data <- create_test_data_for_update()
+
+  adjustment_dt <- data.table(net_change = -3L)
+  policy_params <- list(
+    group_cols       = NULL,
+    salary_scale     = NULL,
+    removal_strategy = "last_hired_first"
+  )
+
+  result <- update_state_with_adjustment(
+    contract_dt  = test_data$contract_dt,
+    personnel_dt = test_data$personnel_dt,
+    adjustment_dt = adjustment_dt,
+    policy_params = policy_params,
+    ref_date      = as.Date("2024-06-01")
+  )
+
+  expect_true("terminated_contracts_dt" %in% names(result))
+  expect_equal(nrow(result$terminated_contracts_dt), 3L)
+})
+
+test_that("update_state_with_adjustment returns empty terminated_contracts_dt for pure hiring", {
+  test_data <- create_test_data_for_update()
+
+  adjustment_dt <- data.table(net_change = 3L)
+  policy_params <- list(
+    group_cols   = NULL,
+    salary_scale = data.table(gross_salary_lcu = 50000)
+  )
+
+  result <- update_state_with_adjustment(
+    contract_dt  = test_data$contract_dt,
+    personnel_dt = test_data$personnel_dt,
+    adjustment_dt = adjustment_dt,
+    policy_params = policy_params,
+    ref_date      = as.Date("2024-06-01")
+  )
+
+  expect_true("terminated_contracts_dt" %in% names(result))
+  expect_equal(nrow(result$terminated_contracts_dt), 0L)
+})
+
+# =============================================================================
+# Regression tests: salary_scale key granularity must match group_cols
+# =============================================================================
+
+# Helper: salary scale with finer granularity than group_cols (the bug scenario).
+# e.g. salary_scale has (est_id x paygrade) but group_cols = "est_id" only.
+make_finer_salary_scale <- function() {
+  data.table(
+    est_id           = rep(c("ORG_A", "ORG_B"), each = 2L),
+    paygrade         = rep(c("D", "E"), 2L),
+    gross_salary_lcu = c(10000, 15000, 12000, 18000)
+  )
+}
+
+make_coarser_salary_scale <- function() {
+  data.table(
+    est_id           = c("ORG_A", "ORG_B"),
+    gross_salary_lcu = c(12500, 15000)   # median across grades
+  )
+}
+
+make_hire_contracts <- function(est_id = "ORG_A") {
+  data.table(
+    contract_id        = "C_NEW_1",
+    personnel_id       = "P_NEW_1",
+    start_date         = as.Date("2020-01-01"),
+    end_date           = as.Date(NA),
+    contract_type_code = "permanent",
+    est_id             = est_id
+  )
+}
+
+test_that("assign_compensation errors when salary_scale has duplicate join keys", {
+  # Passing an (est_id x paygrade) scale but joining only on est_id produces
+  # duplicate keys, which would otherwise silently cause a cartesian join.
+  ct <- make_hire_contracts()
+  ss <- make_finer_salary_scale()
+
+  expect_error(
+    assign_compensation(ct, ss, join_cols = "est_id"),
+    "Duplicate keys found in salary_scale_dt"
+  )
+})
+
+test_that("assign_compensation succeeds when salary_scale key matches join_cols", {
+  # Correct usage: salary_scale keyed only on est_id (one row per group)
+  ct <- make_hire_contracts()
+  ss <- make_coarser_salary_scale()
+
+  result <- assign_compensation(ct, ss, join_cols = "est_id")
+
+  expect_s3_class(result, "data.table")
+  expect_false(any(is.na(result$gross_salary_lcu)))
+  expect_equal(result$gross_salary_lcu, 12500)
+})
+
+test_that("update_state_with_adjustment does not error when salary_scale key matches group_cols", {
+  # Regression: simulate_scenario overwrites hiring_policy$salary_scale with its
+  # salary_scale_dt argument. When salary_scale_dt is keyed at the same
+  # granularity as group_cols (est_id only), assign_compensation must succeed.
+  # We test update_state_with_adjustment directly — the function where the join
+  # actually happens — bypassing the full retirement pipeline for speed.
+  ct <- data.table(
+    contract_id        = paste0("C", 1:4),
+    personnel_id       = paste0("P", 1:4),
+    start_date         = as.Date("2019-01-01"),
+    end_date           = as.Date(NA),
+    contract_type_code = "permanent",
+    est_id             = rep(c("ORG_A", "ORG_B"), 2L),
+    gross_salary_lcu   = c(10000, 12000, 10000, 12000)
+  )
+  pt <- data.table(
+    personnel_id = paste0("P", 1:4),
+    birth_date   = as.Date("1990-01-01"),
+    status       = "active"
+  )
+
+  ss_est <- make_coarser_salary_scale()  # one row per est_id — matches group_cols
+
+  # Replicate the overwrite simulate_scenario does before calling simulate_hiring:
+  #   hiring_policy$salary_scale <- salary_scale_dt
+  hire_pol <- list(
+    mode             = "flow",
+    group_cols       = "est_id",
+    replacement_rate = 1,
+    salary_scale     = data.table::copy(ss_est)  # same as salary_scale_dt
+  )
+
+  # 1 hire per group (as flow demand would produce after retirements)
+  adj_dt <- data.table(est_id = c("ORG_A", "ORG_B"), net_change = c(1L, 1L))
+
+  expect_no_error(
+    update_state_with_adjustment(
+      contract_dt   = data.table::copy(ct),
+      personnel_dt  = data.table::copy(pt),
+      adjustment_dt = adj_dt,
+      policy_params = hire_pol,
+      ref_date      = as.Date("2020-01-01")
+    )
+  )
+})
+
+test_that("simulate_scenario hiring errors when salary_scale_dt is finer than group_cols", {
+  # Regression guard: salary_scale_dt with (est_id x paygrade) keys but
+  # group_cols = 'est_id' must raise the duplicate key error, not silently
+  # produce a cartesian join. Retirement fires to generate replacement demand.
+  ct <- data.table(
+    contract_id        = paste0("C", 1:4),
+    personnel_id       = paste0("P", 1:4),
+    start_date         = as.Date("2019-01-01"),
+    end_date           = as.Date(NA),
+    contract_type_code = "permanent",
+    est_id             = rep(c("ORG_A", "ORG_B"), 2L),
+    gross_salary_lcu   = c(10000, 12000, 10000, 12000),
+    paygrade           = rep(c("D", "E"), 2L),
+    age                = 62,   # all eligible to retire at min_age 60
+    tenure_years       = 30
+  )
+  pt <- data.table(
+    personnel_id = paste0("P", 1:4),
+    birth_date   = as.Date("1958-01-01"),
+    status       = "active"
+  )
+
+  ss_fine <- make_finer_salary_scale()  # (est_id x paygrade) — finer than group_cols
+
+  hire_pol <- list(
+    mode             = "flow",
+    group_cols       = "est_id",
+    replacement_rate = 1,
+    salary_scale     = data.table::copy(ss_fine)  # overwritten by salary_scale_dt
+  )
+  ret_pol <- list(
+    eligibility_type = "age_only",
+    min_age          = 60,
+    pension_type     = "flat",
+    pension_params   = list(flat_amount = 0)
+  )
+
+  expect_error(
+    simulate_scenario(
+      contract_dt       = data.table::copy(ct),
+      personnel_dt      = data.table::copy(pt),
+      salary_scale_dt   = data.table::copy(ss_fine),  # finer than group_cols
+      period_date       = as.Date("2020-01-01"),
+      retirement_policy = ret_pol,
+      hiring_policy     = hire_pol,
+      age_col           = "age",
+      tenure_col        = "tenure_years"
+    ),
+    "Duplicate keys found in salary_scale_dt"
+  )
+})

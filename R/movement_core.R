@@ -457,8 +457,9 @@ compute_movement_demand <- function(contract_dt,
     demand_dt[, c(paste0(".from_", group_cols), paste0(".to_", group_cols)) := NULL]
 
   } else {
-    # Single group_col: all movements are promotions (grade changes)
-    demand_dt[, movement_type := "promotion"]
+    # Single group_col: all movements are transfers (no grade dimension present,
+    # so every state change is an org-level transfer)
+    demand_dt[, movement_type := "transfer"]
   }
 
   # ------------------------------------------------------------------

@@ -178,8 +178,15 @@ assign_compensation <- function(new_contracts_dt,
     join_cols <- setdiff(common_cols, salary_col)
     
     if (length(join_cols) == 0) {
+      # No join key — only valid if salary_scale_dt is a single row (flat/universal
+      # salary). In that case broadcast the single value directly and return early.
+      if (nrow(salary_scale_dt) == 1L) {
+        new_contracts_dt[, (salary_col) := salary_scale_dt[[salary_col]]]
+        return(new_contracts_dt)
+      }
       stop("No common columns found for joining. ",
-           "Please specify join_cols explicitly.", call. = FALSE)
+           "salary_scale_dt has ", nrow(salary_scale_dt), " rows so a flat broadcast ",
+           "is ambiguous. Please specify join_cols explicitly.", call. = FALSE)
     }
   }
   
@@ -366,6 +373,7 @@ select_personnel_to_remove <- function(contract_dt,
 #'     \item personnel_dt: Updated personnel data
 #'     \item new_personnel_dt: New personnel added (for reporting)
 #'     \item new_contracts_dt: New contracts added (for reporting)
+#'     \item terminated_contracts_dt: Contracts terminated in downsizing (salary reflects cost saved)
 #'   }
 #' @keywords internal
 update_state_with_adjustment <- function(contract_dt,
@@ -389,9 +397,10 @@ update_state_with_adjustment <- function(contract_dt,
     "last_hired_first"
   }
   
-  # Initialize collectors for new hires
+  # Initialize collectors for new hires and terminations
   all_new_personnel <- list()
   all_new_contracts <- list()
+  all_terminated_contracts <- list()
   
   # Handle each adjustment group
   if (!is.null(group_cols) && length(group_cols) > 0) {
@@ -469,6 +478,16 @@ update_state_with_adjustment <- function(contract_dt,
           contract_type_col = contract_type_col,
           status_col = status_col
         )
+        
+        # Capture active contracts for terminated personnel (for salary cost reporting)
+        terminated_contracts <- get_active_contracts(
+          contract_dt = contract_dt,
+          ref_date = ref_date,
+          start_date_col = start_date_col,
+          end_date_col = end_date_col,
+          contract_type_col = contract_type_col
+        )[get(personnel_id_col) %in% personnel_to_remove]
+        all_terminated_contracts[[i]] <- terminated_contracts
         
         # Deactivate contracts
         contract_dt[
@@ -579,6 +598,16 @@ update_state_with_adjustment <- function(contract_dt,
         status_col = status_col
       )
       
+      # Capture active contracts for terminated personnel (for salary cost reporting)
+      terminated_contracts <- get_active_contracts(
+        contract_dt = contract_dt,
+        ref_date = ref_date,
+        start_date_col = start_date_col,
+        end_date_col = end_date_col,
+        contract_type_col = contract_type_col
+      )[get(personnel_id_col) %in% personnel_to_remove]
+      all_terminated_contracts[[1]] <- terminated_contracts
+      
       # Deactivate
       contract_dt[
         get(personnel_id_col) %in% personnel_to_remove,
@@ -605,10 +634,17 @@ update_state_with_adjustment <- function(contract_dt,
     data.table::data.table()
   }
   
+  terminated_contracts_all <- if (length(all_terminated_contracts) > 0) {
+    data.table::rbindlist(all_terminated_contracts, fill = TRUE, use.names = TRUE)
+  } else {
+    data.table::data.table()
+  }
+  
   return(list(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
     new_personnel_dt = new_personnel_all,
-    new_contracts_dt = new_contracts_all
+    new_contracts_dt = new_contracts_all,
+    terminated_contracts_dt = terminated_contracts_all
   ))
 }

@@ -37,6 +37,10 @@
 #'       \code{"random"}, \code{"tenure"} (longest total tenure first), or
 #'       \code{"reverse_tenure"} (shortest total tenure first, LIFO).
 #'       Default: \code{"random"}.}
+#'     \item{salary_update_rule}{Character. How to set salary after a move:
+#'       \code{"scale"} (default) assigns the destination salary from
+#'       \code{salary_scale}; \code{"keep"} retains the mover's pre-move salary.
+#'       Use \code{"keep"} when movements should not affect the wage bill.}
 #'   }
 #' @param ref_date Date or character. Reference date for the simulation snapshot.
 #' @param ref_date_col Character. Column name holding panel snapshot dates
@@ -146,20 +150,29 @@ simulate_promotions_transfers <- function(contract_dt,
   # ======================================================================
   # 3. Estimate Movement Baseline (uses FULL panel data)
   # ======================================================================
-  baseline_matrix <- NULL
-  has_panel <- ref_date_col %in% names(contract_dt) &&
-               data.table::uniqueN(contract_dt[[ref_date_col]]) >= 2L
+  # If the caller pre-computed the baseline (e.g. simulate_horizon caches it
+  # from the full panel before stripping ref_date), use it directly.
+  # Otherwise fall back to estimating from the supplied contract_dt panel.
+  if (!is.null(policy_params$baseline_matrix) &&
+      data.table::is.data.table(policy_params$baseline_matrix) &&
+      nrow(policy_params$baseline_matrix) > 0L) {
+    baseline_matrix <- policy_params$baseline_matrix
+  } else {
+    baseline_matrix <- NULL
+    has_panel <- ref_date_col %in% names(contract_dt) &&
+                 data.table::uniqueN(contract_dt[[ref_date_col]]) >= 2L
 
-  if (has_panel) {
-    baseline_matrix <- estimate_movement_baseline(
-      contract_dt       = contract_dt,
-      group_cols        = group_cols,
-      personnel_id_col  = personnel_id_col,
-      ref_date_col      = ref_date_col,
-      start_date_col    = start_date_col,
-      end_date_col      = end_date_col,
-      contract_type_col = contract_type_col
-    )
+    if (has_panel) {
+      baseline_matrix <- estimate_movement_baseline(
+        contract_dt       = contract_dt,
+        group_cols        = group_cols,
+        personnel_id_col  = personnel_id_col,
+        ref_date_col      = ref_date_col,
+        start_date_col    = start_date_col,
+        end_date_col      = end_date_col,
+        contract_type_col = contract_type_col
+      )
+    }
   }
 
   # ======================================================================

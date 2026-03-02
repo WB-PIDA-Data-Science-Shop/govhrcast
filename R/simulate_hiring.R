@@ -12,7 +12,7 @@
 #' @param personnel_dt data.table. Personnel data in govhr harmonized format
 #' @param policy_params List. Hiring policy parameters including:
 #'   \describe{
-#'     \item{mode}{Character. One of: "flow", "stock", "combined"}
+#'     \item{mode}{Character. One of: "flow", "stock", "combined", "status_quo"}
 #'     \item{group_cols}{Character vector. Grouping columns (e.g., c("department", "grade")). NULL for overall.}
 #'     \item{replacement_rate}{Numeric scalar or data.table. For "flow" and "combined" modes.}
 #'     \item{stock_targets}{data.table. For "stock" and "combined" modes. Must contain group_cols + target_stock.}
@@ -40,7 +40,9 @@
 #'     \item{contract_dt}{Updated contract data with new hires}
 #'     \item{personnel_dt}{Updated personnel data with new hires}
 #'     \item{adjustment_dt}{data.table of adjustments by group}
-#'     \item{new_hires_dt}{data.table of new hires (empty if downsizing only)}
+#'     \item{new_hires_dt}{data.table of new hire personnel records (empty if downsizing only)}
+#'     \item{new_hire_contracts_dt}{data.table of new hire contract records with salary column populated
+#'       (empty if no new hires). Used by \code{compute_hiring_effect()}.}
 #'   }
 #'
 #' @examples
@@ -232,10 +234,11 @@ simulate_hiring <- function(contract_dt,
       contract_dt = contract_dt,
       personnel_dt = personnel_dt,
       adjustment_dt = adjustment_dt,
-      new_hires_dt = data.table::data.table()
+      new_hires_dt = data.table::data.table(),
+      new_hire_contracts_dt = data.table::data.table()
     ))
   }
-  
+
   # ========================================
   # 4. Update State with Adjustments
   # ========================================
@@ -260,6 +263,7 @@ simulate_hiring <- function(contract_dt,
   personnel_dt <- update_results$personnel_dt
   new_hires_dt <- update_results$new_personnel_dt
   new_contracts_dt <- update_results$new_contracts_dt
+  terminated_contracts_dt <- update_results$terminated_contracts_dt
   
   # If working with panel data, add ref_date column to new records
   if (!is.null(selected_ref_date)) {
@@ -301,6 +305,7 @@ simulate_hiring <- function(contract_dt,
     adjustment_dt = adjustment_dt,
     new_hires_dt = new_hires_dt,
     new_contracts_dt = new_contracts_dt,
+    terminated_contracts_dt = terminated_contracts_dt,
     total_headcount = final_headcount$current_stock
   )
   
@@ -312,6 +317,7 @@ simulate_hiring <- function(contract_dt,
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
     adjustment_dt = adjustment_dt,
-    new_hires_dt = new_hires_dt
+    new_hires_dt = new_hires_dt,
+    new_hire_contracts_dt = new_contracts_dt
   ))
 }

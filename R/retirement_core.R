@@ -173,6 +173,7 @@ compute_retirement_summary <- function(retirees_dt, contract_dt = NULL) {
 #' @param personnel_dt data.table. Personnel data
 #' @param ref_date Date. Reference date
 #' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
+#' @param birth_date_col Character. Name of birth date column (default: "birth_date")
 #' @param contract_id_col Character. Name of contract ID column (default: "contract_id")
 #' @param start_date_col Character. Name of start date column (default: "start_date")
 #' @param end_date_col Character. Name of end date column (default: "end_date")
@@ -186,6 +187,7 @@ prepare_retiree_data <- function(eligibility_dt,
                                  personnel_dt,
                                  ref_date,
                                  personnel_id_col = "personnel_id",
+                                 birth_date_col = "birth_date",
                                  contract_id_col = "contract_id",
                                  start_date_col = "start_date",
                                  end_date_col = "end_date",
@@ -198,6 +200,33 @@ prepare_retiree_data <- function(eligibility_dt,
   # If no retirees, return empty
   if (nrow(retirees_only) == 0) {
     return(data.table::data.table())
+  }
+  
+  # Always compute both age and tenure here, regardless of eligibility_type.
+  # identify_retirees() only computes whichever field the eligibility rule needs,
+  # leaving the other as NA. Pension formulas (e.g. DB) may need both, so we
+  # fill any missing values now from the source data.
+  if (anyNA(retirees_only$age)) {
+    age_dt <- compute_age(
+      personnel_dt     = personnel_dt,
+      ref_date         = ref_date,
+      birth_date_col   = birth_date_col,
+      personnel_id_col = personnel_id_col
+    )
+    retirees_only[age_dt, age := i.age, on = "personnel_id"]
+  }
+  
+  if (anyNA(retirees_only$tenure_years)) {
+    tenure_dt <- compute_tenure(
+      contract_dt       = contract_dt,
+      ref_date          = ref_date,
+      personnel_id_col  = personnel_id_col,
+      contract_id_col   = contract_id_col,
+      start_date_col    = start_date_col,
+      end_date_col      = end_date_col,
+      contract_type_col = contract_type_col
+    )
+    retirees_only[tenure_dt, tenure_years := i.tenure_years, on = "personnel_id"]
   }
   
   # Get active contracts for these retirees

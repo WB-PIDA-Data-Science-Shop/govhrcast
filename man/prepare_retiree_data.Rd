@@ -10,6 +10,7 @@ prepare_retiree_data(
   personnel_dt,
   ref_date,
   personnel_id_col = "personnel_id",
+  birth_date_col = "birth_date",
   contract_id_col = "contract_id",
   start_date_col = "start_date",
   end_date_col = "end_date",
@@ -27,6 +28,8 @@ prepare_retiree_data(
 \item{ref_date}{Date. Reference date}
 
 \item{personnel_id_col}{Character. Name of personnel ID column (default: "personnel_id")}
+
+\item{birth_date_col}{Character. Name of birth date column (default: "birth_date")}
 
 \item{contract_id_col}{Character. Name of contract ID column (default: "contract_id")}
 

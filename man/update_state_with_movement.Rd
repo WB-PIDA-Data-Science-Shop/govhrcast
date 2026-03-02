@@ -29,6 +29,9 @@ Must have columns: personnel_id, from_group, to_group, movement_type}
 \describe{
 \item{group_cols}{Character vector defining state columns}
 \item{salary_scale}{data.table. Salary scale keyed on group_cols}
+\item{salary_update_rule}{Character. How to set salary after a move:
+\code{"scale"} (default) assigns the destination salary from
+\code{salary_scale}; \code{"keep"} retains the mover's current salary.}
 }}
 
 \item{ref_date}{Date or character. Reference date}

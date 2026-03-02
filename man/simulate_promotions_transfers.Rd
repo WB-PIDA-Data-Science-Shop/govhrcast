@@ -44,6 +44,10 @@ Default: \code{"tenure"}.}
 \code{"random"}, \code{"tenure"} (longest total tenure first), or
 \code{"reverse_tenure"} (shortest total tenure first, LIFO).
 Default: \code{"random"}.}
+\item{salary_update_rule}{Character. How to set salary after a move:
+\code{"scale"} (default) assigns the destination salary from
+\code{salary_scale}; \code{"keep"} retains the mover's pre-move salary.
+Use \code{"keep"} when movements should not affect the wage bill.}
 }}
 
 \item{ref_date}{Date or character. Reference date for the simulation snapshot.}

@@ -109,10 +109,13 @@ compute_tenure <- function(contract_dt,
   active_dt <- contract_dt[!get(contract_type_col) %in% c("inactive", "pensioner")]
   
   # Deduplicate panel observations: one row per unique contract
-  # Use contract_id + start_date as the unique key
-  # Select only the needed columns to avoid carrying forward panel ref_date
-  unique_contracts <- active_dt[, .SD[1], 
-                                by = c(contract_id_col, start_date_col)]
+  # Use contract_id + start_date as the unique key.
+  # .I[1] returns the integer row index of the first row per group, so the
+  # outer subset is a single integer-index operation — faster than .SD[1]
+  # which materialises the full .SD for every group.
+  unique_contracts <- active_dt[
+    active_dt[, .I[1], by = c(contract_id_col, start_date_col)]$V1
+  ]
   
   # Keep only essential columns for tenure calculation
   keep_cols <- c(personnel_id_col, contract_id_col, start_date_col, end_date_col)
@@ -234,7 +237,14 @@ get_primary_contract <- function(contract_dt,
 #' }
 generate_new_ids <- function(n, ref_date, prefix = "NEW") {
   ref_date_str <- gsub("-", "", as.character(ref_date))
-  new_ids <- paste0(prefix, "_", ref_date_str, "_", seq_len(n))
+  # Use random 6-hex suffixes to avoid collisions when called multiple times
+  # on the same ref_date (e.g. once per group in a loop).
+  rand_hex <- vapply(
+    seq_len(n),
+    function(i) paste0(as.hexmode(sample.int(.Machine$integer.max, 1L)), collapse = ""),
+    character(1L)
+  )
+  new_ids <- paste0(prefix, "_", ref_date_str, "_", rand_hex)
   
   return(new_ids)
 }

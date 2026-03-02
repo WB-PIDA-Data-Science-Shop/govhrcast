@@ -314,6 +314,9 @@ identify_movers <- function(contract_dt,
 #'   \describe{
 #'     \item{group_cols}{Character vector defining state columns}
 #'     \item{salary_scale}{data.table. Salary scale keyed on group_cols}
+#'     \item{salary_update_rule}{Character. How to set salary after a move:
+#'       \code{"scale"} (default) assigns the destination salary from
+#'       \code{salary_scale}; \code{"keep"} retains the mover's current salary.}
 #'   }
 #' @param ref_date Date or character. Reference date
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
@@ -351,33 +354,57 @@ update_state_with_movement <- function(contract_dt,
     ))
   }
 
-  group_cols    <- policy_params$group_cols
-  salary_scale  <- policy_params$salary_scale
+  # ------------------------------------------------------------------
+  # Capture pre-move salary per mover (summed across all contracts per person)
+  # Must happen BEFORE any group or salary updates are applied.
+  # ------------------------------------------------------------------
+  mover_ids <- movers_dt[[personnel_id_col]]
+  pre_salary_dt <- contract_dt[
+    get(personnel_id_col) %in% mover_ids,
+    .(salary_before = sum(get(salary_col), na.rm = TRUE)),
+    by = c(personnel_id_col)
+  ]
+  movers_dt <- data.table::copy(movers_dt)
+  movers_dt <- pre_salary_dt[movers_dt, on = personnel_id_col]
+  # If no salary column in contract_dt, default to 0
+  movers_dt[is.na(salary_before), salary_before := 0]
+
+  group_cols         <- policy_params$group_cols
+  salary_scale       <- policy_params$salary_scale
+  salary_update_rule <- if (!is.null(policy_params$salary_update_rule))
+                          policy_params$salary_update_rule else "scale"
+
+  if (!salary_update_rule %in% c("scale", "keep")) {
+    stop('policy_params$salary_update_rule must be "scale" or "keep"', call. = FALSE)
+  }
 
   # ------------------------------------------------------------------
-  # Validate salary_scale
+  # Validate salary_scale (only needed when rule = "scale")
   # ------------------------------------------------------------------
-  if (is.null(salary_scale) || !data.table::is.data.table(salary_scale)) {
+  if (salary_update_rule == "scale" &&
+      (is.null(salary_scale) || !data.table::is.data.table(salary_scale))) {
     stop("policy_params$salary_scale must be a data.table", call. = FALSE)
   }
 
-  # Detect salary column in salary_scale
-  salary_pattern      <- "salary|wage|pay|compensation"
-  salary_candidates   <- grep(salary_pattern, names(salary_scale),
+  # Detect salary column in salary_scale (only needed when rule = "scale")
+  scale_salary_col <- NULL
+  if (salary_update_rule == "scale") {
+    salary_pattern    <- "salary|wage|pay|compensation|allowance"
+    salary_candidates <- grep(salary_pattern, names(salary_scale),
                               value = TRUE, ignore.case = TRUE)
-  if (length(salary_candidates) == 0) {
-    stop("Could not detect salary column in salary_scale. ",
-         "Ensure it contains a column matching 'salary|wage|pay|compensation'.",
-         call. = FALSE)
-  }
-  scale_salary_col <- if ("gross_salary_lcu" %in% salary_candidates) "gross_salary_lcu"
-                      else salary_candidates[1]
+    if (length(salary_candidates) == 0) {
+      stop("Could not detect salary column in salary_scale. ",
+           "Ensure it contains a column matching 'salary|wage|pay|compensation|allowance'.",
+           call. = FALSE)
+    }
+    scale_salary_col <- if ("gross_salary_lcu" %in% salary_candidates) "gross_salary_lcu"
+                        else salary_candidates[1]
 
-  # Validate no duplicate keys in salary_scale
-  if (anyDuplicated(salary_scale, by = group_cols)) {
-    stop("Duplicate keys found in salary_scale for group_cols: ",
-         paste(group_cols, collapse = ", "),
-         ". Ensure salary_scale has unique rows per group.", call. = FALSE)
+    if (anyDuplicated(salary_scale, by = group_cols)) {
+      stop("Duplicate keys found in salary_scale for group_cols: ",
+           paste(group_cols, collapse = ", "),
+           ". Ensure salary_scale has unique rows per group.", call. = FALSE)
+    }
   }
 
   # ------------------------------------------------------------------
@@ -418,40 +445,43 @@ update_state_with_movement <- function(contract_dt,
   }
 
   # ------------------------------------------------------------------
-  # Re-assign salary based on new group
+  # Re-assign salary based on new group (skipped when rule = "keep")
   # ------------------------------------------------------------------
-  # Build salary lookup: group_col values -> salary
-  scale_subset <- unique(salary_scale[, c(group_cols, scale_salary_col), with = FALSE])
+  if (salary_update_rule == "scale") {
+    # Build salary lookup: group_col values -> salary
+    scale_subset <- unique(salary_scale[, c(group_cols, scale_salary_col), with = FALSE])
 
-  # Add group key to scale_subset
-  scale_subset[, .group_key := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
+    # Add group key to scale_subset
+    scale_subset[, .group_key := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
 
-  # Build a personnel_id -> new salary lookup via to_group key
-  salary_lookup <- movers_dt[, .(personnel_id, .group_key = to_group)]
-  salary_lookup <- scale_subset[, .(.group_key, .new_salary = get(scale_salary_col))][
-    salary_lookup, on = ".group_key"
-  ]
-  salary_lookup <- salary_lookup[!is.na(.new_salary)]
+    # Build a personnel_id -> new salary lookup via to_group key
+    salary_lookup <- movers_dt[, .(personnel_id, .group_key = to_group)]
+    salary_lookup <- scale_subset[, .(.group_key, .new_salary = get(scale_salary_col))][
+      salary_lookup, on = ".group_key"
+    ]
+    salary_lookup <- salary_lookup[!is.na(.new_salary)]
 
-  if (nrow(salary_lookup) > 0) {
-    new_salary_vec <- salary_lookup$.new_salary
-    names(new_salary_vec) <- salary_lookup$personnel_id
+    if (nrow(salary_lookup) > 0) {
+      new_salary_vec <- salary_lookup$.new_salary
+      names(new_salary_vec) <- salary_lookup$personnel_id
 
-    # Ensure salary column exists in contract_dt
-    if (!salary_col %in% names(contract_dt)) {
-      contract_dt[, (salary_col) := NA_real_]
+      # Ensure salary column exists in contract_dt
+      if (!salary_col %in% names(contract_dt)) {
+        contract_dt[, (salary_col) := NA_real_]
+      }
+
+      contract_dt[get(personnel_id_col) %in% names(new_salary_vec),
+                  (salary_col) := new_salary_vec[get(personnel_id_col)]]
     }
 
-    contract_dt[get(personnel_id_col) %in% names(new_salary_vec),
-                (salary_col) := new_salary_vec[get(personnel_id_col)]]
+    # Warn if any movers didn't get a salary assigned
+    n_unmatched <- length(setdiff(mover_pids, salary_lookup$personnel_id))
+    if (n_unmatched > 0) {
+      warning(n_unmatched, " mover(s) could not be matched to salary_scale. ",
+              "Their salary was not updated.", call. = FALSE, immediate. = TRUE)
+    }
   }
-
-  # Warn if any movers didn't get a salary assigned
-  n_unmatched <- length(setdiff(mover_pids, salary_lookup$personnel_id))
-  if (n_unmatched > 0) {
-    warning(n_unmatched, " mover(s) could not be matched to salary_scale. ",
-            "Their salary was not updated.", call. = FALSE, immediate. = TRUE)
-  }
+  # salary_update_rule == "keep": salaries left unchanged in contract_dt
 
   # Clean up temporary columns from movers_dt
   movers_dt[, c(paste0(".new_", group_cols)) := NULL]

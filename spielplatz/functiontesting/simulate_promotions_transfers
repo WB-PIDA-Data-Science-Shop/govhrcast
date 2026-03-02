@@ -1,0 +1,531 @@
+###################################################################################################
+#################### SANDBOXING THE PROMOTIONS & TRANSFERS CODE ##################################
+###################################################################################################
+
+devtools::load_all()
+library(data.table)
+
+# Panel data — keep full copies for the orchestrator (simulate_promotions_transfers)
+# which needs ALL snapshots to estimate the baseline transition matrix.
+contract_panel  <- data.table::copy(bra_hrmis_contract)
+personnel_panel <- data.table::copy(bra_hrmis_personnel)
+
+REF_DATE <- as.Date("2016-09-01")   # latest panel snapshot
+
+# Quick orientation
+range(contract_panel$ref_date)                      # how many years of panel?
+uniqueN(contract_panel$ref_date)                    # number of snapshots
+uniqueN(contract_panel$personnel_id)                # unique workers
+names(contract_panel)
+names(personnel_panel)
+
+# Single-snapshot copies — used when calling sub-functions directly.
+# The orchestrator pre-filters internally; sub-functions that operate on a
+# single snapshot expect these.
+contract  <- contract_panel[ref_date == REF_DATE]
+personnel <- personnel_panel[ref_date == REF_DATE]
+
+# Available grouping columns
+contract[, unique(est_id)]    # establishments (~35 active)
+
+
+###################################################################################################
+# PART 1: estimate_movement_baseline() --------------------------------------------------------
+# Analyzes the full panel to produce empirical P(from_group -> to_group)
+# Only transitions (from != to) are returned.
+###################################################################################################
+
+# --- 1a. Single group_col: est_id (inter-establishment transfers only) ---
+baseline_est <- estimate_movement_baseline(
+  contract_dt      = contract_panel,
+  group_cols       = "est_id",
+  personnel_id_col = "personnel_id",
+  ref_date_col     = "ref_date",
+  start_date_col   = "start_date",
+  end_date_col     = "end_date",
+  contract_type_col = "contract_type_code"
+)
+
+baseline_est[order(-avg_prob)]              # highest-probability transitions
+nrow(baseline_est)                          # number of from->to pairs observed
+summary(baseline_est$avg_prob)             # distribution of transition probs
+# Note: avg_prob is averaged across all consecutive panel periods
+
+
+# --- 1b. Two group_cols: est_id + paygrade ---
+# Promotions = same est_id, different paygrade.
+# Transfers  = different est_id.
+baseline_est_grade <- estimate_movement_baseline(
+  contract_dt       = contract_panel,
+  group_cols        = c("est_id", "paygrade"),
+  personnel_id_col  = "personnel_id",
+  ref_date_col      = "ref_date",
+  start_date_col    = "start_date",
+  end_date_col      = "end_date",
+  contract_type_col = "contract_type_code"
+)
+
+baseline_est_grade[order(-avg_prob)][1:10]
+# movement_type is classified downstream in compute_movement_demand:
+#   same first group_col (est_id) = promotion; different first = transfer
+nrow(baseline_est_grade)    # many more pairs than single-column baseline
+
+
+###################################################################################################
+# PART 2: compute_time_in_grade() ------------------------------------------------------------
+# How long has each active person been in their current group state?
+# Uses the full panel to look back as far as possible.
+###################################################################################################
+
+tig_dt <- compute_time_in_grade(
+  contract_dt      = contract_panel,
+  ref_date         = REF_DATE,
+  group_cols       = "est_id",
+  personnel_id_col = "personnel_id",
+  ref_date_col     = "ref_date",
+  start_date_col   = "start_date",
+  end_date_col     = "end_date",
+  contract_type_col = "contract_type_code"
+)
+
+nrow(tig_dt)
+summary(tig_dt$time_in_grade)   # years in current establishment
+
+# Long-tenured workers in each establishment
+tig_dt[order(-time_in_grade)][1:10]
+
+
+###################################################################################################
+# PART 3: compute_movement_demand() ----------------------------------------------------------
+# Pure function: joins baseline matrix with current stock, applies multipliers,
+# scrubs destinations not in salary_scale, stochastically rounds to integer counts.
+###################################################################################################
+
+# Build a flat salary scale (one row per est_id)
+salary_scale_est <- data.table(
+  est_id           = unique(contract$est_id),
+  gross_salary_lcu = 5000
+)
+
+# --- 3a. Status-quo multipliers (1.0 = empirical rates unchanged) ---
+policy_status_quo <- list(
+  group_cols           = "est_id",
+  salary_scale         = salary_scale_est,
+  promotion_multiplier = 1.0,
+  transfer_multiplier  = 1.0,
+  promotion_strategy   = "tenure",
+  transfer_strategy    = "random"
+)
+
+demand_sq <- compute_movement_demand(
+  contract_dt       = contract,
+  personnel_dt      = personnel,
+  baseline_matrix   = baseline_est,
+  policy_params     = policy_status_quo,
+  salary_scale_dt   = salary_scale_est,
+  ref_date          = REF_DATE,
+  personnel_id_col  = "personnel_id",
+  start_date_col    = "start_date",
+  end_date_col      = "end_date",
+  contract_type_col = "contract_type_code",
+  status_col        = "status"
+)
+
+demand_sq[order(-n_movers)]
+sum(demand_sq$n_movers)            # total movers demanded under status-quo rates
+
+
+# --- 3b. Doubled transfer rate (mobility shock) ---
+policy_2x <- modifyList(policy_status_quo, list(transfer_multiplier = 2.0))
+
+demand_2x <- compute_movement_demand(
+  contract_dt       = contract,
+  personnel_dt      = personnel,
+  baseline_matrix   = baseline_est,
+  policy_params     = policy_2x,
+  salary_scale_dt   = salary_scale_est,
+  ref_date          = REF_DATE
+)
+
+demand_2x[order(-n_movers)]
+sum(demand_2x$n_movers)            # compare with status-quo
+
+
+# --- 3c. Near-zero movement (multiplier = 0.1) ---
+policy_freeze <- modifyList(policy_status_quo, list(
+  promotion_multiplier = 0.1,
+  transfer_multiplier  = 0.1
+))
+
+demand_freeze <- compute_movement_demand(
+  contract_dt       = contract,
+  personnel_dt      = personnel,
+  baseline_matrix   = baseline_est,
+  policy_params     = policy_freeze,
+  salary_scale_dt   = salary_scale_est,
+  ref_date          = REF_DATE
+)
+
+sum(demand_freeze$n_movers)        # close to zero
+
+
+###################################################################################################
+# PART 4: identify_movers() ------------------------------------------------------------------
+# Selects the specific individuals for each transition using ranking strategies.
+###################################################################################################
+
+# --- 4a. Tenure strategy: longest time-in-grade promoted first ---
+movers_tenure <- identify_movers(
+  contract_dt       = contract,
+  personnel_dt      = personnel,
+  demand_dt         = demand_sq,
+  policy_params     = policy_status_quo,
+  ref_date          = REF_DATE,
+  baseline_matrix   = baseline_est,
+  personnel_id_col  = "personnel_id",
+  start_date_col    = "start_date",
+  end_date_col      = "end_date",
+  contract_type_col = "contract_type_code",
+  salary_col        = "gross_salary_lcu",
+  status_col        = "status",
+  ref_date_col      = "ref_date"
+)
+
+nrow(movers_tenure)
+movers_tenure[order(movement_type, from_group)]    # who moves where?
+movers_tenure[, .N, by = movement_type]             # promotions vs transfers
+
+
+# --- 4b. Random transfer strategy ---
+policy_random <- modifyList(policy_status_quo, list(transfer_strategy = "random"))
+set.seed(42)
+
+movers_random <- identify_movers(
+  contract_dt       = contract,
+  personnel_dt      = personnel,
+  demand_dt         = demand_sq,
+  policy_params     = policy_random,
+  ref_date          = REF_DATE,
+  baseline_matrix   = baseline_est,
+  ref_date_col      = "ref_date"
+)
+
+nrow(movers_random)
+# Same n_movers demanded — different individuals selected
+all(movers_tenure$personnel_id %in% movers_random$personnel_id)  # overlap?
+
+
+# --- 4c. Reverse-tenure strategy: shortest tenure transferred first (LIFO) ---
+policy_lifo <- modifyList(policy_status_quo, list(transfer_strategy = "reverse_tenure"))
+
+movers_lifo <- identify_movers(
+  contract_dt       = contract,
+  personnel_dt      = personnel,
+  demand_dt         = demand_sq,
+  policy_params     = policy_lifo,
+  ref_date          = REF_DATE,
+  baseline_matrix   = baseline_est,
+  ref_date_col      = "ref_date"
+)
+
+nrow(movers_lifo)
+
+
+###################################################################################################
+# PART 5: update_state_with_movement() -------------------------------------------------------
+# ONLY state-modifying function. Updates group assignments and salaries for movers.
+###################################################################################################
+
+# --- 5a. Apply movements: check est_id changes in contract_dt ---
+snap_contract  <- data.table::copy(contract)
+snap_personnel <- data.table::copy(personnel)
+
+update_result <- update_state_with_movement(
+  contract_dt      = snap_contract,
+  personnel_dt     = snap_personnel,
+  movers_dt        = movers_tenure,
+  policy_params    = policy_status_quo,
+  ref_date         = REF_DATE,
+  personnel_id_col = "personnel_id",
+  salary_col       = "gross_salary_lcu",
+  start_date_col   = "start_date",
+  end_date_col     = "end_date",
+  contract_type_col = "contract_type_code"
+)
+
+# Check that group assignments changed
+mover_ids <- movers_tenure$personnel_id
+before <- contract[personnel_id %in% mover_ids, .(personnel_id, est_id, gross_salary_lcu)]
+after  <- update_result$contract_dt[personnel_id %in% mover_ids,
+                                     .(personnel_id, est_id, gross_salary_lcu)]
+
+# Merge to compare
+comparison <- data.table::merge.data.table(before, 
+                                           after, 
+                                           by = "personnel_id", 
+                                           suffixes = c("_before", "_after"))
+
+comparison[est_id_before != est_id_after]   # should be non-empty for transfers
+comparison[gross_salary_lcu_before != gross_salary_lcu_after]   # salary updates
+
+# --- 5b. No movers (guard path) ---
+empty_movers <- data.table::data.table(
+  personnel_id  = character(0),
+  from_group    = character(0),
+  to_group      = character(0),
+  movement_type = character(0)
+)
+
+result_noop <- update_state_with_movement(
+  contract_dt      = data.table::copy(contract),
+  personnel_dt     = data.table::copy(personnel),
+  movers_dt        = empty_movers,
+  policy_params    = policy_status_quo,
+  ref_date         = REF_DATE
+)
+
+identical(result_noop$contract_dt$est_id, contract$est_id)  # should be TRUE
+
+
+###################################################################################################
+# PART 6: check_movement_inputs() ------------------------------------------------------------
+# Validates inputs before simulation; should pass silently on valid inputs.
+###################################################################################################
+
+# --- 6a. Valid inputs (should pass silently) ---
+check_movement_inputs(
+  contract_dt      = contract,
+  personnel_dt     = personnel,
+  policy_params    = policy_status_quo,
+  ref_date         = REF_DATE
+)
+# No output = passed
+
+
+# --- 6b. Invalid: missing group_cols ---
+tryCatch(
+  check_movement_inputs(
+    contract_dt   = contract,
+    personnel_dt  = personnel,
+    policy_params = list(salary_scale = salary_scale_est),  # group_cols absent
+    ref_date      = REF_DATE
+  ),
+  error = function(e) message("Expected error: ", conditionMessage(e))
+)
+
+
+# --- 6c. Invalid: salary_scale missing ---
+tryCatch(
+  check_movement_inputs(
+    contract_dt   = contract,
+    personnel_dt  = personnel,
+    policy_params = list(group_cols = "est_id"),   # salary_scale absent
+    ref_date      = REF_DATE
+  ),
+  error = function(e) message("Expected error: ", conditionMessage(e))
+)
+
+
+# --- 6d. Invalid: group_cols not present in contract_dt ---
+tryCatch(
+  check_movement_inputs(
+    contract_dt   = contract,
+    personnel_dt  = personnel,
+    policy_params = list(
+      group_cols   = "nonexistent_col",
+      salary_scale = salary_scale_est
+    ),
+    ref_date = REF_DATE
+  ),
+  error = function(e) message("Expected error: ", conditionMessage(e))
+)
+
+
+###################################################################################################
+# PART 7: simulate_promotions_transfers() — full orchestrator ---------------------------------
+# Handles baseline estimation, demand, mover selection, state update, and summary.
+###################################################################################################
+
+# --- 7a. Status-quo rates, no grouping complexity ---
+res_sq <- simulate_promotions_transfers(
+  contract_dt   = contract_panel,
+  personnel_dt  = personnel_panel,
+  policy_params = policy_status_quo,
+  ref_date      = REF_DATE
+)
+
+res_sq$summary
+res_sq$movers_dt[order(movement_type, from_group)]
+res_sq$baseline_matrix[order(-avg_prob)][1:10]  # top-10 transitions by prob
+res_sq$demand_dt[order(-n_movers)]
+
+
+# --- 7b. Doubled transfer multiplier ---
+res_2x <- simulate_promotions_transfers(
+  contract_dt   = contract_panel,
+  personnel_dt  = personnel_panel,
+  policy_params = modifyList(policy_status_quo, list(transfer_multiplier = 2.0)),
+  ref_date      = REF_DATE
+)
+
+res_2x$summary
+# n_transfers should be higher than status-quo
+res_sq$summary$n_transfers
+res_2x$summary$n_transfers
+
+
+# --- 7c. Frozen mobility (multiplier = 0.1) ---
+res_freeze <- simulate_promotions_transfers(
+  contract_dt   = contract_panel,
+  personnel_dt  = personnel_panel,
+  policy_params = modifyList(policy_status_quo, list(
+    promotion_multiplier = 0.1,
+    transfer_multiplier  = 0.1
+  )),
+  ref_date = REF_DATE
+)
+
+res_freeze$summary
+# n_total_movers close to 0
+
+
+# --- 7d. Wage-based promotion strategy (requires grade dimension) ---
+# promotion_strategy = "wage_based" only fires for promotion-type movements.
+# With group_cols = "est_id" alone there are no promotions, so we switch to
+# group_cols = c("est_id", "paygrade") here: same-org grade changes = promotions,
+# cross-org moves = transfers.
+salary_scale_grade <- data.table::CJ(
+  est_id   = unique(contract$est_id),
+  paygrade = unique(contract$paygrade[!is.na(contract$paygrade)])
+)[, gross_salary_lcu := 5000]
+
+policy_wage <- list(
+  group_cols           = c("est_id", "paygrade"),
+  salary_scale         = salary_scale_grade,
+  promotion_multiplier = 1.0,
+  transfer_multiplier  = 1.0,
+  promotion_strategy   = "wage_based",
+  transfer_strategy    = "random"
+)
+
+res_wage <- simulate_promotions_transfers(
+  contract_dt   = contract_panel,
+  personnel_dt  = personnel_panel,
+  policy_params = policy_wage,
+  ref_date      = REF_DATE
+)
+
+res_wage$summary
+res_wage$movers_dt[, .N, by = movement_type]   # now shows both promotions and transfers
+
+
+# --- 7e. Reverse-tenure transfer strategy (newest workers transferred first) ---
+res_lifo <- simulate_promotions_transfers(
+  contract_dt   = contract_panel,
+  personnel_dt  = personnel_panel,
+  policy_params = modifyList(policy_status_quo, list(
+    transfer_strategy = "reverse_tenure"
+  )),
+  ref_date = REF_DATE
+)
+
+res_lifo$summary
+res_lifo$movers_dt[movement_type == "transfer"][order(from_group)]
+
+
+# --- 7g. Keep pre-move salary (salary_update_rule = "keep") ---
+# Useful when movements should not affect the wage bill — movers keep their
+# current salary regardless of what the destination salary_scale says.
+res_keep_salary <- simulate_promotions_transfers(
+  contract_dt   = contract_panel,
+  personnel_dt  = personnel_panel,
+  policy_params = modifyList(policy_status_quo, list(salary_update_rule = "keep")),
+  ref_date      = REF_DATE
+)
+
+res_keep_salary$summary
+
+# Verify: movers' salaries should be unchanged vs pre-move contract snapshot
+mover_ids_keep <- res_keep_salary$movers_dt$personnel_id
+before_salary  <- contract[personnel_id %in% mover_ids_keep,
+                            .(personnel_id, salary_before = gross_salary_lcu)]
+after_salary   <- res_keep_salary$contract_dt[personnel_id %in% mover_ids_keep,
+                                               .(personnel_id, salary_after = gross_salary_lcu)]
+data.table::merge.data.table(before_salary, after_salary, by = "personnel_id")
+# salary_before should equal salary_after for all rows
+
+
+# --- 7f. Single-snapshot input (no panel — baseline not estimable) ---
+# simulate_promotions_transfers should return input data unchanged with a message.
+res_no_panel <- simulate_promotions_transfers(
+  contract_dt   = contract,        # single snapshot only
+  personnel_dt  = personnel,
+  policy_params = policy_status_quo,
+  ref_date      = REF_DATE
+)
+
+res_no_panel$summary                # all zeros
+nrow(res_no_panel$baseline_matrix)  # should be 0
+
+
+###################################################################################################
+# PART 8: Retirement → Promotions/Transfers pipeline -----------------------------------------
+# Simulate retirements first, feed updated state into the movements module.
+###################################################################################################
+
+ret <- simulate_retirement(
+  contract_dt   = contract_panel,
+  personnel_dt  = personnel_panel,
+  policy_params = list(
+    eligibility_type = "age_and_tenure",
+    min_age          = 60,
+    min_tenure       = 20,
+    pension_type     = "db",
+    pension_params   = list(
+      accrual_rate    = 0.02,
+      ref_wage_col    = "gross_salary_lcu",
+      max_years       = 35,
+      replacement_cap = 0.80
+    )
+  ),
+  ref_date = REF_DATE
+)
+
+ret$summary   # how many retired?
+
+# Feed updated (post-retirement) state into movements module.
+# Note: ret$contract_dt and ret$personnel_dt are single-snapshot; the movements
+# orchestrator needs a panel for baseline estimation. We use the original full
+# panel for the baseline, but pass the post-retirement snapshot as a substitute.
+# The orchestrator will use the panel for estimate_movement_baseline() but the
+# snapshot for the simulation step.
+#
+# Practical pattern: pass the original panel with the post-retirement snapshot
+# appended as the "current" state. Here we simply reuse the panel baseline.
+
+movements_after_ret <- simulate_promotions_transfers(
+  contract_dt   = contract_panel,   # full panel for baseline estimation
+  personnel_dt  = personnel_panel,
+  policy_params = policy_status_quo,
+  ref_date      = REF_DATE
+)
+
+movements_after_ret$summary
+
+
+###################################################################################################
+# PART 9: Scenario comparison ------------------------------------------------------------------
+###################################################################################################
+
+# Note: res_wage uses group_cols = c("est_id", "paygrade") so its summary columns
+# are comparable in structure but may differ in scale (more possible transitions).
+scenario_summary <- rbindlist(list(
+  cbind(scenario = "status_quo",           res_sq$summary),
+  cbind(scenario = "transfer_2x",          res_2x$summary),
+  cbind(scenario = "mobility_freeze",      res_freeze$summary),
+  cbind(scenario = "wage_based_promotion", res_wage$summary),
+  cbind(scenario = "lifo_transfers",       res_lifo$summary)
+))
+
+scenario_summary[, .(scenario, n_promotions, n_transfers, n_total_movers,
+                     hist_avg_movement_rate, headcount_before, headcount_after)]

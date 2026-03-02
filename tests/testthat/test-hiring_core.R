@@ -412,3 +412,90 @@ test_that("compute_hiring_summary handles no adjustments", {
   expect_equal(result$net_headcount_change, 0)
   expect_equal(result$total_headcount, 100)
 })
+
+# =============================================================================
+# Tests for duplicate-personnel robustness in compute_current_stock()
+# =============================================================================
+
+test_that("compute_current_stock errors on duplicate personnel_id in personnel_dt", {
+  # Mirrors real HRMIS data where a person can appear twice at the same snapshot
+  # (e.g. conflicting education records). The function should fail loudly so the
+  # caller can clean their data rather than silently producing wrong counts.
+  contract_dt <- data.table(
+    contract_id       = paste0("C", 1:5),
+    personnel_id      = paste0("P", 1:5),
+    start_date        = as.Date("2020-01-01"),
+    end_date          = as.Date(NA),
+    contract_type_code = "permanent"
+  )
+
+  personnel_dt <- data.table(
+    personnel_id = c(paste0("P", 1:5), "P1"),  # P1 duplicated
+    status       = c(rep("active", 5), "active")
+  )
+
+  expect_error(
+    compute_current_stock(
+      contract_dt  = contract_dt,
+      personnel_dt = personnel_dt,
+      ref_date     = as.Date("2024-06-01")
+    ),
+    "duplicate rows"
+  )
+})
+
+# =============================================================================
+# Tests for downsizing salary cost in compute_hiring_summary()
+# =============================================================================
+
+test_that("compute_hiring_summary reports negative salary cost for pure downsizing", {
+  adjustment_dt <- data.table(net_change = -3L)
+
+  terminated_contracts <- data.table(
+    contract_id      = paste0("C", 1:3),
+    personnel_id     = paste0("P", 1:3),
+    gross_salary_lcu = c(50000, 60000, 70000)
+  )
+
+  result <- compute_hiring_summary(
+    adjustment_dt          = adjustment_dt,
+    new_hires_dt           = NULL,
+    new_contracts_dt       = NULL,
+    terminated_contracts_dt = terminated_contracts,
+    total_headcount        = 97L
+  )
+
+  expect_equal(result$n_new_hires, 0L)
+  expect_equal(result$net_headcount_change, -3L)
+  expect_equal(result$total_new_salary_cost, -180000)  # -(50000+60000+70000)
+})
+
+test_that("compute_hiring_summary reports combined cost for hire+downsize in same run", {
+  adjustment_dt <- data.table(
+    department = c("HR", "IT"),
+    net_change = c(2L, -1L)
+  )
+
+  new_contracts <- data.table(
+    contract_id      = c("N1", "N2"),
+    gross_salary_lcu = c(50000, 50000)
+  )
+
+  terminated_contracts <- data.table(
+    contract_id      = "T1",
+    gross_salary_lcu = 80000
+  )
+
+  result <- compute_hiring_summary(
+    adjustment_dt          = adjustment_dt,
+    new_hires_dt           = data.table(personnel_id = c("NP1", "NP2")),
+    new_contracts_dt       = new_contracts,
+    terminated_contracts_dt = terminated_contracts,
+    total_headcount        = 99L
+  )
+
+  expect_equal(result$n_new_hires, 2L)
+  expect_equal(result$net_headcount_change, 1L)
+  # 100000 new - 80000 removed = 20000 net
+  expect_equal(result$total_new_salary_cost, 20000)
+})
