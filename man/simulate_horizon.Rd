@@ -93,9 +93,9 @@ Default: \code{"age"}.}
 period. Default: \code{"tenure_years"}.}
 }
 \value{
-Named list:
+An object of class \code{horizon} with two primary components:
 \describe{
-\item{summary_dt}{data.table. One row per simulated period with columns:
+\item{\code{$comparison}}{data.table. One row per simulated period with columns:
 \code{period_date}, \code{n_headcount_start}, \code{wage_bill_start},
 \code{n_exits}, \code{exit_savings}, \code{pension_cost_new},
 \code{pension_cost_total}, \code{n_promotions}, \code{n_transfers},
@@ -107,9 +107,12 @@ Named list:
 \code{transfer_effect_pct_of_end_bill},
 \code{hiring_effect_pct_of_end_bill},
 \code{inflation_effect_pct_of_end_bill}.}
-\item{contract_dt}{data.table. Final-period contract snapshot.
+\item{\code{$summary_dt}}{Same as \code{$comparison} (backward-compatible alias).}
+\item{\code{$metadata}}{Named list with \code{policy_args} capturing the
+retirement, movement, and hiring policy parameters used.}
+\item{\code{$contract_dt}}{data.table. Final-period contract snapshot.
 Only present when \code{return_microdata = TRUE}.}
-\item{personnel_dt}{data.table. Final-period personnel snapshot.
+\item{\code{$personnel_dt}}{data.table. Final-period personnel snapshot.
 Only present when \code{return_microdata = TRUE}.}
 }
 }

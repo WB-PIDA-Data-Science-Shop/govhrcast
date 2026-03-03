@@ -334,6 +334,7 @@ generate_scenario_matrix <- function(contract_dt,
 
   if (n_scenarios == 1L) {
     data.table::setkeyv(smoke, c("scenario_id", "period_date"))
+    attr(smoke, "param_grid") <- param_grid
     return(smoke)
   }
 
@@ -372,5 +373,6 @@ generate_scenario_matrix <- function(contract_dt,
 
   out_dt <- data.table::rbindlist(all_results, use.names = TRUE, fill = TRUE)
   data.table::setkeyv(out_dt, c("scenario_id", "period_date"))
+  attr(out_dt, "param_grid") <- param_grid
   out_dt
 }

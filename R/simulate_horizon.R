@@ -158,7 +158,7 @@ compute_hiring_effect <- function(new_hire_contracts_dt,
 #' @param pre_cola_wage_bill Numeric scalar.  Total payroll \emph{before} the
 #'   COLA is applied.
 #' @param growth_rate Numeric scalar.  COLA / salary growth rate
-#'   (e.g. \code{0.03} for 3 \%).
+#'   (e.g. \code{0.03} for 3 percent).
 #'
 #' @return Numeric scalar: \code{pre_cola_wage_bill * growth_rate}.
 #'   Zero when \code{growth_rate} is zero; negative when \code{growth_rate}
@@ -634,9 +634,9 @@ simulate_scenario <- function(contract_dt,
 #' @param tenure_col Character or \code{NULL}. Tenure column to increment each
 #'   period. Default: \code{"tenure_years"}.
 #'
-#' @return Named list:
+#' @return An object of class \code{horizon} with two primary components:
 #'   \describe{
-#'     \item{summary_dt}{data.table. One row per simulated period with columns:
+#'     \item{\code{$comparison}}{data.table. One row per simulated period with columns:
 #'       \code{period_date}, \code{n_headcount_start}, \code{wage_bill_start},
 #'       \code{n_exits}, \code{exit_savings}, \code{pension_cost_new},
 #'       \code{pension_cost_total}, \code{n_promotions}, \code{n_transfers},
@@ -648,9 +648,12 @@ simulate_scenario <- function(contract_dt,
 #'       \code{transfer_effect_pct_of_end_bill},
 #'       \code{hiring_effect_pct_of_end_bill},
 #'       \code{inflation_effect_pct_of_end_bill}.}
-#'     \item{contract_dt}{data.table. Final-period contract snapshot.
+#'     \item{\code{$summary_dt}}{Same as \code{$comparison} (backward-compatible alias).}
+#'     \item{\code{$metadata}}{Named list with \code{policy_args} capturing the
+#'       retirement, movement, and hiring policy parameters used.}
+#'     \item{\code{$contract_dt}}{data.table. Final-period contract snapshot.
 #'       Only present when \code{return_microdata = TRUE}.}
-#'     \item{personnel_dt}{data.table. Final-period personnel snapshot.
+#'     \item{\code{$personnel_dt}}{data.table. Final-period personnel snapshot.
 #'       Only present when \code{return_microdata = TRUE}.}
 #'   }
 #'
@@ -736,6 +739,9 @@ simulate_horizon <- function(contract_dt,
   }
 
   ref_date <- validate_date_format(ref_date, "ref_date")
+
+  # Capture original value for metadata before expanding to per-period vector
+  salary_growth_rate_input <- salary_growth_rate
 
   # Expand scalar growth rate to vector
   if (length(salary_growth_rate) == 1L) {
@@ -866,7 +872,20 @@ simulate_horizon <- function(contract_dt,
     )]
   }
 
-  out <- list(summary_dt = summary_dt)
+  # Capture policy arguments for metadata
+  policy_args <- list(
+    retirement_policy  = retirement_policy,
+    movement_policy    = movement_policy,
+    hiring_policy      = hiring_policy,
+    salary_growth_rate = salary_growth_rate_input,
+    n_periods          = n_periods,
+    ref_date           = ref_date
+  )
+
+  out <- new_horizon(
+    comparison = summary_dt,
+    metadata   = list(policy_args = policy_args)
+  )
 
   if (return_microdata) {
     out$contract_dt  <- contract_dt

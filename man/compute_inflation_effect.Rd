@@ -11,7 +11,7 @@ compute_inflation_effect(pre_cola_wage_bill, growth_rate)
 COLA is applied.}
 
 \item{growth_rate}{Numeric scalar.  COLA / salary growth rate
-(e.g. \code{0.03} for 3 \\%).}
+(e.g. \code{0.03} for 3 percent).}
 }
 \value{
 Numeric scalar: \code{pre_cola_wage_bill * growth_rate}.
