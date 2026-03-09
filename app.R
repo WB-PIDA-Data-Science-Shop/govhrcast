@@ -9,13 +9,10 @@
 #   rsconnect::deployApp(appDir = getwd(), appTitle = "govhrcast")
 # =============================================================================
 
-library(govhrcast)
+pkgload::load_all(".")
+# Load the pre-computed scenario results from inst/extdata/ (bundled with the
+# package and included in the rsconnect deployment bundle automatically).
 
-# Load the pre-computed scenario results bundled with the deployment.
-# Replace this path / object with your actual results data.
-# For a Connect deployment you can either:
-#   (a) bundle an RDS alongside app.R and readRDS() it here, or
-#   (b) source a data-prep script that builds results from raw data.
-results <- readRDS("spielplatz/results_full.rds")
+results <- readRDS("inst/extdata/results_full.rds")
 
 generate_hrcastapp(results)

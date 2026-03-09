@@ -15,18 +15,19 @@ Imports:
     data.table,
     ggplot2,
     patchwork,
-    scales
+    scales,
+    shiny,
+    thematic
 Suggests:
     testthat (>= 3.0.0),
     govhr,
     future,
     future.apply,
-    shiny,
     bslib,
     bsicons,
     DT,
     plotly,
-    thematic
+    pkgload
 Depends: 
     R (>= 3.5)
 LazyData: true

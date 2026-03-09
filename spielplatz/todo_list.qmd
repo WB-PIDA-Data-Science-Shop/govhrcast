@@ -1,0 +1,30 @@
+##################################################################################################
+################ A LIST OF MODELLING AND VISUALIZATION MODIFICATIONS TO BE MADE ##################
+##################################################################################################
+
+##### general
+- We currently assume a yearly simulation projection i.e. adding 1 year to ref_date. But we 
+need to make this dynamic so that we can add 1 period by detecting the periodicity of the data or
+allowing the user to specific what each time step ought to be based on with options for year, 
+month or day. 
+
+- there are sections of the simulate_horizon() function that do not need to be run every year. 
+for instance, we should not be running compute_tenure() every year, we should just add 1 to the previous tenure calculation. This bring efficiency gains to the computation.  
+
+
+##### starting with the hiring module
+
+- identify_retirees() seems to be doing what it is supposed to be doing. However, 
+when called in the simulate_horizon() function, we need to ensure that those who
+retired before the baseline period are not included as part of those who 
+identify_retirees() is making eligible for retirement in the first period. 
+
+
+It figures out ANY retirees and so in the simulation, the headcount and pension payments for first year of simulation
+is large as a result. We need to fix this to ensure we separate the cumulative value from the year-on-year
+retiree count and pension costs in the first period. 
+
+- Also compute_tenure() is not correct at the moment, we need to sum up non-overlapping spells for each person. There has to be some unioning approach to get the unique time intervals for handling the overlapping spells. Perhaps the IRange package from bioconductor combined with data.table will do the trick. 
+
+
+

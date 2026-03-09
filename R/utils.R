@@ -116,7 +116,7 @@ compute_tenure <- function(contract_dt,
   unique_contracts <- active_dt[
     active_dt[, .I[1], by = c(contract_id_col, start_date_col)]$V1
   ]
-  
+   
   # Keep only essential columns for tenure calculation
   keep_cols <- c(personnel_id_col, contract_id_col, start_date_col, end_date_col)
   unique_contracts <- unique_contracts[, ..keep_cols]

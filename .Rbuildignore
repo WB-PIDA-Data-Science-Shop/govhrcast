@@ -1,7 +1,10 @@
+^renv$
+^renv\.lock$
 ^govhrcast\.Rproj$
-^\.Rproj\.user$
+^\. Rproj\.user$
 ^copilot_logs$
 ^spielplatz$
 ^data-raw$
 ^LICENSE\.md$
 ^app\.R$
+^rsconnect$
