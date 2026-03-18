@@ -4,7 +4,7 @@
 \alias{generate_new_ids}
 \title{Generate New Personnel IDs}
 \usage{
-generate_new_ids(n, ref_date, prefix = "NEW")
+generate_new_ids(n, ref_date, prefix = "NEW", group_key = NULL)
 }
 \arguments{
 \item{n}{Integer. Number of IDs to generate}
@@ -12,17 +12,26 @@ generate_new_ids(n, ref_date, prefix = "NEW")
 \item{ref_date}{Date. Reference date for ID stamping}
 
 \item{prefix}{Character. Prefix for IDs (default "NEW")}
+
+\item{group_key}{Character scalar. Optional group identifier to embed in ID
+(e.g. "HR" or "ministry_of_finance"). Non-alphanumeric characters are
+replaced with underscores.}
 }
 \value{
-Character vector of new IDs in format: PREFIX_YYYYMMDD_N
+Character vector of new IDs
 }
 \description{
-Creates unique personnel IDs for new hires using a timestamp-based format.
+Creates deterministic personnel IDs for new hires using a date + group + sequence
+scheme.  Calling with the same inputs always produces the same IDs, making
+period-over-period microdata joins and snapshot tests reproducible.
+If \code{group_key} is supplied it is sanitised (non-alphanumeric chars → "_") and
+embedded in the ID to prevent collisions when called multiple times on the same
+\code{ref_date} (e.g. once per group in a loop).
 }
 \examples{
 \dontrun{
-generate_new_ids(3, as.Date("2025-01-15"))
-# Returns: c("NEW_20250115_1", "NEW_20250115_2", "NEW_20250115_3")
+generate_new_ids(3, as.Date("2025-01-15"), prefix = "P", group_key = "HR")
+# Returns: c("P_2025-01-15_HR_001", "P_2025-01-15_HR_002", "P_2025-01-15_HR_003")
 }
 }
 \keyword{internal}

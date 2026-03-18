@@ -382,3 +382,154 @@ test_that("compute_movement_summary handles empty movers", {
   expect_equal(s$n_total_movers, 0L)
   expect_equal(s$headcount_before, 50L)
 })
+
+
+# =============================================================================
+# roll_snapshot_pairs() — unit tests (Block A)
+# =============================================================================
+
+make_two_period_panel <- function() {
+  data.table::data.table(
+    ref_date     = as.Date(c("2015-01-01", "2015-01-01",
+                             "2016-01-01", "2016-01-01")),
+    personnel_id = c("P1", "P2", "P1", "P2"),
+    paygrade     = c("G1", "G2", "G2", "G2")
+  )
+}
+
+make_three_period_panel <- function() {
+  data.table::data.table(
+    ref_date     = as.Date(c(
+      rep("2015-01-01", 2), rep("2016-01-01", 2), rep("2017-01-01", 2)
+    )),
+    personnel_id = c("P1","P2", "P1","P2", "P1","P2"),
+    value        = 1:6
+  )
+}
+
+test_that("roll_snapshot_pairs: returns empty data.table for < 2 dates", {
+  panel <- data.table::data.table(
+    ref_date = as.Date("2015-01-01"),
+    x        = 1L
+  )
+  result <- roll_snapshot_pairs(panel, "ref_date", function(a, b) data.table::data.table(n = 1L))
+  expect_s3_class(result, "data.table")
+  expect_equal(nrow(result), 0L)
+})
+
+test_that("roll_snapshot_pairs: calls f exactly n_dates-1 times", {
+  panel <- make_three_period_panel()   # 3 dates → 2 calls
+
+  call_count <- 0L
+  counter_f  <- function(a, b) {
+    call_count <<- call_count + 1L
+    data.table::data.table(pair = call_count)
+  }
+
+  result <- roll_snapshot_pairs(panel, "ref_date", counter_f)
+  expect_equal(call_count, 2L)
+  expect_equal(nrow(result), 2L)
+})
+
+test_that("roll_snapshot_pairs: snap_a and snap_b carry the correct dates", {
+  panel <- make_two_period_panel()
+
+  dates_seen <- list()
+  check_f <- function(a, b) {
+    dates_seen[[length(dates_seen) + 1L]] <<- list(
+      t0 = a$ref_date[1L],
+      t1 = b$ref_date[1L]
+    )
+    data.table::data.table(ok = TRUE)
+  }
+
+  roll_snapshot_pairs(panel, "ref_date", check_f)
+
+  expect_equal(length(dates_seen), 1L)
+  expect_equal(dates_seen[[1L]]$t0, as.Date("2015-01-01"))
+  expect_equal(dates_seen[[1L]]$t1, as.Date("2016-01-01"))
+})
+
+test_that("roll_snapshot_pairs: NA dates are dropped before iteration", {
+  panel <- data.table::data.table(
+    ref_date = as.Date(c(NA, "2015-01-01", "2016-01-01")),
+    x        = 1:3
+  )
+
+  call_count <- 0L
+  roll_snapshot_pairs(panel, "ref_date", function(a, b) {
+    call_count <<- call_count + 1L
+    data.table::data.table(n = 1L)
+  })
+  # Only 2 non-NA dates → exactly 1 pair
+  expect_equal(call_count, 1L)
+})
+
+test_that("roll_snapshot_pairs: NULL results from f are skipped", {
+  panel <- make_three_period_panel()
+
+  k <- 0L
+  skip_f <- function(a, b) {
+    k <<- k + 1L
+    if (k == 1L) return(NULL)   # skip first pair
+    data.table::data.table(pair = k)
+  }
+
+  result <- roll_snapshot_pairs(panel, "ref_date", skip_f)
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$pair, 2L)
+})
+
+test_that("roll_snapshot_pairs: errors on missing date_col", {
+  panel <- data.table::data.table(x = 1:3)
+  expect_error(
+    roll_snapshot_pairs(panel, "not_a_col", function(a, b) NULL),
+    "not_a_col"
+  )
+})
+
+test_that("roll_snapshot_pairs: errors on non-data.table input", {
+  expect_error(
+    roll_snapshot_pairs(list(x = 1), "ref_date", function(a, b) NULL),
+    "data.table"
+  )
+})
+
+# =============================================================================
+# estimate_movement_baseline() output-identity check after Block A refactor
+# =============================================================================
+
+test_that("estimate_movement_baseline: Block A refactor produces identical output to pre-refactor", {
+  # Pre-refactor reference values computed from the same make_panel() fixture:
+  #   G1->G2: avg_prob = 0.5 (P1 moved in the only period)
+  #   G2->G1: avg_prob = 0.5 (P4 moved in the only period)
+  bm <- estimate_movement_baseline(make_panel(), group_cols = "paygrade")
+
+  g1_to_g2 <- bm[from_group == "G1" & to_group == "G2", avg_prob]
+  g2_to_g1 <- bm[from_group == "G2" & to_group == "G1", avg_prob]
+
+  expect_equal(g1_to_g2, 0.5, tolerance = 1e-10)
+  expect_equal(g2_to_g1, 0.5, tolerance = 1e-10)
+})
+
+test_that("estimate_movement_baseline: 3-period panel averages correctly", {
+  # Period 1 (2015→2016): P1 G1→G2, P4 G2→G1  (1/2 each direction)
+  # Period 2 (2016→2017): P1 G2→G1, P4 G1→G2  (same rate, reversed)
+  # Both periods contribute to both cross-transitions → avg_prob = 0.5, n_periods = 2
+  panel3 <- data.table::rbindlist(list(
+    make_panel(),  # 2015 and 2016 snapshots
+    data.table::data.table(
+      ref_date           = as.Date("2017-01-01"),
+      personnel_id       = c("P1","P2","P3","P4"),
+      paygrade           = c("G1","G1","G2","G2"),   # reverse of 2016 → new movements
+      start_date         = as.Date("2010-01-01"),
+      end_date           = as.Date(NA),
+      contract_type_code = "permanent"
+    )
+  ))
+
+  bm3 <- estimate_movement_baseline(panel3, group_cols = "paygrade")
+  # G1→G2 occurred in both periods: period-1 prob = 0.5, period-2 prob = 0.5 → avg = 0.5
+  expect_equal(bm3[from_group == "G1" & to_group == "G2", avg_prob], 0.5, tolerance = 1e-10)
+  expect_equal(bm3[from_group == "G1" & to_group == "G2", n_periods], 2L)
+})

@@ -782,7 +782,9 @@ test_that("simulate_horizon increments age each period", {
     ref_date           = as.Date("2020-01-01"),
     return_microdata   = TRUE
   )
-  expect_equal(sort(res$personnel_dt$age), c(42, 52))
+  # Age auto-computed from birth_date (difftime/365.25) then incremented by 1
+  # each period, so after 2 periods: ~40+2=42 and ~50+2=52 (within rounding).
+  expect_equal(sort(res$personnel_dt$age), c(42, 52), tolerance = 0.1)
 })
 
 
@@ -1005,4 +1007,602 @@ test_that("simulate_horizon: status_quo mode produces hires close to historical 
   expect_equal(nrow(res$summary_dt), 2L)
   # Some hires should occur (historical rate > 0 since P5 joined at snap2)
   expect_gt(sum(res$summary_dt$n_hires), 0L)
+})
+
+# ===========================================================================
+# Phase 1b — auto-compute age/tenure in simulate_horizon() prologue
+# ===========================================================================
+
+# Helper: minimal single-snapshot inputs with birth_date present but age/tenure
+# intentionally set to zero so we can assert that simulate_horizon() overwrites them.
+make_phase1b_inputs <- function(ref_date = as.Date("2020-01-01")) {
+  contract_dt <- data.table::data.table(
+    contract_id        = c("C1", "C2"),
+    personnel_id       = c("P1", "P2"),
+    est_id             = c("E1", "E1"),
+    # P1: 10-year contract; P2: 5-year contract
+    start_date         = c(ref_date - 365L * 10L, ref_date - 365L * 5L),
+    end_date           = as.Date(NA_character_),
+    contract_type_code = "permanent",
+    gross_salary_lcu   = c(10000, 10000)
+  )
+  personnel_dt <- data.table::data.table(
+    personnel_id = c("P1", "P2"),
+    # birth_date gives P1 age = 40, P2 age = 30 at ref_date
+    birth_date   = c(ref_date - 365L * 40L, ref_date - 365L * 30L),
+    status       = "active",
+    age          = 0,           # intentionally wrong — should be overwritten
+    tenure_years = 0            # intentionally wrong — should be overwritten
+  )
+  salary_scale_dt <- data.table::data.table(
+    est_id           = "E1",
+    gross_salary_lcu = 10000
+  )
+  retire_off <- list(
+    eligibility_type = "age_only",
+    min_age          = 999L,
+    pension_type     = "flat",
+    pension_params   = list(flat_amount = 500)
+  )
+  list(
+    contract_dt     = contract_dt,
+    personnel_dt    = personnel_dt,
+    salary_scale_dt = salary_scale_dt,
+    retire_off      = retire_off,
+    ref_date        = ref_date
+  )
+}
+
+test_that("Phase 1b: simulate_horizon() auto-computes age from birth_date_col", {
+  d <- make_phase1b_inputs()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = d$retire_off,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date,
+    return_microdata   = TRUE,
+    birth_date_col     = "birth_date"
+  )
+
+  # After the prologue the age column in personnel_dt should ≈ 40 and 30
+  # (exact value is difftime in days / 365.25, so ~39.97 and ~29.97 for
+  #  365-day approximations, but well above the initial 0)
+  final_pers <- res$personnel_dt
+  ages <- final_pers[order(personnel_id), age]
+  expect_gt(ages[1], 39)  # P1 ~40 + 1 period increment
+  expect_gt(ages[2], 29)  # P2 ~30 + 1 period increment
+})
+
+test_that("Phase 1b: simulate_horizon() auto-computes tenure from contract history", {
+  d <- make_phase1b_inputs()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = d$retire_off,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date,
+    return_microdata   = TRUE,
+    birth_date_col     = "birth_date"
+  )
+
+  # P1 started 10 years before ref_date → tenure ≈ 10 + 1 period increment
+  # P2 started  5 years before ref_date → tenure ≈  5 + 1 period increment
+  final_pers <- res$personnel_dt
+  tenures <- final_pers[order(personnel_id), tenure_years]
+  expect_gt(tenures[1], 9.5)   # P1
+  expect_gt(tenures[2], 4.5)   # P2
+})
+
+test_that("Phase 1b: birth_date_col = NULL skips age auto-compute", {
+  d <- make_phase1b_inputs()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = d$retire_off,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date,
+    return_microdata   = TRUE,
+    birth_date_col     = NULL   # ← skip age auto-compute
+  )
+
+  # age was initialised to 0; after 1 period it should be ~1 (incremented once)
+  final_pers <- res$personnel_dt
+  ages <- final_pers[order(personnel_id), age]
+  expect_lt(ages[1], 5)   # started at 0 + 1 increment = 1, not ~41
+  expect_lt(ages[2], 5)
+})
+
+test_that("Phase 1b: missing birth_date column is silently ignored", {
+  d <- make_phase1b_inputs()
+  # Remove birth_date so the column doesn't exist
+  d$personnel_dt[, birth_date := NULL]
+
+  # Should not error even though birth_date_col = "birth_date" by default.
+  # Use retirement_policy = NULL to avoid the birth_date validation check in
+  # check_retirement_inputs() — we're only testing the prologue guard here.
+  expect_no_error(
+    simulate_horizon(
+      contract_dt        = d$contract_dt,
+      personnel_dt       = d$personnel_dt,
+      salary_scale_dt    = d$salary_scale_dt,
+      n_periods          = 1L,
+      retirement_policy  = NULL,
+      movement_policy    = NULL,
+      hiring_policy      = NULL,
+      salary_growth_rate = 0,
+      ref_date           = d$ref_date
+    )
+  )
+})
+
+# ===========================================================================
+# Phase 2a — dynamic period step (year / month / day)
+# ===========================================================================
+
+test_that("Phase 2a: period_unit='year' is identical to default behaviour", {
+  d <- make_phase1b_inputs()
+
+  res_default <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 2L,
+    retirement_policy  = d$retire_off,
+    salary_growth_rate = 0.03,
+    ref_date           = d$ref_date
+  )
+  res_year <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 2L,
+    retirement_policy  = d$retire_off,
+    salary_growth_rate = 0.03,
+    ref_date           = d$ref_date,
+    period_unit        = "year"
+  )
+
+  expect_equal(res_default$summary_dt$wage_bill_end,
+               res_year$summary_dt$wage_bill_end)
+})
+
+test_that("Phase 2a: 12 monthly periods ≈ 1 annual period for wage bill growth", {
+  annual_rate <- 0.12  # 12% annual for easy mental maths
+  d <- make_phase1b_inputs()
+
+  # 1 annual period
+  res_annual <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = NULL,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = annual_rate,
+    ref_date           = d$ref_date,
+    period_unit        = "year"
+  )
+
+  # 12 monthly periods
+  res_monthly <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 12L,
+    retirement_policy  = NULL,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = annual_rate,  # annual rate, auto-converted per-month
+    ref_date           = d$ref_date,
+    period_unit        = "month"
+  )
+
+  # Both should end with the same wage bill (compound growth converges)
+  expect_equal(
+    tail(res_monthly$summary_dt$wage_bill_end, 1),
+    tail(res_annual$summary_dt$wage_bill_end,  1),
+    tolerance = 1  # within 1 LCU — floating-point compound rounding
+  )
+})
+
+test_that("Phase 2a: period_unit='month' increments age by 1/12 per period", {
+  d <- make_phase1b_inputs()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 12L,
+    retirement_policy  = NULL,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date,
+    period_unit        = "month",
+    return_microdata   = TRUE
+  )
+
+  # After 12 monthly increments of 1/12, total age increment ≈ 1
+  # P1 starts at ~40 (from birth_date), ends at ~41
+  final_ages <- res$personnel_dt[order(personnel_id), age]
+  expect_equal(final_ages[1], 40 + 1, tolerance = 0.1)  # P1: 40 → ~41
+  expect_equal(final_ages[2], 30 + 1, tolerance = 0.1)  # P2: 30 → ~31
+})
+
+test_that("Phase 2a: invalid period_unit raises error", {
+  d <- make_phase1b_inputs()
+  expect_error(
+    simulate_horizon(
+      contract_dt        = d$contract_dt,
+      personnel_dt       = d$personnel_dt,
+      salary_scale_dt    = d$salary_scale_dt,
+      n_periods          = 1L,
+      salary_growth_rate = 0,
+      ref_date           = d$ref_date,
+      period_unit        = "quarter"  # not a valid unit
+    ),
+    regexp = "year.*month.*day|should be one of"
+  )
+})
+
+# =============================================================================
+# Phase 2c helpers
+# =============================================================================
+
+make_phase2c_inputs <- function() {
+  ref_date <- as.Date("2020-01-01")
+
+  # Two active employees
+  contract_dt <- data.table::data.table(
+    personnel_id     = c("P1", "P2"),
+    contract_id      = c("C1", "C2"),
+    start_date       = as.Date(c("2010-01-01", "2015-01-01")),
+    end_date         = as.Date(c(NA, NA)),
+    gross_salary_lcu = c(50000, 40000),
+    contract_type_code = c("permanent", "permanent"),
+    status           = c("active", "active")
+  )
+
+  personnel_dt <- data.table::data.table(
+    personnel_id = c("P1", "P2"),
+    birth_date   = as.Date(c("1960-01-01", "1965-01-01")),
+    status       = c("active", "active")
+  )
+
+  salary_scale_dt <- data.table::data.table(
+    grade            = c("G1", "G1"),
+    step             = c(1L, 2L),
+    gross_salary_lcu = c(40000, 50000)
+  )
+
+  list(
+    contract_dt     = contract_dt,
+    personnel_dt    = personnel_dt,
+    salary_scale_dt = salary_scale_dt,
+    ref_date        = ref_date
+  )
+}
+
+make_phase2c_inputs_with_existing_pensioners <- function() {
+  ref_date <- as.Date("2020-01-01")
+
+  # Two active employees + two pre-existing retirees
+  contract_dt <- data.table::data.table(
+    personnel_id     = c("P1", "P2", "R1", "R2"),
+    contract_id      = c("C1", "C2", "RC1", "RC2"),
+    start_date       = as.Date(c("2010-01-01", "2015-01-01",
+                                 "2000-01-01", "1998-01-01")),
+    end_date         = as.Date(c(NA, NA, NA, NA)),
+    gross_salary_lcu = c(50000, 40000, 20000, 18000),
+    contract_type_code = c("permanent", "permanent", "pensioner", "pensioner"),
+    status           = c("active", "active", "inactive", "inactive")
+  )
+
+  personnel_dt <- data.table::data.table(
+    personnel_id = c("P1", "P2", "R1", "R2"),
+    birth_date   = as.Date(c("1960-01-01", "1965-01-01",
+                              "1950-01-01", "1948-01-01")),
+    status       = c("active", "active", "inactive", "inactive")
+  )
+
+  salary_scale_dt <- data.table::data.table(
+    grade            = c("G1", "G1"),
+    step             = c(1L, 2L),
+    gross_salary_lcu = c(40000, 50000)
+  )
+
+  list(
+    contract_dt     = contract_dt,
+    personnel_dt    = personnel_dt,
+    salary_scale_dt = salary_scale_dt,
+    ref_date        = ref_date
+  )
+}
+
+# =============================================================================
+# Phase 2c tests
+# =============================================================================
+
+test_that("Phase 2c: pre-existing pensioners seed pension_cost_total in period 1", {
+  d <- make_phase2c_inputs_with_existing_pensioners()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 2L,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date
+  )
+
+  # R1 and R2 have pension_amount = 20000 and 18000 respectively
+  # pension_cost_total should reflect both in both periods (no new retirees, no COLA)
+  expect_gt(res$comparison$pension_cost_total[1], 0)
+  expect_equal(res$comparison$pension_cost_total[1],
+               res$comparison$pension_cost_total[2])
+})
+
+test_that("Phase 2c: pension_cola_rate = 0 keeps pension_cost_total constant", {
+  d <- make_phase2c_inputs_with_existing_pensioners()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 3L,
+    salary_growth_rate = 0.05,
+    pension_cola_rate  = 0,
+    ref_date           = d$ref_date
+  )
+
+  # salary_growth_rate raises active wages but pension amounts should be unchanged
+  total_pensions <- res$comparison$pension_cost_total
+  expect_equal(total_pensions[1], total_pensions[2])
+  expect_equal(total_pensions[2], total_pensions[3])
+})
+
+test_that("Phase 2c: pension_cola_rate > 0 grows pension_cost_total each period", {
+  d <- make_phase2c_inputs_with_existing_pensioners()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 3L,
+    salary_growth_rate = 0,
+    pension_cola_rate  = 0.05,
+    ref_date           = d$ref_date
+  )
+
+  total_pensions <- res$comparison$pension_cost_total
+  # Each period the register is COLA-adjusted after snapshot, so costs grow
+  expect_gt(total_pensions[2], total_pensions[1])
+  expect_gt(total_pensions[3], total_pensions[2])
+  # Growth factor should be ~1.05
+  expect_equal(total_pensions[2] / total_pensions[1], 1.05, tolerance = 1e-6)
+})
+
+test_that("Phase 2c: pensioner_register has 5-column expanded schema", {
+  d <- make_phase2c_inputs_with_existing_pensioners()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date
+  )
+
+  reg <- res$pensioner_register
+  expect_true(all(c("personnel_id", "pension_amount", "final_salary",
+                    "tenure_years_at_retirement", "age_at_retirement",
+                    "period_date") %in% names(reg)))
+})
+
+test_that("Phase 2c: pension_cola_rate as vector of length n_periods is accepted", {
+  d <- make_phase2c_inputs_with_existing_pensioners()
+
+  expect_no_error(
+    simulate_horizon(
+      contract_dt        = d$contract_dt,
+      personnel_dt       = d$personnel_dt,
+      salary_scale_dt    = d$salary_scale_dt,
+      n_periods          = 3L,
+      salary_growth_rate = 0,
+      pension_cola_rate  = c(0.02, 0.03, 0.04),
+      ref_date           = d$ref_date
+    )
+  )
+})
+
+test_that("Phase 2c: pension_cola_rate wrong length raises error", {
+  d <- make_phase2c_inputs_with_existing_pensioners()
+
+  expect_error(
+    simulate_horizon(
+      contract_dt        = d$contract_dt,
+      personnel_dt       = d$personnel_dt,
+      salary_scale_dt    = d$salary_scale_dt,
+      n_periods          = 3L,
+      salary_growth_rate = 0,
+      pension_cola_rate  = c(0.02, 0.03),  # length 2, not 3
+      ref_date           = d$ref_date
+    ),
+    regexp = "pension_cola_rate"
+  )
+})
+
+
+# =============================================================================
+# Block E — scenario_name and is_baseline parameters
+# =============================================================================
+
+make_minimal_horizon_inputs <- function() {
+  contract_dt <- data.table::data.table(
+    contract_id        = "C1",
+    personnel_id       = "P1",
+    start_date         = as.Date("2010-01-01"),
+    end_date           = as.Date(NA),
+    gross_salary_lcu   = 50000,
+    contract_type_code = "permanent",
+    status             = "active"
+  )
+  personnel_dt <- data.table::data.table(
+    personnel_id = "P1",
+    status       = "active"
+  )
+  salary_scale_dt <- data.table::data.table(
+    grade            = "G1",
+    gross_salary_lcu = 50000
+  )
+  list(
+    contract_dt     = contract_dt,
+    personnel_dt    = personnel_dt,
+    salary_scale_dt = salary_scale_dt,
+    ref_date        = as.Date("2020-01-01")
+  )
+}
+
+test_that("Block E: scenario_name stamps scenario_id and scenario_label columns", {
+  d <- make_minimal_horizon_inputs()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 2L,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date,
+    scenario_name      = "Baseline"
+  )
+
+  expect_true("scenario_id"    %in% names(res$comparison))
+  expect_true("scenario_label" %in% names(res$comparison))
+  expect_true(all(res$comparison$scenario_id    == "Baseline"))
+  expect_true(all(res$comparison$scenario_label == "Baseline"))
+})
+
+test_that("Block E: is_baseline = TRUE stamps TRUE in is_baseline column", {
+  d <- make_minimal_horizon_inputs()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date,
+    scenario_name      = "BAU",
+    is_baseline        = TRUE
+  )
+
+  expect_true("is_baseline" %in% names(res$comparison))
+  expect_true(all(res$comparison$is_baseline == TRUE))
+})
+
+test_that("Block E: is_baseline = FALSE (default) stamps FALSE", {
+  d <- make_minimal_horizon_inputs()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date,
+    scenario_name      = "Alt"
+  )
+
+  expect_true(all(res$comparison$is_baseline == FALSE))
+})
+
+test_that("Block E: scenario_name = NULL omits scenario_id and scenario_label", {
+  d <- make_minimal_horizon_inputs()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date
+    # scenario_name omitted (defaults to NULL)
+  )
+
+  expect_false("scenario_id"    %in% names(res$comparison))
+  expect_false("scenario_label" %in% names(res$comparison))
+  # is_baseline should still be present (always stamped)
+  expect_true("is_baseline" %in% names(res$comparison))
+  expect_true(all(res$comparison$is_baseline == FALSE))
+})
+
+test_that("Block E: scenario_name and is_baseline stored in metadata", {
+  d <- make_minimal_horizon_inputs()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date,
+    scenario_name      = "Scenario A",
+    is_baseline        = TRUE
+  )
+
+  expect_equal(res$metadata$scenario_name, "Scenario A")
+  expect_true(res$metadata$is_baseline)
+})
+
+test_that("Block E: non-character scenario_name raises error", {
+  d <- make_minimal_horizon_inputs()
+
+  expect_error(
+    simulate_horizon(
+      contract_dt        = d$contract_dt,
+      personnel_dt       = d$personnel_dt,
+      salary_scale_dt    = d$salary_scale_dt,
+      n_periods          = 1L,
+      salary_growth_rate = 0,
+      ref_date           = d$ref_date,
+      scenario_name      = 42L    # must be character
+    ),
+    regexp = "scenario_name"
+  )
+})
+
+test_that("Block E: scenario_id and scenario_label are first columns when scenario_name set", {
+  d <- make_minimal_horizon_inputs()
+
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date,
+    scenario_name      = "Test"
+  )
+
+  col_positions <- match(c("scenario_id", "scenario_label", "is_baseline"),
+                         names(res$comparison))
+  expect_true(all(col_positions <= 3L))
 })

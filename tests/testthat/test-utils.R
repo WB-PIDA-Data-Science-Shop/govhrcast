@@ -244,7 +244,9 @@ test_that("compute_tenure handles panel data correctly", {
   ref_date <- as.Date("2025-01-01")
   result <- compute_tenure(contract_dt, ref_date)
   
-  # Should deduplicate and get: 5 years + 10 years = 15 years
+  # Should deduplicate and get: one span 2010-01-01 → 2025-01-01 = 15 years
+  # (C001: 2010-01-01 to 2015-01-01 = 5 yrs; C002: 2015-01-01 to open → capped at ref_date
+  #  = 10 yrs; no overlap → sum = 15 yrs)
   expect_equal(nrow(result), 1)  # Only one personnel
   expect_equal(result$tenure_years, 15, tolerance = 0.1)
 })

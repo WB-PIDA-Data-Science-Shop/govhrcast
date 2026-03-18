@@ -30,13 +30,23 @@ compute_tenure(
 \item{contract_type_col}{Character. Name of contract type column (default: "contract_type_code")}
 }
 \value{
-data.table with personnel_id, tenure_years, and tenure_days columns
+data.table with personnel_id, tenure_days, and tenure_years columns
 }
 \description{
-Computes total years of service for each personnel as of a reference date.
-Handles panel/time-series data by deduplicating contracts using contract_id + start_date.
-For each unique contract, calculates time between start_date and the earlier of
-(end_date, ref_date), then sums across all contracts per personnel.
+Computes total years of service for each personnel as of a reference date
+using a vectorised interval-union algorithm based on \code{cummax()}.
+Overlapping and nested contracts are correctly de-duplicated; gaps between
+contracts are excluded from the total.
+
+The algorithm sorts each person's contracts by start date, then propagates
+the "furthest right endpoint seen so far" with \code{cummax()}.  Three
+cases cover all interval relationships:
+\itemize{
+\item \strong{Case 1} (new span): start > lag_cummax → contributes \code{end - start}
+\item \strong{Case 2} (extension): end > lag_cummax ≥ start → contributes \code{end - lag_cummax}
+\item \strong{Case 3} (nested): end ≤ lag_cummax → contributes 0
+}
+This is O(n log n) for the sort, O(n) for the sweep.
 }
 \examples{
 \dontrun{

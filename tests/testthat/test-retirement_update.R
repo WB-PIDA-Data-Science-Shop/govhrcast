@@ -31,7 +31,7 @@ create_test_personnel_for_update <- function() {
 # update_contracts_for_retirees()
 # =============================================================================
 
-test_that("update_contracts_for_retirees updates primary contract correctly", {
+test_that("update_contracts_for_retirees marks all active contracts pensioner", {
   contract_dt <- create_test_contracts_for_update()
   
   # P001 retires - has 2 active contracts
@@ -43,12 +43,11 @@ test_that("update_contracts_for_retirees updates primary contract correctly", {
   
   result <- update_contracts_for_retirees(contract_dt, retirees_dt, ref_date)
   
-  # C002 should be primary (later start, higher salary)
+  # Both active contracts for P001 become pensioner (Phase 0d: all active → pensioner)
   expect_equal(result[contract_id == "C002"]$contract_type_code, "pensioner")
   expect_equal(result[contract_id == "C002"]$end_date, ref_date)
   
-  # C001 should be secondary
-  expect_equal(result[contract_id == "C001"]$contract_type_code, "closed_due_to_retirement")
+  expect_equal(result[contract_id == "C001"]$contract_type_code, "pensioner")
   expect_equal(result[contract_id == "C001"]$end_date, ref_date)
   
   # Other contracts unchanged
@@ -79,7 +78,7 @@ test_that("update_contracts_for_retirees handles multiple retirees", {
   expect_equal(result[contract_id == "C006"]$contract_type_code, "perm")
 })
 
-test_that("update_contracts_for_retirees prioritizes by start_date", {
+test_that("update_contracts_for_retirees marks all active contracts pensioner (start_date fixture)", {
   contract_dt <- data.table(
     contract_id = c("C001", "C002"),
     personnel_id = c("P001", "P001"),
@@ -94,12 +93,12 @@ test_that("update_contracts_for_retirees prioritizes by start_date", {
   
   result <- update_contracts_for_retirees(contract_dt, retirees_dt, ref_date)
   
-  # C002 should be primary (later start date)
+  # Both active contracts become pensioner (Phase 0d)
   expect_equal(result[contract_id == "C002"]$contract_type_code, "pensioner")
-  expect_equal(result[contract_id == "C001"]$contract_type_code, "closed_due_to_retirement")
+  expect_equal(result[contract_id == "C001"]$contract_type_code, "pensioner")
 })
 
-test_that("update_contracts_for_retirees prioritizes by salary when start_date same", {
+test_that("update_contracts_for_retirees marks all active contracts pensioner (salary fixture)", {
   contract_dt <- data.table(
     contract_id = c("C001", "C002"),
     personnel_id = c("P001", "P001"),
@@ -114,12 +113,12 @@ test_that("update_contracts_for_retirees prioritizes by salary when start_date s
   
   result <- update_contracts_for_retirees(contract_dt, retirees_dt, ref_date)
   
-  # C002 should be primary (higher salary)
+  # Both active contracts become pensioner (Phase 0d)
   expect_equal(result[contract_id == "C002"]$contract_type_code, "pensioner")
-  expect_equal(result[contract_id == "C001"]$contract_type_code, "closed_due_to_retirement")
+  expect_equal(result[contract_id == "C001"]$contract_type_code, "pensioner")
 })
 
-test_that("update_contracts_for_retirees prioritizes by contract_id when start_date and salary same", {
+test_that("update_contracts_for_retirees marks all active contracts pensioner (contract_id fixture)", {
   contract_dt <- data.table(
     contract_id = c("C003", "C001", "C002"),  # Intentionally unordered
     personnel_id = c("P001", "P001", "P001"),
@@ -134,10 +133,10 @@ test_that("update_contracts_for_retirees prioritizes by contract_id when start_d
   
   result <- update_contracts_for_retirees(contract_dt, retirees_dt, ref_date)
   
-  # C001 should be primary (lowest ID alphabetically)
+  # All three active contracts become pensioner (Phase 0d)
   expect_equal(result[contract_id == "C001"]$contract_type_code, "pensioner")
-  expect_equal(result[contract_id == "C002"]$contract_type_code, "closed_due_to_retirement")
-  expect_equal(result[contract_id == "C003"]$contract_type_code, "closed_due_to_retirement")
+  expect_equal(result[contract_id == "C002"]$contract_type_code, "pensioner")
+  expect_equal(result[contract_id == "C003"]$contract_type_code, "pensioner")
 })
 
 test_that("update_contracts_for_retirees only updates active contracts", {
@@ -155,15 +154,13 @@ test_that("update_contracts_for_retirees only updates active contracts", {
   
   result <- update_contracts_for_retirees(contract_dt, retirees_dt, ref_date)
   
-  # C001 should remain inactive (already ended)
+  # C001 should remain inactive (already closed — not overwritten)
   expect_equal(result[contract_id == "C001"]$contract_type_code, "inactive")
   expect_equal(result[contract_id == "C001"]$end_date, as.Date("2010-01-01"))
   
-  # C003 should be primary (latest active)
+  # Both active contracts become pensioner (Phase 0d: all active → pensioner)
   expect_equal(result[contract_id == "C003"]$contract_type_code, "pensioner")
-  
-  # C002 should be secondary
-  expect_equal(result[contract_id == "C002"]$contract_type_code, "closed_due_to_retirement")
+  expect_equal(result[contract_id == "C002"]$contract_type_code, "pensioner")
 })
 
 test_that("update_contracts_for_retirees handles single contract per retiree", {
@@ -220,7 +217,7 @@ test_that("update_contracts_for_retirees modifies input data.table in place", {
   expect_true(any(contract_dt$contract_type_code == "pensioner"))
 })
 
-test_that("update_contracts_for_retirees handles NA salaries in ranking", {
+test_that("update_contracts_for_retirees handles NA salaries (all active become pensioner)", {
   contract_dt <- data.table(
     contract_id = c("C001", "C002"),
     personnel_id = c("P001", "P001"),
@@ -235,8 +232,9 @@ test_that("update_contracts_for_retirees handles NA salaries in ranking", {
   
   result <- update_contracts_for_retirees(contract_dt, retirees_dt, ref_date)
   
-  # C001 should be primary (has salary)
+  # Both active contracts become pensioner (Phase 0d)
   expect_equal(result[contract_id == "C001"]$contract_type_code, "pensioner")
+  expect_equal(result[contract_id == "C002"]$contract_type_code, "pensioner")
 })
 
 test_that("update_contracts_for_retirees handles retiree with no active contracts", {
@@ -254,7 +252,7 @@ test_that("update_contracts_for_retirees handles retiree with no active contract
   
   result <- update_contracts_for_retirees(contract_dt, retirees_dt, ref_date)
   
-  # Nothing should change - P001 has no active contracts to update
+  # P001's inactive contract is not overwritten (already closed)
   expect_equal(result[contract_id == "C001"]$contract_type_code, "inactive")
   expect_equal(result[contract_id == "C002"]$contract_type_code, "perm")
 })

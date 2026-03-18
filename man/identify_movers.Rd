@@ -32,6 +32,12 @@ Must have columns: from_group, to_group, movement_type, n_movers}
 \describe{
 \item{group_cols}{Character vector defining state columns}
 \item{promotion_strategy}{Character. "tenure" or "wage_based"}
+\item{promotion_order_col}{Character or \code{NULL}. Optional.  When
+provided, overrides \code{promotion_strategy} ordering by ranking
+eligible persons on this column (descending — highest value promoted
+first).  Must be a numeric column present in \code{contract_dt} or
+the merged workforce view.  Default \code{NULL} (uses
+\code{promotion_strategy}).}
 \item{transfer_strategy}{Character. "random", "tenure", or "reverse_tenure"}
 }}
 

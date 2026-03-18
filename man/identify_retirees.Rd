@@ -13,7 +13,9 @@ identify_retirees(
   birth_date_col = "birth_date",
   start_date_col = "start_date",
   end_date_col = "end_date",
-  contract_type_col = "contract_type_code"
+  contract_type_col = "contract_type_code",
+  age_col = "age",
+  tenure_col = "tenure_years"
 )
 }
 \arguments{
@@ -39,6 +41,13 @@ identify_retirees(
 \item{end_date_col}{Character. Name of end date column (default: "end_date")}
 
 \item{contract_type_col}{Character. Name of contract type column (default: "contract_type_code")}
+
+\item{age_col}{Character or NULL. Column in personnel_dt containing pre-computed
+age (in years). When present, \code{compute_age()} is skipped. Default \code{"age"}.}
+
+\item{tenure_col}{Character or NULL. Column in personnel_dt containing pre-computed
+tenure (in years). When present, \code{compute_tenure()} is skipped.
+Default \code{"tenure_years"}.}
 }
 \value{
 data.table with columns: personnel_id, retire (0/1), age, tenure_years

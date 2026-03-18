@@ -85,7 +85,9 @@ simulate_retirement <- function(contract_dt,
                                 end_date_col = "end_date",
                                 salary_col = "gross_salary_lcu",
                                 contract_type_col = "contract_type_code",
-                                status_col = "status") {
+                                status_col = "status",
+                                age_col    = "age",
+                                tenure_col = "tenure_years") {
   
   # ========================================
   # 1. Input Validation
@@ -144,7 +146,9 @@ simulate_retirement <- function(contract_dt,
     birth_date_col = birth_date_col,
     start_date_col = start_date_col,
     end_date_col = end_date_col,
-    contract_type_col = contract_type_col
+    contract_type_col = contract_type_col,
+    age_col    = age_col,
+    tenure_col = tenure_col
   )
   
   # ========================================
