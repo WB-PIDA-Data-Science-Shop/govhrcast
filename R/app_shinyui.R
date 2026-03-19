@@ -81,11 +81,6 @@
                turnover for a selected scenario."
             ),
             shiny::tags$li(
-              shiny::strong("Scenario Comparator:"),
-              " Overlays two different policy paths to identify the
-               fiscal gap between choices."
-            ),
-            shiny::tags$li(
               shiny::strong("Data & Methodology:"),
               " Provides the raw simulation tables and links to the
                open-source logic."
@@ -191,62 +186,7 @@
 
 
 # ---------------------------------------------------------------------------
-# Tab 3: Scenario Comparator
-# ---------------------------------------------------------------------------
-
-#' @keywords internal
-.hz_tab_comparator <- function() {
-  bslib::nav_panel(
-    title = "Scenario Comparator",
-    value = "tab_compare",
-
-    bslib::layout_sidebar(
-      sidebar = bslib::sidebar(
-        width = 300,
-        shiny::uiOutput("cmp_levers_a"),
-        shiny::hr(),
-        shiny::uiOutput("cmp_levers_b"),
-        shiny::hr(),
-        shiny::selectInput(
-          "cmp_plot_type",
-          "Chart type",
-          choices = c(
-            "Fiscal Basics"    = "fiscal_basics",
-            "Spending Effects" = "spending_effects",
-            "Turnover"         = "turnover"
-          )
-        )
-      ),
-
-      bslib::card(
-        bslib::card_header("Overlay Comparison"),
-        bslib::card_body(
-          plotly::plotlyOutput("plot_compare")
-        )
-      ),
-
-      bslib::layout_column_wrap(
-        width = 1 / 3,
-        bslib::card(
-          bslib::card_header("Wage Bill Gap (Terminal Year)"),
-          bslib::card_body(shiny::uiOutput("delta_wage_bill"))
-        ),
-        bslib::card(
-          bslib::card_header("Pension Gap (Terminal Year)"),
-          bslib::card_body(shiny::uiOutput("delta_pension"))
-        ),
-        bslib::card(
-          bslib::card_header("Headcount Gap (Terminal Year)"),
-          bslib::card_body(shiny::uiOutput("delta_headcount"))
-        )
-      )
-    )
-  )
-}
-
-
-# ---------------------------------------------------------------------------
-# Tab 4: Data & Methodology
+# Tab 3: Data & Methodology
 # ---------------------------------------------------------------------------
 
 #' @keywords internal
@@ -376,7 +316,6 @@ hz_build_ui <- function(flat_dt, lever_cols, scenario_ch) {
 
     .hz_tab_intro(),
     .hz_tab_policy(flat_dt, lever_cols),
-    .hz_tab_comparator(),
     .hz_tab_data()
   )
 }
