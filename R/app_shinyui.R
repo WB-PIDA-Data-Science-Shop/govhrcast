@@ -107,7 +107,7 @@
 
     # KPI row ----------------------------------------------------------------
     bslib::layout_column_wrap(
-      width = 1 / 3,
+      width = "250px",
       bslib::value_box(
         title    = "Terminal Wage Bill",
         value    = shiny::textOutput("kpi_wage_bill"),
@@ -138,12 +138,15 @@
             shiny::uiOutput("desc_fiscal"),
             placement = "right"
           ),
-          # 3 panels side by side — mirrors patchwork p1 + p2 + p3
-          bslib::layout_column_wrap(
-            width = 1 / 3,
-            plotly::plotlyOutput("plot_fiscal_1"),
-            plotly::plotlyOutput("plot_fiscal_2"),
-            plotly::plotlyOutput("plot_fiscal_3")
+          shiny::div(
+            style = "overflow-y: auto; max-height: 85vh;",
+            # 3 panels side by side — mirrors patchwork p1 + p2 + p3
+            bslib::layout_column_wrap(
+              width = 1 / 3,
+              plotly::plotlyOutput("plot_fiscal_1", height = "420px"),
+              plotly::plotlyOutput("plot_fiscal_2", height = "420px"),
+              plotly::plotlyOutput("plot_fiscal_3", height = "420px")
+            )
           )
         )
       ),
@@ -171,11 +174,14 @@
             shiny::uiOutput("desc_turnover"),
             placement = "right"
           ),
-          # 2 panels side by side — flows | stock
-          bslib::layout_column_wrap(
-            width = 1 / 2,
-            plotly::plotlyOutput("plot_turnover_1"),
-            plotly::plotlyOutput("plot_turnover_2")
+          shiny::div(
+            style = "overflow-y: auto; max-height: 85vh;",
+            # 2 panels side by side — flows | stock
+            bslib::layout_column_wrap(
+              width = 1 / 2,
+              plotly::plotlyOutput("plot_turnover_1", height = "450px"),
+              plotly::plotlyOutput("plot_turnover_2", height = "450px")
+            )
           )
         )
       )
@@ -306,6 +312,9 @@ hz_build_ui <- function(flat_dt, lever_cols, scenario_ch) {
     bslib::bs_add_rules("
       /* Logo card header: no padding so image fills edge-to-edge */
       .card-header:has(img) { padding: 0 !important; overflow: hidden; }
+
+      /* Navbar brand text */
+      .navbar-brand { font-size: clamp(0.95rem, 1.5vw, 1.2rem) !important; }
     ")
 
   bslib::page_navbar(

@@ -174,8 +174,9 @@ hz_delta_card_html <- function(val_a, val_b, label_a, label_b) {
 #'
 #' @description
 #' Returns a \code{bslib::bs_theme()} object with the standard govhrcast
-#' colour palette and typography.  Mirrors the cpiaapp theme exactly
-#' (litera bootswatch, Source Sans Pro body, Fira Sans headings).
+#' colour palette, typography, and responsive CSS rules.  Font sizes for
+#' headings and value-box components scale with the viewport via
+#' \code{clamp()} so the layout remains readable across screen widths.
 #'
 #' @return A \code{bs_theme} object.
 #' @keywords internal
@@ -186,7 +187,49 @@ hz_app_theme <- function() {
     code_font    = bslib::font_google("Source Sans Pro", local = FALSE),
     heading_font = bslib::font_google("Fira Sans",       local = FALSE),
     navbar_bg    = "#FFFFFF"
-  )
+  ) |>
+  bslib::bs_add_rules("
+    /* ---------------------------------------------------------------
+     * Responsive heading scale
+     * clamp(min, preferred, max) — shrinks gracefully on small screens
+     * --------------------------------------------------------------- */
+    h3 { font-size: clamp(1.1rem, 2vw, 1.75rem) !important; }
+    h4 { font-size: clamp(0.95rem, 1.6vw, 1.35rem) !important; }
+    h5 { font-size: clamp(0.85rem, 1.3vw, 1.1rem)  !important; }
+    h6 { font-size: clamp(0.75rem, 1.1vw, 0.95rem) !important; }
+
+    /* ---------------------------------------------------------------
+     * bslib value_box — title and value text
+     * --------------------------------------------------------------- */
+    .value-box-title {
+      font-size: clamp(0.7rem, 1.1vw, 0.95rem) !important;
+      white-space: normal !important;
+      line-height: 1.3 !important;
+    }
+    .value-box-value {
+      font-size: clamp(1rem, 2vw, 1.75rem) !important;
+      line-height: 1.2 !important;
+    }
+
+    /* ---------------------------------------------------------------
+     * Prevent value boxes from collapsing below a readable height
+     * --------------------------------------------------------------- */
+    .bslib-value-box {
+      min-height: 100px !important;
+    }
+
+    /* ---------------------------------------------------------------
+    /* navset-card-pill tab labels
+     * --------------------------------------------------------------- */
+    .nav-pills .nav-link {
+      font-size: clamp(0.75rem, 1.1vw, 0.95rem) !important;
+    }
+
+    /* ---------------------------------------------------------------
+     * Allow tab pane content to fill vertical space for scrolling divs
+     * --------------------------------------------------------------- */
+    .tab-pane { height: 100%; }
+  ")
 }
 
 
@@ -209,19 +252,43 @@ hz_to_plotly <- function(p,
   tmp <- tempfile(fileext = ".pdf")
   grDevices::pdf(tmp, width = 10, height = 5)
   on.exit({ grDevices::dev.off(); unlink(tmp) }, add = TRUE)
-  tryCatch(
-    plotly::ggplotly(p, tooltip = tooltip) |>
-      plotly::layout(
-        legend = list(
-          orientation = "h",
-          x           = 1,
-          y           = 1.02,
-          xanchor     = "right",
-          yanchor     = "bottom",
-          font        = list(size = 11)
-        )
-      ),
-    error = function(e) plotly::plotly_empty()
+
+  # Shared axis tick font — midpoint between default (~12) and previous (9)
+  .tick_font <- list(size = 11, family = "Fira Sans, sans-serif")
+
+  tryCatch({
+    pl <- plotly::ggplotly(p, tooltip = tooltip)
+
+    # Collect all axis keys present in the figure (handles facets: xaxis, xaxis2, …)
+    axis_keys <- names(pl$x$layout)[grepl("^[xy]axis", names(pl$x$layout))]
+
+    # Build a named list of per-axis overrides
+    axis_updates <- stats::setNames(
+      lapply(axis_keys, function(k) {
+        list(tickfont = .tick_font, title = list(font = .tick_font))
+      }),
+      axis_keys
+    )
+
+    # Legend below the plot, centred, horizontal
+    legend_cfg <- list(
+      orientation = "h",
+      x           = 0.5,
+      y           = -0.2,
+      xanchor     = "center",
+      yanchor     = "top",
+      font        = list(size = 11, family = "Fira Sans, sans-serif")
+    )
+
+    # Extra bottom margin so the legend never overlaps x-axis tick labels
+    margin_cfg <- list(b = 80)
+
+    do.call(
+      plotly::layout,
+      c(list(pl, legend = legend_cfg, margin = margin_cfg), axis_updates)
+    )
+  },
+  error = function(e) plotly::plotly_empty()
   )
 }
 
