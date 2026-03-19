@@ -5,48 +5,46 @@
 #
 # PURPOSE
 # -------
-# Walk through how to use govhrcast's simulation engine with Gambia-specific
-# policy levers.  We use the Brazilian HRMIS teaching dataset (bra_hrmis_*)
-# as a structural proxy — same levers, same workflow as you would apply to
-# actual Gambian HRMIS data once it is loaded.
+# Demonstrates the full govhrcast simulation workflow for Gambia-specific
+# policy levers.  Uses the Brazilian HRMIS teaching dataset (bra_hrmis_*) as a
+# structural proxy — the same workflow applies once real Gambian HRMIS data is
+# loaded.
 #
 # GAMBIA POLICY CONTEXT (from TOR)
 # ---------------------------------
-# The Gambia Civil Service Commission faces four core fiscal pressures:
+#  1. RETIREMENT AGE REFORM       — test 55 / 58 / 60 / 63 mandatory age
+#  2. WAGE BILL / COLA POLICY     — test 0% / 3% / 5% / 8% annual increment
+#  3. RECRUITMENT & BACKFILL      — test 0 / 0.5× / 1× / 1.5× replacement
+#  4. PROMOTION / REGRADING       — test 0 / 0.5× / 1× / 3× historical rate
 #
-#  1. RETIREMENT AGE REFORM
-#     The mandatory retirement age has historically been 55 (established grades)
-#     and 60 (senior/professional grades).  There is policy interest in moving
-#     to a unified 60 or 63 to retain experienced staff and smooth outflows.
+# WHAT IS NEW (March 2026)
+# ------------------------
+# simulate_horizon() now accepts:
+#   scenario_name  — human-readable label stamped onto $comparison as
+#                    scenario_id + scenario_label (Shiny-ready)
+#   is_baseline    — logical flag; the baseline row is highlighted in the
+#                    Shiny comparator
 #
-#  2. WAGE BILL / COLA POLICY
-#     Nominal salary increments have ranged from 0% (freeze years) to ~8% pa.
-#     The IMF/World Bank fiscal framework flags 3–5% as the sustainable band.
-#
-#  3. RECRUITMENT & BACKFILL POLICY
-#     A freeze was imposed in 2021–22; pressure to resume hiring at
-#     replacement rate (1:1) or above to address service delivery gaps.
-#     Option: expand to 1.5× in priority ministries only (proxied by est_id).
-#
-#  4. PROMOTION / REGRADING
-#     A regrading exercise was proposed to align pay with ECOWAS comparators.
-#     This is modelled as a promotion multiplier applied to the historical
-#     promotion rate (2× = double the pace; 3× = one-time regrading burst).
+# generate_hrcastapp() accepts either:
+#   (a) a single horizon object     → single-scenario view
+#   (b) a flat data.table from rbindlist(lapply(..., `[[`, "comparison"))
+#       → multi-scenario comparator view
+#   (c) output of generate_scenario_matrix() → full grid explorer
 #
 # SCRIPT STRUCTURE
 # ----------------
 #  SECTION 0 — Data preparation
 #  SECTION 1 — Policy templates (building blocks)
-#  SECTION 2 — Single-scenario horizon: baseline (60, 3% COLA, full backfill)
-#  SECTION 3 — Direct comparisons: two named scenarios side-by-side
-#  SECTION 4 — Scenario matrix: 4 × 4 grid (retirement age × COLA, 16 runs)
+#  SECTION 2 — Baseline horizon: a single named scenario
+#  SECTION 3 — Named scenario comparisons → flat table → Shiny
+#  SECTION 4 — Scenario matrix: retirement age × COLA (16 scenarios)
 #  SECTION 5 — Full policy matrix: all 4 axes (256 scenarios, ~5–10 min)
 #  SECTION 6 — Launch Shiny dashboard
 #
-# HOW TO RUN
-# ----------
-# Source section by section (Ctrl+Enter lines) to understand each step, or
-# source the whole file for the full analysis.  Section 5 takes ~5–10 minutes.
+# RUN SECTION BY SECTION
+# ----------------------
+# Sections 0–3 run in under a minute.
+# Section 4 takes ~30 seconds.  Section 5 takes ~5–10 minutes.
 # =============================================================================
 
 suppressPackageStartupMessages(library(data.table))
@@ -56,32 +54,25 @@ devtools::load_all(quiet = TRUE)
 # =============================================================================
 # SECTION 0: Data preparation
 # =============================================================================
-# Using bra_hrmis_* (built-in teaching dataset) as a structural proxy.
-# When you have real Gambian HRMIS data, replace this block with your loader.
 
 REF_DATE <- as.Date("2015-09-01")   # Start of projection horizon
 
-# Keep relevant contract types across the full panel (needed for status_quo hiring)
-ct_panel <- bra_hrmis_contract[
-  contract_type_code %in% c("perm", "fterm", "temp")
-]
+# Full panel — needed for simulate_horizon() to estimate the movement baseline
+# (requires >= 2 ref_date snapshots) and for generate_scenario_matrix().
+ct_panel <- bra_hrmis_contract[contract_type_code %in% c("perm", "fterm", "temp")]
 pt_panel <- bra_hrmis_personnel[status == "active"]
 
-# Single-snapshot base data for the direct simulate_horizon() calls
-ct_base <- ct_panel[ref_date == REF_DATE]
-pt_base <- pt_panel[ref_date == REF_DATE]
+# Single REF_DATE snapshot — used for the manual Section 3 scenarios.
+# simulate_horizon() will still see the full panel for movement baseline
+# estimation via the ref_date column; we pass bra_hrmis_contract (full panel)
+# for Section 2 and data.table::copy(ct_base) for Section 3.
+ct_base  <- ct_panel[ref_date == REF_DATE]
+pt_base  <- unique(pt_panel[ref_date == REF_DATE][, !"ref_date", with = FALSE],
+                   by = "personnel_id")
 
-# Drop the panel ref_date column so simulate_horizon() sees a clean snapshot.
-# Age and tenure will be computed internally from birth_date + contract history.
-pt_base <- pt_base[, !"ref_date", with = FALSE]
-pt_base <- unique(pt_base, by = "personnel_id")
-
-# Salary scales — built from the REF_DATE snapshot only.
-#   est_level  (salary_scale_est):   one row per est_id   → used by hiring module
-#   grade_level (salary_scale_grade): one row per (est_id, paygrade) → used by movement module
-# Building from ct_base (single snapshot) guarantees unique keys with no
-# cross-period averaging.  The full panel is only used in Sections 4–5 where
-# generate_scenario_matrix() needs historical exit rates.
+# Salary scales built from the REF_DATE snapshot (unique keys guaranteed).
+#   salary_scale_est   — one row per est_id         → hiring module
+#   salary_scale_grade — one row per (est_id, paygrade) → movement module
 salary_scale_est <- ct_base[
   !is.na(gross_salary_lcu),
   .(gross_salary_lcu = median(gross_salary_lcu, na.rm = TRUE)),
@@ -94,67 +85,59 @@ salary_scale_grade <- ct_base[
 ]
 
 cat(sprintf(
-  "\nBase workforce: %s personnel | %s contracts | Annual wage bill: %s LCU\n",
+  "\nBase workforce : %s personnel | %s contracts\n",
   format(data.table::uniqueN(pt_base$personnel_id), big.mark = ","),
-  format(nrow(ct_base), big.mark = ","),
+  format(nrow(ct_base), big.mark = ",")
+))
+cat(sprintf(
+  "Annual wage bill: %s LCU\n",
   format(round(ct_base[, sum(gross_salary_lcu, na.rm = TRUE)]), big.mark = ",")
 ))
 cat(sprintf(
-  "Paygrades present: %s\n  (Age and tenure will be computed inside simulate_horizon() from birth_date + contract history)\n\n",
-  paste(sort(unique(ct_base$paygrade[!is.na(ct_base$paygrade)])), collapse = ", ")
+  "Panel snapshots : %d  (%s → %s)\n\n",
+  data.table::uniqueN(ct_panel$ref_date),
+  format(min(ct_panel$ref_date)), format(max(ct_panel$ref_date))
 ))
 
 
 # =============================================================================
 # SECTION 1: Policy templates
 # =============================================================================
-# These are the building blocks.  Each section below modifies or selects from
-# these templates to represent specific Gambia policy scenarios.
 
-# ── Retirement policy ────────────────────────────────────────────────────────
-# Gambia baseline: mandatory retirement at 60, flat pension = 50% of final salary
+# ── Retirement ────────────────────────────────────────────────────────────────
 ret_policy_baseline <- list(
-  eligibility_type    = "age_only",
-  min_age             = 60,           # lever: also test 55, 58, 63
-  pension_type        = "flat",
-  pension_params      = list(flat_amount = 500)
+  eligibility_type = "age_only",
+  min_age          = 60,        # lever: 55 / 58 / 60 / 63
+  pension_type     = "flat",
+  pension_params   = list(flat_amount = 500)
 )
 
-# ── Hiring policy ─────────────────────────────────────────────────────────────
-# Flow mode: each retiree opens a vacancy; replacement_rate controls backfill.
-#   0   = full hiring freeze (no backfill)
-#   0.5 = half of vacancies filled (austerity)
-#   1.0 = one-for-one replacement (status quo)
-#   1.5 = 150% (catch-up after freeze years)
+# ── Hiring ─────────────────────────────────────────────────────────────────────
+# flow mode: vacancies = retirements × replacement_rate
 hire_policy_baseline <- list(
   mode             = "flow",
   group_cols       = "est_id",
-  replacement_rate = 1.0,            # lever
-  salary_scale     = data.table::copy(salary_scale_est)  # est-level only: new hires have no paygrade
+  replacement_rate = 1.0,        # lever: 0 / 0.5 / 1.0 / 1.5
+  salary_scale     = data.table::copy(salary_scale_est)
 )
 
-# ── Movement / promotion policy ──────────────────────────────────────────────
-# promotion_multiplier scales the historical promotion rate:
-#   0   = freeze all promotions
-#   1.0 = historical pace (status quo)
-#   2.0 = double pace (incremental regrading)
-#   3.0 = triple pace (one-time regrading exercise)
+# ── Movement / promotion ──────────────────────────────────────────────────────
+# promotion_multiplier scales the historical promotion probability
 move_policy_baseline <- list(
   group_cols           = c("est_id", "paygrade"),
   salary_scale         = data.table::copy(salary_scale_grade),
   salary_update_rule   = "scale",
-  promotion_strategy   = "tenure",        # longest in grade promoted first
+  promotion_strategy   = "tenure",          # longest in grade promoted first
   transfer_strategy    = "reverse_tenure",
-  promotion_multiplier = 1.0              # lever
+  promotion_multiplier = 1.0                # lever: 0 / 0.5 / 1.0 / 3.0
 )
 
-# ── Exit (non-retirement attrition) policy ────────────────────────────────────
-# fixed_rate mode: applies a flat annual attrition rate regardless of history.
-# 5% represents typical civil service voluntary resignation + dismissal rate.
-# Remove this policy (pass exit_policy = NULL) to model a zero-attrition world.
+# ── Non-retirement attrition ──────────────────────────────────────────────────
+# 5% flat annual attrition (voluntary resignation + contract non-renewals).
+# Pass exit_policy = NULL to model zero attrition.
 exit_policy_baseline <- list(
   mode          = "fixed_rate",
-  fixed_rate    = 0.05,    # 5% annual non-retirement attrition
+  fixed_rate    = 0.05,
   exit_strategy = "random",
   active_types  = c("perm", "fterm", "temp"),
   exited_type   = "inactive"
@@ -162,75 +145,83 @@ exit_policy_baseline <- list(
 
 
 # =============================================================================
-# SECTION 2: Single-scenario 10-year horizon (baseline)
+# SECTION 2: Baseline 10-year horizon (single named scenario)
 # =============================================================================
-# This is the most direct use of the engine:
-#   simulate_horizon() → one scenario → per-period data.table of results
+# simulate_horizon() with scenario_name = "Baseline" stamps scenario_id,
+# scenario_label, and is_baseline = TRUE onto every row of $comparison.
+# The returned horizon object can be passed directly to generate_hrcastapp().
 
 cat("====  SECTION 2: Baseline 10-year horizon  ====\n")
 
-# bra_hrmis_contract / bra_hrmis_personnel: full panel so simulate_horizon()
-# has complete history for computing rates.  The salary_scale_dt (grade-level)
-# is only used by the movement module; the hiring module uses its own
-# hire_policy$salary_scale (est-level) and will never see the grade-level table.
-baseline_result <- simulate_horizon(
-  contract_dt        = bra_hrmis_contract,
-  personnel_dt       = bra_hrmis_personnel,
+baseline_hz <- simulate_horizon(
+  contract_dt        = data.table::copy(bra_hrmis_contract),  # full panel for movement baseline
+  personnel_dt       = data.table::copy(bra_hrmis_personnel),
   salary_scale_dt    = data.table::copy(salary_scale_grade),
   n_periods          = 10L,
   ref_date           = REF_DATE,
-  period_unit        = "year",          # annual steps
-  birth_date_col     = "birth_date",    # age computed internally from this
+  period_unit        = "year",
+  birth_date_col     = "birth_date",
   retirement_policy  = ret_policy_baseline,
   exit_policy        = exit_policy_baseline,
   movement_policy    = move_policy_baseline,
   hiring_policy      = hire_policy_baseline,
-  salary_growth_rate = 0.03,            # 3% annual COLA
-  pension_cola_rate  = 0.02             # 2% pension COLA (different from active)
+  salary_growth_rate = 0.03,
+  pension_cola_rate  = 0.02,
+  scenario_name      = "Baseline",     # NEW: stamps scenario_id + scenario_label
+  is_baseline        = TRUE            # NEW: flagged for Shiny comparator
 )
 
-# Summary table: one row per year
-summary_dt <- baseline_result$comparison
-cat("\nBaseline scenario — key metrics by year:\n")
+cat("\nBaseline — period-by-period summary:\n")
 print(
-  summary_dt[, .(
-    year               = format(period_date, "%Y"),
-    headcount          = n_headcount_end,
-    wage_bill_end      = round(wage_bill_end),
-    n_retirements      = n_exits,
-    n_non_ret_exits    = n_non_ret_exits,
+  baseline_hz$comparison[, .(
+    year            = format(period_date, "%Y"),
+    headcount       = n_headcount_end,
+    wage_bill       = round(wage_bill_end),
+    n_retirements   = n_exits,
+    n_attrition     = n_non_ret_exits,
     n_hires,
-    pension_total      = round(pension_cost_total),
-    cola_effect_pct    = round(inflation_effect_pct_of_end_bill * 100, 2)
+    pension_total   = round(pension_cost_total),
+    cola_pct_of_bill = round(inflation_effect_pct_of_end_bill * 100, 1)
   )]
 )
 
-# Terminal-year summary
-terminal <- summary_dt[period_date == max(period_date)]
+terminal_bau <- baseline_hz$comparison[period_date == max(period_date)]
 cat(sprintf(
-  "\nYear 10 snapshot:  headcount = %d  |  wage bill = %s  |  pension liability = %s\n\n",
-  terminal$n_headcount_end,
-  format(round(terminal$wage_bill_end), big.mark = ","),
-  format(round(terminal$pension_cost_total), big.mark = ",")
+  "\nYear 10: headcount = %d | wage bill = %s | pension liability = %s\n\n",
+  terminal_bau$n_headcount_end,
+  format(round(terminal_bau$wage_bill_end),       big.mark = ","),
+  format(round(terminal_bau$pension_cost_total),  big.mark = ",")
 ))
 
+# The baseline horizon can be passed directly to the Shiny app:
+#   generate_hrcastapp(baseline_hz)
+
 
 # =============================================================================
-# SECTION 3: Named scenario comparisons
+# SECTION 3: Named scenario comparisons → flat table → Shiny
 # =============================================================================
-# Run a handful of named scenarios manually with simulate_horizon() and bind
-# the results — useful when you want full control over exactly what changes.
+# Each call to simulate_horizon() produces a horizon object with scenario_id,
+# scenario_label, and is_baseline stamped on $comparison.
+# rbindlist() across $comparison tables produces a single flat data.table
+# that generate_hrcastapp() can dashboard directly.
 
 cat("====  SECTION 3: Named scenario comparisons  ====\n")
 
-run_scenario <- function(label, ret_min_age, cola, replace_rate, promo_mult) {
-  rp <- modifyList(ret_policy_baseline,  list(min_age             = ret_min_age))
-  hp <- modifyList(hire_policy_baseline, list(replacement_rate    = replace_rate,
-                                               salary_scale        = data.table::copy(salary_scale_est)))
-  mp <- modifyList(move_policy_baseline, list(promotion_multiplier = promo_mult,
-                                               salary_scale        = data.table::copy(salary_scale_grade)))
+# Helper: run one scenario and return its horizon object
+run_named_hz <- function(label,
+                         ret_min_age  = 60L,
+                         cola         = 0.03,
+                         replace_rate = 1.0,
+                         promo_mult   = 1.0,
+                         baseline     = FALSE) {
 
-  res <- simulate_horizon(
+  rp <- modifyList(ret_policy_baseline,  list(min_age              = ret_min_age))
+  hp <- modifyList(hire_policy_baseline, list(replacement_rate     = replace_rate,
+                                              salary_scale         = data.table::copy(salary_scale_est)))
+  mp <- modifyList(move_policy_baseline, list(promotion_multiplier = promo_mult,
+                                              salary_scale         = data.table::copy(salary_scale_grade)))
+
+  simulate_horizon(
     contract_dt        = data.table::copy(ct_base),
     personnel_dt       = data.table::copy(pt_base),
     salary_scale_dt    = data.table::copy(salary_scale_grade),
@@ -243,54 +234,58 @@ run_scenario <- function(label, ret_min_age, cola, replace_rate, promo_mult) {
     movement_policy    = mp,
     hiring_policy      = hp,
     salary_growth_rate = cola,
-    pension_cola_rate  = cola * 0.67   # pension COLA = 2/3 of active COLA
+    pension_cola_rate  = cola * 0.67,   # pension COLA = 2/3 of active COLA
+    scenario_name      = label,         # stamped onto $comparison
+    is_baseline        = baseline
   )
-
-  res$comparison[period_date == max(period_date), .(
-    scenario           = label,
-    ret_age            = ret_min_age,
-    cola_pct           = cola * 100,
-    replace_rate,
-    promo_mult,
-    headcount          = n_headcount_end,
-    wage_bill_Y10      = round(wage_bill_end),
-    pension_Y10        = round(pension_cost_total),
-    total_cost_Y10     = round(wage_bill_end + pension_cost_total)
-  )]
 }
 
-named_scenarios <- rbindlist(list(
-  # Baseline
-  run_scenario("Baseline (status quo)",     60L, 0.03, 1.0, 1.0),
-  # Retire later → fewer exits → lower short-run cost but same long-run
-  run_scenario("Later retirement (63)",     63L, 0.03, 1.0, 1.0),
-  # Earlier retirement → faster turnover
-  run_scenario("Earlier retirement (55)",   55L, 0.03, 1.0, 1.0),
-  # Wage freeze
-  run_scenario("Wage freeze (0% COLA)",     60L, 0.00, 1.0, 1.0),
-  # High COLA
-  run_scenario("High COLA (8%)",            60L, 0.08, 1.0, 1.0),
-  # Hiring freeze
-  run_scenario("Hiring freeze",             60L, 0.03, 0.0, 1.0),
-  # Expansion hiring
-  run_scenario("Expansion (150% backfill)", 60L, 0.03, 1.5, 1.0),
-  # Regrading exercise
-  run_scenario("Regrading (3x promo)",      60L, 0.03, 1.0, 3.0),
-  # Austerity package
-  run_scenario("Austerity (freeze+0COLA)",  60L, 0.00, 0.5, 0.5),
-  # Reform package
-  run_scenario("Reform (63+5%+expand)",     63L, 0.05, 1.5, 1.0)
-))
+# Run all named scenarios
+scenario_list <- list(
+  run_named_hz("Baseline (60, 3% COLA, full backfill)", baseline = TRUE),
+  run_named_hz("Later retirement (63)",     ret_min_age = 63L),
+  run_named_hz("Earlier retirement (55)",   ret_min_age = 55L),
+  run_named_hz("Wage freeze (0% COLA)",     cola        = 0.00),
+  run_named_hz("High COLA (8%)",            cola        = 0.08),
+  run_named_hz("Hiring freeze",             replace_rate = 0.0),
+  run_named_hz("Expansion (150% backfill)", replace_rate = 1.5),
+  run_named_hz("Regrading (3x promo)",      promo_mult   = 3.0),
+  run_named_hz("Austerity (0COLA+50%hire)", cola = 0.00, replace_rate = 0.5),
+  run_named_hz("Reform (63+5%+expand)",     ret_min_age = 63L, cola = 0.05,
+                                            replace_rate = 1.5)
+)
 
-cat("\nYear-10 comparison across named scenarios:\n")
-print(named_scenarios[order(total_cost_Y10)])
+# Bind all $comparison tables into one flat data.table.
+# Each row already carries scenario_id, scenario_label, is_baseline from
+# simulate_horizon(), so no post-processing needed.
+named_scenarios_flat <- data.table::rbindlist(
+  lapply(scenario_list, `[[`, "comparison"),
+  use.names = TRUE, fill = TRUE
+)
+
+# Year-10 terminal-year summary for a quick console comparison
+terminal_named <- named_scenarios_flat[
+  period_date == max(period_date),
+  .(scenario_label,
+    headcount       = n_headcount_end,
+    wage_bill_Y10   = round(wage_bill_end),
+    pension_Y10     = round(pension_cost_total),
+    total_Y10       = round(wage_bill_end + pension_cost_total))
+][order(total_Y10)]
+
+cat("\nYear-10 comparison across named scenarios (sorted by total cost):\n")
+print(terminal_named)
+
+# Pass the flat table directly to the Shiny app for a 10-scenario dashboard:
+#   generate_hrcastapp(named_scenarios_flat)
 
 
 # =============================================================================
 # SECTION 4: Scenario matrix — retirement age × COLA (4 × 4 = 16 scenarios)
 # =============================================================================
-# generate_scenario_matrix() runs all combinations automatically in parallel
-# and returns a long-format data.table ready for the Shiny dashboard.
+# generate_scenario_matrix() runs all grid combinations automatically and
+# returns a long-format data.table with scenario_id, scenario_label, and
+# is_baseline already set — identical column structure to named_scenarios_flat.
 
 cat("\n====  SECTION 4: Retirement age × COLA matrix (16 scenarios)  ====\n")
 
@@ -310,7 +305,7 @@ results_lite <- generate_scenario_matrix(
   movement_policy      = move_policy_baseline,
   hiring_policy        = hire_policy_baseline,
   salary_growth_rate   = 0.03,
-  baseline_scenario_id = 3L    # min_age=60, COLA=3% is the "policy baseline"
+  baseline_scenario_id = 3L   # row 3 = min_age 60 + COLA 3% (the policy baseline)
 )
 
 cat(sprintf(
@@ -320,26 +315,28 @@ cat(sprintf(
   nrow(results_lite)
 ))
 
-cat("\nYear-10 wage bill by retirement age × COLA scenario:\n")
+cat("\nYear-10 wage bill by retirement age × COLA:\n")
 print(
   results_lite[
     period_date == max(period_date),
     .(scenario_label,
-      headcount          = n_headcount_end,
-      wage_bill_end      = round(wage_bill_end),
-      pension_total      = round(pension_cost_total),
-      cola_effect_pct    = round(inflation_effect_pct_of_end_bill * 100, 1))
+      headcount        = n_headcount_end,
+      wage_bill_end    = round(wage_bill_end),
+      pension_total    = round(pension_cost_total),
+      cola_effect_pct  = round(inflation_effect_pct_of_end_bill * 100, 1))
   ][order(wage_bill_end)]
 )
+
+# Dashboard the 16-scenario grid:
+#   generate_hrcastapp(results_lite)
 
 
 # =============================================================================
 # SECTION 5: Full policy matrix — all 4 Gambia axes (4^4 = 256 scenarios)
 # =============================================================================
-# NOTE: This takes ~5–10 minutes on the bra dataset.
-# Comment out if you only need the lite grid.
+# ~5–10 minutes on the bra dataset.  Comment out if not needed.
 
-cat("\n====  SECTION 5: Full 4-axis matrix (256 scenarios) — running...  ====\n")
+cat("\n====  SECTION 5: Full 4-axis matrix (256 scenarios)  ====\n")
 
 param_grid_full <- list(
   retirement_min_age            = c(55L, 58L, 60L, 63L),
@@ -348,9 +345,14 @@ param_grid_full <- list(
   movement_promotion_multiplier = c(0, 0.5, 1.0, 3.0)
 )
 
-# Identify which grid row corresponds to the policy baseline
+# Locate the policy baseline row in the Cartesian grid
 baseline_idx <- which(
-  do.call(data.table::CJ, c(param_grid_full, list(sorted = FALSE)))[,
+  data.table::CJ(
+    retirement_min_age            = param_grid_full$retirement_min_age,
+    salary_growth_rate            = param_grid_full$salary_growth_rate,
+    hiring_replacement_rate       = param_grid_full$hiring_replacement_rate,
+    movement_promotion_multiplier = param_grid_full$movement_promotion_multiplier
+  )[,
     retirement_min_age            == 60L  &
     salary_growth_rate            == 0.03 &
     hiring_replacement_rate       == 1.0  &
@@ -372,6 +374,8 @@ results_full <- generate_scenario_matrix(
   baseline_scenario_id = baseline_idx
 )
 
+terminal_full <- results_full[period_date == max(period_date)]
+
 cat(sprintf(
   "Full grid: %d scenarios × %d periods = %d rows\n",
   data.table::uniqueN(results_full$scenario_id),
@@ -379,30 +383,18 @@ cat(sprintf(
   nrow(results_full)
 ))
 
-terminal_full <- results_full[period_date == max(period_date)]
+cat("\nTop 5 most expensive (Year 10 wage bill):\n")
+print(terminal_full[order(-wage_bill_end)][1:5,
+  .(scenario_label, headcount = n_headcount_end,
+    wage_bill_end = round(wage_bill_end), pension = round(pension_cost_total))])
 
-cat("\nTop 5 most expensive scenarios (Year 10 total wage bill):\n")
-print(
-  terminal_full[order(-wage_bill_end)][1:5, .(
-    scenario_label,
-    headcount          = n_headcount_end,
-    wage_bill_end      = round(wage_bill_end),
-    pension_total      = round(pension_cost_total)
-  )]
-)
-
-cat("\nTop 5 least expensive scenarios (Year 10 total wage bill):\n")
-print(
-  terminal_full[order(wage_bill_end)][1:5, .(
-    scenario_label,
-    headcount          = n_headcount_end,
-    wage_bill_end      = round(wage_bill_end),
-    pension_total      = round(pension_cost_total)
-  )]
-)
+cat("\nTop 5 least expensive (Year 10 wage bill):\n")
+print(terminal_full[order(wage_bill_end)][1:5,
+  .(scenario_label, headcount = n_headcount_end,
+    wage_bill_end = round(wage_bill_end), pension = round(pension_cost_total))])
 
 cat(sprintf(
-  "\nWage-bill range across all 256 scenarios at Year 10:\n  Min: %s  |  Max: %s  |  Range: %.1f%%\n",
+  "\nWage-bill range at Year 10:  Min = %s  |  Max = %s  |  Spread = %.1f%%\n",
   format(round(terminal_full[, min(wage_bill_end)]), big.mark = ","),
   format(round(terminal_full[, max(wage_bill_end)]), big.mark = ","),
   (terminal_full[, max(wage_bill_end) / min(wage_bill_end)] - 1) * 100
@@ -412,14 +404,23 @@ cat(sprintf(
 # =============================================================================
 # SECTION 6: Launch Shiny dashboard
 # =============================================================================
-# generate_hrcastapp() opens an interactive browser-based dashboard.
-# Pass any results data.table from generate_scenario_matrix().
-# Use results_lite for a fast first look; results_full for the full analysis.
+# generate_hrcastapp() accepts any of the three result objects produced above.
+# All share the same flat-table column structure (scenario_id, scenario_label,
+# is_baseline, period_date, wage_bill_end, ...) so the app works identically
+# regardless of which you pass.
+#
+# Choose based on what you want to explore:
 
-cat("\n====  SECTION 6: Launching govhrcast dashboard  ====\n")
+cat("\n====  SECTION 6: Launch dashboard  ====\n")
 
-# Lite grid (fast — 16 scenarios):
+# Option A — single baseline scenario (Section 2):
+# generate_hrcastapp(baseline_hz)
+
+# Option B — 10 named hand-crafted scenarios (Section 3) — RECOMMENDED for demos
+generate_hrcastapp(named_scenarios_flat)
+
+# Option C — 16-scenario retirement × COLA grid (Section 4):
 # generate_hrcastapp(results_lite)
 
-# Full grid (256 scenarios):
-generate_hrcastapp(results_full)
+# Option D — full 256-scenario grid (Section 5):
+# generate_hrcastapp(results_full)

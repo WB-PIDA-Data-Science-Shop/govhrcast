@@ -5,6 +5,6 @@
 \title{Salary Scale Utilities}
 \description{
 Utility functions for adjusting salary scale tables.  These are neutral
-helpers — users label the adjustment concept (COLA, regrading, compression
+helpers -- users label the adjustment concept (COLA, regrading, compression
 policy) in their own code and documentation.
 }

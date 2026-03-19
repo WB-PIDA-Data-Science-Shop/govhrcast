@@ -11,6 +11,15 @@
 #' @keywords internal
 NULL
 
+# Suppress R CMD check NOTEs for data.table column names.
+utils::globalVariables(c(
+  "t0_date"  # estimate_movement_baseline: grouping column added by := then used in by=
+))
+
+#' @name movement_core
+#' @keywords internal
+NULL
+
 #' Compute Time-in-Grade for Active Personnel
 #'
 #' @description

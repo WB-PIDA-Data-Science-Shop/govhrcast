@@ -15,11 +15,13 @@
   "n_headcount_start", "n_headcount_end",
   "wage_bill_start",   "wage_bill_end",
   "n_exits",           "exit_savings",
+  "n_non_ret_exits",   "non_ret_exit_savings",
   "pension_cost_new",  "pension_cost_total",
   "n_promotions",      "n_transfers",
   "promotion_effect",  "transfer_effect",
   "n_hires",           "hiring_effect", "inflation_effect",
   "exit_savings_pct_of_end_bill",
+  "non_ret_exit_savings_pct_of_end_bill",
   "promotion_effect_pct_of_end_bill",
   "transfer_effect_pct_of_end_bill",
   "hiring_effect_pct_of_end_bill",
@@ -188,60 +190,39 @@ hz_app_theme <- function() {
 }
 
 
-#' Convert a patchwork/ggplot object to an interactive plotly figure
+#' Convert a ggplot object to an interactive plotly figure
 #'
 #' @description
-#' Extracts every panel from a \code{patchwork} composite (or a plain
-#' \code{ggplot}) using the canonical patchwork storage layout
-#' (\code{c(list(pw), pw$patches$plots)}), converts each with
-#' \code{plotly::ggplotly()}, and combines with \code{plotly::subplot()}.
+#' Converts a single \code{ggplot2} object to a \code{plotly} figure using
+#' \code{plotly::ggplotly()}.  Opens a temporary PDF device so that
+#' \code{ggplotly()} can compute plot geometry without a screen device — this
+#' ensures correct rendering in Shiny server contexts and allows plotly to
+#' auto-size to the browser container.
 #'
-#' @param p A \code{patchwork} or \code{ggplot2} plot object.
-#' @param shareX Logical.  Share x-axis across panels?  Default \code{TRUE}.
+#' @param p A \code{ggplot2} plot object (not a patchwork composite).
 #' @param tooltip Character vector of tooltip aesthetics to show.
 #' @return A \code{plotly} object.
 #' @keywords internal
 hz_to_plotly <- function(p,
-                         shareX  = TRUE,
                          tooltip = c("x", "y", "colour", "fill",
                                      "linetype", "label")) {
-
-  # Plain ggplot — convert directly
-  if (!inherits(p, "patchwork")) {
-    return(
-      plotly::ggplotly(p, tooltip = tooltip) |>
-        plotly::layout(legend = list(orientation = "h", y = -0.15))
-    )
-  }
-
-  # Patchwork stores: the patchwork object itself IS the first panel;
-  # additional panels live in p$patches$plots.
-  panel_list <- c(list(p), p$patches$plots)
-
-  # Convert each panel to plotly (each may itself be a patchwork or ggplot)
-  plotly_list <- lapply(panel_list, function(g) {
-    tryCatch(
-      plotly::ggplotly(g, tooltip = tooltip),
-      error = function(e) plotly::plotly_empty()
-    )
-  })
-
-  if (length(plotly_list) == 1L) {
-    fig <- plotly_list[[1L]]
-  } else {
-    # Stack panels vertically; each row is one panel
-    n <- length(plotly_list)
-    fig <- plotly::subplot(
-      plotly_list,
-      nrows  = n,
-      shareX = shareX,
-      titleY = TRUE,
-      titleX = FALSE,
-      margin = 0.06
-    )
-  }
-
-  fig |> plotly::layout(legend = list(orientation = "h", y = -0.08))
+  tmp <- tempfile(fileext = ".pdf")
+  grDevices::pdf(tmp, width = 10, height = 5)
+  on.exit({ grDevices::dev.off(); unlink(tmp) }, add = TRUE)
+  tryCatch(
+    plotly::ggplotly(p, tooltip = tooltip) |>
+      plotly::layout(
+        legend = list(
+          orientation = "h",
+          x           = 1,
+          y           = 1.02,
+          xanchor     = "right",
+          yanchor     = "bottom",
+          font        = list(size = 11)
+        )
+      ),
+    error = function(e) plotly::plotly_empty()
+  )
 }
 
 

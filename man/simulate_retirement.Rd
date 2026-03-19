@@ -55,6 +55,12 @@ simulate_retirement(
 \item{contract_type_col}{Character. Name of contract type column (default: "contract_type_code")}
 
 \item{status_col}{Character. Name of status column (default: "status")}
+
+\item{age_col}{Character. Name of the age column used for eligibility
+evaluation (default: \code{"age"}).}
+
+\item{tenure_col}{Character. Name of the tenure-in-years column used for
+tenure-based eligibility (default: \code{"tenure_years"}).}
 }
 \value{
 List containing:

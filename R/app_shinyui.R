@@ -143,7 +143,13 @@
             shiny::uiOutput("desc_fiscal"),
             placement = "right"
           ),
-          shiny::plotOutput("plot_fiscal", height = "480px")
+          # 3 panels side by side — mirrors patchwork p1 + p2 + p3
+          bslib::layout_column_wrap(
+            width = 1 / 3,
+            plotly::plotlyOutput("plot_fiscal_1"),
+            plotly::plotlyOutput("plot_fiscal_2"),
+            plotly::plotlyOutput("plot_fiscal_3")
+          )
         )
       ),
       bslib::nav_panel(
@@ -154,7 +160,12 @@
             shiny::uiOutput("desc_spending"),
             placement = "right"
           ),
-          shiny::plotOutput("plot_spending", height = "560px")
+          shiny::div(
+            style = "overflow-y: auto; max-height: 85vh;",
+            plotly::plotlyOutput("plot_spending_1", height = "650px"),
+            shiny::tags$div(style = "height: 1.5rem;"),
+            plotly::plotlyOutput("plot_spending_2", height = "380px")
+          )
         )
       ),
       bslib::nav_panel(
@@ -165,7 +176,12 @@
             shiny::uiOutput("desc_turnover"),
             placement = "right"
           ),
-          shiny::plotOutput("plot_turnover", height = "480px")
+          # 2 panels side by side — flows | stock
+          bslib::layout_column_wrap(
+            width = 1 / 2,
+            plotly::plotlyOutput("plot_turnover_1"),
+            plotly::plotlyOutput("plot_turnover_2")
+          )
         )
       )
     )
@@ -205,7 +221,7 @@
       bslib::card(
         bslib::card_header("Overlay Comparison"),
         bslib::card_body(
-          shiny::plotOutput("plot_compare", height = "500px")
+          plotly::plotlyOutput("plot_compare")
         )
       ),
 

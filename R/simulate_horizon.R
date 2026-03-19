@@ -2,6 +2,17 @@
 # Effect-computation helpers
 # ===========================================================================
 
+# Suppress R CMD check NOTEs for data.table column names used in
+# [.data.table j/i expressions throughout this file.
+utils::globalVariables(c(
+  "salary",             # .active_wage_bill: named column in .[, .(salary = ...)]
+  "pension_amount",     # simulate_scenario / simulate_horizon: pensioner register col
+  "age_at_ret",         # simulate_horizon: temp col in age_lookup join
+  "age_at_retirement",  # simulate_horizon / simulate_scenario: pensioner register col
+  "i.age_at_ret",       # simulate_horizon: i-prefix col from data.table join
+  ".already_eligible_"  # simulate_horizon: temp eligibility flag
+))
+
 #' Compute Exit Effect
 #'
 #' @description
@@ -176,8 +187,24 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 
 
 # ===========================================================================
-# simulate_scenario() — single-period orchestrator
+# simulate_scenario() -- single-period orchestrator
 # ===========================================================================
+
+# Internal helper: sum of max-salary-per-person for all non-pensioner contracts.
+# Wage bill definition: one salary observation per person (the highest across
+# any concurrent contracts), summed over all active (non-pensioner) people.
+# Used three times in simulate_scenario() for wage_bill_start, pre_cola, and
+# wage_bill_end snapshots.  No roxygen: internal only, not exported.
+.active_wage_bill <- function(contract_dt,
+                               contract_type_col,
+                               salary_col,
+                               personnel_id_col) {
+  contract_dt[
+    get(contract_type_col) != "pensioner",
+    .(salary = if (.N > 0L) max(get(salary_col), na.rm = TRUE) else 0),
+    by = c(personnel_id_col)
+  ][, sum(salary, na.rm = TRUE)]
+}
 
 #' Single-Period Simulation
 #'
@@ -218,13 +245,19 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'   for the first period — an empty register is initialised internally.
 #' @param retirement_policy List or \code{NULL}.  Passed to
 #'   \code{simulate_retirement()}.  Pass \code{NULL} to skip retirement.
+#' @param exit_policy List or \code{NULL}.  Policy parameters for non-retirement
+#'   attrition.  Passed to \code{compute_status_quo_exits()}.  Pass \code{NULL}
+#'   to model zero attrition.
 #' @param movement_policy List or \code{NULL}.  Passed to
 #'   \code{simulate_promotions_transfers()}.  Pass \code{NULL} to skip.
 #' @param hiring_policy List or \code{NULL}.  Passed to
 #'   \code{simulate_hiring()}.  Pass \code{NULL} to skip.
 #' @param salary_growth_rate Numeric scalar.  COLA rate for this period.
 #'   Default \code{0}.
-#' @param period_date Date.  Simulation date for this period — stored in
+#' @param pension_cola_rate Numeric scalar.  Annual COLA rate applied to
+#'   \code{pensioner_register$pension_amount} this period.  Defaults to
+#'   \code{salary_growth_rate} when \code{NULL}.  Default \code{0}.
+#' @param period_date Date.  Simulation date for this period -- stored in
 #'   \code{pensioner_register} for cohort auditing.  Default: \code{Sys.Date()}.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param contract_id_col Character.  Default \code{"contract_id"}.
@@ -290,30 +323,6 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #' }
 #'
 #' @export
-# ---------------------------------------------------------------------------
-# Internal helper: sum of max-salary-per-person for all non-pensioner contracts.
-# This is the govhrcast wage bill definition: one salary observation per person
-# (the highest across any concurrent contracts), summed over all active people.
-# Used three times in simulate_scenario() for wage_bill_start, pre_cola, and
-# wage_bill_end snapshots.
-#
-# @param contract_dt  data.table. Current period contract data.
-# @param contract_type_col  Character. Column that flags pensioner rows.
-# @param salary_col  Character. Salary column to sum.
-# @param personnel_id_col  Character. Person ID column for deduplication.
-# @return Numeric scalar >= 0.
-# @keywords internal
-.active_wage_bill <- function(contract_dt,
-                               contract_type_col,
-                               salary_col,
-                               personnel_id_col) {
-  contract_dt[
-    get(contract_type_col) != "pensioner",
-    .(salary = if (.N > 0L) max(get(salary_col), na.rm = TRUE) else 0),
-    by = c(personnel_id_col)
-  ][, sum(salary, na.rm = TRUE)]
-}
-
 simulate_scenario <- function(contract_dt,
                                personnel_dt,
                                salary_scale_dt,
@@ -688,6 +697,11 @@ simulate_scenario <- function(contract_dt,
 #' @param n_periods Integer. Number of annual periods to simulate.
 #' @param retirement_policy List or \code{NULL}. Policy parameters for
 #'   \code{simulate_retirement()}. Pass \code{NULL} to skip.
+#' @param exit_policy List or \code{NULL}. Policy parameters controlling
+#'   non-retirement attrition (voluntary exits, contract non-renewals).  When
+#'   non-\code{NULL}, must contain at minimum \code{mode} (one of
+#'   \code{"fixed_rate"}, \code{"status_quo"}) and \code{exit_strategy}.
+#'   Pass \code{NULL} (default) to model zero non-retirement attrition.
 #' @param movement_policy List or \code{NULL}. Policy parameters for
 #'   \code{simulate_promotions_transfers()}. Pass \code{NULL} to skip.
 #' @param hiring_policy List or \code{NULL}. Policy parameters for

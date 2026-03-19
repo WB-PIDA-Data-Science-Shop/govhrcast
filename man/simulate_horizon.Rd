@@ -46,6 +46,12 @@ simulate_horizon(
 \item{retirement_policy}{List or \code{NULL}. Policy parameters for
 \code{simulate_retirement()}. Pass \code{NULL} to skip.}
 
+\item{exit_policy}{List or \code{NULL}. Policy parameters controlling
+non-retirement attrition (voluntary exits, contract non-renewals).  When
+non-\code{NULL}, must contain at minimum \code{mode} (one of
+\code{"fixed_rate"}, \code{"status_quo"}) and \code{exit_strategy}.
+Pass \code{NULL} (default) to model zero non-retirement attrition.}
+
 \item{movement_policy}{List or \code{NULL}. Policy parameters for
 \code{simulate_promotions_transfers()}. Pass \code{NULL} to skip.}
 

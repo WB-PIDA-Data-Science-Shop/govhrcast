@@ -13,7 +13,7 @@ apply_salary_scale_adjustment(
 }
 \arguments{
 \item{salary_scale_dt}{data.table.  The salary scale to adjust.  Must
-contain \code{salary_col}.  Modified \strong{in a copy} — the caller's
+contain \code{salary_col}.  Modified \strong{in a copy} -- the caller's
 object is not changed.}
 
 \item{adjustment}{Numeric.  Scalar multiplier or named numeric vector where
@@ -39,14 +39,14 @@ that can be passed into \code{hiring_policy$salary_scale} or
 
 Behaviour:
 \itemize{
-\item Scalar \code{adjustment} (e.g. \code{1.05}) — every entry is
+\item Scalar \code{adjustment} (e.g. \code{1.05}) -- every entry is
 multiplied by the same factor.
-\item Named numeric vector — matched against
+\item Named numeric vector -- matched against
 \code{salary_scale_dt[[key_col]]}; unmatched entries receive multiplier
 \code{1.0} (unchanged) and a warning is issued.
 \item Zero or negative multipliers raise an error.
 \item Multipliers outside the range \code{(0.9, 1.2)} trigger a warning
-(likely user error — the limits are not enforced).
+(likely user error -- the limits are not enforced).
 }
 }
 \examples{

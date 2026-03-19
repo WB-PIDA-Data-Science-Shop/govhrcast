@@ -11,6 +11,17 @@
 #' @keywords internal
 NULL
 
+# Suppress R CMD check NOTEs for data.table column names.
+utils::globalVariables(c(
+  "n_exits",    # estimate_historical_exit_rates: column created by := and used in ratio
+  "exit_rate",  # estimate_historical_exit_rates / compute_status_quo_exits: rate col
+  "rank_val"    # .select_exits: ordering column built from dynamic strategy col
+))
+
+#' @name exit_core
+#' @keywords internal
+NULL
+
 
 # =============================================================================
 # Phase 3a — estimate_historical_exit_rates()

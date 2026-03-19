@@ -1,8 +1,14 @@
+# Suppress R CMD check NOTEs for data.table column names.
+utils::globalVariables(c(
+  ".multiplier",    # apply_salary_scale_adjustment: temp join column
+  "i..multiplier"   # apply_salary_scale_adjustment: i-prefix from data.table join
+))
+
 #' Salary Scale Utilities
 #'
 #' @description
 #' Utility functions for adjusting salary scale tables.  These are neutral
-#' helpers — users label the adjustment concept (COLA, regrading, compression
+#' helpers -- users label the adjustment concept (COLA, regrading, compression
 #' policy) in their own code and documentation.
 #'
 #' @import data.table
@@ -21,18 +27,18 @@ NULL
 #'
 #' Behaviour:
 #' \itemize{
-#'   \item Scalar \code{adjustment} (e.g. \code{1.05}) — every entry is
+#'   \item Scalar \code{adjustment} (e.g. \code{1.05}) -- every entry is
 #'     multiplied by the same factor.
-#'   \item Named numeric vector — matched against
+#'   \item Named numeric vector -- matched against
 #'     \code{salary_scale_dt[[key_col]]}; unmatched entries receive multiplier
 #'     \code{1.0} (unchanged) and a warning is issued.
 #'   \item Zero or negative multipliers raise an error.
 #'   \item Multipliers outside the range \code{(0.9, 1.2)} trigger a warning
-#'     (likely user error — the limits are not enforced).
+#'     (likely user error -- the limits are not enforced).
 #' }
 #'
 #' @param salary_scale_dt data.table.  The salary scale to adjust.  Must
-#'   contain \code{salary_col}.  Modified \strong{in a copy} — the caller's
+#'   contain \code{salary_col}.  Modified \strong{in a copy} -- the caller's
 #'   object is not changed.
 #' @param adjustment Numeric.  Scalar multiplier or named numeric vector where
 #'   \code{names(adjustment)} match values in
@@ -89,12 +95,12 @@ apply_salary_scale_adjustment <- function(salary_scale_dt,
   if (any(adjustment < 0.9 | adjustment > 1.2, na.rm = TRUE))
     warning(
       "Some adjustment values are outside the range (0.9, 1.2). ",
-      "Verify these are intentional — large multipliers can produce ",
+      "Verify these are intentional -- large multipliers can produce ",
       "unrealistic salary scales.",
       call. = FALSE
     )
 
-  # Work on a copy — don't modify the caller's object
+  # Work on a copy -- don't modify the caller's object
   out <- data.table::copy(salary_scale_dt)
 
   if (length(adjustment) == 1L) {

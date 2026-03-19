@@ -75,11 +75,16 @@ hz_server <- function(flat_dt, hz, scenario_ch, lever_cols) {
     # Gated by "Show Results" button via bindEvent.
     # ----------------------------------------------------------------
     active_sid <- shiny::reactive({
-      lever_values <- stats::setNames(
-        lapply(lever_cols, function(lv) input[[paste0("lv_", lv)]]),
-        lever_cols
-      )
-      .resolve_scenario(lever_values)
+      if (length(lever_cols) == 0L) {
+        sid <- input$lv_scenario_direct
+        if (is.null(sid)) flat_dt$scenario_id[1L] else sid
+      } else {
+        lever_values <- stats::setNames(
+          lapply(lever_cols, function(lv) input[[paste0("lv_", lv)]]),
+          lever_cols
+        )
+        .resolve_scenario(lever_values)
+      }
     }) |> shiny::bindEvent(input$show_results, ignoreNULL = FALSE)
 
     active_dt <- shiny::reactive({
@@ -131,9 +136,27 @@ hz_server <- function(flat_dt, hz, scenario_ch, lever_cols) {
     plot_spending_r <- .make_gg_reactive("spending_effects")
     plot_turnover_r <- .make_gg_reactive("turnover")
 
-    output$plot_fiscal   <- shiny::renderPlot({ p <- plot_fiscal_r();   if (!is.null(p)) print(p) })
-    output$plot_spending <- shiny::renderPlot({ p <- plot_spending_r(); if (!is.null(p)) print(p) })
-    output$plot_turnover <- shiny::renderPlot({ p <- plot_turnover_r(); if (!is.null(p)) print(p) })
+    # Render each panel individually so the UI can place them independently.
+    # as.list(p) extracts panels in order from the patchwork composite.
+    .render_panels <- function(plot_r, ids) {
+      for (i in seq_along(ids)) {
+        local({
+          idx <- i
+          id  <- ids[idx]
+          output[[id]] <- plotly::renderPlotly({
+            p <- plot_r()
+            if (is.null(p)) return(plotly::plotly_empty())
+            panels <- as.list(p)
+            g <- if (idx <= length(panels)) panels[[idx]] else NULL
+            if (!is.null(g)) suppressMessages(hz_to_plotly(g)) else plotly::plotly_empty()
+          })
+        })
+      }
+    }
+
+    .render_panels(plot_fiscal_r,   c("plot_fiscal_1",   "plot_fiscal_2",   "plot_fiscal_3"))
+    .render_panels(plot_spending_r, c("plot_spending_1", "plot_spending_2"))
+    .render_panels(plot_turnover_r, c("plot_turnover_1", "plot_turnover_2"))
 
     # ----------------------------------------------------------------
     # "i" tooltip descriptions
@@ -171,55 +194,80 @@ hz_server <- function(flat_dt, hz, scenario_ch, lever_cols) {
     }
 
     output$cmp_levers_a <- shiny::renderUI({
-      # Default A: baseline scenario
-      base_row <- if (any(flat_dt$is_baseline)) {
-        unique(flat_dt[is_baseline == TRUE, .SD, .SDcols = lever_cols])[1L]
+      if (length(lever_cols) == 0L) {
+        choices <- hz_scenario_choices(flat_dt)
+        def <- if (any(flat_dt$is_baseline)) flat_dt[is_baseline == TRUE, scenario_id[1L]]
+               else flat_dt$scenario_id[1L]
+        shiny::tagList(
+          shiny::h6(shiny::strong("Scenario A"), class = "text-primary"),
+          shiny::selectInput("cmp_a_sid", NULL, choices = choices, selected = def)
+        )
       } else {
-        unique(flat_dt[, .SD, .SDcols = lever_cols])[1L]
+        base_row <- if (any(flat_dt$is_baseline)) {
+          unique(flat_dt[is_baseline == TRUE, .SD, .SDcols = lever_cols])[1L]
+        } else {
+          unique(flat_dt[, .SD, .SDcols = lever_cols])[1L]
+        }
+        shiny::tagList(
+          shiny::h6(shiny::strong("Scenario A"), class = "text-primary"),
+          .cmp_lever_ui("cmp_a_lv_", base_row)
+        )
       }
-      shiny::tagList(
-        shiny::h6(shiny::strong("Scenario A"), class = "text-primary"),
-        .cmp_lever_ui("cmp_a_lv_", base_row)
-      )
     })
 
     output$cmp_levers_b <- shiny::renderUI({
-      # Default B: second unique scenario
-      all_rows <- unique(flat_dt[, .SD, .SDcols = lever_cols])
-      base_row <- if (nrow(all_rows) >= 2L) all_rows[2L] else all_rows[1L]
-      shiny::tagList(
-        shiny::h6(shiny::strong("Scenario B"), class = "text-success"),
-        .cmp_lever_ui("cmp_b_lv_", base_row)
-      )
+      if (length(lever_cols) == 0L) {
+        choices <- hz_scenario_choices(flat_dt)
+        all_sids <- unique(flat_dt$scenario_id)
+        def <- if (length(all_sids) >= 2L) all_sids[2L] else all_sids[1L]
+        shiny::tagList(
+          shiny::h6(shiny::strong("Scenario B"), class = "text-success"),
+          shiny::selectInput("cmp_b_sid", NULL, choices = choices, selected = def)
+        )
+      } else {
+        all_rows <- unique(flat_dt[, .SD, .SDcols = lever_cols])
+        base_row <- if (nrow(all_rows) >= 2L) all_rows[2L] else all_rows[1L]
+        shiny::tagList(
+          shiny::h6(shiny::strong("Scenario B"), class = "text-success"),
+          .cmp_lever_ui("cmp_b_lv_", base_row)
+        )
+      }
     })
 
     compare_dt <- shiny::reactive({
-      lever_a <- stats::setNames(
-        lapply(lever_cols, function(lv) input[[paste0("cmp_a_lv_", lv)]]),
-        lever_cols
-      )
-      lever_b <- stats::setNames(
-        lapply(lever_cols, function(lv) input[[paste0("cmp_b_lv_", lv)]]),
-        lever_cols
-      )
-      sid_a <- .resolve_scenario(lever_a)
-      sid_b <- .resolve_scenario(lever_b)
-      sub   <- flat_dt[scenario_id %in% c(sid_a, sid_b)]
+      if (length(lever_cols) == 0L) {
+        all_sids <- unique(flat_dt$scenario_id)
+        sid_a <- if (!is.null(input$cmp_a_sid)) input$cmp_a_sid else all_sids[1L]
+        sid_b <- if (!is.null(input$cmp_b_sid)) input$cmp_b_sid
+                 else if (length(all_sids) >= 2L) all_sids[2L] else all_sids[1L]
+      } else {
+        lever_a <- stats::setNames(
+          lapply(lever_cols, function(lv) input[[paste0("cmp_a_lv_", lv)]]),
+          lever_cols
+        )
+        lever_b <- stats::setNames(
+          lapply(lever_cols, function(lv) input[[paste0("cmp_b_lv_", lv)]]),
+          lever_cols
+        )
+        sid_a <- .resolve_scenario(lever_a)
+        sid_b <- .resolve_scenario(lever_b)
+      }
+      sub     <- flat_dt[scenario_id %in% c(sid_a, sid_b)]
       lbl_map <- unique(flat_dt[, .(scenario_id, scenario_label)])
-      sub   <- lbl_map[sub, on = "scenario_id"]
+      sub     <- lbl_map[sub, on = "scenario_id"]
       sub[, scenario := scenario_label]
       sub
     }) |> shiny::bindEvent(input$show_results, ignoreNULL = FALSE)
 
-    output$plot_compare <- shiny::renderPlot({
+    output$plot_compare <- plotly::renderPlotly({
       sub <- compare_dt()
-      if (is.null(sub) || nrow(sub) == 0L) return(NULL)
+      if (is.null(sub) || nrow(sub) == 0L) return(plotly::plotly_empty())
       hz_sub <- new_horizon(comparison = sub, metadata = hz$metadata)
       p <- tryCatch(
         plot(hz_sub, type = input$cmp_plot_type, scenario_col = "scenario"),
         error = function(e) NULL
       )
-      if (!is.null(p)) print(p)
+      if (!is.null(p)) suppressMessages(hz_to_plotly(p)) else plotly::plotly_empty()
     })
 
     # Delta cards
@@ -232,18 +280,25 @@ hz_server <- function(flat_dt, hz, scenario_ch, lever_cols) {
     .delta_reactive <- function(col) {
       shiny::reactive({
         sub <- compare_dt()
-        lever_a <- stats::setNames(
-          lapply(lever_cols, function(lv) input[[paste0("cmp_a_lv_", lv)]]),
-          lever_cols
-        )
-        lever_b <- stats::setNames(
-          lapply(lever_cols, function(lv) input[[paste0("cmp_b_lv_", lv)]]),
-          lever_cols
-        )
-        sid_a <- .resolve_scenario(lever_a)
-        sid_b <- .resolve_scenario(lever_b)
         if (is.null(sub) || !col %in% names(sub)) {
           return(list(a = NA, b = NA, lbl_a = "", lbl_b = ""))
+        }
+        if (length(lever_cols) == 0L) {
+          all_sids <- unique(flat_dt$scenario_id)
+          sid_a <- if (!is.null(input$cmp_a_sid)) input$cmp_a_sid else all_sids[1L]
+          sid_b <- if (!is.null(input$cmp_b_sid)) input$cmp_b_sid
+                   else if (length(all_sids) >= 2L) all_sids[2L] else all_sids[1L]
+        } else {
+          lever_a <- stats::setNames(
+            lapply(lever_cols, function(lv) input[[paste0("cmp_a_lv_", lv)]]),
+            lever_cols
+          )
+          lever_b <- stats::setNames(
+            lapply(lever_cols, function(lv) input[[paste0("cmp_b_lv_", lv)]]),
+            lever_cols
+          )
+          sid_a <- .resolve_scenario(lever_a)
+          sid_b <- .resolve_scenario(lever_b)
         }
         list(
           a     = .terminal_val(sub, sid_a, col),

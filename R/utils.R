@@ -9,6 +9,15 @@
 #' @keywords internal
 NULL
 
+# Suppress R CMD check NOTEs for data.table column names used in compute_tenure().
+utils::globalVariables(c(
+  ".eff_end",    # compute_tenure: effective end date temp col
+  ".s",          # compute_tenure: segment start numeric
+  ".e",          # compute_tenure: segment end numeric
+  ".lag_max_e",  # compute_tenure: lagged max end for overlap detection
+  ".contrib"     # compute_tenure: per-segment tenure contribution
+))
+
 #' Calculate Years Between Two Dates
 #'
 #' @description
