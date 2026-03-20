@@ -72,7 +72,7 @@ hz_fmt_big <- function(x) {
 #' Identify lever (parameter) columns in a scenario data.table
 #'
 #' @description
-#' Returns the names of columns that represent policy levers — i.e. all
+#' Returns the names of columns that represent policy levers -- i.e. all
 #' columns that are \emph{not} reserved time-series output columns.
 #'
 #' @param dt A \code{data.table} produced by \code{\link{generate_scenario_matrix}}.
@@ -107,7 +107,7 @@ hz_terminal_row <- function(dt, sid) {
 #' Build a named list of scenario choices for selectInput
 #'
 #' @description
-#' Returns a named list mapping \code{scenario_label} → \code{scenario_id},
+#' Returns a named list mapping \code{scenario_label} -> \code{scenario_id},
 #' suitable for passing directly to \code{shiny::selectInput(choices = ...)}.
 #'
 #' @param dt A \code{data.table} with columns \code{scenario_id} and
@@ -191,7 +191,7 @@ hz_app_theme <- function() {
   bslib::bs_add_rules("
     /* ---------------------------------------------------------------
      * Responsive heading scale
-     * clamp(min, preferred, max) — shrinks gracefully on small screens
+     * clamp(min, preferred, max) -- shrinks gracefully on small screens
      * --------------------------------------------------------------- */
     h3 { font-size: clamp(1.1rem, 2vw, 1.75rem) !important; }
     h4 { font-size: clamp(0.95rem, 1.6vw, 1.35rem) !important; }
@@ -199,7 +199,7 @@ hz_app_theme <- function() {
     h6 { font-size: clamp(0.75rem, 1.1vw, 0.95rem) !important; }
 
     /* ---------------------------------------------------------------
-     * bslib value_box — title and value text
+     * bslib value_box -- title and value text
      * --------------------------------------------------------------- */
     .value-box-title {
       font-size: clamp(0.7rem, 1.1vw, 0.95rem) !important;
@@ -238,7 +238,7 @@ hz_app_theme <- function() {
 #' @description
 #' Converts a single \code{ggplot2} object to a \code{plotly} figure using
 #' \code{plotly::ggplotly()}.  Opens a temporary PDF device so that
-#' \code{ggplotly()} can compute plot geometry without a screen device — this
+#' \code{ggplotly()} can compute plot geometry without a screen device -- this
 #' ensures correct rendering in Shiny server contexts and allows plotly to
 #' auto-size to the browser container.
 #'
@@ -253,13 +253,13 @@ hz_to_plotly <- function(p,
   grDevices::pdf(tmp, width = 10, height = 5)
   on.exit({ grDevices::dev.off(); unlink(tmp) }, add = TRUE)
 
-  # Shared axis tick font — midpoint between default (~12) and previous (9)
+  # Shared axis tick font -- midpoint between default (~12) and previous (9)
   .tick_font <- list(size = 11, family = "Fira Sans, sans-serif")
 
   tryCatch({
     pl <- plotly::ggplotly(p, tooltip = tooltip)
 
-    # Collect all axis keys present in the figure (handles facets: xaxis, xaxis2, …)
+    # Collect all axis keys present in the figure (handles facets: xaxis, xaxis2, ...)
     axis_keys <- names(pl$x$layout)[grepl("^[xy]axis", names(pl$x$layout))]
 
     # Build a named list of per-axis overrides

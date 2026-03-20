@@ -13,7 +13,7 @@ hz_lever_cols(dt)
 Character vector of lever column names (may be length 0).
 }
 \description{
-Returns the names of columns that represent policy levers — i.e. all
+Returns the names of columns that represent policy levers -- i.e. all
 columns that are \emph{not} reserved time-series output columns.
 }
 \keyword{internal}

@@ -17,7 +17,7 @@ A \code{plotly} object.
 \description{
 Converts a single \code{ggplot2} object to a \code{plotly} figure using
 \code{plotly::ggplotly()}.  Opens a temporary PDF device so that
-\code{ggplotly()} can compute plot geometry without a screen device — this
+\code{ggplotly()} can compute plot geometry without a screen device -- this
 ensures correct rendering in Shiny server contexts and allows plotly to
 auto-size to the browser container.
 }
