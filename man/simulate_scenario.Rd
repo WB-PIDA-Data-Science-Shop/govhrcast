@@ -11,9 +11,11 @@ simulate_scenario(
   period_date,
   pensioner_register = NULL,
   retirement_policy = NULL,
+  exit_policy = NULL,
   movement_policy = NULL,
   hiring_policy = NULL,
   salary_growth_rate = 0,
+  pension_cola_rate = 0,
   personnel_id_col = "personnel_id",
   contract_id_col = "contract_id",
   start_date_col = "start_date",
@@ -22,7 +24,8 @@ simulate_scenario(
   contract_type_col = "contract_type_code",
   status_col = "status",
   age_col = "age",
-  tenure_col = "tenure_years"
+  tenure_col = "tenure_years",
+  period_fraction = 1
 )
 }
 \arguments{
@@ -33,7 +36,7 @@ simulate_scenario(
 \item{salary_scale_dt}{data.table.  Pay table used for movement and hiring
 salary assignment.  Updated in-place each period by \code{salary_growth_rate}.}
 
-\item{period_date}{Date.  Simulation date for this period — stored in
+\item{period_date}{Date.  Simulation date for this period -- stored in
 \code{pensioner_register} for cohort auditing.  Default: \code{Sys.Date()}.}
 
 \item{pensioner_register}{data.table or \code{NULL}.  Accumulated pensioner
@@ -44,6 +47,10 @@ for the first period — an empty register is initialised internally.}
 \item{retirement_policy}{List or \code{NULL}.  Passed to
 \code{simulate_retirement()}.  Pass \code{NULL} to skip retirement.}
 
+\item{exit_policy}{List or \code{NULL}.  Policy parameters for non-retirement
+attrition.  Passed to \code{compute_status_quo_exits()}.  Pass \code{NULL}
+to model zero attrition.}
+
 \item{movement_policy}{List or \code{NULL}.  Passed to
 \code{simulate_promotions_transfers()}.  Pass \code{NULL} to skip.}
 
@@ -52,6 +59,10 @@ for the first period — an empty register is initialised internally.}
 
 \item{salary_growth_rate}{Numeric scalar.  COLA rate for this period.
 Default \code{0}.}
+
+\item{pension_cola_rate}{Numeric scalar.  Annual COLA rate applied to
+\code{pensioner_register$pension_amount} this period.  Defaults to
+\code{salary_growth_rate} when \code{NULL}.  Default \code{0}.}
 
 \item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
 
@@ -72,6 +83,10 @@ Default \code{"age"}.}
 
 \item{tenure_col}{Character or \code{NULL}.  Tenure column to increment.
 Default \code{"tenure_years"}.}
+
+\item{period_fraction}{Numeric.  Fraction of a year each period represents
+(1 for annual, 1/12 for monthly, 1/365.25 for daily).  Used to increment
+\code{age_col} and \code{tenure_col} by the correct amount.  Default 1.}
 }
 \value{
 Named list:

@@ -11,7 +11,8 @@ A \code{bs_theme} object.
 }
 \description{
 Returns a \code{bslib::bs_theme()} object with the standard govhrcast
-colour palette and typography.  Mirrors the cpiaapp theme exactly
-(litera bootswatch, Source Sans Pro body, Fira Sans headings).
+colour palette, typography, and responsive CSS rules.  Font sizes for
+headings and value-box components scale with the viewport via
+\code{clamp()} so the layout remains readable across screen widths.
 }
 \keyword{internal}

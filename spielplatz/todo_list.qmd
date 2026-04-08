@@ -2,29 +2,70 @@
 ################ A LIST OF MODELLING AND VISUALIZATION MODIFICATIONS TO BE MADE ##################
 ##################################################################################################
 
-##### general
+
 - We currently assume a yearly simulation projection i.e. adding 1 year to ref_date. But we 
-need to make this dynamic so that we can add 1 period by detecting the periodicity of the data or
-allowing the user to specific what each time step ought to be based on with options for year, 
-month or day. 
+need to make this dynamic so that we can add 1 period by allowing the user to specify what 
+each time step ought to be based on with options for year, month or day. 
 
-- there are sections of the simulate_horizon() function that do not need to be run every year. 
-for instance, we should not be running compute_tenure() every year, we should just add 1 to the previous tenure calculation. This bring efficiency gains to the computation.  
+- the compute_tenure() function is technically wrong. it doesn't take into account employment 
+spells. For instance, imagine an individual works 2 or 3 contracts at once and then leaves the 
+public service and then come back after a certain time. Our computation simply takes the 
+difference between end and start dates. Use the IRanges package (bioconductor) and combine with
+data.table to compute the proper date range unions. Or suggest a different efficient way of dealing
+with these different cases. 
+
+- the user should not be expected to compute age and tenure. what we need to pass the birth_date 
+to compute age. We can also use the compute_tenure() function to compute tenure based on 
+start and end date which is already passed into the simulation functions. 
+
+- inside simulate_scenario(), simulate_retirement() calls the compute_tenure() via the 
+identify_retirees() function. This means that inside simulate_horizon() we are computing tenure
+each year. This needs to be fixed. compute_tenure() should be applied only once at the beginning
+of the simulation and then we can simply add 1 period for each iteration for all those who tenure
+is being computed. This applies to promotions and transfers, we should be computing these historical
+rates for promotions, transfers and exits before the period iterations. Please present me a new plan 
+for the compute_horizon()
+
+- we should also start computing the wage bill and headcount for all the periods prior to the 
+ref_date. Then when we plot the baseline we append the wage bill and headcount to the same chart 
+and just use a different color. 
+
+- Use the govhr::detect_personnel_event() function set event_type = "fire". Let us create a 
+function called estimate_historical_exit_rates() to detect non-retirement exits from the public
+service and compute rates by establishments. Eventually, we compute by establishments 
+(function can be called compute_status_quo_exits()). Then we can apply those rates to simulate 
+exits for the forecasts in future years. This can be implemented along with the retirements. 
+Ultimately, we should have a function called simulate_exits(). Create a small plan to design
+that follow the same structure we have used in simulating hiring, promotions and transfers. 
+I will approve it before you start coding. 
+
+- why do you keep making copies of data.table objects and then naming them the same thing? Can 
+you explain this? Otherwise, that is just takes time and adds no value and it should be removed. 
+
+- the first time retirees_dt is created in a simulate_horizon() function call. Are we 
+differentiating between those who are retiree in that period newly and the historically retired? 
+I think we do this well in periods 2+ and so on but I am not sure we are doing this properly in 
+the first period 1 or the baseline period. Please check and show me the portion of the code where
+this is done.  
+
+- I noticed that we are using the sum() function and applying to vectors (as in a$b using data.frame 
+notation). I realize that these are not grouped aggregations but would this be faster inside a 
+data.table i.e. dt[, sum(...)]. Please do a quick test because we need to make sure when we get
+data from a country like Brazil with a large public service, the code can still be fast. 
+
+- Now imagine, you were a HR Analytics Expert (with R expertise) who is consulted by governments 
+to develop systems like this. Given all the code, we have written, you need to do a review of the 
+codebase and suggest other points (I have not suggested above) that we have overlooked on the 
+simulation i.e. in terms of simulation logic, what statistics we are computing incorrectly, 
+what statistics might be good to estimate in addition to what we have. Lets chat before you start 
+coding
 
 
-##### starting with the hiring module
-
-- identify_retirees() seems to be doing what it is supposed to be doing. However, 
-when called in the simulate_horizon() function, we need to ensure that those who
-retired before the baseline period are not included as part of those who 
-identify_retirees() is making eligible for retirement in the first period. 
 
 
-It figures out ANY retirees and so in the simulation, the headcount and pension payments for first year of simulation
-is large as a result. We need to fix this to ensure we separate the cumulative value from the year-on-year
-retiree count and pension costs in the first period. 
 
-- Also compute_tenure() is not correct at the moment, we need to sum up non-overlapping spells for each person. There has to be some unioning approach to get the unique time intervals for handling the overlapping spells. Perhaps the IRange package from bioconductor combined with data.table will do the trick. 
+
+
 
 
 

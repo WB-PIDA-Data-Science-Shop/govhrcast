@@ -2,6 +2,15 @@
 # Unit tests for app_shinyutils.R helper functions.
 # All functions tested here are pure / side-effect-free and do NOT require
 # a running Shiny session.
+#
+# Shiny testing strategy note:
+# ----------------------------
+# - Pure helpers (hz_fmt_big, hz_lever_cols, etc.)  → tested here with testthat
+# - Server reactive logic (compare_dt, sid resolution) → shiny::testServer()
+#   (no browser required, ships with Shiny)
+# - Full UI/browser flows → shinytest2 (optional, requires Chrome, use sparingly)
+#   A shinytest2 suite would live in tests/testthat/test-shinytest2.R and is
+#   NOT included here to keep CI fast and dependency-free.
 
 # =============================================================================
 # Test fixture
@@ -203,4 +212,108 @@ test_that("hz_delta_card_html handles NA val_b gracefully", {
 test_that("hz_app_theme returns a bslib bs_theme object", {
   th <- hz_app_theme()
   expect_true(inherits(th, "bs_theme") || inherits(th, "sass_layer"))
+})
+
+# =============================================================================
+# Scenario Comparator — server reactive logic (shiny::testServer)
+# =============================================================================
+
+# Helper: build a minimal hz_server app for testServer
+.make_test_app <- function(dt) {
+  hz_obj  <- hz_dt_to_horizon(dt)
+  levers  <- hz_lever_cols(dt)
+  sch     <- hz_scenario_choices(dt)
+  server  <- hz_server(dt, hz_obj, sch, levers)
+  list(server = server, levers = levers, flat_dt = dt)
+}
+
+test_that("comparator: cmp_sid_a resolves to baseline scenario on load (lever-mode)", {
+  dt <- make_scenario_dt()   # has salary_growth_rate as lever
+  app <- .make_test_app(dt)
+
+  shiny::testServer(app$server, {
+    # Simulate clicking Compare without changing inputs — should resolve
+    # to whichever sid has salary_growth_rate matching its default (baseline)
+    session$setInputs(
+      show_results    = 1L,
+      cmp_show_results = 1L,
+      cmp_a_lv_salary_growth_rate = 0.03,
+      cmp_b_lv_salary_growth_rate = 0.05
+    )
+    sid_a <- cmp_sid_a()
+    sid_b <- cmp_sid_b()
+    # sid_a should be scenario 1 (salary_growth_rate = 0.03, baseline)
+    expect_equal(sid_a, 1L)
+    # sid_b should be scenario 2 (salary_growth_rate = 0.05)
+    expect_equal(sid_b, 2L)
+  })
+})
+
+test_that("comparator: compare_dt contains rows for both scenario ids", {
+  dt  <- make_scenario_dt()
+  app <- .make_test_app(dt)
+
+  shiny::testServer(app$server, {
+    session$setInputs(
+      show_results     = 1L,
+      cmp_show_results = 1L,
+      cmp_a_lv_salary_growth_rate = 0.03,
+      cmp_b_lv_salary_growth_rate = 0.05
+    )
+    cdt <- compare_dt()
+    expect_true(data.table::is.data.table(cdt))
+    expect_true(nrow(cdt) > 0L)
+    # Both scenario ids present
+    expect_true(1L %in% cdt$scenario_id)
+    expect_true(2L %in% cdt$scenario_id)
+  })
+})
+
+test_that("comparator: compare_dt has scenario column with 'Scenario A' and 'Scenario B'", {
+  dt  <- make_scenario_dt()
+  app <- .make_test_app(dt)
+
+  shiny::testServer(app$server, {
+    session$setInputs(
+      show_results     = 1L,
+      cmp_show_results = 1L,
+      cmp_a_lv_salary_growth_rate = 0.03,
+      cmp_b_lv_salary_growth_rate = 0.05
+    )
+    cdt <- compare_dt()
+    expect_true("scenario" %in% names(cdt))
+    expect_setequal(unique(cdt$scenario), c("Scenario A", "Scenario B"))
+  })
+})
+
+test_that("comparator: diff_wage_bill renders without error", {
+  dt  <- make_scenario_dt()
+  app <- .make_test_app(dt)
+
+  shiny::testServer(app$server, {
+    session$setInputs(
+      show_results     = 1L,
+      cmp_show_results = 1L,
+      cmp_a_lv_salary_growth_rate = 0.03,
+      cmp_b_lv_salary_growth_rate = 0.05
+    )
+    html_tag <- output$diff_wage_bill
+    # Should produce a shiny tag, not NULL / error
+    expect_false(is.null(html_tag))
+  })
+})
+
+test_that("comparator: cmp_sid_a == cmp_sid_b when same lever values chosen", {
+  dt  <- make_scenario_dt()
+  app <- .make_test_app(dt)
+
+  shiny::testServer(app$server, {
+    session$setInputs(
+      show_results     = 1L,
+      cmp_show_results = 1L,
+      cmp_a_lv_salary_growth_rate = 0.03,
+      cmp_b_lv_salary_growth_rate = 0.03   # same as A
+    )
+    expect_equal(cmp_sid_a(), cmp_sid_b())
+  })
 })

@@ -11,6 +11,15 @@
 #' @keywords internal
 NULL
 
+# Suppress R CMD check NOTEs for data.table column names.
+utils::globalVariables(c(
+  "t0_date"  # estimate_movement_baseline: grouping column added by := then used in by=
+))
+
+#' @name movement_core
+#' @keywords internal
+NULL
+
 #' Compute Time-in-Grade for Active Personnel
 #'
 #' @description
@@ -136,6 +145,77 @@ compute_time_in_grade <- function(contract_dt,
 }
 
 
+# ---------------------------------------------------------------------------
+# Internal: process one consecutive snapshot pair for the movement baseline.
+# Called by roll_snapshot_pairs() inside estimate_movement_baseline().
+#
+# @param snap_t0  data.table subset at time T0 (one snapshot).
+# @param snap_t1  data.table subset at time T1 (next snapshot).
+# @param group_cols,personnel_id_col,start_date_col,end_date_col,
+#        contract_type_col  Same semantics as estimate_movement_baseline().
+#
+# @return data.table with columns from_group, to_group, n_moves, n_pop,
+#         period_prob, t0_date; or NULL when either snapshot is empty.
+# @keywords internal
+.compute_transition_pair <- function(snap_t0,
+                                     snap_t1,
+                                     ref_date_col,
+                                     group_cols,
+                                     personnel_id_col,
+                                     start_date_col,
+                                     end_date_col,
+                                     contract_type_col) {
+
+  # Read snapshot dates from the known date column (passed explicitly so we
+  # are robust to panels that contain multiple Date-class columns).
+  t0_date <- snap_t0[[ref_date_col]][1L]
+  t1_date <- snap_t1[[ref_date_col]][1L]
+
+  # Active persons at T0
+  active_t0 <- snap_t0[
+    get(start_date_col) <= t0_date &
+      (is.na(get(end_date_col)) | get(end_date_col) >= t0_date) &
+      get(contract_type_col) != "inactive"
+  ]
+
+  if (nrow(active_t0) == 0L) return(NULL)
+
+  state_t0 <- unique(active_t0[, c(personnel_id_col, group_cols), with = FALSE])
+  state_t0 <- stats::na.omit(state_t0, cols = group_cols)
+  state_t0[, from_group := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
+  data.table::setnames(state_t0, personnel_id_col, ".pid")
+
+  # Active persons at T1
+  active_t1 <- snap_t1[
+    get(start_date_col) <= t1_date &
+      (is.na(get(end_date_col)) | get(end_date_col) >= t1_date) &
+      get(contract_type_col) != "inactive"
+  ]
+
+  if (nrow(active_t1) == 0L) return(NULL)
+
+  state_t1 <- unique(active_t1[, c(personnel_id_col, group_cols), with = FALSE])
+  state_t1 <- stats::na.omit(state_t1, cols = group_cols)
+  state_t1[, to_group := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
+  data.table::setnames(state_t1, personnel_id_col, ".pid")
+
+  # Persons present at both snapshots
+  transitions <- state_t0[state_t1[, .(.pid, to_group)], on = ".pid", nomatch = NULL]
+
+  if (nrow(transitions) == 0L) return(NULL)
+
+  movement_counts <- transitions[, .(n_moves = .N), by = .(from_group, to_group)]
+  pop_t0          <- state_t0[, .(n_pop = .N), by = from_group]
+
+  period_trans <- movement_counts[pop_t0, on = "from_group", nomatch = NA]
+  period_trans[is.na(n_moves), n_moves := 0L]
+  period_trans[, period_prob := n_moves / n_pop]
+  period_trans[, t0_date     := t0_date]
+
+  period_trans
+}
+
+
 #' Estimate Movement Baseline from Panel Data
 #'
 #' @description
@@ -199,65 +279,25 @@ estimate_movement_baseline <- function(contract_dt,
          "Found ", length(all_dates), " snapshot(s).", call. = FALSE)
   }
 
-  # For each consecutive pair of snapshots, compute transition counts
-  period_results <- vector("list", length(all_dates) - 1L)
-
-  for (k in seq_len(length(all_dates) - 1L)) {
-    t0_date <- all_dates[k]
-    t1_date <- all_dates[k + 1L]
-
-    # Get active persons and their group state at T0
-    snap_t0 <- contract_dt[get(ref_date_col) == t0_date]
-    active_t0 <- snap_t0[
-      get(start_date_col) <= t0_date &
-        (is.na(get(end_date_col)) | get(end_date_col) >= t0_date) &
-        get(contract_type_col) != "inactive"
-    ]
-
-    # One row per person at T0 (primary contract determines group state)
-    state_t0 <- unique(active_t0[, c(personnel_id_col, group_cols), with = FALSE])
-    # Drop rows where any group_col is NA
-    state_t0 <- stats::na.omit(state_t0, cols = group_cols)
-    state_t0[, from_group := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
-    data.table::setnames(state_t0, personnel_id_col, ".pid")
-
-    # Get active persons and their group state at T1
-    snap_t1 <- contract_dt[get(ref_date_col) == t1_date]
-    active_t1 <- snap_t1[
-      get(start_date_col) <= t1_date &
-        (is.na(get(end_date_col)) | get(end_date_col) >= t1_date) &
-        get(contract_type_col) != "inactive"
-    ]
-
-    state_t1 <- unique(active_t1[, c(personnel_id_col, group_cols), with = FALSE])
-    # Drop rows where any group_col is NA
-    state_t1 <- stats::na.omit(state_t1, cols = group_cols)
-    state_t1[, to_group := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
-    data.table::setnames(state_t1, personnel_id_col, ".pid")
-
-    # Join T0 and T1 on person ID - only persons present at both periods
-    transitions <- state_t0[state_t1[, .(.pid, to_group)], on = ".pid", nomatch = NULL]
-
-    # Persons in T0 but not in T1 are exits (ignore for transition matrix)
-    # Count movements: from_group -> to_group
-    movement_counts <- transitions[, .(n_moves = .N), by = .(from_group, to_group)]
-
-    # Total population in each from_group at T0
-    pop_t0 <- state_t0[, .(n_pop = .N), by = from_group]
-
-    # Merge to get denominator
-    period_trans <- movement_counts[pop_t0, on = "from_group", nomatch = NA]
-    period_trans[is.na(n_moves), n_moves := 0L]
-
-    # Compute period-specific probability
-    period_trans[, period_prob := n_moves / n_pop]
-    period_trans[, period_key := k]
-
-    period_results[[k]] <- period_trans
-  }
-
-  # Combine all periods
-  all_periods <- data.table::rbindlist(period_results, fill = TRUE, use.names = TRUE)
+  # For each consecutive pair of snapshots, compute transition counts.
+  # roll_snapshot_pairs() sets setkeyv(contract_dt, ref_date_col) before
+  # iterating — converting full O(N_total) scans into O(log N) binary
+  # lookups per snapshot, which is the dominant cost at scale.
+  all_periods <- roll_snapshot_pairs(
+    panel_dt = contract_dt,
+    date_col = ref_date_col,
+    f        = .compute_transition_pair,
+    # extra args forwarded to .compute_transition_pair:
+    ref_date_col      = ref_date_col,
+    group_cols        = group_cols,
+    personnel_id_col  = personnel_id_col,
+    start_date_col    = start_date_col,
+    end_date_col      = end_date_col,
+    contract_type_col = contract_type_col
+  )
+  # Attach a period index so we can count distinct periods later.
+  if (nrow(all_periods) > 0L)
+    all_periods[, period_key := .GRP, by = .(t0_date)]
 
   if (nrow(all_periods) == 0) {
     return(data.table::data.table(

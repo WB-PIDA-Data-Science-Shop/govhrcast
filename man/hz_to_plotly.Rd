@@ -2,18 +2,12 @@
 % Please edit documentation in R/app_shinyutils.R
 \name{hz_to_plotly}
 \alias{hz_to_plotly}
-\title{Convert a patchwork/ggplot object to an interactive plotly figure}
+\title{Convert a ggplot object to an interactive plotly figure}
 \usage{
-hz_to_plotly(
-  p,
-  shareX = TRUE,
-  tooltip = c("x", "y", "colour", "fill", "linetype", "label")
-)
+hz_to_plotly(p, tooltip = c("x", "y", "colour", "fill", "linetype", "label"))
 }
 \arguments{
-\item{p}{A \code{patchwork} or \code{ggplot2} plot object.}
-
-\item{shareX}{Logical.  Share x-axis across panels?  Default \code{TRUE}.}
+\item{p}{A \code{ggplot2} plot object (not a patchwork composite).}
 
 \item{tooltip}{Character vector of tooltip aesthetics to show.}
 }
@@ -21,9 +15,10 @@ hz_to_plotly(
 A \code{plotly} object.
 }
 \description{
-Extracts every panel from a \code{patchwork} composite (or a plain
-\code{ggplot}) using the canonical patchwork storage layout
-(\code{c(list(pw), pw$patches$plots)}), converts each with
-\code{plotly::ggplotly()}, and combines with \code{plotly::subplot()}.
+Converts a single \code{ggplot2} object to a \code{plotly} figure using
+\code{plotly::ggplotly()}.  Opens a temporary PDF device so that
+\code{ggplotly()} can compute plot geometry without a screen device -- this
+ensures correct rendering in Shiny server contexts and allows plotly to
+auto-size to the browser container.
 }
 \keyword{internal}

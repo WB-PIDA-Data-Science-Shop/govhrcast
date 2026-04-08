@@ -14,7 +14,9 @@ create_integration_test_data <- function() {
     personnel_id = c("P001", "P002", "P003", "P003", "P004"),
     ref_date = as.Date("2024-01-01"),  # Add ref_date for panel data structure
     start_date = as.Date(c("1995-01-01", "2000-01-01", "2000-01-01", "2010-01-01", "2015-01-01")),
-    end_date = as.Date(c(NA, NA, NA, NA, NA)),
+    # C003 ends 2015-01-01; C004 starts 2010-01-01 (overlapping).
+    # Union for P003: [2000-01-01, 2025-01-01] = 25 years.
+    end_date = as.Date(c(NA, NA, "2015-01-01", NA, NA)),
     contract_type_code = c("perm", "perm", "perm", "perm", "perm"),
     gross_salary_lcu = c(12000, 10000, 8000, 11000, 9000)
   )
@@ -104,7 +106,7 @@ test_that("simulate_retirement works with tenure_only eligibility", {
     ref_date = ref_date
   )
   
-  # P001 (30 years), P002 (25 years), and P003 (40 years combined) should retire
+  # P001 (30 yrs), P002 (25 yrs), P003 (union of overlapping spells = 25 yrs) should retire
   expect_equal(result$summary$n_retired, 3)
   
   # Check correct personnel retired
@@ -174,8 +176,8 @@ test_that("simulate_retirement works with DB pension", {
   expect_equal(result$summary$n_retired, 3)
   
   # Check pension calculations
-  # P001: min(0.02 * min(30, 30) * 12000, 0.70 * 12000) = min(7200, 8400) = 7200
-  expect_equal(result$retirees_dt[personnel_id == "P001"]$pension, 7200)
+  # P001: min(0.02 * min(~30, 30) * 12000, 0.70 * 12000) ≈ 7199 (30 yrs ± leap-year rounding)
+  expect_equal(result$retirees_dt[personnel_id == "P001"]$pension, 7200, tolerance = 5)
   
   # P002: min(0.02 * min(25.002, 30) * 10000, 0.70 * 10000) ≈ min(5000.4, 7000) ≈ 5000.4
   expect_equal(result$retirees_dt[personnel_id == "P002"]$pension, 5000, tolerance = 1)
@@ -323,9 +325,10 @@ test_that("simulate_retirement handles retiree with multiple contracts", {
     ref_date = ref_date
   )
   
-  # P003 has 2 contracts, should select C004 as primary (later start, higher salary)
+  # P003 has 2 contracts; Phase 0d ensures ALL contracts for a retiring person
+  # are marked 'pensioner' (not just the primary contract)
   expect_equal(result$contract_dt[contract_id == "C004"]$contract_type_code, "pensioner")
-  expect_equal(result$contract_dt[contract_id == "C003"]$contract_type_code, "closed_due_to_retirement")
+  expect_equal(result$contract_dt[contract_id == "C003"]$contract_type_code, "pensioner")
 })
 
 test_that("simulate_retirement does not modify original data", {

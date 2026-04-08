@@ -457,3 +457,152 @@ test_that("update_state_with_movement warns on unmatched salary", {
     )
   )
 })
+
+# ---------------------------------------------------------------------------
+# identify_movers: Phase 5a -- promotion_order_col
+# ---------------------------------------------------------------------------
+
+test_that("promotion_order_col overrides tenure strategy and selects highest scorer", {
+  w <- make_workforce()
+
+  # Add a custom score column -- P3 has highest score so should be promoted
+  w$contract_dt[, promotion_score := c(10, 20, 99, 0, 0, 0)]
+
+  demand <- data.table::data.table(
+    from_group    = "G1",
+    to_group      = "G2",
+    movement_type = "promotion",
+    adj_prob      = 1.0,
+    current_stock = 3L,
+    n_movers      = 1L
+  )
+
+  movers <- identify_movers(
+    contract_dt  = w$contract_dt,
+    personnel_dt = w$personnel_dt,
+    demand_dt    = demand,
+    policy_params = list(
+      group_cols         = "paygrade",
+      promotion_strategy = "tenure",          # would pick P1 by longest tenure
+      promotion_order_col = "promotion_score" # should override -> P3
+    ),
+    ref_date = "2016-01-01"
+  )
+
+  expect_equal(movers$personnel_id, "P3")
+})
+
+test_that("promotion_order_col: highest value wins (verify P2 over P1)", {
+  w <- make_workforce()
+  w$contract_dt[, score := c(5, 50, 1, 0, 0, 0)]
+
+  demand <- data.table::data.table(
+    from_group    = "G1",
+    to_group      = "G2",
+    movement_type = "promotion",
+    adj_prob      = 1.0,
+    current_stock = 3L,
+    n_movers      = 1L
+  )
+
+  movers <- identify_movers(
+    contract_dt  = w$contract_dt,
+    personnel_dt = w$personnel_dt,
+    demand_dt    = demand,
+    policy_params = list(
+      group_cols          = "paygrade",
+      promotion_order_col = "score"
+    ),
+    ref_date = "2016-01-01"
+  )
+
+  expect_equal(movers$personnel_id, "P2")
+})
+
+test_that("promotion_order_col does NOT affect transfer selection", {
+  w <- make_workforce()
+  # Give P4 a very high score -- but this is a transfer, so score should be ignored
+  w$contract_dt[, score := c(0, 0, 0, 999, 1, 1)]
+
+  demand <- data.table::data.table(
+    from_group    = "G2",
+    to_group      = "G1",
+    movement_type = "transfer",
+    adj_prob      = 1.0,
+    current_stock = 3L,
+    n_movers      = 1L
+  )
+
+  set.seed(42)
+  movers <- identify_movers(
+    contract_dt  = w$contract_dt,
+    personnel_dt = w$personnel_dt,
+    demand_dt    = demand,
+    policy_params = list(
+      group_cols          = "paygrade",
+      transfer_strategy   = "random",
+      promotion_order_col = "score"
+    ),
+    ref_date = "2016-01-01"
+  )
+
+  # Random transfer should run -- just check it returns one mover from G2
+  expect_equal(nrow(movers), 1L)
+  expect_true(movers$personnel_id %in% c("P4", "P5", "P6"))
+})
+
+test_that("promotion_order_col absent from contract_dt warns and falls back", {
+  w <- make_workforce()
+
+  demand <- data.table::data.table(
+    from_group    = "G1",
+    to_group      = "G2",
+    movement_type = "promotion",
+    adj_prob      = 1.0,
+    current_stock = 3L,
+    n_movers      = 1L
+  )
+
+  expect_warning(
+    identify_movers(
+      contract_dt  = w$contract_dt,
+      personnel_dt = w$personnel_dt,
+      demand_dt    = demand,
+      policy_params = list(
+        group_cols          = "paygrade",
+        promotion_order_col = "nonexistent_col"
+      ),
+      ref_date = "2016-01-01"
+    ),
+    regexp = "promotion_order_col"
+  )
+})
+
+test_that("promotion_order_col NULL uses default promotion_strategy", {
+  set.seed(1)
+  w <- make_workforce()
+
+  demand <- data.table::data.table(
+    from_group    = "G1",
+    to_group      = "G2",
+    movement_type = "promotion",
+    adj_prob      = 1.0,
+    current_stock = 3L,
+    n_movers      = 1L
+  )
+
+  movers <- identify_movers(
+    contract_dt  = w$contract_dt,
+    personnel_dt = w$personnel_dt,
+    demand_dt    = demand,
+    policy_params = list(
+      group_cols          = "paygrade",
+      promotion_strategy  = "tenure",
+      promotion_order_col = NULL
+    ),
+    ref_date = "2016-01-01"
+  )
+
+  # tenure strategy: P1 started 2010, earliest => longest tenure => selected
+  expect_equal(movers$personnel_id, "P1")
+})

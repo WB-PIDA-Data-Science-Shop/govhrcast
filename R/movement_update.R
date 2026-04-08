@@ -48,6 +48,12 @@ stochastic_round <- function(x) {
 #'   \describe{
 #'     \item{group_cols}{Character vector defining state columns}
 #'     \item{promotion_strategy}{Character. "tenure" or "wage_based"}
+#'     \item{promotion_order_col}{Character or \code{NULL}. Optional.  When
+#'       provided, overrides \code{promotion_strategy} ordering by ranking
+#'       eligible persons on this column (descending — highest value promoted
+#'       first).  Must be a numeric column present in \code{contract_dt} or
+#'       the merged workforce view.  Default \code{NULL} (uses
+#'       \code{promotion_strategy}).}
 #'     \item{transfer_strategy}{Character. "random", "tenure", or "reverse_tenure"}
 #'   }
 #' @param ref_date Date or character. Reference date
@@ -94,11 +100,12 @@ identify_movers <- function(contract_dt,
     ))
   }
 
-  group_cols         <- policy_params$group_cols
-  promotion_strategy <- if (!is.null(policy_params$promotion_strategy))
-                          policy_params$promotion_strategy else "tenure"
-  transfer_strategy  <- if (!is.null(policy_params$transfer_strategy))
-                          policy_params$transfer_strategy else "random"
+  group_cols          <- policy_params$group_cols
+  promotion_strategy  <- if (!is.null(policy_params$promotion_strategy))
+                           policy_params$promotion_strategy else "tenure"
+  promotion_order_col <- policy_params$promotion_order_col  # NULL → fall back to strategy
+  transfer_strategy   <- if (!is.null(policy_params$transfer_strategy))
+                           policy_params$transfer_strategy else "random"
 
   # ------------------------------------------------------------------
   # Build active workforce view with all needed ranking columns
@@ -133,6 +140,23 @@ identify_movers <- function(contract_dt,
   # ------------------------------------------------------------------
   needs_tenure <- (promotion_strategy == "tenure") ||
                   (transfer_strategy %in% c("tenure", "reverse_tenure"))
+
+  # promotion_order_col is a user-supplied numeric column; if it's not already
+  # in the workforce view, check contract_dt (and join if needed).
+  if (!is.null(promotion_order_col)) {
+    if (!promotion_order_col %in% names(workforce)) {
+      if (promotion_order_col %in% names(contract_dt)) {
+        poc_dt <- unique(contract_dt[, c(personnel_id_col, promotion_order_col),
+                                      with = FALSE])
+        workforce <- poc_dt[workforce, on = personnel_id_col]
+      } else {
+        warning("promotion_order_col '", promotion_order_col,
+                "' not found in contract_dt or workforce view; ",
+                "falling back to promotion_strategy.", call. = FALSE)
+        promotion_order_col <- NULL
+      }
+    }
+  }
 
   if (needs_tenure) {
     tenure_dt <- compute_tenure(
@@ -211,10 +235,15 @@ identify_movers <- function(contract_dt,
 
     # Select using strategy
     selected_ids <- if (mtype == "promotion") {
-      switch(
-        promotion_strategy,
+      # promotion_order_col takes precedence over promotion_strategy when supplied
+      if (!is.null(promotion_order_col) && promotion_order_col %in% names(pool)) {
+        data.table::setorderv(pool, promotion_order_col, order = -1L)
+        head(pool[[personnel_id_col]], n_select)
+      } else {
+        switch(
+          promotion_strategy,
 
-        "tenure" = {
+          "tenure" = {
           # Rank by time_in_grade descending
           if ("time_in_grade" %in% names(pool)) {
             data.table::setorderv(pool, "time_in_grade", order = -1L)
@@ -240,6 +269,7 @@ identify_movers <- function(contract_dt,
           head(pool[[personnel_id_col]], n_select)
         }
       )
+      }  # end else (promotion_order_col not set)
     } else {
       # Transfer strategies
       switch(
@@ -364,6 +394,7 @@ update_state_with_movement <- function(contract_dt,
     .(salary_before = sum(get(salary_col), na.rm = TRUE)),
     by = c(personnel_id_col)
   ]
+  # NECESSARY copy: adds salary_before column to movers_dt without modifying caller's object.
   movers_dt <- data.table::copy(movers_dt)
   movers_dt <- pre_salary_dt[movers_dt, on = personnel_id_col]
   # If no salary column in contract_dt, default to 0
@@ -410,7 +441,7 @@ update_state_with_movement <- function(contract_dt,
   # ------------------------------------------------------------------
   # Split to_group key back into group_col values
   # ------------------------------------------------------------------
-  movers_dt <- data.table::copy(movers_dt)
+  # No copy() needed here — movers_dt was already copied above to add salary_before
   movers_dt[, c(paste0(".new_", group_cols)) :=
               data.table::tstrsplit(to_group, split = "||", fixed = TRUE)]
 

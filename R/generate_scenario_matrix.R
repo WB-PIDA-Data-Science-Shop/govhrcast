@@ -70,7 +70,10 @@
 #' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
 #' @param contract_type_col Character.  Default \code{"contract_type_code"}.
 #' @param status_col Character.  Default \code{"status"}.
-#' @param age_col Character.  Default \code{"age"}.
+#' @param age_col Character or \code{NULL}.  Name of the age column in
+#'   \code{personnel_dt}.  When \code{NULL} (default), the value
+#'   \code{"age"} is used and the column is (re-)computed from
+#'   \code{birth_date_col} inside \code{simulate_horizon()} if available.
 #' @param tenure_col Character.  Default \code{"tenure_years"}.
 #'
 #' @return \code{data.table} with one row per \strong{scenario × period},
@@ -169,8 +172,8 @@ generate_scenario_matrix <- function(contract_dt,
                                      salary_col         = "gross_salary_lcu",
                                      contract_type_col  = "contract_type_code",
                                      status_col         = "status",
-                                     age_col            = "age",
-                                     tenure_col         = "tenure_years") {
+                                     age_col            = NULL,
+                                     tenure_col         = NULL) {
 
   # ====================================================================
   # 0. Input validation

@@ -39,15 +39,13 @@ update_contracts_for_retirees(
 Updated contract_dt with retirement status changes
 }
 \description{
-Updates contract_dt to reflect retirements by:
-\enumerate{
-\item Identifying active contracts for retirees
-\item Selecting primary contract (latest start, highest salary, lowest ID)
-\item Setting primary contract to "pensioner" status
-\item Setting other contracts to "closed_due_to_retirement" status
-\item Setting end_date to ref_date for all affected contracts
-}
+Updates contract_dt to reflect retirements: ALL active contracts for each
+retiring person are marked "pensioner", their salaries are zeroed, and their
+end_date is set to ref_date.  A plain membership filter on personnel_id
+(no join) ensures every contract row for a retiring person is captured,
+regardless of how many simultaneous contracts they hold.
 
-Uses efficient data.table operations without loops.
+Pension cost is tracked separately in the pensioner_register via
+pension_amount; zeroing salary here prevents double-counting.
 }
 \keyword{internal}

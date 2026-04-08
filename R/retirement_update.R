@@ -12,14 +12,14 @@ NULL
 #' Update Contracts for Retirees
 #'
 #' @description
-#' Updates contract_dt to reflect retirements by:
-#' 1. Identifying active contracts for retirees
-#' 2. Selecting primary contract (latest start, highest salary, lowest ID)
-#' 3. Setting primary contract to "pensioner" status
-#' 4. Setting other contracts to "closed_due_to_retirement" status
-#' 5. Setting end_date to ref_date for all affected contracts
+#' Updates contract_dt to reflect retirements: ALL active contracts for each
+#' retiring person are marked "pensioner", their salaries are zeroed, and their
+#' end_date is set to ref_date.  A plain membership filter on personnel_id
+#' (no join) ensures every contract row for a retiring person is captured,
+#' regardless of how many simultaneous contracts they hold.
 #'
-#' Uses efficient data.table operations without loops.
+#' Pension cost is tracked separately in the pensioner_register via
+#' pension_amount; zeroing salary here prevents double-counting.
 #'
 #' @param contract_dt data.table. Contract data
 #' @param retirees_dt data.table. Retiree data with personnel_id
@@ -42,71 +42,27 @@ update_contracts_for_retirees <- function(contract_dt,
                                           end_date_col = "end_date",
                                           salary_col = "gross_salary_lcu",
                                           contract_type_col = "contract_type_code") {
-  
+
   # If no retirees, return unchanged
   if (nrow(retirees_dt) == 0) {
     return(contract_dt)
   }
-  
-  # Extract retiree IDs
-  retiree_ids <- unique(retirees_dt[[personnel_id_col]])
-  
-  # Create retire flag in contract_dt
-  contract_dt[, retire := fifelse(get(personnel_id_col) %in% retiree_ids, 1L, 0L)]
-  
-  # Identify active contracts
-  contract_dt[, active_flag := fifelse(
-    is.na(get(end_date_col)) & get(contract_type_col) != "inactive",
-    1L,
-    0L
-  )]
-  
-  # Filter to active contracts of retirees
-  retiree_active <- contract_dt[retire == 1L & active_flag == 1L]
-  
-  # If no active contracts to update, return unchanged
-  if (nrow(retiree_active) == 0) {
-    contract_dt[, c("retire", "active_flag") := NULL]
-    return(contract_dt)
-  }
-  
-  # Rank contracts within each personnel by priority
-  # Priority: start_date DESC, salary DESC, contract_id ASC
-  retiree_active[, priority_rank := frank(
-    list(-as.numeric(get(start_date_col)), 
-         -get(salary_col), 
-         get(contract_id_col)),
-    ties.method = "first"
-  ), by = .(personnel_id = get(personnel_id_col))]
-  
-  # Identify primary contracts (rank = 1)
-  primary_contract_ids <- retiree_active[priority_rank == 1][[contract_id_col]]
-  
-  # Update contract types and end dates
-  contract_dt[get(contract_id_col) %in% primary_contract_ids & retire == 1L & active_flag == 1L,
-     c(contract_type_col, end_date_col) := list("pensioner", ref_date)]
 
-  # Zero out salary on primary pensioner contracts.
-  # Pension cost is tracked separately in the pensioner_register via pension_amount.
-  # Zeroing here ensures sum(salary_col) never double-counts pension obligations.
-  contract_dt[get(contract_id_col) %in% primary_contract_ids & retire == 1L & active_flag == 1L,
-     (salary_col) := 0]
+  # Unique set of retiring personnel — plain membership filter, no join needed
+  retiring_ids <- unique(retirees_dt[[personnel_id_col]])
 
-  # Get non-primary active retiree contracts
-  non_primary_contract_ids <- retiree_active[priority_rank > 1][[contract_id_col]]
-  
-  # Update non-primary contracts
-  if (length(non_primary_contract_ids) > 0) {
-    contract_dt[get(contract_id_col) %in% non_primary_contract_ids & retire == 1L & active_flag == 1L,
-       c(contract_type_col, end_date_col) := list("closed_due_to_retirement", ref_date)]
-    # Also zero salary on closed secondary contracts
-    contract_dt[get(contract_id_col) %in% non_primary_contract_ids & retire == 1L & active_flag == 1L,
-       (salary_col) := 0]
-  }
-  
-  # Clean temporary columns
-  contract_dt[, c("retire", "active_flag") := NULL]
-  
+  # Mark ALL active contracts for retiring persons as "pensioner" in a single pass.
+  # Using %in% ensures every contract row is captured even when a person holds
+  # multiple simultaneous active contracts.
+  # Inactive/terminated/closed contracts are left untouched.
+  active_types_to_update <- c("inactive", "pensioner", "closed_due_to_retirement",
+                               "terminated")
+  contract_dt[
+    get(personnel_id_col) %in% retiring_ids &
+      !get(contract_type_col) %in% active_types_to_update,
+    c(contract_type_col, end_date_col, salary_col) := list("pensioner", ref_date, 0)
+  ]
+
   return(contract_dt)
 }
 

@@ -74,6 +74,7 @@ compute_pension <- function(retirees_dt, policy_type, params) {
 #' )
 #' pensions <- compute_db_pension(retirees_dt, params)
 #' }
+
 compute_db_pension <- function(dt, params) {
   
   # Validate required parameters

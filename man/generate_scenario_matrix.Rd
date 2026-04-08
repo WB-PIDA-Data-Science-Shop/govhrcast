@@ -24,8 +24,8 @@ generate_scenario_matrix(
   salary_col = "gross_salary_lcu",
   contract_type_col = "contract_type_code",
   status_col = "status",
-  age_col = "age",
-  tenure_col = "tenure_years"
+  age_col = NULL,
+  tenure_col = NULL
 )
 }
 \arguments{
@@ -79,7 +79,10 @@ scenario (\code{scenario_id = 1}) is used.}
 
 \item{status_col}{Character.  Default \code{"status"}.}
 
-\item{age_col}{Character.  Default \code{"age"}.}
+\item{age_col}{Character or \code{NULL}.  Name of the age column in
+\code{personnel_dt}.  When \code{NULL} (default), the value
+\code{"age"} is used and the column is (re-)computed from
+\code{birth_date_col} inside \code{simulate_horizon()} if available.}
 
 \item{tenure_col}{Character.  Default \code{"tenure_years"}.}
 }

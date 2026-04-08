@@ -10,9 +10,11 @@ simulate_horizon(
   salary_scale_dt,
   n_periods,
   retirement_policy = NULL,
+  exit_policy = NULL,
   movement_policy = NULL,
   hiring_policy = NULL,
   salary_growth_rate = 0,
+  pension_cola_rate = salary_growth_rate,
   base_year = as.integer(format(Sys.Date(), "\%Y")),
   return_microdata = FALSE,
   ref_date = Sys.Date(),
@@ -23,8 +25,12 @@ simulate_horizon(
   salary_col = "gross_salary_lcu",
   contract_type_col = "contract_type_code",
   status_col = "status",
-  age_col = "age",
-  tenure_col = "tenure_years"
+  age_col = NULL,
+  tenure_col = NULL,
+  period_unit = "year",
+  birth_date_col = "birth_date",
+  scenario_name = NULL,
+  is_baseline = FALSE
 )
 }
 \arguments{
@@ -39,6 +45,12 @@ simulate_horizon(
 
 \item{retirement_policy}{List or \code{NULL}. Policy parameters for
 \code{simulate_retirement()}. Pass \code{NULL} to skip.}
+
+\item{exit_policy}{List or \code{NULL}. Policy parameters controlling
+non-retirement attrition (voluntary exits, contract non-renewals).  When
+non-\code{NULL}, must contain at minimum \code{mode} (one of
+\code{"fixed_rate"}, \code{"status_quo"}) and \code{exit_strategy}.
+Pass \code{NULL} (default) to model zero non-retirement attrition.}
 
 \item{movement_policy}{List or \code{NULL}. Policy parameters for
 \code{simulate_promotions_transfers()}. Pass \code{NULL} to skip.}
@@ -55,6 +67,11 @@ automatically by \code{simulate_horizon()} from the \code{contract_dt} and
 \item{salary_growth_rate}{Numeric scalar or vector of length \code{n_periods}.
 Annual COLA / inflation rate applied to salaries and the pay scale.
 Default \code{0} (no inflation).}
+
+\item{pension_cola_rate}{Numeric scalar or vector of length \code{n_periods}.
+Annual COLA rate applied to \code{pensioner_register$pension_amount} each
+period.  Defaults to \code{salary_growth_rate} (same rate for both groups).
+Accepts either a scalar or a length-\code{n_periods} vector.}
 
 \item{base_year}{Integer. Calendar year label for period 0 (default:
 \code{as.integer(format(Sys.Date(), "\%Y"))}).}
@@ -91,6 +108,35 @@ Default: \code{"age"}.}
 
 \item{tenure_col}{Character or \code{NULL}. Tenure column to increment each
 period. Default: \code{"tenure_years"}.}
+
+\item{period_unit}{Character. Stepping unit for each simulated period.
+One of \code{"year"} (default), \code{"month"}, or \code{"day"}.
+Controls both the calendar advance and the fraction by which
+\code{age_col} / \code{tenure_col} are incremented.  When
+\code{period_unit != "year"}, \code{salary_growth_rate} (an annual rate)
+is automatically converted to a per-period compound equivalent.}
+
+\item{birth_date_col}{Character or \code{NULL}. Birth date column in
+\code{personnel_dt} used to auto-compute \code{age_col} at the start of
+the simulation (before the first period).  If the column is present,
+\code{age_col} is overwritten with the age in fractional years at
+\code{ref_date}.  Pass \code{NULL} to skip (user must supply a
+pre-computed \code{age_col} column).  Default: \code{"birth_date"}.}
+
+\item{scenario_name}{Character scalar or \code{NULL}.  A human-readable
+label for this simulation run (e.g. \code{"Baseline"} or
+\code{"High-growth scenario"}).  When supplied, it is stamped into
+\code{$comparison} as both \code{scenario_id} (the value itself, used as
+a stable join key) and \code{scenario_label} (for display).  These
+columns are consumed by the Shiny app's \code{generate_scenario_matrix()}
+layer and by \code{is_baseline} toggle logic.  Default \code{NULL}
+(columns are omitted from the output).}
+
+\item{is_baseline}{Logical scalar.  When \code{TRUE}, stamps an
+\code{is_baseline} column (\code{TRUE}) onto \code{$comparison} to flag
+this run as the reference scenario in multi-scenario comparisons.  Only
+meaningful when \code{scenario_name} is also supplied.  Default
+\code{FALSE}.}
 }
 \value{
 An object of class \code{horizon} with two primary components:
@@ -106,10 +152,14 @@ An object of class \code{horizon} with two primary components:
 \code{promotion_effect_pct_of_end_bill},
 \code{transfer_effect_pct_of_end_bill},
 \code{hiring_effect_pct_of_end_bill},
-\code{inflation_effect_pct_of_end_bill}.}
+\code{inflation_effect_pct_of_end_bill}.
+When \code{scenario_name} is supplied, also includes
+\code{scenario_id}, \code{scenario_label}, and (when
+\code{is_baseline = TRUE}) \code{is_baseline}.}
 \item{\code{$summary_dt}}{Same as \code{$comparison} (backward-compatible alias).}
 \item{\code{$metadata}}{Named list with \code{policy_args} capturing the
-retirement, movement, and hiring policy parameters used.}
+retirement, movement, and hiring policy parameters used, plus
+\code{scenario_name} and \code{is_baseline} when supplied.}
 \item{\code{$contract_dt}}{data.table. Final-period contract snapshot.
 Only present when \code{return_microdata = TRUE}.}
 \item{\code{$personnel_dt}}{data.table. Final-period personnel snapshot.

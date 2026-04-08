@@ -6,16 +6,16 @@ devtools::load_all()
 library(data.table)
 
 # Working copies — we copy once here so downstream sections don't corrupt each other
-contract  <- data.table::copy(bra_hrmis_contract)
-personnel <- data.table::copy(bra_hrmis_personnel)
+contract_dt  <- data.table::copy(bra_hrmis_contract)
+personnel_dt <- data.table::copy(bra_hrmis_personnel)
 
 # Reference date used throughout
 REF_DATE <- as.Date("2014-01-01")
 
 # Quick look at the data
-range(contract$ref_date)          # panel date range
-uniqueN(contract$personnel_id)    # distinct workers in contract panel
-uniqueN(personnel$personnel_id)   # distinct workers in personnel panel
+range(contract_dt$ref_date)          # panel date range
+uniqueN(contract_dt$personnel_id)    # distinct workers in contract panel
+uniqueN(personnel_dt$personnel_id)   # distinct workers in personnel panel
 
 
 ###################################################################################################
@@ -24,7 +24,7 @@ uniqueN(personnel$personnel_id)   # distinct workers in personnel panel
 ###################################################################################################
 
 age_dt <- compute_age(
-  personnel_dt = personnel[ref_date == "2014-09-01",],
+  personnel_dt = personnel_dt[ref_date == "2014-09-01",],
   ref_date     = REF_DATE,
   birth_date_col   = "birth_date",
   personnel_id_col = "personnel_id"
@@ -42,7 +42,7 @@ summary(age_dt$age)
 ###################################################################################################
 
 tenure_dt <- compute_tenure(
-  contract_dt      = contract,
+  contract_dt      = contract_dt,
   ref_date         = REF_DATE,
   personnel_id_col = "personnel_id",
   contract_id_col  = "contract_id",
@@ -76,8 +76,8 @@ policy_valid <- list(
 )
 
 check_retirement_inputs(
-  contract_dt   = contract,
-  personnel_dt  = personnel,
+  contract_dt   = contract_dt,
+  personnel_dt  = personnel_dt,
   policy_params = policy_valid,
   ref_date      = REF_DATE
 )
@@ -87,8 +87,8 @@ check_retirement_inputs(
 # --- 3b. Invalid: bad eligibility_type ---
 tryCatch(
   check_retirement_inputs(
-    contract_dt   = contract,
-    personnel_dt  = personnel,
+    contract_dt   = contract_dt,
+    personnel_dt  = personnel_dt,
     policy_params = modifyList(policy_valid, list(eligibility_type = "points_based")),
     ref_date      = REF_DATE
   ),
@@ -99,8 +99,8 @@ tryCatch(
 # --- 3c. Invalid: min_age missing when age-based eligibility ---
 tryCatch(
   check_retirement_inputs(
-    contract_dt   = contract,
-    personnel_dt  = personnel,
+    contract_dt   = contract_dt,
+    personnel_dt  = personnel_dt,
     policy_params = list(eligibility_type = "age_only", pension_type = "flat",
                          pension_params   = list(flat_amount = 1000)),
     ref_date      = REF_DATE
@@ -112,8 +112,8 @@ tryCatch(
 # --- 3d. Invalid: bad pension_type ---
 tryCatch(
   check_retirement_inputs(
-    contract_dt   = contract,
-    personnel_dt  = personnel,
+    contract_dt   = contract_dt,
+    personnel_dt  = personnel_dt,
     policy_params = modifyList(policy_valid, list(pension_type = "points")),
     ref_date      = REF_DATE
   ),
@@ -127,8 +127,8 @@ tryCatch(
 
 # --- 4a. age_only (retire if age >= 65) ---
 elig_age_only <- identify_retirees(
-  contract_dt   = contract,
-  personnel_dt  = personnel,
+  contract_dt   = contract_dt,
+  personnel_dt  = personnel_dt,
   policy_params = list(eligibility_type = "age_only", min_age = 65),
   ref_date      = REF_DATE
 )
@@ -139,8 +139,8 @@ elig_age_only[, .N, by = retire]
 
 # --- 4b. tenure_only (retire if tenure >= 30 years) ---
 elig_tenure_only <- identify_retirees(
-  contract_dt   = contract,
-  personnel_dt  = personnel,
+  contract_dt   = contract_dt,
+  personnel_dt  = personnel_dt,
   policy_params = list(eligibility_type = "tenure_only", min_tenure = 30),
   ref_date      = REF_DATE
 )
@@ -151,8 +151,8 @@ elig_tenure_only[, .N, by = retire]
 
 # --- 4c. age_and_tenure (retire if age >= 60 AND tenure >= 20) ---
 elig_both <- identify_retirees(
-  contract_dt   = contract,
-  personnel_dt  = personnel,
+  contract_dt   = contract_dt,
+  personnel_dt  = personnel_dt,
   policy_params = list(eligibility_type = "age_and_tenure", min_age = 60, min_tenure = 20),
   ref_date      = REF_DATE
 )
@@ -171,10 +171,10 @@ elig_both[, .N, by = retire]
 # manually here using only exported / accessible pieces)
 
 # Filter elig_both to retirees
-retirees_ids <- elig_both[retire == 1, personnel_id]
+retirees_ids <- unique(elig_both[retire == 1, personnel_id])
 
 # Get one recent snapshot from contract panel, filter to active contracts of retirees
-snap <- contract[ref_date == max(contract$ref_date)]
+snap <- contract_dt[ref_date == as.Date("2012-09-01"),]
 active_snap <- snap[is.na(end_date) & contract_type_code != "inactive"]
 retiree_contracts <- active_snap[personnel_id %in% retirees_ids]
 
@@ -185,15 +185,14 @@ retirees_base <- retiree_contracts[
   by = personnel_id
 ]
 
+### get the latest tenure numbers for each individual
+retireeat_dt <- elig_both[retire == 1, .SD[which.max(age)], by = personnel_id]
+
 # Merge age and tenure
-retirees_dt <- merge(
-  retirees_base,
-  elig_both[retire == 1, .(personnel_id, age, tenure_years)],
-  by = "personnel_id"
-)
+retirees_dt <- merge(retirees_base, retireeat_dt, by = "personnel_id")
 
 # Add a synthetic DC balance column for DC/hybrid examples
-retirees_dt[, dc_balance := gross_salary_lcu * tenure_years * 12 * 0.10]
+retirees_dt[, dc_balance := gross_salary_lcu * tenure_years * 0.10]
 
 nrow(retirees_dt)   # retirees with salary data
 head(retirees_dt[, .(personnel_id, gross_salary_lcu, age, tenure_years, dc_balance)])

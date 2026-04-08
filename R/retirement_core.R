@@ -30,6 +30,11 @@ NULL
 #' @param start_date_col Character. Name of start date column (default: "start_date")
 #' @param end_date_col Character. Name of end date column (default: "end_date")
 #' @param contract_type_col Character. Name of contract type column (default: "contract_type_code")
+#' @param age_col Character or NULL. Column in personnel_dt containing pre-computed
+#'   age (in years). When present, \code{compute_age()} is skipped. Default \code{"age"}.
+#' @param tenure_col Character or NULL. Column in personnel_dt containing pre-computed
+#'   tenure (in years). When present, \code{compute_tenure()} is skipped.
+#'   Default \code{"tenure_years"}.
 #'
 #' @return data.table with columns: personnel_id, retire (0/1), age, tenure_years
 #' @keywords internal
@@ -41,18 +46,43 @@ identify_retirees <- function(contract_dt,
                               birth_date_col = "birth_date",
                               start_date_col = "start_date",
                               end_date_col = "end_date",
-                              contract_type_col = "contract_type_code") {
+                              contract_type_col = "contract_type_code",
+                              age_col   = "age",
+                              tenure_col = "tenure_years") {
   
   eligibility_type <- policy_params$eligibility_type
-  
-  # Compute age if needed
+  if (is.null(eligibility_type) || length(eligibility_type) == 0L)
+    eligibility_type <- "age_only"   # safe default for non-retirement callers
+
+  # Restrict candidate pool to personnel who have at least one active contract.
+  # People with only inactive/pensioner contracts must not be identified as
+  # retirement candidates — they are already out of the workforce.
+  # Personnel who are filtered out here still appear in the result with retire = 0.
+  all_pid    <- unique(personnel_dt[[personnel_id_col]])
+  active_pid <- unique(get_active_contracts(
+    contract_dt       = contract_dt,
+    ref_date          = ref_date,
+    start_date_col    = start_date_col,
+    end_date_col      = end_date_col,
+    contract_type_col = contract_type_col
+  )[[personnel_id_col]])
+  personnel_dt <- personnel_dt[get(personnel_id_col) %in% active_pid]
+
+  # Compute age if needed — prefer pre-computed column on personnel_dt (Phase 2b).
+  # compute_age() is only called when the column is absent (standalone calls or
+  # when simulate_horizon() was invoked without birth_date_col).
   if (eligibility_type %in% c("age_only", "age_and_tenure")) {
-    age_dt <- compute_age(
-      personnel_dt = personnel_dt,
-      ref_date = ref_date,
-      birth_date_col = birth_date_col,
-      personnel_id_col = personnel_id_col
-    )
+    if (!is.null(age_col) && age_col %in% names(personnel_dt)) {
+      age_dt <- personnel_dt[, c(personnel_id_col, age_col), with = FALSE]
+      data.table::setnames(age_dt, c(personnel_id_col, age_col), c(personnel_id_col, "age"))
+    } else {
+      age_dt <- compute_age(
+        personnel_dt = personnel_dt,
+        ref_date = ref_date,
+        birth_date_col = birth_date_col,
+        personnel_id_col = personnel_id_col
+      )
+    }
   } else {
     # Create placeholder with NA age
     age_dt <- data.table::data.table(
@@ -61,16 +91,23 @@ identify_retirees <- function(contract_dt,
     )
   }
   
-  # Compute tenure if needed
+  # Compute tenure if needed — prefer pre-computed column on personnel_dt (Phase 2b).
   if (eligibility_type %in% c("tenure_only", "age_and_tenure")) {
-    tenure_dt <- compute_tenure(
-      contract_dt = contract_dt,
-      ref_date = ref_date,
-      personnel_id_col = personnel_id_col,
-      start_date_col = start_date_col,
-      end_date_col = end_date_col,
-      contract_type_col = contract_type_col
-    )
+    if (!is.null(tenure_col) && tenure_col %in% names(personnel_dt)) {
+      tenure_dt <- personnel_dt[, c(personnel_id_col, tenure_col), with = FALSE]
+      data.table::setnames(tenure_dt, c(personnel_id_col, tenure_col),
+                           c(personnel_id_col, "tenure_years"))
+      tenure_dt[, tenure_days := tenure_years * 365.25]
+    } else {
+      tenure_dt <- compute_tenure(
+        contract_dt = contract_dt,
+        ref_date = ref_date,
+        personnel_id_col = personnel_id_col,
+        start_date_col = start_date_col,
+        end_date_col = end_date_col,
+        contract_type_col = contract_type_col
+      )
+    }
   } else {
     # Create placeholder with NA tenure
     tenure_dt <- data.table::data.table(
@@ -114,11 +151,26 @@ identify_retirees <- function(contract_dt,
   
   # Handle NA values (set to 0 - not eligible)
   eligibility_dt[is.na(retire), retire := 0L]
-  
+
   # Return with standardized column names
   result <- eligibility_dt[, c(personnel_id_col, "retire", "age", "tenure_years"), with = FALSE]
   data.table::setnames(result, personnel_id_col, "personnel_id")
-  
+
+  # Add back any personnel who were filtered out (no active contract) with retire = 0.
+  # This preserves the contract — "all personnel appear in the result" — expected by
+  # callers and tests that check retire == 0 for personnel with NA start_date, etc.
+  inactive_pids <- setdiff(all_pid, active_pid)
+  if (length(inactive_pids) > 0L) {
+    inactive_rows <- data.table::data.table(
+      personnel_id = inactive_pids,
+      retire       = 0L,
+      age          = NA_real_,
+      tenure_years = NA_real_
+    )
+    result <- data.table::rbindlist(list(result, inactive_rows),
+                                    use.names = TRUE, fill = TRUE)
+  }
+
   return(result)
 }
 

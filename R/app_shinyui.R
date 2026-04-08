@@ -82,8 +82,7 @@
             ),
             shiny::tags$li(
               shiny::strong("Scenario Comparator:"),
-              " Overlays two different policy paths to identify the
-               fiscal gap between choices."
+              " Overlays two policy paths and shows terminal-year deltas."
             ),
             shiny::tags$li(
               shiny::strong("Data & Methodology:"),
@@ -112,7 +111,7 @@
 
     # KPI row ----------------------------------------------------------------
     bslib::layout_column_wrap(
-      width = 1 / 3,
+      width = "250px",
       bslib::value_box(
         title    = "Terminal Wage Bill",
         value    = shiny::textOutput("kpi_wage_bill"),
@@ -143,7 +142,16 @@
             shiny::uiOutput("desc_fiscal"),
             placement = "right"
           ),
-          shiny::plotOutput("plot_fiscal", height = "480px")
+          shiny::div(
+            style = "overflow-y: auto; max-height: 85vh;",
+            # 3 panels side by side — mirrors patchwork p1 + p2 + p3
+            bslib::layout_column_wrap(
+              width = 1 / 3,
+              plotly::plotlyOutput("plot_fiscal_1", height = "420px"),
+              plotly::plotlyOutput("plot_fiscal_2", height = "420px"),
+              plotly::plotlyOutput("plot_fiscal_3", height = "420px")
+            )
+          )
         )
       ),
       bslib::nav_panel(
@@ -154,7 +162,12 @@
             shiny::uiOutput("desc_spending"),
             placement = "right"
           ),
-          shiny::plotOutput("plot_spending", height = "560px")
+          shiny::div(
+            style = "overflow-y: auto; max-height: 85vh;",
+            plotly::plotlyOutput("plot_spending_1", height = "650px"),
+            shiny::tags$div(style = "height: 1.5rem;"),
+            plotly::plotlyOutput("plot_spending_2", height = "380px")
+          )
         )
       ),
       bslib::nav_panel(
@@ -165,7 +178,15 @@
             shiny::uiOutput("desc_turnover"),
             placement = "right"
           ),
-          shiny::plotOutput("plot_turnover", height = "480px")
+          shiny::div(
+            style = "overflow-y: auto; max-height: 85vh;",
+            # 2 panels side by side — flows | stock
+            bslib::layout_column_wrap(
+              width = 1 / 2,
+              plotly::plotlyOutput("plot_turnover_1", height = "450px"),
+              plotly::plotlyOutput("plot_turnover_2", height = "450px")
+            )
+          )
         )
       )
     )
@@ -179,53 +200,161 @@
 # ---------------------------------------------------------------------------
 
 #' @keywords internal
-.hz_tab_comparator <- function() {
+.hz_tab_comparator <- function(flat_dt, lever_cols) {
+
+  has_levers <- length(lever_cols) > 0L
+
+  # ---- Sidebar: Scenario A -------------------------------------------------
+  if (has_levers) {
+    # Lever-mode: one selectInput per lever, A defaults to baseline row
+    baseline_row <- if ("is_baseline" %in% names(flat_dt) && any(flat_dt$is_baseline)) {
+      unique(flat_dt[is_baseline == TRUE, .SD, .SDcols = lever_cols])[1L]
+    } else {
+      unique(flat_dt[, .SD, .SDcols = lever_cols])[1L]
+    }
+    all_lever_rows <- unique(flat_dt[, .SD, .SDcols = lever_cols])
+    alt_row <- if (nrow(all_lever_rows) >= 2L) all_lever_rows[2L] else all_lever_rows[1L]
+
+    make_lever_inputs <- function(prefix, def_row) {
+      lapply(lever_cols, function(lv) {
+        vals  <- sort(unique(flat_dt[[lv]]))
+        label <- tools::toTitleCase(gsub("_", " ", lv))
+        def   <- if (!is.null(def_row) && lv %in% names(def_row)) def_row[[lv]] else vals[1L]
+        shiny::selectInput(paste0(prefix, lv), label, choices = vals, selected = def)
+      })
+    }
+    sidebar_a_inputs <- make_lever_inputs("cmp_a_lv_", baseline_row)
+    sidebar_b_inputs <- make_lever_inputs("cmp_b_lv_", alt_row)
+  } else {
+    # Label-mode: one selectInput per scenario slot
+    choices  <- hz_scenario_choices(flat_dt)
+    all_sids <- unique(flat_dt$scenario_id)
+    def_a    <- if ("is_baseline" %in% names(flat_dt) && any(flat_dt$is_baseline))
+                  flat_dt[is_baseline == TRUE, scenario_id[1L]]
+                else all_sids[1L]
+    def_b    <- if (length(all_sids) >= 2L) all_sids[2L] else all_sids[1L]
+    sidebar_a_inputs <- list(
+      shiny::selectInput("cmp_a_sid", "Scenario", choices = choices, selected = def_a)
+    )
+    sidebar_b_inputs <- list(
+      shiny::selectInput("cmp_b_sid", "Scenario", choices = choices, selected = def_b)
+    )
+  }
+
+  sidebar_content <- bslib::sidebar(
+    width = 320,
+    # Scenario A card — blue header
+    bslib::card(
+      bslib::card_header(
+        shiny::strong("\u25a0 Scenario A"),
+        class = "bg-primary text-white"
+      ),
+      bslib::card_body(
+        class  = "py-2",
+        sidebar_a_inputs
+      )
+    ),
+    shiny::tags$div(style = "height: 0.75rem;"),
+    # Scenario B card — green header
+    bslib::card(
+      bslib::card_header(
+        shiny::strong("\u25a0 Scenario B"),
+        class = "bg-success text-white"
+      ),
+      bslib::card_body(
+        class  = "py-2",
+        sidebar_b_inputs
+      )
+    ),
+    shiny::hr(),
+    shiny::actionButton(
+      "cmp_show_results",
+      label = "Compare",
+      icon  = shiny::icon("arrows-left-right"),
+      class = "btn-primary w-100"
+    )
+  )
+
   bslib::nav_panel(
     title = "Scenario Comparator",
     value = "tab_compare",
 
     bslib::layout_sidebar(
-      sidebar = bslib::sidebar(
-        width = 300,
-        shiny::uiOutput("cmp_levers_a"),
-        shiny::hr(),
-        shiny::uiOutput("cmp_levers_b"),
-        shiny::hr(),
-        shiny::selectInput(
-          "cmp_plot_type",
-          "Chart type",
-          choices = c(
-            "Fiscal Basics"    = "fiscal_basics",
-            "Spending Effects" = "spending_effects",
-            "Turnover"         = "turnover"
+      sidebar = sidebar_content,
+
+      # KPI delta tiles ------------------------------------------------------
+      bslib::layout_column_wrap(
+        width = "250px",
+        bslib::card(
+          bslib::card_header(
+            bsicons::bs_icon("cash-stack"), " Wage Bill",
+            class = "fw-bold"
+          ),
+          bslib::card_body(shiny::uiOutput("diff_wage_bill"))
+        ),
+        bslib::card(
+          bslib::card_header(
+            bsicons::bs_icon("person-check"), " Pension Liability",
+            class = "fw-bold"
+          ),
+          bslib::card_body(shiny::uiOutput("diff_pension"))
+        ),
+        bslib::card(
+          bslib::card_header(
+            bsicons::bs_icon("people"), " Headcount",
+            class = "fw-bold"
+          ),
+          bslib::card_body(shiny::uiOutput("diff_headcount"))
+        )
+      ),
+
+      # Overlay chart panels -------------------------------------------------
+      bslib::navset_card_pill(
+        bslib::nav_panel(
+          "Fiscal Basics",
+          bslib::card_body(
+            shiny::div(
+              style = "overflow-y: auto; max-height: 85vh;",
+              bslib::layout_column_wrap(
+                width = 1 / 3,
+                plotly::plotlyOutput("cmp_fiscal_1", height = "420px"),
+                plotly::plotlyOutput("cmp_fiscal_2", height = "420px"),
+                plotly::plotlyOutput("cmp_fiscal_3", height = "420px")
+              )
+            )
+          )
+        ),
+        bslib::nav_panel(
+          "Spending Effects",
+          bslib::card_body(
+            # Horizontally scrollable wide chart so dodged bars have room
+            shiny::div(
+              style = "overflow-x: auto; overflow-y: auto; max-height: 85vh;",
+              shiny::div(
+                style = "min-width: 1400px;",
+                plotly::plotlyOutput("cmp_spending_1", height = "650px"),
+                shiny::tags$div(style = "height: 1.5rem;"),
+                plotly::plotlyOutput("cmp_spending_2", height = "380px")
+              )
+            )
+          )
+        ),
+        bslib::nav_panel(
+          "Turnover Dynamics",
+          bslib::card_body(
+            shiny::div(
+              style = "overflow-y: auto; max-height: 85vh;",
+              bslib::layout_column_wrap(
+                width = 1 / 2,
+                plotly::plotlyOutput("cmp_turnover_1", height = "450px"),
+                plotly::plotlyOutput("cmp_turnover_2", height = "450px")
+              )
+            )
           )
         )
-      ),
-
-      bslib::card(
-        bslib::card_header("Overlay Comparison"),
-        bslib::card_body(
-          shiny::plotOutput("plot_compare", height = "500px")
-        )
-      ),
-
-      bslib::layout_column_wrap(
-        width = 1 / 3,
-        bslib::card(
-          bslib::card_header("Wage Bill Gap (Terminal Year)"),
-          bslib::card_body(shiny::uiOutput("delta_wage_bill"))
-        ),
-        bslib::card(
-          bslib::card_header("Pension Gap (Terminal Year)"),
-          bslib::card_body(shiny::uiOutput("delta_pension"))
-        ),
-        bslib::card(
-          bslib::card_header("Headcount Gap (Terminal Year)"),
-          bslib::card_body(shiny::uiOutput("delta_headcount"))
-        )
       )
-    )
-  )
+    ) # end layout_sidebar
+  ) # end nav_panel
 }
 
 
@@ -350,6 +479,9 @@ hz_build_ui <- function(flat_dt, lever_cols, scenario_ch) {
     bslib::bs_add_rules("
       /* Logo card header: no padding so image fills edge-to-edge */
       .card-header:has(img) { padding: 0 !important; overflow: hidden; }
+
+      /* Navbar brand text */
+      .navbar-brand { font-size: clamp(0.95rem, 1.5vw, 1.2rem) !important; }
     ")
 
   bslib::page_navbar(
@@ -360,7 +492,7 @@ hz_build_ui <- function(flat_dt, lever_cols, scenario_ch) {
 
     .hz_tab_intro(),
     .hz_tab_policy(flat_dt, lever_cols),
-    .hz_tab_comparator(),
+    if (nrow(flat_dt) > 1L) .hz_tab_comparator(flat_dt, lever_cols),
     .hz_tab_data()
   )
 }

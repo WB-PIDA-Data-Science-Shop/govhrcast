@@ -34,8 +34,13 @@ generate_new_personnel <- function(n,
     return(data.table::data.table())
   }
   
-  # Generate unique personnel IDs
-  new_ids <- generate_new_ids(n = n, ref_date = ref_date, prefix = "P")
+  # Generate unique personnel IDs — deterministic per (date, group, position)
+  group_key <- if (!is.null(group_vals) && length(group_vals) > 0L) {
+    paste(unlist(group_vals), collapse = "_")
+  } else {
+    NULL
+  }
+  new_ids <- generate_new_ids(n = n, ref_date = ref_date, prefix = "P", group_key = group_key)
   
   # Create base personnel records
   new_personnel <- data.table::data.table(
@@ -91,8 +96,13 @@ generate_new_contracts <- function(personnel_ids,
     return(data.table::data.table())
   }
   
-  # Generate unique contract IDs
-  contract_ids <- generate_new_ids(n = n, ref_date = ref_date, prefix = "C")
+  # Generate unique contract IDs — deterministic per (date, group, position)
+  group_key <- if (!is.null(group_vals) && length(group_vals) > 0L) {
+    paste(unlist(group_vals), collapse = "_")
+  } else {
+    NULL
+  }
+  contract_ids <- generate_new_ids(n = n, ref_date = ref_date, prefix = "C", group_key = group_key)
   
   # Create base contract records
   new_contracts <- data.table::data.table(

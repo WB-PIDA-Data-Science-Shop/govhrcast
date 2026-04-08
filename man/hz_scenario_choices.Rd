@@ -14,7 +14,7 @@ hz_scenario_choices(dt)
 Named list.
 }
 \description{
-Returns a named list mapping \code{scenario_label} → \code{scenario_id},
+Returns a named list mapping \code{scenario_label} -> \code{scenario_id},
 suitable for passing directly to \code{shiny::selectInput(choices = ...)}.
 }
 \keyword{internal}
