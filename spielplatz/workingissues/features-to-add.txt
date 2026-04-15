@@ -1,0 +1,29 @@
+### Features to be added to the modelling
+
+- group specific policy implementation 
+
+- the code walkthrough seems to suggest that get_primary_contract() used in simulate_horizon.R when building the wage bill snapshot — only primary contracts count toward headcount and salary totals.
+
+- fixes need to be made to the computation of exit_core, simulate_horizon and simulate_exits.R in terms of how wage bill 
+is computed first by computing max for those with multiple salaries instead of summing up their salaries across all their
+contracts
+
+- think about a system for naming scenarios
+
+- what about a system for group level summaries of the same results that are currently being produced (Gali will be running analysis for a number of states in Brazil, we should be able to simulate all of them at once and provide results for each government)
+
+- Should we be estimating logit models of exit likelihood or other movement likelihoods to figure out determinants of movement and use them to simulate some of the movements. This method could work well for retirement. 
+
+- document internal functions
+
+- how will compute_movement_effect() handle individuals with multiple jobs. What does it mean to change job at that point?
+
+
+
+
+
+
+
+
+ 
+

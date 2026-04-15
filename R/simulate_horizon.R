@@ -196,9 +196,9 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 # Used three times in simulate_scenario() for wage_bill_start, pre_cola, and
 # wage_bill_end snapshots.  No roxygen: internal only, not exported.
 .active_wage_bill <- function(contract_dt,
-                               contract_type_col,
-                               salary_col,
-                               personnel_id_col) {
+                              contract_type_col,
+                              salary_col,
+                              personnel_id_col) {
   contract_dt[
     get(contract_type_col) != "pensioner",
     .(salary = if (.N > 0L) max(get(salary_col), na.rm = TRUE) else 0),

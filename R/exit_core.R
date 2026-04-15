@@ -53,17 +53,16 @@ NULL
 #' @return data.table with \code{group_cols} (if specified) and
 #'   \code{exit_rate} column.
 #' @export
-estimate_historical_exit_rates <- function(
-    panel_contract_dt,
-    panel_personnel_dt,
-    group_cols        = NULL,
-    freq              = "year",
-    personnel_id_col  = "personnel_id",
-    ref_date_col      = "ref_date",
-    start_date_col    = "start_date",
-    end_date_col      = "end_date",
-    contract_type_col = "contract_type_code",
-    status_col        = "status") {
+estimate_historical_exit_rates <- function(panel_contract_dt,
+                                           panel_personnel_dt,
+                                           group_cols        = NULL,
+                                           freq              = "year",
+                                           personnel_id_col  = "personnel_id",
+                                           ref_date_col      = "ref_date",
+                                           start_date_col    = "start_date",
+                                           end_date_col      = "end_date",
+                                           contract_type_col = "contract_type_code",
+                                           status_col        = "status") {
 
   if (!data.table::is.data.table(panel_contract_dt))
     panel_contract_dt <- data.table::as.data.table(panel_contract_dt)
@@ -254,9 +253,9 @@ compute_status_quo_exits <- function(
 # @return list with one element `personnel_id` (character vector of selected IDs).
 # @keywords internal
 .compute_group_exits <- function(group_dt,
-                                  exit_multiplier,
-                                  exit_strategy,
-                                  personnel_id_col) {
+                                 exit_multiplier,
+                                 exit_strategy,
+                                 personnel_id_col) {
   n_active_grp <- data.table::uniqueN(group_dt[[personnel_id_col]])
   rate         <- group_dt$exit_rate[1L]
   n_exit_grp   <- as.integer(
@@ -276,7 +275,12 @@ compute_status_quo_exits <- function(
 # ---------------------------------------------------------------------------
 # Internal: select exits from a pool using strategy
 # ---------------------------------------------------------------------------
-.select_exits <- function(pool_ids, pool_dt, n_exit, strategy, personnel_id_col) {
+.select_exits <- function(pool_ids, 
+                          pool_dt, 
+                          n_exit, 
+                          strategy, 
+                          personnel_id_col) {
+  
   n_exit <- as.integer(min(n_exit, length(pool_ids)))
   if (n_exit <= 0L) return(character(0))
 
