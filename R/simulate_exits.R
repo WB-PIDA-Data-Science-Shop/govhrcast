@@ -146,17 +146,19 @@ simulate_exits <- function(contract_dt,
 
   # Attach salary at exit for savings computation
   if (!is.null(exits_dt) && nrow(exits_dt) > 0L) {
-    # Join salary from primary contract
+    # Sum ALL active contract salaries per exiting person.
+    # A person with two simultaneous contracts costs both salaries;
+    # max() would understate the saving when multiple contracts exist.
     salary_at_exit <- contract_dt[
       get(personnel_id_col) %in% exits_dt[[personnel_id_col]] &
         get(contract_type_col) %in% active_types,
-      .(max_sal = max(get(salary_col), na.rm = TRUE)),
+      .(total_sal = sum(get(salary_col), na.rm = TRUE)),
       by = c(personnel_id_col)
     ]
     data.table::setnames(salary_at_exit, personnel_id_col, ".pid_exit_")
     data.table::setnames(salary_at_exit, ".pid_exit_", personnel_id_col)
     exits_dt <- salary_at_exit[exits_dt, on = personnel_id_col]
-    data.table::setnames(exits_dt, "max_sal", salary_col)
+    data.table::setnames(exits_dt, "total_sal", salary_col)
   }
 
   n_exits      <- if (!is.null(exits_dt)) nrow(exits_dt) else 0L

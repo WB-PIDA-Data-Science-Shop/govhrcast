@@ -199,9 +199,12 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
                               contract_type_col,
                               salary_col,
                               personnel_id_col) {
+  # Sum ALL active contract salaries per person, then sum across persons.
+  # A person with two simultaneous contracts contributes both salaries to
+  # the wage bill; max() would understate the true payroll cost.
   contract_dt[
     get(contract_type_col) != "pensioner",
-    .(salary = if (.N > 0L) max(get(salary_col), na.rm = TRUE) else 0),
+    .(salary = sum(get(salary_col), na.rm = TRUE)),
     by = c(personnel_id_col)
   ][, sum(salary, na.rm = TRUE)]
 }
