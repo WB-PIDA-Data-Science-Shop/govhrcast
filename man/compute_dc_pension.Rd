@@ -4,42 +4,24 @@
 \alias{compute_dc_pension}
 \title{Compute Defined-Contribution (DC) Pension}
 \usage{
-compute_dc_pension(dt, params)
+compute_dc_pension(dt)
 }
 \arguments{
-\item{dt}{data.table. Retiree data}
-
-\item{params}{List with parameters:
-\itemize{
-\item balance_col: Column name for account balance
-\item annuity_factor: Factor for converting balance to annual pension
-\item type: "DC" or "NDC" (optional, for notional DC adjustments)
-\item notional_rate: Interest rate for NDC (required if type = "NDC")
-}}
+\item{dt}{data.table. Retiree subset for DC pension calculation.}
 }
 \value{
-Numeric vector of pension amounts
+Numeric vector of pension amounts.
 }
 \description{
-Calculates pension by converting accumulated balance to annuity.
+Calculates pension by converting accumulated balance to an annuity.
 Supports both standard DC and notional DC (NDC) systems.
-Formula: pension = balance / annuity_factor
-}
-\examples{
-\dontrun{
-# Standard DC
-params <- list(
-  balance_col = "account_balance",
-  annuity_factor = 18
-)
+Formula: \code{pension = balance / annuity_factor}
 
-# Notional DC
-params <- list(
-  balance_col = "notional_balance",
-  annuity_factor = 18,
-  type = "NDC",
-  notional_rate = 0.015
-)
+All parameters are read from columns on \code{dt}:
+\itemize{
+\item \code{balance_col}: Character column naming the account balance column.
+\item \code{annuity_factor}: Conversion divisor.
+\item \code{notional_rate}: Optional NDC interest rate (column or scalar).
 }
 }
 \keyword{internal}

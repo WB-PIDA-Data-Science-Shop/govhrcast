@@ -37,10 +37,12 @@ make_gsm_scale <- function() {
 
 # Null policies that produce no effects (for clean isolation)
 gsm_ret_policy <- list(
-  eligibility_type = "age_only",
-  min_age          = 999,
-  pension_type     = "flat",
-  pension_params   = list(flat_amount = 1000)
+  defaults = list(
+    eligibility_type = "age_only",
+    min_age          = 999,
+    pension_type     = "flat",
+    flat_amount      = 1000
+  )
 )
 
 gsm_mov_policy <- list(

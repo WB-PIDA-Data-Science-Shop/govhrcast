@@ -682,10 +682,12 @@ test_that("simulate_scenario hiring errors when salary_scale_dt is finer than gr
     salary_scale     = data.table::copy(ss_fine)  # overwritten by salary_scale_dt
   )
   ret_pol <- list(
-    eligibility_type = "age_only",
-    min_age          = 60,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 0)
+    defaults = list(
+      eligibility_type = "age_only",
+      min_age          = 60,
+      pension_type     = "flat",
+      flat_amount      = 0
+    )
   )
 
   expect_error(

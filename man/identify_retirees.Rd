@@ -10,6 +10,7 @@ identify_retirees(
   policy_params,
   ref_date,
   personnel_id_col = "personnel_id",
+  contract_id_col = "contract_id",
   birth_date_col = "birth_date",
   start_date_col = "start_date",
   end_date_col = "end_date",
@@ -23,11 +24,18 @@ identify_retirees(
 
 \item{personnel_dt}{data.table. Personnel data with birth dates}
 
-\item{policy_params}{List. Policy parameters including:
-\itemize{
-\item eligibility_type: "age_only", "tenure_only", or "age_and_tenure"
-\item min_age: Minimum retirement age (required for age-based eligibility)
-\item min_tenure: Minimum years of service (required for tenure-based eligibility)
+\item{policy_params}{List. Policy parameters using the unified format:
+\describe{
+\item{defaults}{Named list of scalar fallback values.  Must contain
+\code{eligibility_type} (one of \code{"age_only"},
+\code{"tenure_only"}, \code{"age_and_tenure"}), \code{min_age}
+(required for age-based eligibility), and \code{min_tenure}
+(required for tenure-based eligibility).}
+\item{group_cols}{Character vector of contract columns to join on, or
+\code{NULL} for scalar-only dispatch.}
+\item{policy_table}{data.table with \code{group_cols} plus any
+per-group parameter columns (e.g. \code{eligibility_type},
+\code{min_age}, \code{min_tenure}).  \code{NULL} when not needed.}
 }}
 
 \item{ref_date}{Date. Reference date for eligibility calculation}
@@ -54,7 +62,21 @@ data.table with columns: personnel_id, retire (0/1), age, tenure_years
 }
 \description{
 Determines which personnel are eligible for retirement based on age and/or
-tenure criteria specified in policy parameters. Uses switch() to handle
-different eligibility types efficiently.
+tenure criteria specified in policy parameters. Supports both scalar and
+group-level eligibility parameters via \code{resolve_policy_table()};
+uses \code{fcase()} for vectorised per-row eligibility dispatch.
 }
+\section{Retirement eligibility vs. retirement choice}{
+
+This function equates \emph{eligibility} with \emph{retirement} — all
+personnel who meet the policy thresholds are assumed to retire
+(100\\% take-up).  In practice, not all eligible personnel choose to retire
+immediately; take-up depends on individual incentives, pension wealth, and
+labour market conditions.  A future extension will add an optional second
+stage where a retirement choice model (e.g. probit on age, tenure, salary
+relative to expected pension) is applied to the eligible pool to produce a
+probabilistic retirement indicator.  This would be passed as an optional
+\code{choice_model} argument and default to \code{NULL} (100\\% take-up).
+}
+
 \keyword{internal}

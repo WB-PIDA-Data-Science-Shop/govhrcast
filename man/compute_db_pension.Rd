@@ -4,35 +4,26 @@
 \alias{compute_db_pension}
 \title{Compute Defined-Benefit (DB) Pension}
 \usage{
-compute_db_pension(dt, params)
+compute_db_pension(dt)
 }
 \arguments{
-\item{dt}{data.table. Retiree data}
-
-\item{params}{List with parameters:
-\itemize{
-\item accrual_rate: Annual accrual rate (e.g., 0.02 for 2\% per year)
-\item ref_wage_col: Column name for reference wage
-\item max_years: Maximum years counted for pension (optional, default: no cap)
-\item replacement_cap: Maximum replacement rate (optional, default: 1.0)
-}}
+\item{dt}{data.table. Retiree subset for DB pension calculation.
+Must have columns: \code{accrual_rate}, \code{ref_wage_col},
+\code{tenure_years}.  Optional: \code{max_years}, \code{replacement_cap}.}
 }
 \value{
-Numeric vector of pension amounts
+Numeric vector of pension amounts.
 }
 \description{
-Calculates pension based on accrual rate, years of service, and reference wage.
-Formula: pension = min(accrual_rate * years * ref_wage, replacement_cap * ref_wage)
+Calculates pension based on accrual rate, years of service, and reference
+wage.  All parameters are read from columns on \code{dt}:
+\itemize{
+\item \code{accrual_rate}: Annual accrual rate (e.g. 0.02).
+\item \code{ref_wage_col}: Character column whose value names the wage
+column to use (e.g. \code{"gross_salary_lcu"}).
+\item \code{max_years}: Service cap (optional; \code{NA} = no cap).
+\item \code{replacement_cap}: Max replacement rate (optional; \code{NA} = no cap).
 }
-\examples{
-\dontrun{
-params <- list(
-  accrual_rate = 0.02,
-  ref_wage_col = "gross_salary_lcu",
-  max_years = 35,
-  replacement_cap = 0.80
-)
-pensions <- compute_db_pension(retirees_dt, params)
-}
+Formula: \code{pension = min(accrual_rate * years * wage, replacement_cap * wage)}
 }
 \keyword{internal}

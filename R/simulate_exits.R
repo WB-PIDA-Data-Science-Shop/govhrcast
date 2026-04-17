@@ -7,6 +7,32 @@
 #' Mirrors the structure of \code{simulate_retirement()} and
 #' \code{simulate_hiring()}.
 #'
+#' @section Exit rate modelling — status quo and future upgrade path:
+#' The current \code{"status_quo"} mode applies historically estimated
+#' group-level exit rates, held constant across all projection periods.  This
+#' is equivalent to assuming that the \emph{composition} of exits — by grade,
+#' contract type, and tenure — is stationary.  For short-horizon projections
+#' (1–5 years) with stable workforce compositions this is a defensible
+#' assumption.
+#'
+#' A planned upgrade will replace group-level rates with a \strong{survival
+#' model} (e.g. Weibull or Cox proportional hazard) estimated from the
+#' individual-level panel data.  The survival model approach:
+#' \itemize{
+#'   \item conditions exit probability on individual characteristics
+#'     (tenure, age, grade, salary) that change over the simulation horizon;
+#'   \item naturally handles compositional change as the workforce ages and
+#'     grade structures evolve;
+#'   \item produces a per-person, per-period exit probability vector that
+#'     replaces the current group rate lookup.
+#' }
+#' The simulation architecture is already compatible with this upgrade: the
+#' survival model would be estimated once (outside the period loop) and its
+#' \code{predict()} output passed as a pre-computed probability column on
+#' \code{contract_dt}, replacing the rate-lookup in
+#' \code{compute_status_quo_exits()}.  No changes to the orchestration layer
+#' (\code{simulate_scenario()}) would be required.
+#'
 #' @import data.table
 #'
 #' @param contract_dt data.table.  Contract data in govhr harmonised format.

@@ -49,10 +49,10 @@ make_salary_scale <- function() {
 }
 
 null_retirement_policy <- list(
-  eligibility_type = "age_only",
-  min_age          = 999,
-  pension_type     = "flat",
-  pension_params   = list(flat_amount = 1000)
+  defaults = list(
+    eligibility_type = "age_only", min_age = 999,
+    pension_type = "flat", flat_amount = 1000
+    )
 )
 
 null_movement_policy <- list(
@@ -352,10 +352,10 @@ test_that("simulate_scenario: pensioner_register gains rows after retirements", 
   n <- 2L; sal <- 10000
   s <- make_horizon_state(n = n, salary = sal, ages = rep(65L, n))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 60,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 5000)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 60,
+      pension_type = "flat", flat_amount = 5000
+      )
   )
   r <- simulate_scenario(
     contract_dt        = s$contract_dt,
@@ -376,10 +376,10 @@ test_that("simulate_scenario: pensioner_register gains rows after retirements", 
 test_that("simulate_scenario: exit_savings positive when retirees have salary", {
   s <- make_horizon_state(n = 2L, salary = 10000, ages = rep(65L, 2L))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 60,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 1000)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 60,
+      pension_type = "flat", flat_amount = 1000
+      )
   )
   r <- simulate_scenario(
     contract_dt        = s$contract_dt,
@@ -622,10 +622,10 @@ test_that("pension_cost_total >= pension_cost_new from period 2 onwards", {
   s <- make_horizon_state(n = 4L, salary = 10000,
                           ages = c(64L, 64L, 40L, 40L))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 65,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 1000)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 65,
+      pension_type = "flat", flat_amount = 1000
+      )
   )
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
@@ -797,10 +797,10 @@ test_that("n_headcount_start excludes pensioner rows", {
   n_active <- 2L
   s <- make_horizon_state(n = n_active, salary = 10000, ages = rep(30L, n_active))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 65,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 1000)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 65,
+      pension_type = "flat", flat_amount = 1000
+      )
   )
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
@@ -823,10 +823,10 @@ test_that("n_headcount_end decreases after retirements (pensioners excluded)", {
   n <- 4L
   s <- make_horizon_state(n = n, salary = 10000, ages = rep(66L, n))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 65,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 1000)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 65,
+      pension_type = "flat", flat_amount = 1000
+      )
   )
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
@@ -848,10 +848,10 @@ test_that("wage_bill_start is 0 after all workers become pensioners", {
   n <- 2L
   s <- make_horizon_state(n = n, salary = 10000, ages = rep(66L, n))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 65,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 500)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 65,
+      pension_type = "flat", flat_amount = 500
+      )
   )
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
@@ -872,10 +872,10 @@ test_that("exit_savings equals pre-retirement salary bill when all workers retir
   n <- 2L; sal <- 10000
   s <- make_horizon_state(n = n, salary = sal, ages = rep(66L, n))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 65,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 500)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 65,
+      pension_type = "flat", flat_amount = 500
+      )
   )
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
@@ -985,10 +985,10 @@ test_that("simulate_horizon: status_quo mode produces hires close to historical 
   )
 
   retire_policy_off <- list(
-    eligibility_type = "age_only",
-    min_age          = 999,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 500)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 999,
+      pension_type = "flat", flat_amount = 500
+      )
   )
 
   res <- simulate_horizon(
@@ -1039,10 +1039,10 @@ make_phase1b_inputs <- function(ref_date = as.Date("2020-01-01")) {
     gross_salary_lcu = 10000
   )
   retire_off <- list(
-    eligibility_type = "age_only",
-    min_age          = 999L,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 500)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 999L,
+      pension_type = "flat", flat_amount = 500
+      )
   )
   list(
     contract_dt     = contract_dt,

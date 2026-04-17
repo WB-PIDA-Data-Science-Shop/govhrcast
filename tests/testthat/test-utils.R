@@ -370,7 +370,120 @@ test_that("create_empty_events returns correct structure", {
 test_that("format_date_stamp formats correctly", {
   dates <- as.Date(c("2025-01-15", "2020-12-31"))
   result <- format_date_stamp(dates)
-  
+
   expect_equal(result, c("20250115", "20201231"))
   expect_type(result, "character")
+})
+
+
+# ===========================================================================
+# dispatch_param()
+# ===========================================================================
+
+test_that("dispatch_param: bare scalar is repeated for every row", {
+  dt <- data.table::data.table(grade = c("A", "B", "A"))
+  result <- dispatch_param(60, dt, "min_age")
+  expect_equal(result, c(60, 60, 60))
+})
+
+test_that("dispatch_param: three-slot list with group_cols NULL uses default", {
+  dt <- data.table::data.table(grade = c("A", "B", "A"))
+  result <- dispatch_param(list(default = 55, group_cols = NULL, dt = NULL), dt, "min_age")
+  expect_equal(result, c(55, 55, 55))
+})
+
+test_that("dispatch_param: group-level dispatch returns per-row values", {
+  dt     <- data.table::data.table(grade = c("A", "B", "A"))
+  lookup <- data.table::data.table(grade = c("A", "B"), min_age = c(60, 55))
+  result <- dispatch_param(
+    list(default = NULL, group_cols = "grade", policy_table = lookup),
+    dt, "min_age"
+  )
+  expect_equal(result, c(60, 55, 60))
+})
+
+test_that("dispatch_param: unmatched rows filled with default", {
+  dt     <- data.table::data.table(grade = c("A", "B", "C"))
+  lookup <- data.table::data.table(grade = c("A", "B"), min_age = c(60, 55))
+  result <- dispatch_param(
+    list(default = 50, group_cols = "grade", policy_table = lookup),
+    dt, "min_age"
+  )
+  expect_equal(result, c(60, 55, 50))
+})
+
+test_that("dispatch_param: unmatched rows with no default raises error", {
+  dt     <- data.table::data.table(grade = c("A", "B", "C"))
+  lookup <- data.table::data.table(grade = c("A", "B"), min_age = c(60, 55))
+  expect_error(
+    dispatch_param(
+      list(default = NULL, group_cols = "grade", policy_table = lookup),
+      dt, "min_age"
+    ),
+    regexp = "unmatched group"
+  )
+})
+
+test_that("dispatch_param: group_cols set but policy_table NULL raises error", {
+  dt <- data.table::data.table(grade = c("A", "B"))
+  expect_error(
+    dispatch_param(
+      list(default = 60, group_cols = "grade", policy_table = NULL),
+      dt, "min_age"
+    ),
+    regexp = "group_cols but policy_table is NULL"
+  )
+})
+
+test_that("dispatch_param: policy_table set but group_cols NULL raises error", {
+  dt     <- data.table::data.table(grade = c("A", "B"))
+  lookup <- data.table::data.table(grade = c("A", "B"), min_age = c(60, 55))
+  expect_error(
+    dispatch_param(
+      list(default = NULL, group_cols = NULL, policy_table = lookup),
+      dt, "min_age"
+    ),
+    regexp = "has policy_table but group_cols is NULL"
+  )
+})
+
+test_that("dispatch_param: group_cols not found in working_dt raises error", {
+  dt     <- data.table::data.table(grade = c("A", "B"))
+  lookup <- data.table::data.table(employment_type = c("permanent"), min_age = c(60))
+  expect_error(
+    dispatch_param(
+      list(default = NULL, group_cols = "employment_type", policy_table = lookup),
+      dt, "min_age"
+    ),
+    regexp = "group_cols not found in working_dt"
+  )
+})
+
+test_that("dispatch_param: param_name column missing from policy_table raises error", {
+  dt     <- data.table::data.table(grade = c("A", "B"))
+  lookup <- data.table::data.table(grade = c("A", "B"), retirement_age = c(60, 55))
+  expect_error(
+    dispatch_param(
+      list(default = NULL, group_cols = "grade", policy_table = lookup),
+      dt, "min_age"
+    ),
+    regexp = "column not found in dt"
+  )
+})
+
+test_that("dispatch_param: multi-column group_cols join works correctly", {
+  dt <- data.table::data.table(
+    grade           = c("A", "A", "B"),
+    employment_type = c("permanent", "contract", "permanent")
+  )
+  lookup <- data.table::data.table(
+    grade           = c("A",    "A",        "B"),
+    employment_type = c("permanent", "contract", "permanent"),
+    min_age         = c(60,    55,         58)
+  )
+  result <- dispatch_param(
+    list(default = NULL, group_cols = c("grade", "employment_type"), policy_table = lookup),
+    dt, "min_age"
+  )
+  expect_equal(result, c(60, 55, 58))
 })

@@ -23,153 +23,145 @@ NULL
 #'
 #' @description
 #' Main dispatcher function that routes pension calculation to the appropriate
-#' method based on policy type. Uses switch() for clean routing.
+#' method based on the \code{pension_type} column in \code{retirees_dt}.
+#' Iterates over each unique pension type present and accumulates results,
+#' enabling mixed pension types within a single retiree cohort.
 #'
-#' @param retirees_dt data.table. Retiree data with salary and tenure information
-#' @param policy_type Character. One of: "db", "dc", "flat", "hybrid"
-#' @param params List. Policy-specific parameters for pension calculation
+#' All pension parameters (\code{accrual_rate}, \code{ref_wage_col},
+#' \code{max_years}, \code{replacement_cap}, \code{balance_col},
+#' \code{annuity_factor}, \code{flat_amount}, etc.) are expected to be
+#' columns on \code{retirees_dt} — resolved upstream by
+#' \code{resolve_policy_table()}.
 #'
-#' @return Numeric vector of pension amounts
+#' @param retirees_dt data.table. Retiree data including a \code{pension_type}
+#'   column and all relevant pension parameter columns.
+#'
+#' @return Numeric vector of pension amounts (length \code{nrow(retirees_dt)}).
 #' @keywords internal
-compute_pension <- function(retirees_dt, policy_type, params) {
-  
-  pension <- switch(
-    policy_type,
-    "db" = compute_db_pension(retirees_dt, params),
-    "dc" = compute_dc_pension(retirees_dt, params),
-    "flat" = compute_flat_pension(retirees_dt, params),
-    "hybrid" = compute_hybrid_pension(retirees_dt, params),
-    stop("Unknown pension policy type: ", policy_type, call. = FALSE)
-  )
-  
-  return(pension)
+compute_pension <- function(retirees_dt) {
+
+  result <- numeric(nrow(retirees_dt))
+
+  for (ptype in unique(retirees_dt$pension_type)) {
+    idx    <- which(retirees_dt$pension_type == ptype)
+    dt_sub <- retirees_dt[idx]
+    result[idx] <- switch(
+      ptype,
+      "db"     = compute_db_pension(dt_sub),
+      "dc"     = compute_dc_pension(dt_sub),
+      "flat"   = compute_flat_pension(dt_sub),
+      "hybrid" = compute_hybrid_pension(dt_sub),
+      stop("Unknown pension policy type: ", ptype, call. = FALSE)
+    )
+  }
+
+  result
 }
 
 
 #' Compute Defined-Benefit (DB) Pension
 #'
 #' @description
-#' Calculates pension based on accrual rate, years of service, and reference wage.
-#' Formula: pension = min(accrual_rate * years * ref_wage, replacement_cap * ref_wage)
-#'
-#' @param dt data.table. Retiree data
-#' @param params List with parameters:
-#'   \itemize{
-#'     \item accrual_rate: Annual accrual rate (e.g., 0.02 for 2% per year)
-#'     \item ref_wage_col: Column name for reference wage
-#'     \item max_years: Maximum years counted for pension (optional, default: no cap)
-#'     \item replacement_cap: Maximum replacement rate (optional, default: 1.0)
-#'   }
-#'
-#' @return Numeric vector of pension amounts
-#' @keywords internal
-#'
-#' @examples
-#' \dontrun{
-#' params <- list(
-#'   accrual_rate = 0.02,
-#'   ref_wage_col = "gross_salary_lcu",
-#'   max_years = 35,
-#'   replacement_cap = 0.80
-#' )
-#' pensions <- compute_db_pension(retirees_dt, params)
+#' Calculates pension based on accrual rate, years of service, and reference
+#' wage.  All parameters are read from columns on \code{dt}:
+#' \itemize{
+#'   \item \code{accrual_rate}: Annual accrual rate (e.g. 0.02).
+#'   \item \code{ref_wage_col}: Character column whose value names the wage
+#'     column to use (e.g. \code{"gross_salary_lcu"}).
+#'   \item \code{max_years}: Service cap (optional; \code{NA} = no cap).
+#'   \item \code{replacement_cap}: Max replacement rate (optional; \code{NA} = no cap).
 #' }
+#' Formula: \code{pension = min(accrual_rate * years * wage, replacement_cap * wage)}
+#'
+#' @param dt data.table. Retiree subset for DB pension calculation.
+#'   Must have columns: \code{accrual_rate}, \code{ref_wage_col},
+#'   \code{tenure_years}.  Optional: \code{max_years}, \code{replacement_cap}.
+#'
+#' @return Numeric vector of pension amounts.
+#' @keywords internal
+compute_db_pension <- function(dt) {
 
-compute_db_pension <- function(dt, params) {
-  
-  # Validate required parameters
-  required <- c("accrual_rate", "ref_wage_col")
-  missing <- setdiff(required, names(params))
-  if (length(missing) > 0) {
-    stop("Missing DB pension parameters: ", paste(missing, collapse = ", "), 
+  if (nrow(dt) == 0L) return(numeric(0))
+
+  # ref_wage_col is a character column naming the actual wage column
+  wage_col <- dt$ref_wage_col[1L]
+  if (is.null(wage_col) || is.na(wage_col))
+    stop("compute_db_pension: 'ref_wage_col' column is missing or NA", call. = FALSE)
+  if (!wage_col %in% names(dt))
+    stop("compute_db_pension: wage column '", wage_col, "' not found in retirees_dt",
          call. = FALSE)
-  }
-  
-  # Extract reference wage
-  ref_wage <- dt[[params$ref_wage_col]]
-  
-  # Apply service cap if specified
-  if (!is.null(params$max_years)) {
-    years <- pmin(dt$tenure_years, params$max_years)
+
+  if (!"accrual_rate" %in% names(dt))
+    stop("compute_db_pension: 'accrual_rate' column not found in retirees_dt",
+         call. = FALSE)
+
+  ref_wage <- dt[[wage_col]]
+
+  # Apply service cap if present (NA = no cap)
+  if ("max_years" %in% names(dt) && !all(is.na(dt$max_years))) {
+    years <- pmin(dt$tenure_years, dt$max_years, na.rm = FALSE)
   } else {
     years <- dt$tenure_years
   }
-  
-  # Calculate gross pension
-  gross_pension <- params$accrual_rate * years * ref_wage
-  
-  # Apply replacement cap if specified
-  if (!is.null(params$replacement_cap)) {
-    max_allowed <- params$replacement_cap * ref_wage
-    pension <- pmin(gross_pension, max_allowed)
+
+  gross_pension <- dt$accrual_rate * years * ref_wage
+
+  # Apply replacement cap if present (NA = no cap)
+  if ("replacement_cap" %in% names(dt) && !all(is.na(dt$replacement_cap))) {
+    max_allowed <- dt$replacement_cap * ref_wage
+    pension     <- pmin(gross_pension, max_allowed)
   } else {
     pension <- gross_pension
   }
-  
-  return(pension)
+
+  # Pension cannot be negative (e.g. from negative accrual_rate or wage)
+  pmax(pension, 0)
 }
 
 
 #' Compute Defined-Contribution (DC) Pension
 #'
 #' @description
-#' Calculates pension by converting accumulated balance to annuity.
+#' Calculates pension by converting accumulated balance to an annuity.
 #' Supports both standard DC and notional DC (NDC) systems.
-#' Formula: pension = balance / annuity_factor
+#' Formula: \code{pension = balance / annuity_factor}
 #'
-#' @param dt data.table. Retiree data
-#' @param params List with parameters:
-#'   \itemize{
-#'     \item balance_col: Column name for account balance
-#'     \item annuity_factor: Factor for converting balance to annual pension
-#'     \item type: "DC" or "NDC" (optional, for notional DC adjustments)
-#'     \item notional_rate: Interest rate for NDC (required if type = "NDC")
-#'   }
-#'
-#' @return Numeric vector of pension amounts
-#' @keywords internal
-#'
-#' @examples
-#' \dontrun{
-#' # Standard DC
-#' params <- list(
-#'   balance_col = "account_balance",
-#'   annuity_factor = 18
-#' )
-#' 
-#' # Notional DC
-#' params <- list(
-#'   balance_col = "notional_balance",
-#'   annuity_factor = 18,
-#'   type = "NDC",
-#'   notional_rate = 0.015
-#' )
+#' All parameters are read from columns on \code{dt}:
+#' \itemize{
+#'   \item \code{balance_col}: Character column naming the account balance column.
+#'   \item \code{annuity_factor}: Conversion divisor.
+#'   \item \code{notional_rate}: Optional NDC interest rate (column or scalar).
 #' }
-compute_dc_pension <- function(dt, params) {
-  
-  # Validate required parameters
-  required <- c("balance_col", "annuity_factor")
-  missing <- setdiff(required, names(params))
-  if (length(missing) > 0) {
-    stop("Missing DC pension parameters: ", paste(missing, collapse = ", "), 
+#'
+#' @param dt data.table. Retiree subset for DC pension calculation.
+#'
+#' @return Numeric vector of pension amounts.
+#' @keywords internal
+compute_dc_pension <- function(dt) {
+
+  if (nrow(dt) == 0L) return(numeric(0))
+
+  # balance_col is a character column naming the actual balance column
+  bal_col <- dt$balance_col[1L]
+  if (is.null(bal_col) || is.na(bal_col))
+    stop("compute_dc_pension: 'balance_col' column is missing or NA", call. = FALSE)
+  if (!bal_col %in% names(dt))
+    stop("compute_dc_pension: balance column '", bal_col, "' not found in retirees_dt",
          call. = FALSE)
+
+  if (!"annuity_factor" %in% names(dt))
+    stop("compute_dc_pension: 'annuity_factor' column not found in retirees_dt",
+         call. = FALSE)
+
+  balance <- dt[[bal_col]]
+
+  # Apply notional interest if NDC (notional_rate present and non-NA)
+  if ("notional_rate" %in% names(dt) && !all(is.na(dt$notional_rate))) {
+    balance <- balance * (1 + dt$notional_rate)
   }
-  
-  # Extract balance
-  balance <- dt[[params$balance_col]]
-  
-  # Apply notional interest if NDC
-  if (!is.null(params$type) && params$type == "NDC") {
-    if (is.null(params$notional_rate)) {
-      stop("notional_rate required for NDC pension type", call. = FALSE)
-    }
-    balance <- balance * (1 + params$notional_rate)
-  }
-  
-  # Convert to annual pension
-  pension <- balance / params$annuity_factor
-  
-  return(pension)
+
+  # Pension cannot be negative (e.g. from zero or negative balance / annuity_factor)
+  pmax(balance / dt$annuity_factor, 0)
 }
 
 
@@ -177,32 +169,21 @@ compute_dc_pension <- function(dt, params) {
 #'
 #' @description
 #' Assigns a uniform flat pension amount to all retirees.
+#' Reads \code{flat_amount} from the \code{dt$flat_amount} column (per-row
+#' values resolved upstream by \code{resolve_policy_table()}).
 #'
-#' @param dt data.table. Retiree data
-#' @param params List with parameter:
-#'   \itemize{
-#'     \item flat_amount: Fixed pension amount for all retirees
-#'   }
+#' @param dt data.table. Retiree subset.  Must have column \code{flat_amount}.
 #'
-#' @return Numeric vector of pension amounts (all identical)
+#' @return Numeric vector of pension amounts.
 #' @keywords internal
-#'
-#' @examples
-#' \dontrun{
-#' params <- list(flat_amount = 15000)
-#' pensions <- compute_flat_pension(retirees_dt, params)
-#' }
-compute_flat_pension <- function(dt, params) {
-  
-  # Validate required parameter
-  if (is.null(params$flat_amount)) {
-    stop("flat_amount is required for flat pension type", call. = FALSE)
-  }
-  
-  # Assign flat amount to all retirees
-  pension <- rep(params$flat_amount, nrow(dt))
-  
-  return(pension)
+compute_flat_pension <- function(dt) {
+
+  if (nrow(dt) == 0L) return(numeric(0))
+
+  if (!"flat_amount" %in% names(dt) || all(is.na(dt$flat_amount)))
+    stop("compute_flat_pension: 'flat_amount' column is missing or all NA", call. = FALSE)
+
+  dt$flat_amount
 }
 
 
@@ -210,49 +191,15 @@ compute_flat_pension <- function(dt, params) {
 #'
 #' @description
 #' Combines DB and DC pension components into a single pension.
-#' Formula: pension = DB_part + DC_part
+#' Formula: \code{pension = DB_part + DC_part}.
 #'
-#' @param dt data.table. Retiree data
-#' @param params List with parameters:
-#'   \itemize{
-#'     \item db_params: List of parameters for DB component
-#'     \item dc_params: List of parameters for DC component
-#'   }
+#' Expects \code{dt} to have all columns required by both
+#' \code{compute_db_pension()} and \code{compute_dc_pension()}.
 #'
-#' @return Numeric vector of pension amounts
+#' @param dt data.table. Retiree subset with all DB + DC parameter columns.
+#'
+#' @return Numeric vector of pension amounts.
 #' @keywords internal
-#'
-#' @examples
-#' \dontrun{
-#' params <- list(
-#'   db_params = list(
-#'     accrual_rate = 0.015,
-#'     ref_wage_col = "gross_salary_lcu",
-#'     max_years = 30
-#'   ),
-#'   dc_params = list(
-#'     balance_col = "dc_balance",
-#'     annuity_factor = 20
-#'   )
-#' )
-#' pensions <- compute_hybrid_pension(retirees_dt, params)
-#' }
-compute_hybrid_pension <- function(dt, params) {
-  
-  # Validate required parameters
-  if (is.null(params$db_params) || is.null(params$dc_params)) {
-    stop("Both db_params and dc_params are required for hybrid pension type", 
-         call. = FALSE)
-  }
-  
-  # Compute DB component
-  db_part <- compute_db_pension(dt, params$db_params)
-  
-  # Compute DC component
-  dc_part <- compute_dc_pension(dt, params$dc_params)
-  
-  # Combine
-  pension <- db_part + dc_part
-  
-  return(pension)
+compute_hybrid_pension <- function(dt) {
+  compute_db_pension(dt) + compute_dc_pension(dt)
 }

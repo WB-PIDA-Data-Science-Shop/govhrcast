@@ -190,20 +190,20 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 # simulate_scenario() -- single-period orchestrator
 # ===========================================================================
 
-# Internal helper: sum of max-salary-per-person for all non-pensioner contracts.
-# Wage bill definition: one salary observation per person (the highest across
-# any concurrent contracts), summed over all active (non-pensioner) people.
+# Internal helper: salary-bearing payroll total.
+# Wage bill definition: sum of ALL salary-bearing contract rows per person,
+# then sum across persons.  A person with two simultaneous active contracts
+# contributes both salaries.  Inactive-but-paid staff (non-NA salary,
+# non-pensioner) are included because the government is paying their salary.
+# Pensioner rows are excluded — their cost is tracked in pensioner_register.
 # Used three times in simulate_scenario() for wage_bill_start, pre_cola, and
 # wage_bill_end snapshots.  No roxygen: internal only, not exported.
 .active_wage_bill <- function(contract_dt,
                               contract_type_col,
                               salary_col,
                               personnel_id_col) {
-  # Sum ALL active contract salaries per person, then sum across persons.
-  # A person with two simultaneous contracts contributes both salaries to
-  # the wage bill; max() would understate the true payroll cost.
   contract_dt[
-    get(contract_type_col) != "pensioner",
+    get(contract_type_col) != "pensioner" & !is.na(get(salary_col)),
     .(salary = sum(get(salary_col), na.rm = TRUE)),
     by = c(personnel_id_col)
   ][, sum(salary, na.rm = TRUE)]
@@ -975,19 +975,18 @@ simulate_horizon <- function(contract_dt,
                                !is.null(retirement_policy$pensioner_type_value))
     retirement_policy$pensioner_type_value else "pensioner"
 
-  # Drop 'inactive' contracts from the starting snapshot.  These represent
-  # exits from prior periods (in panel data) and must not pollute:
-  #   - headcount / wage bill snapshots (inactive != pensioner, so they'd be counted)
-  #   - retirement identification (inactive persons may appear retirement-eligible)
-  #   - hiring demand (inactive group_cols values trigger replacement hires for
-  #     est_ids that are absent from the salary scale → NA salary → -Inf wage bill)
-  # Pensioner contracts are intentionally kept — they seed the pensioner register.
-  .active_types_keep_ <- c("perm", "fterm", "temp", "permanent",
-                            .pensioner_type_val_)
-  if (any(!contract_dt[[contract_type_col]] %in% .active_types_keep_)) {
-    contract_dt <- contract_dt[
-      get(contract_type_col) %in% .active_types_keep_
-    ]
+  # Retain only salary-bearing contracts in the starting snapshot.
+  # Rule: keep a row if it is a pensioner contract (needed to seed the
+  # pensioner register) OR if it has a non-NA salary (the government is paying,
+  # regardless of contract_type — this correctly includes inactive staff on
+  # government-funded leave or training).
+  # Drop rows that are neither: these are truly separated staff whose contract
+  # lingers in panel data with no salary, and must not inflate headcount or
+  # the wage bill.
+  .has_salary_ <- !is.na(contract_dt[[salary_col]])
+  .is_pensioner_ <- contract_dt[[contract_type_col]] == .pensioner_type_val_
+  if (any(!(.has_salary_ | .is_pensioner_))) {
+    contract_dt <- contract_dt[.has_salary_ | .is_pensioner_]
   }
 
   if (!salary_col %in% names(contract_dt)) {
@@ -1107,9 +1106,10 @@ simulate_horizon <- function(contract_dt,
   if (!is.null(retirement_policy) &&
       !is.null(age_col) && age_col %in% names(personnel_dt)) {
 
-    .min_age_    <- retirement_policy$min_age    %||% Inf
-    .min_tenure_ <- retirement_policy$min_tenure %||% 0
-    .elig_type_  <- retirement_policy$eligibility_type %||% "age_only"
+    .rp_defs_    <- retirement_policy$defaults %||% list()
+    .min_age_    <- .rp_defs_$min_age    %||% Inf
+    .min_tenure_ <- .rp_defs_$min_tenure %||% 0
+    .elig_type_  <- .rp_defs_$eligibility_type %||% "age_only"
 
     # Backlog threshold = min_age + period_fraction.
     # People aged exactly [min_age, min_age + period_fraction) at ref_date
@@ -1180,12 +1180,18 @@ simulate_horizon <- function(contract_dt,
         if (!"tenure_years" %in% names(.backlog_primary_))
           .backlog_primary_[, tenure_years := NA_real_]
 
-        # Compute pension amounts
-        .backlog_primary_[, pension := compute_pension(
-          retirees_dt = .SD,
-          policy_type = retirement_policy$pension_type %||% "flat",
-          params      = retirement_policy$pension_params %||% list(flat_amount = 0)
-        )]
+        # Compute pension amounts — add param columns required by new compute_pension(dt)
+        .bp_defs_ <- retirement_policy$defaults %||% list()
+        data.table::set(.backlog_primary_, j = "pension_type",    value = .bp_defs_$pension_type    %||% "flat")
+        data.table::set(.backlog_primary_, j = "flat_amount",     value = .bp_defs_$flat_amount     %||% 0)
+        data.table::set(.backlog_primary_, j = "accrual_rate",    value = .bp_defs_$accrual_rate    %||% NA_real_)
+        data.table::set(.backlog_primary_, j = "ref_wage_col",    value = .bp_defs_$ref_wage_col    %||% NA_character_)
+        data.table::set(.backlog_primary_, j = "max_years",       value = .bp_defs_$max_years       %||% NA_real_)
+        data.table::set(.backlog_primary_, j = "replacement_cap", value = .bp_defs_$replacement_cap %||% NA_real_)
+        data.table::set(.backlog_primary_, j = "balance_col",     value = .bp_defs_$balance_col     %||% NA_character_)
+        data.table::set(.backlog_primary_, j = "annuity_factor",  value = .bp_defs_$annuity_factor  %||% NA_real_)
+        data.table::set(.backlog_primary_, j = "notional_rate",   value = .bp_defs_$notional_rate   %||% NA_real_)
+        data.table::set(.backlog_primary_, j = "pension",         value = compute_pension(.backlog_primary_))
 
         # Append to pensioner register
         .ref_backlog_ <- ref_date

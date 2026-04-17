@@ -9,14 +9,23 @@
 #'
 #' @param contract_dt data.table. Contract data in govhr harmonized format
 #' @param personnel_dt data.table. Personnel data in govhr harmonized format
-#' @param policy_params List. Retirement policy parameters including:
+#' @param policy_params List. Retirement policy parameters in unified format:
 #'   \describe{
-#'     \item{eligibility_type}{Character. One of: "age_only", "tenure_only", "age_and_tenure"}
-#'     \item{min_age}{Numeric. Minimum retirement age (required for age-based eligibility)}
-#'     \item{min_tenure}{Numeric. Minimum years of service (required for tenure-based eligibility)}
-#'     \item{pension_type}{Character. One of: "db", "dc", "flat", "hybrid"}
-#'     \item{pension_params}{List. Parameters specific to the chosen pension type}
+#'     \item{defaults}{Named list of scalar fallbacks.  Common keys:
+#'       \code{eligibility_type} (\code{"age_only"}, \code{"tenure_only"},
+#'       \code{"age_and_tenure"}), \code{min_age}, \code{min_tenure},
+#'       \code{pension_type} (\code{"db"}, \code{"dc"}, \code{"flat"},
+#'       \code{"hybrid"}), \code{accrual_rate}, \code{ref_wage_col},
+#'       \code{max_years}, \code{replacement_cap}, \code{balance_col},
+#'       \code{annuity_factor}, \code{flat_amount}.}
+#'     \item{group_cols}{Character vector of contract columns to join on, or
+#'       \code{NULL}.}
+#'     \item{policy_table}{data.table with \code{group_cols} plus any
+#'       per-group parameter columns; or \code{NULL}.}
 #'   }
+#'   When \code{policy_params} is omitted, a sensible DB
+#'   \code{age_and_tenure} default is used (min_age = 60, min_tenure = 10,
+#'   accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80).
 #' @param ref_date Date. Reference date for retirement simulation
 #' @param ref_date_col Character. Name of reference date column in panel data (default: "ref_date")
 #' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
@@ -43,35 +52,57 @@
 #' @examples
 #' \dontrun{
 #' library(data.table)
-#' library(govhr)
+#' library(govhrcast)
 #'
 #' # Load example data
-#' contract_dt <- as.data.table(govhr::bra_hrmis_contract)
-#' personnel_dt <- as.data.table(govhr::bra_hrmis_personnel)
+#' contract_dt  <- data.table::copy(bra_hrmis_contract)
+#' personnel_dt <- data.table::copy(bra_hrmis_personnel)
+#' ref_date     <- as.Date("2014-01-01")
 #'
-#' # Define retirement policy
+#' # Scalar policy (no group differentiation)
 #' policy_params <- list(
-#'   eligibility_type = "age_and_tenure",
-#'   min_age = 60,
-#'   min_tenure = 20,
-#'   pension_type = "db",
-#'   pension_params = list(
-#'     accrual_rate = 0.02,
-#'     ref_wage_col = "gross_salary_lcu",
-#'     max_years = 35,
-#'     replacement_cap = 0.80
+#'   group_cols   = NULL,
+#'   policy_table = NULL,
+#'   defaults = list(
+#'     eligibility_type = "age_and_tenure",
+#'     pension_type     = "db",
+#'     min_age          = 60,
+#'     min_tenure       = 20,
+#'     accrual_rate     = 0.02,
+#'     ref_wage_col     = "gross_salary_lcu",
+#'     max_years        = 35,
+#'     replacement_cap  = 0.80
+#'   )
+#' )
+#'
+#' # Group-level policy: different accrual_rate per paygrade
+#' accrual_tbl <- data.table::data.table(
+#'   paygrade     = c("D",   "E"),
+#'   accrual_rate = c(0.025, 0.03)
+#' )
+#' policy_grouped <- list(
+#'   group_cols   = "paygrade",
+#'   policy_table = accrual_tbl,
+#'   defaults = list(
+#'     eligibility_type = "age_and_tenure",
+#'     pension_type     = "db",
+#'     min_age          = 60,
+#'     min_tenure       = 20,
+#'     accrual_rate     = 0.02,
+#'     ref_wage_col     = "gross_salary_lcu",
+#'     max_years        = 35,
+#'     replacement_cap  = 0.80
 #'   )
 #' )
 #'
 #' # Run simulation
 #' results <- simulate_retirement(
-#'   contract_dt = contract_dt,
+#'   contract_dt  = contract_dt,
 #'   personnel_dt = personnel_dt,
-#'   policy_params = policy_params,
-#'   ref_date = as.Date("2025-01-01")
+#'   ref_date     = ref_date,
+#'   policy_params = policy_params
 #' )
 #'
-#' # View results
 #' results$summary
 #' results$retirees_dt
 #' }
@@ -79,8 +110,21 @@
 #' @export
 simulate_retirement <- function(contract_dt,
                                 personnel_dt,
-                                policy_params,
                                 ref_date,
+                                policy_params = list(
+                                  group_cols   = NULL,
+                                  policy_table = NULL,
+                                  defaults = list(
+                                    eligibility_type = "age_and_tenure",
+                                    pension_type     = "db",
+                                    min_age          = 60,
+                                    min_tenure       = 10,
+                                    accrual_rate     = 0.02,
+                                    ref_wage_col     = "gross_salary_lcu",
+                                    max_years        = 35,
+                                    replacement_cap  = 0.80
+                                  )
+                                ),
                                 ref_date_col = "ref_date",
                                 personnel_id_col = "personnel_id",
                                 birth_date_col = "birth_date",
@@ -95,7 +139,6 @@ simulate_retirement <- function(contract_dt,
   
   # ========================================
   # 1. Input Validation
-  # ========================================
   check_retirement_inputs(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
@@ -193,11 +236,23 @@ simulate_retirement <- function(contract_dt,
   # ========================================
   # 5. Compute Pensions
   # ========================================
-  retirees_dt[, pension := compute_pension(
-    retirees_dt = .SD,
-    policy_type = policy_params$pension_type,
-    params = policy_params$pension_params
-  )]
+  # Resolve all policy params (eligibility + pension) to per-row columns on
+  # retirees_dt via a single policy_table join + defaults fill.
+  .all_pension_params <- c(
+    "pension_type", "accrual_rate", "ref_wage_col",
+    "max_years", "replacement_cap",
+    "balance_col", "annuity_factor", "notional_rate",
+    "flat_amount"
+  )
+  .resolved_pension <- resolve_policy_table(
+    policy_params,
+    retirees_dt,
+    .all_pension_params
+  )
+  for (.p in names(.resolved_pension))
+    data.table::set(retirees_dt, j = .p, value = .resolved_pension[[.p]])
+
+  data.table::set(retirees_dt, j = "pension", value = compute_pension(retirees_dt))
   
   # ========================================
   # 6. Update State

@@ -4,26 +4,17 @@
 \alias{compute_flat_pension}
 \title{Compute Flat Pension}
 \usage{
-compute_flat_pension(dt, params)
+compute_flat_pension(dt)
 }
 \arguments{
-\item{dt}{data.table. Retiree data}
-
-\item{params}{List with parameter:
-\itemize{
-\item flat_amount: Fixed pension amount for all retirees
-}}
+\item{dt}{data.table. Retiree subset.  Must have column \code{flat_amount}.}
 }
 \value{
-Numeric vector of pension amounts (all identical)
+Numeric vector of pension amounts.
 }
 \description{
 Assigns a uniform flat pension amount to all retirees.
-}
-\examples{
-\dontrun{
-params <- list(flat_amount = 15000)
-pensions <- compute_flat_pension(retirees_dt, params)
-}
+Reads \code{flat_amount} from the \code{dt$flat_amount} column (per-row
+values resolved upstream by \code{resolve_policy_table()}).
 }
 \keyword{internal}

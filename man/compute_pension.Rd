@@ -4,20 +4,25 @@
 \alias{compute_pension}
 \title{Compute Pension Amounts}
 \usage{
-compute_pension(retirees_dt, policy_type, params)
+compute_pension(retirees_dt)
 }
 \arguments{
-\item{retirees_dt}{data.table. Retiree data with salary and tenure information}
-
-\item{policy_type}{Character. One of: "db", "dc", "flat", "hybrid"}
-
-\item{params}{List. Policy-specific parameters for pension calculation}
+\item{retirees_dt}{data.table. Retiree data including a \code{pension_type}
+column and all relevant pension parameter columns.}
 }
 \value{
-Numeric vector of pension amounts
+Numeric vector of pension amounts (length \code{nrow(retirees_dt)}).
 }
 \description{
 Main dispatcher function that routes pension calculation to the appropriate
-method based on policy type. Uses switch() for clean routing.
+method based on the \code{pension_type} column in \code{retirees_dt}.
+Iterates over each unique pension type present and accumulates results,
+enabling mixed pension types within a single retiree cohort.
+
+All pension parameters (\code{accrual_rate}, \code{ref_wage_col},
+\code{max_years}, \code{replacement_cap}, \code{balance_col},
+\code{annuity_factor}, \code{flat_amount}, etc.) are expected to be
+columns on \code{retirees_dt} — resolved upstream by
+\code{resolve_policy_table()}.
 }
 \keyword{internal}

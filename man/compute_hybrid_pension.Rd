@@ -4,38 +4,19 @@
 \alias{compute_hybrid_pension}
 \title{Compute Hybrid Pension}
 \usage{
-compute_hybrid_pension(dt, params)
+compute_hybrid_pension(dt)
 }
 \arguments{
-\item{dt}{data.table. Retiree data}
-
-\item{params}{List with parameters:
-\itemize{
-\item db_params: List of parameters for DB component
-\item dc_params: List of parameters for DC component
-}}
+\item{dt}{data.table. Retiree subset with all DB + DC parameter columns.}
 }
 \value{
-Numeric vector of pension amounts
+Numeric vector of pension amounts.
 }
 \description{
 Combines DB and DC pension components into a single pension.
-Formula: pension = DB_part + DC_part
-}
-\examples{
-\dontrun{
-params <- list(
-  db_params = list(
-    accrual_rate = 0.015,
-    ref_wage_col = "gross_salary_lcu",
-    max_years = 30
-  ),
-  dc_params = list(
-    balance_col = "dc_balance",
-    annuity_factor = 20
-  )
-)
-pensions <- compute_hybrid_pension(retirees_dt, params)
-}
+Formula: \code{pension = DB_part + DC_part}.
+
+Expects \code{dt} to have all columns required by both
+\code{compute_db_pension()} and \code{compute_dc_pension()}.
 }
 \keyword{internal}

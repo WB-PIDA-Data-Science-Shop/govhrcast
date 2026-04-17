@@ -185,6 +185,14 @@ compute_status_quo_exits <- function(
     contract_type_col = "contract_type_code",
     active_types      = "active") {
 
+  if (exit_multiplier > 10)
+    warning(
+      "compute_status_quo_exits: exit_multiplier = ", exit_multiplier,
+      " is unusually large and may exit most or all active staff. ",
+      "Verify this is intentional (e.g. a stress-test scenario).",
+      call. = FALSE
+    )
+
   if (!data.table::is.data.table(contract_dt))
     contract_dt <- data.table::as.data.table(contract_dt)
 
