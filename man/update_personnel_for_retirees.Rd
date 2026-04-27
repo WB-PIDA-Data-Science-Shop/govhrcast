@@ -13,21 +13,41 @@ update_personnel_for_retirees(
 )
 }
 \arguments{
-\item{personnel_dt}{data.table. Personnel data}
+\item{personnel_dt}{data.table.  Personnel register (modified in place).
+Required columns: \code{personnel_id_col}, \code{status_col}.}
 
-\item{contract_dt}{data.table. Updated contract data (after update_contracts_for_retirees)}
+\item{contract_dt}{data.table.  Contract register \emph{after}
+\code{\link{update_contracts_for_retirees}} has been called.
+The function reads \code{contract_type_col} to derive retiring
+\code{personnel_id}s.}
 
-\item{personnel_id_col}{Character. Personnel ID column name (default: "personnel_id")}
+\item{personnel_id_col}{Character.  Personnel identifier column in both
+\code{personnel_dt} and \code{contract_dt}.
+(default: \code{"personnel_id"}).}
 
-\item{contract_type_col}{Character. Contract type column name (default: "contract_type_code")}
+\item{contract_type_col}{Character.  Contract classification column in
+\code{contract_dt}.  Rows with \code{contract_type_col == "pensioner"}
+identify retiring personnel.  (default: \code{"contract_type_code"}).}
 
-\item{status_col}{Character. Status column name (default: "status")}
+\item{status_col}{Character.  Employment status column in
+\code{personnel_dt}.  Set to \code{"inactive"} for retirees.
+(default: \code{"status"}).}
 }
 \value{
-Updated personnel_dt with retirement status changes
+\code{personnel_dt} (invisibly; the same object, modified in place).
 }
 \description{
-Updates personnel_dt to set status = "inactive" for all personnel whose
-contracts are now marked as "pensioner".
+Sets \code{status_col} to \code{"inactive"} in \code{personnel_dt} for
+every person whose contracts have been reclassified as \code{"pensioner"}
+by \code{\link{update_contracts_for_retirees}}.  Derives the retiree set
+from \code{contract_dt} (not from the eligibility or pension tables) to
+guarantee consistency with the already-committed contract state.
 }
+\section{Data Integrity}{
+
+\code{personnel_dt} is modified in place via \code{data.table} \code{:=}.
+The caller's object is mutated.  \code{\link{simulate_retirement}} passes a
+deep copy so the caller's original is unaffected.
+}
+
 \keyword{internal}

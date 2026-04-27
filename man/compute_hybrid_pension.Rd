@@ -7,16 +7,20 @@
 compute_hybrid_pension(dt)
 }
 \arguments{
-\item{dt}{data.table. Retiree subset with all DB + DC parameter columns.}
+\item{dt}{data.table.  Retiree subset (\code{pension_type == "hybrid"}).
+Must contain all columns required by \code{\link{compute_db_pension}} and
+\code{\link{compute_dc_pension}}.}
 }
 \value{
-Numeric vector of pension amounts.
+Numeric vector of hybrid pension amounts (length \code{nrow(dt)}).
+Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 }
 \description{
-Combines DB and DC pension components into a single pension.
-Formula: \code{pension = DB_part + DC_part}.
+Adds a DB pillar and a DC pillar to produce a hybrid pension entitlement.
+Delegates entirely to \code{\link{compute_db_pension}} and
+\code{\link{compute_dc_pension}}; \code{dt} must satisfy the column
+requirements of both sub-functions.
 
-Expects \code{dt} to have all columns required by both
-\code{compute_db_pension()} and \code{compute_dc_pension()}.
+\strong{Formula:} \eqn{P_i = P^{\text{DB}}_i + P^{\text{DC}}_i}
 }
 \keyword{internal}

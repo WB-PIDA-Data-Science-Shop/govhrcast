@@ -95,10 +95,9 @@ compute_movement_effect <- function(movers_dt,
                                     contract_dt_after,
                                     personnel_id_col = "personnel_id",
                                     salary_col       = "gross_salary_lcu") {
-  zero <- list(promotion = 0, transfer = 0)
+  zero <- list(movement = 0)
   if (is.null(movers_dt) || nrow(movers_dt) == 0L) return(zero)
   if (!"salary_before" %in% names(movers_dt))       return(zero)
-  if (!"movement_type" %in% names(movers_dt))        return(zero)
   if (!salary_col %in% names(contract_dt_after))     return(zero)
 
   # Sum post-move salary per person (across all their contracts after move)
@@ -113,16 +112,10 @@ compute_movement_effect <- function(movers_dt,
   mv[is.na(salary_after), salary_after := 0]
   mv[, salary_diff := salary_after - salary_before]
 
-  promotion_effect <- mv[movement_type == "promotion",
-                          sum(salary_diff, na.rm = TRUE)]
-  transfer_effect  <- mv[movement_type == "transfer",
-                          sum(salary_diff, na.rm = TRUE)]
+  movement_effect <- mv[, sum(salary_diff, na.rm = TRUE)]
+  if (length(movement_effect) == 0L) movement_effect <- 0
 
-  # Protect against empty subsets returning numeric(0)
-  if (length(promotion_effect) == 0L) promotion_effect <- 0
-  if (length(transfer_effect)  == 0L) transfer_effect  <- 0
-
-  list(promotion = promotion_effect, transfer = transfer_effect)
+  list(movement = movement_effect)
 }
 
 
@@ -482,15 +475,10 @@ simulate_scenario <- function(contract_dt,
   transfer_effect  <- 0
 
   if (!is.null(movement_policy)) {
-    if (is.null(movement_policy$salary_scale)) {
-      # NECESSARY copy: salary_scale_dt is shared across periods; simulate_promotions_transfers()
-      # modifies the scale by reference via COLA step — copy protects the caller's object.
-      movement_policy$salary_scale <- data.table::copy(salary_scale_dt)
-    }
-
     mov_result <- simulate_promotions_transfers(
       contract_dt       = contract_dt,
       personnel_dt      = personnel_dt,
+      salary_scale_dt   = data.table::copy(salary_scale_dt),
       policy_params     = movement_policy,
       ref_date          = period_date,
       personnel_id_col  = personnel_id_col,
@@ -507,10 +495,9 @@ simulate_scenario <- function(contract_dt,
     personnel_dt <- mov_result$personnel_dt
 
     if (!is.null(mov_result$summary)) {
-      n_prom <- mov_result$summary$n_promotions
-      n_tran <- mov_result$summary$n_transfers
-      n_promotions <- as.integer(if (!is.null(n_prom)) n_prom else 0L)
-      n_transfers  <- as.integer(if (!is.null(n_tran)) n_tran else 0L)
+      n_movers_val <- mov_result$summary$n_movers
+      n_promotions <- as.integer(if (!is.null(n_movers_val)) n_movers_val else 0L)
+      n_transfers  <- 0L
     }
 
     mov_effects <- compute_movement_effect(
@@ -519,8 +506,8 @@ simulate_scenario <- function(contract_dt,
       personnel_id_col  = personnel_id_col,
       salary_col        = salary_col
     )
-    promotion_effect <- mov_effects$promotion
-    transfer_effect  <- mov_effects$transfer
+    promotion_effect <- mov_effects$movement
+    transfer_effect  <- 0
   }
 
   # ------------------------------------------------------------------
@@ -941,12 +928,12 @@ simulate_horizon <- function(contract_dt,
   # For movement, pre-compute the baseline from the full panel BEFORE stripping
   # ref_date.  simulate_horizon works on single-snapshot data in each period, so
   # without this cache simulate_promotions_transfers would never see a panel.
-  if (!is.null(movement_policy) && is.null(movement_policy$baseline_matrix)) {
+  if (!is.null(movement_policy) && is.null(movement_policy$policy_table)) {
     ref_date_col_name <- "ref_date"   # standard column name used throughout
     has_panel <- ref_date_col_name %in% names(contract_dt) &&
                  data.table::uniqueN(contract_dt[[ref_date_col_name]]) >= 2L
     if (has_panel) {
-      movement_policy$baseline_matrix <- estimate_movement_baseline(
+      movement_policy$policy_table <- estimate_movement_baseline(
         contract_dt       = contract_dt,
         group_cols        = movement_policy$group_cols,
         personnel_id_col  = personnel_id_col,

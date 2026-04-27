@@ -7,23 +7,33 @@
 compute_db_pension(dt)
 }
 \arguments{
-\item{dt}{data.table. Retiree subset for DB pension calculation.
-Must have columns: \code{accrual_rate}, \code{ref_wage_col},
-\code{tenure_years}.  Optional: \code{max_years}, \code{replacement_cap}.}
+\item{dt}{data.table.  Retiree subset (\code{pension_type == "db"}).
+Required columns: \code{accrual_rate} (numeric), \code{ref_wage_col}
+(character column-pointer), \code{tenure_years} (numeric).  Optional:
+\code{max_years} (numeric or \code{NA}), \code{replacement_cap}
+(numeric or \code{NA}).}
 }
 \value{
-Numeric vector of pension amounts.
+Numeric vector of DB pension amounts (length \code{nrow(dt)}).
+Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 }
 \description{
-Calculates pension based on accrual rate, years of service, and reference
-wage.  All parameters are read from columns on \code{dt}:
-\itemize{
-\item \code{accrual_rate}: Annual accrual rate (e.g. 0.02).
-\item \code{ref_wage_col}: Character column whose value names the wage
-column to use (e.g. \code{"gross_salary_lcu"}).
-\item \code{max_years}: Service cap (optional; \code{NA} = no cap).
-\item \code{replacement_cap}: Max replacement rate (optional; \code{NA} = no cap).
+Computes periodic pension entitlement under a final-salary defined-benefit
+scheme.  All parameters are read from per-row columns on \code{dt},
+pre-resolved by \code{\link{resolve_policy_table}}.
 }
-Formula: \code{pension = min(accrual_rate * years * wage, replacement_cap * wage)}
+\details{
+\strong{Formula:}
+\deqn{P_i = \min(\alpha_i \cdot \min(s_i, S^{\max}) \cdot w_i,\; c_i \cdot w_i)}
+where:
+\itemize{
+\item \eqn{\alpha_i} = \code{accrual_rate} (e.g. 0.02 = 2\\% per year),
+\item \eqn{s_i} = \code{tenure_years},
+\item \eqn{S^{\max}} = \code{max_years} (\code{NA} = uncapped),
+\item \eqn{w_i} = wage from the column named by \code{ref_wage_col},
+\item \eqn{c_i} = \code{replacement_cap} (\code{NA} = uncapped).
+}
+\code{pmax(pension, 0)} is applied to prevent negative pensions from
+non-positive accrual rates or wages.
 }
 \keyword{internal}

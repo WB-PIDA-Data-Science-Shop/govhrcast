@@ -24,38 +24,90 @@ utils::globalVariables(c(
 #'
 #' @description
 #' Determines which personnel are eligible for retirement based on age and/or
-#' tenure criteria specified in policy parameters. Supports both scalar and
-#' group-level eligibility parameters via \code{resolve_policy_table()};
-#' uses \code{fcase()} for vectorised per-row eligibility dispatch.
+#' tenure criteria specified in \code{policy_params}.  Supports scalar and
+#' group-level policy variation via \code{\link{resolve_policy_table}}, and
+#' uses \code{data.table::fcase()} for fully vectorised per-row eligibility
+#' dispatch across mixed \code{eligibility_type} values.
 #'
-#' @param contract_dt data.table. Contract data
-#' @param personnel_dt data.table. Personnel data with birth dates
-#' @param policy_params List. Policy parameters using the unified format:
+#' @param contract_dt data.table.  Active workforce contracts in govhr format.
+#'   Required columns: \code{personnel_id_col}, \code{contract_id_col},
+#'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col}.
+#'   When \code{group_cols} are non-null, must also include those columns.
+#' @param personnel_dt data.table.  Personnel register.  Required columns:
+#'   \code{personnel_id_col}, \code{birth_date_col}.  Optional:
+#'   \code{age_col}, \code{tenure_col}.
+#' @param policy_params List.  Unified policy specification.  See
+#'   \code{\link{simulate_retirement}} for the full \code{\describe} block.
+#'   Eligibility-relevant keys in \code{defaults}:
 #'   \describe{
-#'     \item{defaults}{Named list of scalar fallback values.  Must contain
-#'       \code{eligibility_type} (one of \code{"age_only"},
-#'       \code{"tenure_only"}, \code{"age_and_tenure"}), \code{min_age}
-#'       (required for age-based eligibility), and \code{min_tenure}
-#'       (required for tenure-based eligibility).}
-#'     \item{group_cols}{Character vector of contract columns to join on, or
-#'       \code{NULL} for scalar-only dispatch.}
-#'     \item{policy_table}{data.table with \code{group_cols} plus any
-#'       per-group parameter columns (e.g. \code{eligibility_type},
-#'       \code{min_age}, \code{min_tenure}).  \code{NULL} when not needed.}
+#'     \item{\code{eligibility_type}}{Character scalar.  One of
+#'       \code{"age_only"}, \code{"tenure_only"}, \code{"age_and_tenure"}.}
+#'     \item{\code{min_age}}{Numeric scalar.  Required when
+#'       \code{eligibility_type} is \code{"age_only"} or
+#'       \code{"age_and_tenure"}.}
+#'     \item{\code{min_tenure}}{Numeric scalar.  Required when
+#'       \code{eligibility_type} is \code{"tenure_only"} or
+#'       \code{"age_and_tenure"}.}
 #'   }
-#' @param ref_date Date. Reference date for eligibility calculation
-#' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
-#' @param birth_date_col Character. Name of birth date column (default: "birth_date")
-#' @param start_date_col Character. Name of start date column (default: "start_date")
-#' @param end_date_col Character. Name of end date column (default: "end_date")
-#' @param contract_type_col Character. Name of contract type column (default: "contract_type_code")
-#' @param age_col Character or NULL. Column in personnel_dt containing pre-computed
-#'   age (in years). When present, \code{compute_age()} is skipped. Default \code{"age"}.
-#' @param tenure_col Character or NULL. Column in personnel_dt containing pre-computed
-#'   tenure (in years). When present, \code{compute_tenure()} is skipped.
-#'   Default \code{"tenure_years"}.
+#' @param ref_date Date.  Reference date for age and tenure computation.
+#' @param personnel_id_col Character.  Unique personnel identifier present in
+#'   both \code{contract_dt} and \code{personnel_dt}.
+#'   (default: \code{"personnel_id"}).
+#' @param birth_date_col Character.  Date of birth column in
+#'   \code{personnel_dt}.  (default: \code{"birth_date"}).
+#' @param contract_id_col Character.  Contract identifier in
+#'   \code{contract_dt}.  Used by \code{\link{compute_tenure}} to deduplicate
+#'   overlapping spells.  (default: \code{"contract_id"}).
+#' @param start_date_col Character.  Contract start date column.
+#'   (default: \code{"start_date"}).
+#' @param end_date_col Character.  Contract end date column; \code{NA} for
+#'   open-ended contracts.  (default: \code{"end_date"}).
+#' @param contract_type_col Character.  Contract classification column.  Only
+#'   contracts with type not in \code{c("inactive", "pensioner")} are treated
+#'   as active candidates.  (default: \code{"contract_type_code"}).
+#' @param age_col Character.  Column in \code{personnel_dt} with pre-computed
+#'   age in years.  When the column is present, \code{\link{compute_age}} is
+#'   skipped entirely.  (default: \code{"age"}).
+#' @param tenure_col Character.  Column in \code{personnel_dt} with
+#'   pre-computed tenure in years.  When present,
+#'   \code{\link{compute_tenure}} is skipped.  (default: \code{"tenure_years"}).
 #'
-#' @return data.table with columns: personnel_id, retire (0/1), age, tenure_years
+#' @details
+#' \strong{Computation strategy:}
+#' \enumerate{
+#'   \item Only active contracts (\code{\link{get_active_contracts}}) are
+#'     candidates.  Personnel with only inactive/pensioner contracts receive
+#'     \code{retire = 0L} immediately.
+#'   \item Age and tenure are computed only for the metric(s) required by the
+#'     effective \code{eligibility_type}.  If \code{policy_table} contains an
+#'     \code{eligibility_type} column (i.e. the type varies by group), both
+#'     metrics are always computed defensively.
+#'   \item Group-level parameters are resolved onto \code{eligibility_dt} via
+#'     \code{\link{resolve_policy_table}}, a single join that stamps
+#'     \code{eligibility_type}, \code{min_age}, and \code{min_tenure} as
+#'     per-row columns.
+#'   \item \code{data.table::fcase()} performs the eligibility dispatch in one
+#'     vectorised pass.  \code{NA} comparisons evaluate to \code{NA} and fall
+#'     through to \code{default = 0L} (not eligible).
+#'   \item NA validation (missing required thresholds) fires only when the
+#'     caller explicitly supplied \code{eligibility_type} in
+#'     \code{policy_params$defaults}.  This prevents false positives when
+#'     \code{identify_retirees()} is invoked from non-retirement contexts
+#'     (e.g. hiring demand estimation) that omit eligibility configuration.
+#' }
+#'
+#' @return data.table (one row per unique \code{personnel_id}) with columns:
+#'   \describe{
+#'     \item{\code{personnel_id}}{Personnel identifier.  All IDs from
+#'       \code{personnel_dt} are present — inactive personnel are not dropped.}
+#'     \item{\code{retire}}{Integer (0/1).  1 = eligible and assumed to retire;
+#'       0 = not eligible, already inactive, or a threshold was \code{NA}.}
+#'     \item{\code{age}}{Numeric.  Age in years at \code{ref_date}.
+#'       \code{NA} for personnel inactive at \code{ref_date} or when age
+#'       computation was skipped (tenure-only eligibility).}
+#'     \item{\code{tenure_years}}{Numeric.  Cumulative service in years at
+#'       \code{ref_date}.  \code{NA} analogously to \code{age}.}
+#'   }
 #'
 #' @section Retirement eligibility vs. retirement choice:
 #' This function equates \emph{eligibility} with \emph{retirement} — all
@@ -284,14 +336,32 @@ identify_retirees <- function(contract_dt,
 #' Compute Retirement Summary Statistics
 #'
 #' @description
-#' Aggregates key statistics about retirees including count, total pension cost,
-#' average age, and average tenure. Uses data.table for efficient computation
-#' on large datasets.
+#' Aggregates per-period retirement statistics from the enriched retiree
+#' table produced by \code{\link{simulate_retirement}}.  Returns a consistent
+#' 1-row \code{data.table} even when there are no retirees, so downstream
+#' horizon accumulators can \code{rbindlist()} safely across all periods.
 #'
-#' @param retirees_dt data.table. Retiree data with pension amounts
-#' @param contract_dt data.table. Original contract data (for wage bill comparison)
+#' @param retirees_dt data.table.  One row per retiree as returned by the
+#'   pension calculation stage of \code{\link{simulate_retirement}}.  Must
+#'   contain columns: \code{pension} (numeric), \code{age} (numeric),
+#'   \code{tenure_years} (numeric).  When \code{nrow(retirees_dt) == 0} the
+#'   function returns a zero-filled result without inspecting columns.
+#' @param contract_dt data.table.  Unused; kept for API compatibility.  May
+#'   be \code{NULL}.
 #'
-#' @return data.table with summary statistics
+#' @return data.table (1 row) with five columns:
+#'   \describe{
+#'     \item{\code{n_retired}}{Integer.  Count of retirees in the period.
+#'       \code{0L} when there are no retirees.}
+#'     \item{\code{total_pension}}{Numeric.  Sum of all individual periodic
+#'       pension amounts in \code{retirees_dt$pension}.  \code{0} when empty.}
+#'     \item{\code{avg_pension}}{Numeric.  Mean pension across retirees.
+#'       \code{NA_real_} when there are no retirees.}
+#'     \item{\code{avg_age}}{Numeric.  Mean age at retirement.
+#'       \code{NA_real_} when there are no retirees.}
+#'     \item{\code{avg_tenure}}{Numeric.  Mean years of service at retirement.
+#'       \code{NA_real_} when there are no retirees.}
+#'   }
 #' @keywords internal
 compute_retirement_summary <- function(retirees_dt, contract_dt = NULL) {
   
@@ -323,22 +393,56 @@ compute_retirement_summary <- function(retirees_dt, contract_dt = NULL) {
 #' Prepare Retiree Data for Pension Calculation
 #'
 #' @description
-#' Enriches retiree eligibility data with salary and contract information
-#' needed for pension calculations. Merges age/tenure with contract data.
+#' Enriches the eligibility table from \code{\link{identify_retirees}} with
+#' salary and contract information required for pension formula evaluation.
+#' Fills any \code{NA} age or tenure values left by the eligibility stage
+#' (e.g. when \code{eligibility_type = "tenure_only"} left \code{age} as
+#' \code{NA}) and selects one primary contract per retiree via
+#' \code{\link{get_primary_contract}}.
 #'
-#' @param eligibility_dt data.table. Output from identify_retirees()
-#' @param contract_dt data.table. Contract data
-#' @param personnel_dt data.table. Personnel data
-#' @param ref_date Date. Reference date
-#' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
-#' @param birth_date_col Character. Name of birth date column (default: "birth_date")
-#' @param contract_id_col Character. Name of contract ID column (default: "contract_id")
-#' @param start_date_col Character. Name of start date column (default: "start_date")
-#' @param end_date_col Character. Name of end date column (default: "end_date")
-#' @param salary_col Character. Name of salary column (default: "gross_salary_lcu")
-#' @param contract_type_col Character. Name of contract type column (default: "contract_type_code")
+#' @param eligibility_dt data.table.  Output of \code{\link{identify_retirees}}
+#'   with columns \code{personnel_id}, \code{retire}, \code{age},
+#'   \code{tenure_years}.  Only rows where \code{retire == 1} are processed;
+#'   the rest are ignored.
+#' @param contract_dt data.table.  Full contract register (not pre-filtered).
+#'   Active contracts are extracted internally via
+#'   \code{\link{get_active_contracts}}.
+#' @param personnel_dt data.table.  Personnel register.  Used to compute
+#'   missing age values when \code{anyNA(eligibility_dt$age)} is \code{TRUE}.
+#' @param ref_date Date.  Reference date passed to age/tenure computations
+#'   when filling \code{NA} values.
+#' @param personnel_id_col Character.  Personnel identifier column.
+#'   (default: \code{"personnel_id"}).
+#' @param birth_date_col Character.  Date of birth column in
+#'   \code{personnel_dt}.  (default: \code{"birth_date"}).
+#' @param contract_id_col Character.  Contract identifier column.
+#'   (default: \code{"contract_id"}).
+#' @param start_date_col Character.  Contract start date column.
+#'   (default: \code{"start_date"}).
+#' @param end_date_col Character.  Contract end date column.
+#'   (default: \code{"end_date"}).
+#' @param salary_col Character.  Gross salary column used as the pension wage
+#'   base unless overridden by \code{policy_params$defaults$ref_wage_col}.
+#'   (default: \code{"gross_salary_lcu"}).
+#' @param contract_type_col Character.  Contract classification column.
+#'   (default: \code{"contract_type_code"}).
 #'
-#' @return data.table with retiree information ready for pension calculation
+#' @details
+#' \strong{Fill logic for missing metrics:}
+#' \itemize{
+#'   \item If \code{eligibility_type = "tenure_only"}, \code{age} was not
+#'     computed upstream.  \code{anyNA(age)} triggers a call to
+#'     \code{\link{compute_age}} to fill the gaps — needed by DB pension
+#'     formulas that use age.
+#'   \item Analogously, \code{anyNA(tenure_years)} triggers
+#'     \code{\link{compute_tenure}}.
+#'   \item Only missing values are filled; pre-computed values are untouched.
+#' }
+#'
+#' @return data.table.  One row per retiree with all primary contract columns
+#'   (including \code{salary_col}) plus \code{age} and \code{tenure_years}.
+#'   Returns an empty \code{data.table()} (zero rows, no columns) when
+#'   \code{eligibility_dt} contains no retirees.
 #' @keywords internal
 prepare_retiree_data <- function(eligibility_dt,
                                  contract_dt,

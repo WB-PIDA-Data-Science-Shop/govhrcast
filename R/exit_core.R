@@ -13,9 +13,9 @@ NULL
 
 # Suppress R CMD check NOTEs for data.table column names.
 utils::globalVariables(c(
-  "n_exits",    # estimate_historical_exit_rates: column created by := and used in ratio
-  "exit_rate",  # estimate_historical_exit_rates / compute_status_quo_exits: rate col
-  "rank_val"    # .select_exits: ordering column built from dynamic strategy col
+  "n_exits",   # estimate_historical_exit_rates: column created by := and used in ratio
+  "exit_rate", # resolve_policy_table output stamped onto active_dt
+  "rank_val"   # .select_exits: ordering column built from dynamic strategy col
 ))
 
 #' @name exit_core
@@ -148,50 +148,37 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
 # Phase 3b — compute_status_quo_exits()
 # =============================================================================
 
-#' Select Personnel for Non-Retirement Exit Under Status-Quo Policy
+#' Select Personnel for Non-Retirement Exit
 #'
 #' @description
-#' Applies historical exit rates to the current workforce by group.
-#' Returns a data.table of personnel IDs selected to exit this period.
-#' Selection within each group follows \code{exit_strategy} (random or any
-#' numeric column in \code{contract_dt}).
+#' Resolves per-row \code{exit_rate} and \code{exit_multiplier} from
+#' \code{policy_params} via \code{\link{resolve_policy_table}}, then selects
+#' personnel to exit this period.  Supports scalar-only and group-level rate
+#' dispatch through the unified three-slot \code{policy_params} format.
 #'
 #' @param contract_dt data.table.  Current (single-snapshot) contract data.
-#' @param exit_rates_dt data.table.  Output of
-#'   \code{estimate_historical_exit_rates()} — must contain \code{group_cols}
-#'   and \code{exit_rate}.
-#' @param group_cols Character vector or \code{NULL}.  Grouping columns.
-#'   If \code{NULL}, a single overall exit rate is applied.
-#' @param exit_strategy Character.  \code{"random"} (default) or the name of
-#'   a numeric column in \code{contract_dt} to rank by (ascending — lowest
-#'   values exit first).
-#' @param exit_multiplier Numeric.  Scale the historical rate up or down.
-#'   Default \code{1.0}.
+#' @param policy_params List.  Canonical three-slot exit policy specification.
+#'   See \code{\link{simulate_exits}} for the full \code{\describe{}} block.
+#'   Keys consumed here: \code{group_cols}, \code{policy_table} (with
+#'   \code{exit_rate} column), \code{defaults$exit_rate},
+#'   \code{defaults$exit_strategy}, \code{defaults$active_types}.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param contract_type_col Character.  Default \code{"contract_type_code"}.
-#' @param active_types Character vector.  Contract type values treated as
-#'   active (non-pensioner) eligible for exit.  Default \code{"active"}.
 #'
-#' @return data.table with at least \code{personnel_id_col} column identifying
-#'   personnel selected to exit this period.
+#' @return data.table with at least \code{personnel_id_col} identifying
+#'   personnel selected to exit this period.  Empty \code{data.table()} when
+#'   there are no active contracts or the resolved rate produces zero exits.
 #' @keywords internal
 compute_status_quo_exits <- function(
     contract_dt,
-    exit_rates_dt,
-    group_cols        = NULL,
-    exit_strategy     = "random",
-    exit_multiplier   = 1.0,
+    policy_params,
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code",
-    active_types      = "active") {
+    contract_type_col = "contract_type_code") {
 
-  if (exit_multiplier > 10)
-    warning(
-      "compute_status_quo_exits: exit_multiplier = ", exit_multiplier,
-      " is unusually large and may exit most or all active staff. ",
-      "Verify this is intentional (e.g. a stress-test scenario).",
-      call. = FALSE
-    )
+  .defaults     <- policy_params$defaults %||% list()
+  exit_strategy <- .defaults$exit_strategy %||% "random"
+  active_types  <- .defaults$active_types  %||% "active"
+  group_cols    <- policy_params$group_cols
 
   if (!data.table::is.data.table(contract_dt))
     contract_dt <- data.table::as.data.table(contract_dt)
@@ -205,42 +192,45 @@ compute_status_quo_exits <- function(
     return(data.table::data.table())
   }
 
+  # Resolve exit_rate and exit_multiplier to per-row columns via a single
+  # resolve_policy_table() call.  For scalar-only dispatch (group_cols = NULL)
+  # this simply repeats the defaults.  For group-level, it left-joins
+  # policy_table onto active_dt and fills unmatched cells from defaults.
+  resolved <- resolve_policy_table(
+    policy_params,
+    active_dt,
+    "exit_rate"
+  )
+  active_dt[, exit_rate := resolved$exit_rate %||% rep(0, .N)]
+  active_dt[is.na(exit_rate), exit_rate := 0]
+
   if (is.null(group_cols) || length(group_cols) == 0L) {
-    # Overall rate — single group
+    # Scalar path — single overall rate
     n_active <- data.table::uniqueN(active_dt[[personnel_id_col]])
-    rate     <- if (!is.null(exit_rates_dt) && "exit_rate" %in% names(exit_rates_dt))
-      exit_rates_dt$exit_rate[1L] else 0
-    n_exit   <- min(round(n_active * rate * exit_multiplier), n_active)
+    rate     <- active_dt$exit_rate[1L]
+    n_exit   <- min(round(n_active * rate), n_active)
 
     if (n_exit <= 0L) return(data.table::data.table())
 
-    # One row per person (primary contract)
     pool_ids <- unique(active_dt[[personnel_id_col]])
-
     selected_ids <- .select_exits(pool_ids, active_dt, n_exit,
                                    exit_strategy, personnel_id_col)
     return(data.table::data.table(personnel_id = selected_ids))
   }
 
-  # Grouped exit selection
-  # Left-join rates into active contracts so every active row carries its group rate.
-  # Use a copy to avoid modifying exit_rates_dt by reference.
-  active_with_rate <- exit_rates_dt[active_dt, on = group_cols]
-  active_with_rate[is.na(exit_rate), exit_rate := 0]
-
-  selected_per_group <- active_with_rate[, .compute_group_exits(
+  # Grouped exit selection — exit_rate and exit_multiplier already stamped
+  # as columns on active_dt; .compute_group_exits() reads them from .SD.
+  selected_per_group <- active_dt[, .compute_group_exits(
     .SD,
-    exit_multiplier   = exit_multiplier,
-    exit_strategy     = exit_strategy,
-    personnel_id_col  = personnel_id_col
+    exit_strategy    = exit_strategy,
+    personnel_id_col = personnel_id_col
   ), by = group_cols]
 
   if (nrow(selected_per_group) == 0L || !("personnel_id" %in% names(selected_per_group))) {
     return(data.table::data.table())
   }
 
-  # Keep only the ID column; deduplicate (a person appears in at most one group,
-  # but guard against edge cases where group definitions overlap).
+  # Keep only the ID column; deduplicate in case group definitions overlap.
   result <- unique(
     selected_per_group[, .(personnel_id)],
     by = "personnel_id"
@@ -251,24 +241,84 @@ compute_status_quo_exits <- function(
 }
 
 
+# =============================================================================
+# Phase 3b-alt — compute_fixed_rate_exits()
+# =============================================================================
+
+#' Select Personnel for Non-Retirement Exit — Flat Rate
+#'
+#' @description
+#' Applies a single scalar \code{exit_rate} from \code{policy_params$defaults}
+#' uniformly across the entire active workforce.  Called by
+#' \code{\link{simulate_exits}} when \code{policy_params$policy_table} is
+#' \code{NULL}.  No group join, no rate lookup — three steps: count active
+#' persons, compute \code{n_exit}, select who exits.
+#'
+#' @param contract_dt data.table.  Current (single-snapshot) contract data.
+#' @param policy_params List.  Canonical three-slot exit policy specification.
+#'   Keys consumed: \code{defaults$exit_rate}, \code{defaults$exit_strategy},
+#'   \code{defaults$active_types}.
+#' @param personnel_id_col Character.  Default \code{"personnel_id"}.
+#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#'
+#' @return data.table with \code{personnel_id_col} identifying personnel
+#'   selected to exit.  Empty \code{data.table()} when there are no active
+#'   contracts or the rate produces zero exits.
+#' @keywords internal
+compute_fixed_rate_exits <- function(
+    contract_dt,
+    policy_params,
+    personnel_id_col  = "personnel_id",
+    contract_type_col = "contract_type_code") {
+
+  .defaults     <- policy_params$defaults %||% list()
+  exit_rate     <- .defaults$exit_rate
+  exit_strategy <- .defaults$exit_strategy %||% "random"
+  active_types  <- .defaults$active_types  %||% "active"
+
+  if (is.null(exit_rate) || !is.numeric(exit_rate) || length(exit_rate) != 1L)
+    stop(
+      "defaults$exit_rate must be a numeric scalar when policy_table is NULL.",
+      call. = FALSE
+    )
+
+  if (!data.table::is.data.table(contract_dt))
+    contract_dt <- data.table::as.data.table(contract_dt)
+
+  active_dt <- contract_dt[get(contract_type_col) %in% active_types]
+
+  if (nrow(active_dt) == 0L) return(data.table::data.table())
+
+  n_active <- data.table::uniqueN(active_dt[[personnel_id_col]])
+  n_exit   <- min(round(n_active * exit_rate), n_active)
+
+  if (n_exit <= 0L) return(data.table::data.table())
+
+  pool_ids     <- unique(active_dt[[personnel_id_col]])
+  selected_ids <- .select_exits(pool_ids, active_dt, n_exit,
+                                 exit_strategy, personnel_id_col)
+
+  result <- data.table::data.table(personnel_id = selected_ids)
+  data.table::setnames(result, "personnel_id", personnel_id_col)
+  result
+}
+
+
 # ---------------------------------------------------------------------------
 # Internal: compute exits for one group slice (called from [, by = group_cols]).
-# Receiving all parameters explicitly avoids closure-capture NOTEs from R CMD check.
-# @param group_dt   data.table. Rows for this group (.SD from calling context).
-# @param exit_multiplier Numeric. Scale factor applied to the group exit rate.
-# @param exit_strategy Character. "random" or a column name for ranked exit.
+# exit_rate is read from per-row columns stamped onto group_dt by
+# resolve_policy_table() in compute_status_quo_exits().
+# @param group_dt        data.table. Rows for this group (.SD from calling context).
+# @param exit_strategy   Character. "random" or a column name for ranked exit.
 # @param personnel_id_col Character. Name of the personnel ID column.
 # @return list with one element `personnel_id` (character vector of selected IDs).
 # @keywords internal
 .compute_group_exits <- function(group_dt,
-                                 exit_multiplier,
                                  exit_strategy,
                                  personnel_id_col) {
   n_active_grp <- data.table::uniqueN(group_dt[[personnel_id_col]])
-  rate         <- group_dt$exit_rate[1L]
-  n_exit_grp   <- as.integer(
-    min(round(n_active_grp * rate * exit_multiplier), n_active_grp)
-  )
+  rate         <- group_dt$exit_rate[1L] %||% 0
+  n_exit_grp   <- as.integer(min(round(n_active_grp * rate), n_active_grp))
   if (n_exit_grp <= 0L) {
     return(list(personnel_id = character(0)))
   }

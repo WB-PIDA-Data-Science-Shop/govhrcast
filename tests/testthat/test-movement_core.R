@@ -56,24 +56,24 @@ make_panel <- function() {
 test_that("estimate_movement_baseline returns correct columns", {
   bm <- estimate_movement_baseline(make_panel(), group_cols = "paygrade")
   expect_true(data.table::is.data.table(bm))
-  expect_true(all(c("from_group", "to_group", "avg_prob", "n_periods") %in% names(bm)))
+  expect_true(all(c("from_group", "to_group", "movement_rate", "n_periods") %in% names(bm)))
 })
 
 test_that("estimate_movement_baseline computes correct avg_prob", {
   bm <- estimate_movement_baseline(make_panel(), group_cols = "paygrade")
 
   # P1 (G1->G2): 1 mover out of 2 in G1 = 0.5
-  g1_to_g2 <- bm[from_group == "G1" & to_group == "G2", avg_prob]
+  g1_to_g2 <- bm[from_group == "G1" & to_group == "G2", movement_rate]
   expect_equal(g1_to_g2, 0.5, tolerance = 1e-10)
 
   # P4 (G2->G1): 1 mover out of 2 in G2 = 0.5
-  g2_to_g1 <- bm[from_group == "G2" & to_group == "G1", avg_prob]
+  g2_to_g1 <- bm[from_group == "G2" & to_group == "G1", movement_rate]
   expect_equal(g2_to_g1, 0.5, tolerance = 1e-10)
 })
 
 test_that("estimate_movement_baseline probs are in [0, 1]", {
   bm <- estimate_movement_baseline(make_panel(), group_cols = "paygrade")
-  expect_true(all(bm$avg_prob >= 0 & bm$avg_prob <= 1))
+  expect_true(all(bm$movement_rate >= 0 & bm$movement_rate <= 1))
 })
 
 test_that("estimate_movement_baseline only returns movement transitions", {
@@ -181,10 +181,10 @@ make_snapshot <- function() {
       gross_salary_lcu = c(3000, 5000)
     ),
     baseline = data.table::data.table(
-      from_group = c("G1", "G2"),
-      to_group   = c("G2", "G1"),
-      avg_prob   = c(0.5, 0.5),
-      n_periods  = c(1L, 1L)
+      from_group    = c("G1", "G2"),
+      to_group      = c("G2", "G1"),
+      movement_rate = c(0.5, 0.5),
+      n_periods     = c(1L, 1L)
     )
   )
 }
@@ -192,9 +192,9 @@ make_snapshot <- function() {
 test_that("compute_movement_demand returns correct columns", {
   set.seed(42)
   s <- make_snapshot()
-  pp <- list(group_cols = "paygrade",
-             promotion_multiplier = 1.0,
-             transfer_multiplier  = 1.0)
+  pp <- list(group_cols   = "paygrade",
+             policy_table = NULL,
+             defaults     = list(movement_rate = 0.5, active_types = "permanent"))
   dm <- compute_movement_demand(
     contract_dt     = s$contract_dt,
     personnel_dt    = s$personnel_dt,
@@ -204,17 +204,16 @@ test_that("compute_movement_demand returns correct columns", {
     ref_date        = "2016-01-01"
   )
   expect_true(data.table::is.data.table(dm))
-  expected_cols <- c("from_group", "to_group", "movement_type",
-                     "adj_prob", "current_stock", "n_movers")
+  expected_cols <- c("from_group", "to_group", "current_stock", "n_movers")
   expect_true(all(expected_cols %in% names(dm)))
 })
 
 test_that("compute_movement_demand n_movers are non-negative integers", {
   set.seed(1)
   s <- make_snapshot()
-  pp <- list(group_cols = "paygrade",
-             promotion_multiplier = 1.0,
-             transfer_multiplier  = 1.0)
+  pp <- list(group_cols   = "paygrade",
+             policy_table = NULL,
+             defaults     = list(movement_rate = 0.5, active_types = "permanent"))
   dm <- compute_movement_demand(
     contract_dt     = s$contract_dt,
     personnel_dt    = s$personnel_dt,
@@ -232,9 +231,9 @@ test_that("compute_movement_demand scrubs destinations not in salary_scale", {
   s <- make_snapshot()
   # Remove G1 from salary_scale -> G2->G1 should be scrubbed
   scale_no_g1 <- s$salary_scale[paygrade != "G1"]
-  pp <- list(group_cols = "paygrade",
-             promotion_multiplier = 1.0,
-             transfer_multiplier  = 1.0)
+  pp <- list(group_cols   = "paygrade",
+             policy_table = NULL,
+             defaults     = list(movement_rate = 0.5, active_types = "permanent"))
   expect_message(
     dm <- compute_movement_demand(
       contract_dt     = s$contract_dt,
@@ -255,14 +254,14 @@ test_that("compute_movement_demand caps total outflow at 1.0", {
   s <- make_snapshot()
   # Add a second destination for G1 so total prob > 1
   high_prob_baseline <- data.table::data.table(
-    from_group = c("G1", "G1", "G2"),
-    to_group   = c("G2", "G2", "G1"),  # intentional duplicate -> prob sum > 1
-    avg_prob   = c(0.7, 0.6, 0.3),
-    n_periods  = c(1L, 1L, 1L)
+    from_group    = c("G1", "G1", "G2"),
+    to_group      = c("G2", "G2", "G1"),  # intentional duplicate -> prob sum > 1
+    movement_rate = c(0.7, 0.6, 0.3),
+    n_periods     = c(1L, 1L, 1L)
   )
-  pp <- list(group_cols = "paygrade",
-             promotion_multiplier = 1.0,
-             transfer_multiplier  = 1.0)
+  pp <- list(group_cols   = "paygrade",
+             policy_table = NULL,
+             defaults     = list(movement_rate = 0.5, active_types = "permanent"))
   dm <- compute_movement_demand(
     contract_dt     = s$contract_dt,
     personnel_dt    = s$personnel_dt,
@@ -272,7 +271,7 @@ test_that("compute_movement_demand caps total outflow at 1.0", {
     ref_date        = "2016-01-01"
   )
   # Total outflow per from_group must be <= 1
-  dm[, total_out := sum(adj_prob), by = from_group]
+  dm[, total_out := sum(movement_rate), by = from_group]
   expect_true(all(dm$total_out <= 1.0 + 1e-10))
 })
 
@@ -289,9 +288,9 @@ test_that("compute_movement_demand returns empty dt when no active personnel", {
     status = character(0)
   )
   s <- make_snapshot()
-  pp <- list(group_cols = "paygrade",
-             promotion_multiplier = 1.0,
-             transfer_multiplier = 1.0)
+  pp <- list(group_cols   = "paygrade",
+             policy_table = NULL,
+             defaults     = list(movement_rate = 0.5, active_types = "permanent"))
   dm <- compute_movement_demand(
     contract_dt     = ct,
     personnel_dt    = pp_dt,
@@ -305,7 +304,6 @@ test_that("compute_movement_demand returns empty dt when no active personnel", {
 
 test_that("compute_movement_demand classifies movements correctly", {
   set.seed(1)
-  # Two-column group: same first (est) = promotion; different first = transfer
   ct <- data.table::data.table(
     personnel_id      = c("P1", "P2", "P3", "P4"),
     est_id            = c("E1", "E1", "E2", "E2"),
@@ -324,14 +322,14 @@ test_that("compute_movement_demand classifies movements correctly", {
     gross_salary_lcu = c(3000, 5000, 3000, 5000)
   )
   bm <- data.table::data.table(
-    from_group = c("E1||G1", "E1||G2"),
-    to_group   = c("E1||G2", "E2||G2"),  # E1|G1->E1|G2 = promo; E1|G2->E2|G2 = transfer
-    avg_prob   = c(0.3, 0.3),
-    n_periods  = c(1L, 1L)
+    from_group    = c("E1||G1", "E1||G2"),
+    to_group      = c("E1||G2", "E2||G2"),
+    movement_rate = c(0.3, 0.3),
+    n_periods     = c(1L, 1L)
   )
-  pp <- list(group_cols = c("est_id", "paygrade"),
-             promotion_multiplier = 1.0,
-             transfer_multiplier  = 1.0)
+  pp <- list(group_cols   = c("est_id", "paygrade"),
+             policy_table = NULL,
+             defaults     = list(movement_rate = 0.3, active_types = "permanent"))
   dm <- compute_movement_demand(
     contract_dt     = ct,
     personnel_dt    = pp_dt,
@@ -340,9 +338,9 @@ test_that("compute_movement_demand classifies movements correctly", {
     salary_scale_dt = scale,
     ref_date        = "2016-01-01"
   )
+  expect_true(data.table::is.data.table(dm))
   if (nrow(dm) > 0) {
-    expect_true("movement_type" %in% names(dm))
-    expect_true(all(dm$movement_type %in% c("promotion", "transfer")))
+    expect_true(all(c("from_group", "to_group", "n_movers") %in% names(dm)))
   }
 })
 
@@ -351,35 +349,31 @@ test_that("compute_movement_demand classifies movements correctly", {
 # ---------------------------------------------------------------------------
 test_that("compute_movement_summary returns correct columns", {
   movers <- data.table::data.table(
-    personnel_id  = c("P1", "P2"),
-    from_group    = c("G1", "G2"),
-    to_group      = c("G2", "G1"),
-    movement_type = c("promotion", "transfer")
+    personnel_id = c("P1", "P2"),
+    from_group   = c("G1", "G2"),
+    to_group     = c("G2", "G1")
   )
   bm <- data.table::data.table(
-    from_group = "G1", to_group = "G2", avg_prob = 0.1, n_periods = 1L
+    from_group = "G1", to_group = "G2", movement_rate = 0.1, n_periods = 1L
   )
   demand <- data.table::data.table(
     from_group = "G1", to_group = "G2",
-    movement_type = "promotion",
-    adj_prob = 0.1, current_stock = 10L, n_movers = 1L
+    current_stock = 10L, n_movers = 1L
   )
   s <- compute_movement_summary(movers, demand, bm, 100L, 100L)
   expect_true(data.table::is.data.table(s))
-  expected_cols <- c("n_promotions", "n_transfers", "n_total_movers",
-                     "headcount_before", "headcount_after")
+  expected_cols <- c("n_movers", "headcount_before", "headcount_after")
   expect_true(all(expected_cols %in% names(s)))
 })
 
 test_that("compute_movement_summary handles empty movers", {
   empty_movers <- data.table::data.table(
-    personnel_id  = character(0),
-    from_group    = character(0),
-    to_group      = character(0),
-    movement_type = character(0)
+    personnel_id = character(0),
+    from_group   = character(0),
+    to_group     = character(0)
   )
   s <- compute_movement_summary(empty_movers, NULL, NULL, 50L, 50L)
-  expect_equal(s$n_total_movers, 0L)
+  expect_equal(s$n_movers, 0L)
   expect_equal(s$headcount_before, 50L)
 })
 
@@ -500,13 +494,10 @@ test_that("roll_snapshot_pairs: errors on non-data.table input", {
 # =============================================================================
 
 test_that("estimate_movement_baseline: Block A refactor produces identical output to pre-refactor", {
-  # Pre-refactor reference values computed from the same make_panel() fixture:
-  #   G1->G2: avg_prob = 0.5 (P1 moved in the only period)
-  #   G2->G1: avg_prob = 0.5 (P4 moved in the only period)
   bm <- estimate_movement_baseline(make_panel(), group_cols = "paygrade")
 
-  g1_to_g2 <- bm[from_group == "G1" & to_group == "G2", avg_prob]
-  g2_to_g1 <- bm[from_group == "G2" & to_group == "G1", avg_prob]
+  g1_to_g2 <- bm[from_group == "G1" & to_group == "G2", movement_rate]
+  g2_to_g1 <- bm[from_group == "G2" & to_group == "G1", movement_rate]
 
   expect_equal(g1_to_g2, 0.5, tolerance = 1e-10)
   expect_equal(g2_to_g1, 0.5, tolerance = 1e-10)
@@ -530,6 +521,6 @@ test_that("estimate_movement_baseline: 3-period panel averages correctly", {
 
   bm3 <- estimate_movement_baseline(panel3, group_cols = "paygrade")
   # G1→G2 occurred in both periods: period-1 prob = 0.5, period-2 prob = 0.5 → avg = 0.5
-  expect_equal(bm3[from_group == "G1" & to_group == "G2", avg_prob], 0.5, tolerance = 1e-10)
+  expect_equal(bm3[from_group == "G1" & to_group == "G2", movement_rate], 0.5, tolerance = 1e-10)
   expect_equal(bm3[from_group == "G1" & to_group == "G2", n_periods], 2L)
 })

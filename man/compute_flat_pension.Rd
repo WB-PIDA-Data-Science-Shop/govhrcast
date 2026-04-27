@@ -7,14 +7,16 @@
 compute_flat_pension(dt)
 }
 \arguments{
-\item{dt}{data.table. Retiree subset.  Must have column \code{flat_amount}.}
+\item{dt}{data.table.  Retiree subset (\code{pension_type == "flat"}).
+Required column: \code{flat_amount} (numeric, non-NA).}
 }
 \value{
-Numeric vector of pension amounts.
+Numeric vector (\code{dt$flat_amount}).  Returns \code{numeric(0)}
+when \code{nrow(dt) == 0L}.
 }
 \description{
-Assigns a uniform flat pension amount to all retirees.
-Reads \code{flat_amount} from the \code{dt$flat_amount} column (per-row
-values resolved upstream by \code{resolve_policy_table()}).
+Returns the per-row \code{flat_amount} column unchanged.  No computation is
+performed beyond a column existence check.  Used for universal social pension
+systems where every retiree receives the same nominal transfer.
 }
 \keyword{internal}

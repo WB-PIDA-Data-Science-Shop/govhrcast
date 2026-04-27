@@ -56,12 +56,14 @@ null_retirement_policy <- list(
 )
 
 null_movement_policy <- list(
-  group_cols           = "est_id",
-  salary_scale         = make_salary_scale(),
-  promotion_multiplier = 0,
-  transfer_multiplier  = 0,
-  promotion_strategy   = "tenure",
-  transfer_strategy    = "random"
+  group_cols   = "est_id",
+  policy_table = NULL,
+  defaults = list(
+    movement_rate      = 0,
+    movement_strategy  = "tenure",
+    active_types       = "permanent",
+    salary_update_rule = "scale"
+  )
 )
 
 null_hiring_policy <- list(
@@ -110,17 +112,15 @@ test_that("compute_exit_effect: respects custom salary_col name", {
 # compute_movement_effect()
 # ===========================================================================
 
-test_that("compute_movement_effect: returns zeros for NULL movers_dt", {
+test_that("compute_movement_effect: returns zero for NULL movers_dt", {
   after <- data.table::data.table(personnel_id = "P1", gross_salary_lcu = 12000)
   r <- compute_movement_effect(NULL, after)
-  expect_equal(r$promotion, 0)
-  expect_equal(r$transfer,  0)
+  expect_equal(r$movement, 0)
 })
 
-test_that("compute_movement_effect: returns zeros for zero-row movers_dt", {
+test_that("compute_movement_effect: returns zero for zero-row movers_dt", {
   movers <- data.table::data.table(
     personnel_id  = character(0),
-    movement_type = character(0),
     salary_before = numeric(0)
   )
   after <- data.table::data.table(
@@ -128,50 +128,42 @@ test_that("compute_movement_effect: returns zeros for zero-row movers_dt", {
     gross_salary_lcu = numeric(0)
   )
   r <- compute_movement_effect(movers, after)
-  expect_equal(r$promotion, 0)
-  expect_equal(r$transfer,  0)
+  expect_equal(r$movement, 0)
 })
 
-test_that("compute_movement_effect: returns zeros when salary_before missing", {
+test_that("compute_movement_effect: returns zero when salary_before missing", {
   movers <- data.table::data.table(
-    personnel_id  = "P1",
-    movement_type = "promotion"
+    personnel_id = "P1"
     # no salary_before column
   )
   after <- data.table::data.table(personnel_id = "P1", gross_salary_lcu = 12000)
   r <- compute_movement_effect(movers, after)
-  expect_equal(r$promotion, 0)
-  expect_equal(r$transfer,  0)
+  expect_equal(r$movement, 0)
 })
 
-test_that("compute_movement_effect: correct promotion diff", {
+test_that("compute_movement_effect: correct movement diff (upward move)", {
   movers <- data.table::data.table(
     personnel_id  = "P1",
-    movement_type = "promotion",
     salary_before = 10000
   )
   after <- data.table::data.table(personnel_id = "P1", gross_salary_lcu = 12000)
   r <- compute_movement_effect(movers, after)
-  expect_equal(r$promotion, 2000)
-  expect_equal(r$transfer,  0)
+  expect_equal(r$movement, 2000)
 })
 
-test_that("compute_movement_effect: correct transfer diff", {
+test_that("compute_movement_effect: correct movement diff (lateral move)", {
   movers <- data.table::data.table(
     personnel_id  = "P1",
-    movement_type = "transfer",
     salary_before = 12000
   )
   after <- data.table::data.table(personnel_id = "P1", gross_salary_lcu = 11000)
   r <- compute_movement_effect(movers, after)
-  expect_equal(r$promotion, 0)
-  expect_equal(r$transfer,  -1000)
+  expect_equal(r$movement, -1000)
 })
 
-test_that("compute_movement_effect: splits promotion and transfer effects", {
+test_that("compute_movement_effect: sums total movement effect across all movers", {
   movers <- data.table::data.table(
     personnel_id  = c("P1", "P2"),
-    movement_type = c("promotion", "transfer"),
     salary_before = c(10000, 12000)
   )
   after <- data.table::data.table(
@@ -179,8 +171,8 @@ test_that("compute_movement_effect: splits promotion and transfer effects", {
     gross_salary_lcu = c(13000, 11500)
   )
   r <- compute_movement_effect(movers, after)
-  expect_equal(r$promotion, 3000)
-  expect_equal(r$transfer,  -500)
+  # P1: +3000, P2: -500 => total = 2500
+  expect_equal(r$movement, 2500)
 })
 
 

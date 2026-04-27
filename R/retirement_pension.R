@@ -22,21 +22,39 @@ NULL
 #' Compute Pension Amounts
 #'
 #' @description
-#' Main dispatcher function that routes pension calculation to the appropriate
-#' method based on the \code{pension_type} column in \code{retirees_dt}.
-#' Iterates over each unique pension type present and accumulates results,
-#' enabling mixed pension types within a single retiree cohort.
+#' Dispatcher that routes each row in \code{retirees_dt} to the appropriate
+#' pension formula (\code{"db"}, \code{"dc"}, \code{"flat"}, or
+#' \code{"hybrid"}) based on the per-row \code{pension_type} column.  Iterates
+#' over each unique type present in the cohort, computes pensions for that
+#' subset, and accumulates results into a single numeric vector aligned with
+#' \code{retirees_dt}.
 #'
-#' All pension parameters (\code{accrual_rate}, \code{ref_wage_col},
-#' \code{max_years}, \code{replacement_cap}, \code{balance_col},
-#' \code{annuity_factor}, \code{flat_amount}, etc.) are expected to be
-#' columns on \code{retirees_dt} — resolved upstream by
-#' \code{resolve_policy_table()}.
+#' @param retirees_dt data.table.  Enriched retiree table produced by the
+#'   pension-parameter resolution stage of \code{\link{simulate_retirement}}.
+#'   Required columns (all stamped as per-row by
+#'   \code{\link{resolve_policy_table}}):
+#'   \describe{
+#'     \item{\code{pension_type}}{Character.  One of \code{"db"},
+#'       \code{"dc"}, \code{"flat"}, \code{"hybrid"}.}
+#'     \item{\code{accrual_rate}}{Numeric. DB accrual rate (required for DB
+#'       and hybrid).}
+#'     \item{\code{ref_wage_col}}{Character column-pointer naming the wage
+#'       column (required for DB and hybrid).}
+#'     \item{\code{tenure_years}}{Numeric. Years of service (DB and hybrid).}
+#'     \item{\code{max_years}}{Numeric. Service cap; \code{NA} = uncapped
+#'       (DB and hybrid).}
+#'     \item{\code{replacement_cap}}{Numeric. Replacement rate ceiling;
+#'       \code{NA} = uncapped (DB and hybrid).}
+#'     \item{\code{balance_col}}{Character column-pointer naming the DC
+#'       account balance (DC and hybrid).}
+#'     \item{\code{annuity_factor}}{Numeric. DC annuity divisor (DC and
+#'       hybrid).}
+#'     \item{\code{flat_amount}}{Numeric. Uniform pension amount (flat only).}
+#'   }
 #'
-#' @param retirees_dt data.table. Retiree data including a \code{pension_type}
-#'   column and all relevant pension parameter columns.
-#'
-#' @return Numeric vector of pension amounts (length \code{nrow(retirees_dt)}).
+#' @return Numeric vector of length \code{nrow(retirees_dt)} giving the
+#'   periodic pension amount for each retiree.  Order matches the row order
+#'   of \code{retirees_dt}.
 #' @keywords internal
 compute_pension <- function(retirees_dt) {
 
@@ -62,22 +80,32 @@ compute_pension <- function(retirees_dt) {
 #' Compute Defined-Benefit (DB) Pension
 #'
 #' @description
-#' Calculates pension based on accrual rate, years of service, and reference
-#' wage.  All parameters are read from columns on \code{dt}:
+#' Computes periodic pension entitlement under a final-salary defined-benefit
+#' scheme.  All parameters are read from per-row columns on \code{dt},
+#' pre-resolved by \code{\link{resolve_policy_table}}.
+#'
+#' @param dt data.table.  Retiree subset (\code{pension_type == "db"}).
+#'   Required columns: \code{accrual_rate} (numeric), \code{ref_wage_col}
+#'   (character column-pointer), \code{tenure_years} (numeric).  Optional:
+#'   \code{max_years} (numeric or \code{NA}), \code{replacement_cap}
+#'   (numeric or \code{NA}).
+#'
+#' @details
+#' \strong{Formula:}
+#' \deqn{P_i = \min(\alpha_i \cdot \min(s_i, S^{\max}) \cdot w_i,\; c_i \cdot w_i)}
+#' where:
 #' \itemize{
-#'   \item \code{accrual_rate}: Annual accrual rate (e.g. 0.02).
-#'   \item \code{ref_wage_col}: Character column whose value names the wage
-#'     column to use (e.g. \code{"gross_salary_lcu"}).
-#'   \item \code{max_years}: Service cap (optional; \code{NA} = no cap).
-#'   \item \code{replacement_cap}: Max replacement rate (optional; \code{NA} = no cap).
+#'   \item \eqn{\alpha_i} = \code{accrual_rate} (e.g. 0.02 = 2\% per year),
+#'   \item \eqn{s_i} = \code{tenure_years},
+#'   \item \eqn{S^{\max}} = \code{max_years} (\code{NA} = uncapped),
+#'   \item \eqn{w_i} = wage from the column named by \code{ref_wage_col},
+#'   \item \eqn{c_i} = \code{replacement_cap} (\code{NA} = uncapped).
 #' }
-#' Formula: \code{pension = min(accrual_rate * years * wage, replacement_cap * wage)}
+#' \code{pmax(pension, 0)} is applied to prevent negative pensions from
+#' non-positive accrual rates or wages.
 #'
-#' @param dt data.table. Retiree subset for DB pension calculation.
-#'   Must have columns: \code{accrual_rate}, \code{ref_wage_col},
-#'   \code{tenure_years}.  Optional: \code{max_years}, \code{replacement_cap}.
-#'
-#' @return Numeric vector of pension amounts.
+#' @return Numeric vector of DB pension amounts (length \code{nrow(dt)}).
+#'   Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 #' @keywords internal
 compute_db_pension <- function(dt) {
 
@@ -122,20 +150,26 @@ compute_db_pension <- function(dt) {
 #' Compute Defined-Contribution (DC) Pension
 #'
 #' @description
-#' Calculates pension by converting accumulated balance to an annuity.
-#' Supports both standard DC and notional DC (NDC) systems.
-#' Formula: \code{pension = balance / annuity_factor}
+#' Converts an accumulated DC account balance to a periodic annuity.  Supports
+#' notional DC (NDC) systems by optionally applying a pre-retirement interest
+#' credit to the balance.  All parameters are read from per-row columns on
+#' \code{dt}, pre-resolved by \code{\link{resolve_policy_table}}.
 #'
-#' All parameters are read from columns on \code{dt}:
-#' \itemize{
-#'   \item \code{balance_col}: Character column naming the account balance column.
-#'   \item \code{annuity_factor}: Conversion divisor.
-#'   \item \code{notional_rate}: Optional NDC interest rate (column or scalar).
-#' }
+#' @param dt data.table.  Retiree subset (\code{pension_type == "dc"}).
+#'   Required columns: \code{balance_col} (character column-pointer),
+#'   \code{annuity_factor} (numeric).  Optional: \code{notional_rate}
+#'   (numeric; NDC interest credit applied to balance before annuitisation).
 #'
-#' @param dt data.table. Retiree subset for DC pension calculation.
+#' @details
+#' \strong{Formula:}
+#' \deqn{P_i = \frac{B_i \cdot (1 + r_i)}{A_i}}
+#' where \eqn{B_i} = balance from the column named by \code{balance_col},
+#' \eqn{r_i} = \code{notional_rate} (0 when absent), and \eqn{A_i} =
+#' \code{annuity_factor}.  \code{pmax(pension, 0)} prevents negative pensions
+#' from negative balances.
 #'
-#' @return Numeric vector of pension amounts.
+#' @return Numeric vector of DC pension amounts (length \code{nrow(dt)}).
+#'   Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 #' @keywords internal
 compute_dc_pension <- function(dt) {
 
@@ -168,13 +202,15 @@ compute_dc_pension <- function(dt) {
 #' Compute Flat Pension
 #'
 #' @description
-#' Assigns a uniform flat pension amount to all retirees.
-#' Reads \code{flat_amount} from the \code{dt$flat_amount} column (per-row
-#' values resolved upstream by \code{resolve_policy_table()}).
+#' Returns the per-row \code{flat_amount} column unchanged.  No computation is
+#' performed beyond a column existence check.  Used for universal social pension
+#' systems where every retiree receives the same nominal transfer.
 #'
-#' @param dt data.table. Retiree subset.  Must have column \code{flat_amount}.
+#' @param dt data.table.  Retiree subset (\code{pension_type == "flat"}).
+#'   Required column: \code{flat_amount} (numeric, non-NA).
 #'
-#' @return Numeric vector of pension amounts.
+#' @return Numeric vector (\code{dt$flat_amount}).  Returns \code{numeric(0)}
+#'   when \code{nrow(dt) == 0L}.
 #' @keywords internal
 compute_flat_pension <- function(dt) {
 
@@ -190,15 +226,19 @@ compute_flat_pension <- function(dt) {
 #' Compute Hybrid Pension
 #'
 #' @description
-#' Combines DB and DC pension components into a single pension.
-#' Formula: \code{pension = DB_part + DC_part}.
+#' Adds a DB pillar and a DC pillar to produce a hybrid pension entitlement.
+#' Delegates entirely to \code{\link{compute_db_pension}} and
+#' \code{\link{compute_dc_pension}}; \code{dt} must satisfy the column
+#' requirements of both sub-functions.
 #'
-#' Expects \code{dt} to have all columns required by both
-#' \code{compute_db_pension()} and \code{compute_dc_pension()}.
+#' \strong{Formula:} \eqn{P_i = P^{\text{DB}}_i + P^{\text{DC}}_i}
 #'
-#' @param dt data.table. Retiree subset with all DB + DC parameter columns.
+#' @param dt data.table.  Retiree subset (\code{pension_type == "hybrid"}).
+#'   Must contain all columns required by \code{\link{compute_db_pension}} and
+#'   \code{\link{compute_dc_pension}}.
 #'
-#' @return Numeric vector of pension amounts.
+#' @return Numeric vector of hybrid pension amounts (length \code{nrow(dt)}).
+#'   Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 #' @keywords internal
 compute_hybrid_pension <- function(dt) {
   compute_db_pension(dt) + compute_dc_pension(dt)

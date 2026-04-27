@@ -13,21 +13,40 @@ get_primary_contract(
 )
 }
 \arguments{
-\item{contract_dt}{data.table. Contract data (should be pre-filtered for active contracts)}
+\item{contract_dt}{data.table.  Contract register, pre-filtered to the
+relevant subset (e.g. active contracts only).  Required columns:
+\code{personnel_id_col}, \code{contract_id_col}, \code{start_date_col},
+\code{salary_col}.}
 
-\item{personnel_id_col}{Character. Name of personnel ID column (default: "personnel_id")}
+\item{personnel_id_col}{Character.  Personnel identifier column.
+(default: \code{"personnel_id"}).}
 
-\item{contract_id_col}{Character. Name of contract ID column (default: "contract_id")}
+\item{contract_id_col}{Character.  Contract identifier column used as the
+deterministic tie-break (lowest value wins).
+(default: \code{"contract_id"}).}
 
-\item{start_date_col}{Character. Name of start date column (default: "start_date")}
+\item{start_date_col}{Character.  Contract start date column.
+(default: \code{"start_date"}).}
 
-\item{salary_col}{Character. Name of salary column for prioritization (default: "gross_salary_lcu")}
+\item{salary_col}{Character.  Salary column for the second priority level
+(highest salary wins when start dates are tied).
+(default: \code{"gross_salary_lcu"}).}
 }
 \value{
-data.table with one row per personnel (their primary contract)
+data.table.  One row per unique \code{personnel_id_col} value,
+containing all original columns of the highest-priority contract.
 }
 \description{
-For personnel with multiple active contracts, selects the primary contract
-based on priority: (1) latest start_date, (2) highest salary, (3) lowest contract_id.
+Deduplicates \code{contract_dt} to one row per person by applying a
+three-level priority rule: (1) latest \code{start_date}, (2) highest
+salary, (3) lowest \code{contract_id} (tie-break for determinism).
+Typically called on the output of \code{\link{get_active_contracts}} to
+obtain a unique primary contract per eligible employee.
+}
+\details{
+Sorts \code{contract_dt} in place (\code{data.table::setorderv}) before
+taking \code{.SD[1]} per group.  The caller's table is reordered as a
+side-effect; pass \code{data.table::copy(contract_dt)} if the original
+row order must be preserved.
 }
 \keyword{internal}

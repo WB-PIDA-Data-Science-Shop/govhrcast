@@ -19,33 +19,67 @@ prepare_retiree_data(
 )
 }
 \arguments{
-\item{eligibility_dt}{data.table. Output from identify_retirees()}
+\item{eligibility_dt}{data.table.  Output of \code{\link{identify_retirees}}
+with columns \code{personnel_id}, \code{retire}, \code{age},
+\code{tenure_years}.  Only rows where \code{retire == 1} are processed;
+the rest are ignored.}
 
-\item{contract_dt}{data.table. Contract data}
+\item{contract_dt}{data.table.  Full contract register (not pre-filtered).
+Active contracts are extracted internally via
+\code{\link{get_active_contracts}}.}
 
-\item{personnel_dt}{data.table. Personnel data}
+\item{personnel_dt}{data.table.  Personnel register.  Used to compute
+missing age values when \code{anyNA(eligibility_dt$age)} is \code{TRUE}.}
 
-\item{ref_date}{Date. Reference date}
+\item{ref_date}{Date.  Reference date passed to age/tenure computations
+when filling \code{NA} values.}
 
-\item{personnel_id_col}{Character. Name of personnel ID column (default: "personnel_id")}
+\item{personnel_id_col}{Character.  Personnel identifier column.
+(default: \code{"personnel_id"}).}
 
-\item{birth_date_col}{Character. Name of birth date column (default: "birth_date")}
+\item{birth_date_col}{Character.  Date of birth column in
+\code{personnel_dt}.  (default: \code{"birth_date"}).}
 
-\item{contract_id_col}{Character. Name of contract ID column (default: "contract_id")}
+\item{contract_id_col}{Character.  Contract identifier column.
+(default: \code{"contract_id"}).}
 
-\item{start_date_col}{Character. Name of start date column (default: "start_date")}
+\item{start_date_col}{Character.  Contract start date column.
+(default: \code{"start_date"}).}
 
-\item{end_date_col}{Character. Name of end date column (default: "end_date")}
+\item{end_date_col}{Character.  Contract end date column.
+(default: \code{"end_date"}).}
 
-\item{salary_col}{Character. Name of salary column (default: "gross_salary_lcu")}
+\item{salary_col}{Character.  Gross salary column used as the pension wage
+base unless overridden by \code{policy_params$defaults$ref_wage_col}.
+(default: \code{"gross_salary_lcu"}).}
 
-\item{contract_type_col}{Character. Name of contract type column (default: "contract_type_code")}
+\item{contract_type_col}{Character.  Contract classification column.
+(default: \code{"contract_type_code"}).}
 }
 \value{
-data.table with retiree information ready for pension calculation
+data.table.  One row per retiree with all primary contract columns
+(including \code{salary_col}) plus \code{age} and \code{tenure_years}.
+Returns an empty \code{data.table()} (zero rows, no columns) when
+\code{eligibility_dt} contains no retirees.
 }
 \description{
-Enriches retiree eligibility data with salary and contract information
-needed for pension calculations. Merges age/tenure with contract data.
+Enriches the eligibility table from \code{\link{identify_retirees}} with
+salary and contract information required for pension formula evaluation.
+Fills any \code{NA} age or tenure values left by the eligibility stage
+(e.g. when \code{eligibility_type = "tenure_only"} left \code{age} as
+\code{NA}) and selects one primary contract per retiree via
+\code{\link{get_primary_contract}}.
+}
+\details{
+\strong{Fill logic for missing metrics:}
+\itemize{
+\item If \code{eligibility_type = "tenure_only"}, \code{age} was not
+computed upstream.  \code{anyNA(age)} triggers a call to
+\code{\link{compute_age}} to fill the gaps — needed by DB pension
+formulas that use age.
+\item Analogously, \code{anyNA(tenure_years)} triggers
+\code{\link{compute_tenure}}.
+\item Only missing values are filled; pre-computed values are untouched.
+}
 }
 \keyword{internal}

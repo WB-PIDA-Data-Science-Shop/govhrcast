@@ -21,13 +21,17 @@ utils::globalVariables(c(
 #' Calculate Years Between Two Dates
 #'
 #' @description
-#' Vectorized function to compute time elapsed in years between two date vectors.
-#' Uses 365.25 days per year to account for leap years.
+#' Vectorised computation of elapsed time in years between two \code{Date}
+#' vectors.  Uses a 365.25-day year to account for leap years consistently
+#' across all age and tenure calculations in the package.
 #'
-#' @param start_date Date vector. Start dates
-#' @param end_date Date vector. End dates
+#' @param start_date Date vector.  Start dates.  Recycled to length of
+#'   \code{end_date} by standard R rules.
+#' @param end_date Date vector.  End dates.  Must be coercible to \code{Date}
+#'   via \code{as.numeric(difftime(..., units = "days"))}.
 #'
-#' @return Numeric vector of years elapsed
+#' @return Numeric vector (length = \code{max(length(start_date), length(end_date))})
+#'   of elapsed years.  Negative if \code{end_date < start_date}.
 #' @keywords internal
 #'
 #' @examples
@@ -46,14 +50,25 @@ compute_years <- function(start_date, end_date) {
 #' Calculate Age from Birth Date
 #'
 #' @description
-#' Computes age in years for each personnel at a reference date.
+#' Computes age in fractional years at a reference date for every person in
+#' \code{personnel_dt}.  Thin wrapper around \code{\link{compute_years}}
+#' that extracts the birth date column and returns a tidy two-column
+#' \code{data.table} ready for joining onto eligibility tables.
 #'
-#' @param personnel_dt data.table. Personnel data
-#' @param ref_date Date. Reference date for age calculation
-#' @param birth_date_col Character. Name of birth date column (default: "birth_date")
-#' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
+#' @param personnel_dt data.table.  Personnel register.  Required columns:
+#'   \code{personnel_id_col}, \code{birth_date_col}.
+#' @param ref_date Date.  The reference date used as the \emph{end} date for
+#'   the age interval.  Typically the simulation period close date.
+#' @param birth_date_col Character.  Date of birth column in
+#'   \code{personnel_dt}.  (default: \code{"birth_date"}).
+#' @param personnel_id_col Character.  Unique personnel identifier column.
+#'   (default: \code{"personnel_id"}).
 #'
-#' @return data.table with personnel_id and age columns
+#' @return data.table (one row per person) with columns:
+#'   \describe{
+#'     \item{\code{personnel_id}}{Personnel identifier.}
+#'     \item{\code{age}}{Numeric.  Age in fractional years at \code{ref_date}.}
+#'   }
 #' @keywords internal
 #'
 #' @examples
@@ -196,16 +211,30 @@ compute_tenure <- function(contract_dt,
 #' Get Active Contracts at Reference Date
 #'
 #' @description
-#' Filters contracts that are active at a given reference date.
-#' A contract is active if it has started and has not ended before ref_date.
+#' Returns the strictly active workforce subset of \code{contract_dt}:
+#' contracts that have started, have not yet ended, and are not classified as
+#' \code{"inactive"} or \code{"pensioner"}.
 #'
-#' @param contract_dt data.table. Contract data
-#' @param ref_date Date. Reference date
-#' @param start_date_col Character. Name of start date column (default: "start_date")
-#' @param end_date_col Character. Name of end date column (default: "end_date")
-#' @param contract_type_col Character. Name of contract type column (default: "contract_type_code")
+#' Use this filter for headcount, attrition, hiring demand, and retirement
+#' eligibility computations.  For wage bill computations use
+#' \code{\link{get_salary_bearing_contracts}} instead, which retains
+#' inactive-but-paid staff.
 #'
-#' @return data.table of active contracts
+#' @param contract_dt data.table.  Contract register.  Required columns:
+#'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col}.
+#' @param ref_date Date.  The snapshot date.  A contract is included if
+#'   \code{start_date <= ref_date} and
+#'   (\code{is.na(end_date)} or \code{end_date >= ref_date}).
+#' @param start_date_col Character.  Contract start date column.
+#'   (default: \code{"start_date"}).
+#' @param end_date_col Character.  Contract end date column; \code{NA} for
+#'   open-ended contracts.  (default: \code{"end_date"}).
+#' @param contract_type_col Character.  Contract classification column.
+#'   Contracts with type \code{"inactive"} or \code{"pensioner"} are
+#'   excluded.  (default: \code{"contract_type_code"}).
+#'
+#' @return data.table.  Subset of \code{contract_dt} containing only active
+#'   contracts at \code{ref_date}.  All original columns are preserved.
 #' @keywords internal
 get_active_contracts <- function(contract_dt,
                                  ref_date,
@@ -262,16 +291,35 @@ get_salary_bearing_contracts <- function(contract_dt,
 #' Get Primary Contract for Each Personnel
 #'
 #' @description
-#' For personnel with multiple active contracts, selects the primary contract
-#' based on priority: (1) latest start_date, (2) highest salary, (3) lowest contract_id.
+#' Deduplicates \code{contract_dt} to one row per person by applying a
+#' three-level priority rule: (1) latest \code{start_date}, (2) highest
+#' salary, (3) lowest \code{contract_id} (tie-break for determinism).
+#' Typically called on the output of \code{\link{get_active_contracts}} to
+#' obtain a unique primary contract per eligible employee.
 #'
-#' @param contract_dt data.table. Contract data (should be pre-filtered for active contracts)
-#' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
-#' @param contract_id_col Character. Name of contract ID column (default: "contract_id")
-#' @param start_date_col Character. Name of start date column (default: "start_date")
-#' @param salary_col Character. Name of salary column for prioritization (default: "gross_salary_lcu")
+#' @param contract_dt data.table.  Contract register, pre-filtered to the
+#'   relevant subset (e.g. active contracts only).  Required columns:
+#'   \code{personnel_id_col}, \code{contract_id_col}, \code{start_date_col},
+#'   \code{salary_col}.
+#' @param personnel_id_col Character.  Personnel identifier column.
+#'   (default: \code{"personnel_id"}).
+#' @param contract_id_col Character.  Contract identifier column used as the
+#'   deterministic tie-break (lowest value wins).
+#'   (default: \code{"contract_id"}).
+#' @param start_date_col Character.  Contract start date column.
+#'   (default: \code{"start_date"}).
+#' @param salary_col Character.  Salary column for the second priority level
+#'   (highest salary wins when start dates are tied).
+#'   (default: \code{"gross_salary_lcu"}).
 #'
-#' @return data.table with one row per personnel (their primary contract)
+#' @details
+#' Sorts \code{contract_dt} in place (\code{data.table::setorderv}) before
+#' taking \code{.SD[1]} per group.  The caller's table is reordered as a
+#' side-effect; pass \code{data.table::copy(contract_dt)} if the original
+#' row order must be preserved.
+#'
+#' @return data.table.  One row per unique \code{personnel_id_col} value,
+#'   containing all original columns of the highest-priority contract.
 #' @keywords internal
 get_primary_contract <- function(contract_dt,
                                  personnel_id_col = "personnel_id",

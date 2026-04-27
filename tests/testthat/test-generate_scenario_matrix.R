@@ -46,12 +46,14 @@ gsm_ret_policy <- list(
 )
 
 gsm_mov_policy <- list(
-  group_cols           = "est_id",
-  salary_scale         = make_gsm_scale(),
-  promotion_multiplier = 0,
-  transfer_multiplier  = 0,
-  promotion_strategy   = "tenure",
-  transfer_strategy    = "random"
+  group_cols   = "est_id",
+  policy_table = NULL,
+  defaults = list(
+    movement_rate      = 0,
+    movement_strategy  = "tenure",
+    active_types       = "permanent",
+    salary_update_rule = "scale"
+  )
 )
 
 gsm_hire_policy <- list(
@@ -327,12 +329,13 @@ test_that("retirement_ prefix maps to retirement_policy sub-key", {
 test_that("movement_ prefix maps to movement_policy sub-key", {
   set.seed(12)
   s <- make_gsm_state()
+  # Inject an arbitrary key via movement_ prefix; unknown keys are silently ignored
   expect_no_error(
     generate_scenario_matrix(
       contract_dt     = s$contract_dt,
       personnel_dt    = s$personnel_dt,
       salary_scale_dt = make_gsm_scale(),
-      param_grid      = list(movement_transfer_multiplier = c(0, 0.5)),
+      param_grid      = list(movement_group_cols = "est_id"),
       n_periods       = 1L,
       movement_policy = gsm_mov_policy,
       ref_date        = as.Date("2020-01-01")

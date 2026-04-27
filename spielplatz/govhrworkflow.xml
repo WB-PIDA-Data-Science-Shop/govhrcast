@@ -1,0 +1,73 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="GovHR Workflow">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Nodes -->
+        <mxCell id="start" value="Policy Dialogue &amp; Problem Scoping&#xa;(WB Team + Government)&#xa;• App demos&#xa;• Define workplan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="220" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="datareq" value="Data Request&#xa;Government provides&#xa;contract-level data" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;" vertex="1" parent="1">
+          <mxGeometry x="300" y="100" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="clean" value="Data Cleaning &amp; Harmonization&#xa;(govhr package)&#xa;• Standard dictionary&#xa;• Structured modules" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;" vertex="1" parent="1">
+          <mxGeometry x="540" y="100" width="240" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="qa" value="Quality Assurance&#xa;• Validate rules (validate R pkg)&#xa;• Detect inconsistencies&#xa;• Check volatility" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;" vertex="1" parent="1">
+          <mxGeometry x="820" y="100" width="220" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="qcapp" value="QC App Deployment&#xa;govhrapp::run_govhrqc()&#xa;• Shiny app&#xa;• Upload harmonized data" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="100" width="240" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="analytics" value="Analytics Dashboard&#xa;govhrapp::run_govhranalytics()&#xa;• Indicators&#xa;• Charts&#xa;• Automated outputs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;" vertex="1" parent="1">
+          <mxGeometry x="540" y="300" width="240" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="forecast" value="Forecasting Engine&#xa;(govhrcast)&#xa;• Dynamic microsimulation&#xa;• Wage bill projection&#xa;• Workforce planning" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;" vertex="1" parent="1">
+          <mxGeometry x="820" y="300" width="240" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="finalapp" value="Simulation Dashboard&#xa;govhrapp::generate_hrcastapp()&#xa;• User inputs&#xa;• Runs on Posit Connect&#xa;• Outputs results" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="300" width="260" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows -->
+        <mxCell id="e1" edge="1" parent="1" source="start" target="datareq">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e2" edge="1" parent="1" source="datareq" target="clean">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e3" edge="1" parent="1" source="clean" target="qa">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e4" edge="1" parent="1" source="qa" target="qcapp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e5" edge="1" parent="1" source="qcapp" target="analytics">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e6" edge="1" parent="1" source="analytics" target="forecast">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e7" edge="1" parent="1" source="forecast" target="finalapp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

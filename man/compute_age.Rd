@@ -12,19 +12,30 @@ compute_age(
 )
 }
 \arguments{
-\item{personnel_dt}{data.table. Personnel data}
+\item{personnel_dt}{data.table.  Personnel register.  Required columns:
+\code{personnel_id_col}, \code{birth_date_col}.}
 
-\item{ref_date}{Date. Reference date for age calculation}
+\item{ref_date}{Date.  The reference date used as the \emph{end} date for
+the age interval.  Typically the simulation period close date.}
 
-\item{birth_date_col}{Character. Name of birth date column (default: "birth_date")}
+\item{birth_date_col}{Character.  Date of birth column in
+\code{personnel_dt}.  (default: \code{"birth_date"}).}
 
-\item{personnel_id_col}{Character. Name of personnel ID column (default: "personnel_id")}
+\item{personnel_id_col}{Character.  Unique personnel identifier column.
+(default: \code{"personnel_id"}).}
 }
 \value{
-data.table with personnel_id and age columns
+data.table (one row per person) with columns:
+\describe{
+\item{\code{personnel_id}}{Personnel identifier.}
+\item{\code{age}}{Numeric.  Age in fractional years at \code{ref_date}.}
+}
 }
 \description{
-Computes age in years for each personnel at a reference date.
+Computes age in fractional years at a reference date for every person in
+\code{personnel_dt}.  Thin wrapper around \code{\link{compute_years}}
+that extracts the birth date column and returns a tidy two-column
+\code{data.table} ready for joining onto eligibility tables.
 }
 \examples{
 \dontrun{

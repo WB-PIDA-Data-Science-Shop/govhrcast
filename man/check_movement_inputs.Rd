@@ -7,6 +7,7 @@
 check_movement_inputs(
   contract_dt,
   personnel_dt,
+  salary_scale_dt,
   policy_params,
   ref_date,
   personnel_id_col = "personnel_id",

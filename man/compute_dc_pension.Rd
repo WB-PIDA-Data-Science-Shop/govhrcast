@@ -7,21 +7,27 @@
 compute_dc_pension(dt)
 }
 \arguments{
-\item{dt}{data.table. Retiree subset for DC pension calculation.}
+\item{dt}{data.table.  Retiree subset (\code{pension_type == "dc"}).
+Required columns: \code{balance_col} (character column-pointer),
+\code{annuity_factor} (numeric).  Optional: \code{notional_rate}
+(numeric; NDC interest credit applied to balance before annuitisation).}
 }
 \value{
-Numeric vector of pension amounts.
+Numeric vector of DC pension amounts (length \code{nrow(dt)}).
+Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 }
 \description{
-Calculates pension by converting accumulated balance to an annuity.
-Supports both standard DC and notional DC (NDC) systems.
-Formula: \code{pension = balance / annuity_factor}
-
-All parameters are read from columns on \code{dt}:
-\itemize{
-\item \code{balance_col}: Character column naming the account balance column.
-\item \code{annuity_factor}: Conversion divisor.
-\item \code{notional_rate}: Optional NDC interest rate (column or scalar).
+Converts an accumulated DC account balance to a periodic annuity.  Supports
+notional DC (NDC) systems by optionally applying a pre-retirement interest
+credit to the balance.  All parameters are read from per-row columns on
+\code{dt}, pre-resolved by \code{\link{resolve_policy_table}}.
 }
+\details{
+\strong{Formula:}
+\deqn{P_i = \frac{B_i \cdot (1 + r_i)}{A_i}}
+where \eqn{B_i} = balance from the column named by \code{balance_col},
+\eqn{r_i} = \code{notional_rate} (0 when absent), and \eqn{A_i} =
+\code{annuity_factor}.  \code{pmax(pension, 0)} prevents negative pensions
+from negative balances.
 }
 \keyword{internal}

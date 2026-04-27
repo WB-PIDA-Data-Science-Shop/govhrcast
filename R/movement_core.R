@@ -13,7 +13,8 @@ NULL
 
 # Suppress R CMD check NOTEs for data.table column names.
 utils::globalVariables(c(
-  "t0_date"  # estimate_movement_baseline: grouping column added by := then used in by=
+  "t0_date",      # estimate_movement_baseline: grouping column added by := then used in by=
+  "movement_rate" # compute_movement_demand: column used in := and by= expressions
 ))
 
 #' @name movement_core
@@ -301,17 +302,17 @@ estimate_movement_baseline <- function(contract_dt,
 
   if (nrow(all_periods) == 0) {
     return(data.table::data.table(
-      from_group = character(0),
-      to_group   = character(0),
-      avg_prob   = numeric(0),
-      n_periods  = integer(0)
+      from_group    = character(0),
+      to_group      = character(0),
+      movement_rate = numeric(0),
+      n_periods     = integer(0)
     ))
   }
 
   # Average probabilities across periods
   baseline_matrix <- all_periods[, .(
-    avg_prob  = mean(period_prob, na.rm = TRUE),
-    n_periods = data.table::uniqueN(period_key)
+    movement_rate = mean(period_prob, na.rm = TRUE),
+    n_periods     = data.table::uniqueN(period_key)
   ), by = .(from_group, to_group)]
 
   # Drop stay rows (from_group == to_group): we only want actual transitions
@@ -367,8 +368,7 @@ estimate_movement_baseline <- function(contract_dt,
 #'   \describe{
 #'     \item{from_group}{Character. Origin state}
 #'     \item{to_group}{Character. Destination state (different from from_group)}
-#'     \item{movement_type}{Character. "promotion" or "transfer"}
-#'     \item{adj_prob}{Numeric. Adjusted probability after multipliers and scrubbing}
+#'     \item{movement_rate}{Numeric. Transition probability (capped to respect outflow <= 1)}
 #'     \item{current_stock}{Integer. Population in from_group}
 #'     \item{n_movers}{Integer. Number of people to move (stochastic rounded)}
 #'   }
@@ -387,11 +387,8 @@ compute_movement_demand <- function(contract_dt,
 
   ref_date <- validate_date_format(ref_date, "ref_date")
 
-  group_cols          <- policy_params$group_cols
-  promotion_mult      <- if (!is.null(policy_params$promotion_multiplier))
-                           policy_params$promotion_multiplier else 1.0
-  transfer_mult       <- if (!is.null(policy_params$transfer_multiplier))
-                           policy_params$transfer_multiplier else 1.0
+  group_cols   <- policy_params$group_cols
+  active_types <- policy_params$defaults$active_types %||% "active"
 
   # ------------------------------------------------------------------
   # 1. Compute current stock per from_group
@@ -420,12 +417,11 @@ compute_movement_demand <- function(contract_dt,
 
   if (nrow(active_personnel) == 0) {
     return(data.table::data.table(
-      from_group     = character(0),
-      to_group       = character(0),
-      movement_type  = character(0),
-      adj_prob       = numeric(0),
-      current_stock  = integer(0),
-      n_movers       = integer(0)
+      from_group    = character(0),
+      to_group      = character(0),
+      movement_rate = numeric(0),
+      current_stock = integer(0),
+      n_movers      = integer(0)
     ))
   }
 
@@ -452,97 +448,45 @@ compute_movement_demand <- function(contract_dt,
 
   if (nrow(demand_dt) == 0) {
     return(data.table::data.table(
-      from_group     = character(0),
-      to_group       = character(0),
-      movement_type  = character(0),
-      adj_prob       = numeric(0),
-      current_stock  = integer(0),
-      n_movers       = integer(0)
+      from_group    = character(0),
+      to_group      = character(0),
+      movement_rate = numeric(0),
+      current_stock = integer(0),
+      n_movers      = integer(0)
     ))
   }
 
   # ------------------------------------------------------------------
-  # 4. Classify as promotion vs transfer
-  # A transition is a "promotion" if the to_group appears "higher" than
-  # from_group. We determine this heuristically: if the to_group and
-  # from_group share all BUT the last group_col component (i.e., same org,
-  # different grade) it could be a promotion OR a transfer within org.
-  # We classify: if the paygrade component changes -> promotion candidate;
-  # if org changes (and paygrade same or absent) -> transfer.
-  # For simplicity: any within-org grade change = promotion;
-  # cross-org movement (first group col changes) = transfer.
-  # ------------------------------------------------------------------
-  if (length(group_cols) >= 2) {
-    # Split from_group and to_group back into components
-    demand_dt[, c(paste0(".from_", group_cols)) :=
-                data.table::tstrsplit(from_group, split = "||", fixed = TRUE)]
-    demand_dt[, c(paste0(".to_", group_cols)) :=
-                data.table::tstrsplit(to_group, split = "||", fixed = TRUE)]
-
-    # First component = org (est_id), last component = grade (paygrade)
-    first_col    <- group_cols[1]
-    last_col     <- group_cols[length(group_cols)]
-    from_first   <- paste0(".from_", first_col)
-    to_first     <- paste0(".to_", first_col)
-    from_last    <- paste0(".from_", last_col)
-    to_last      <- paste0(".to_", last_col)
-
-    demand_dt[, movement_type := data.table::fifelse(
-      get(from_first) == get(to_first),
-      "promotion",    # same org, different state -> promotion
-      "transfer"      # different org -> transfer
-    )]
-
-    # Clean up temporary columns
-    demand_dt[, c(paste0(".from_", group_cols), paste0(".to_", group_cols)) := NULL]
-
-  } else {
-    # Single group_col: all movements are transfers (no grade dimension present,
-    # so every state change is an org-level transfer)
-    demand_dt[, movement_type := "transfer"]
-  }
-
-  # ------------------------------------------------------------------
-  # 5. Apply policy multipliers
-  # ------------------------------------------------------------------
-  demand_dt[movement_type == "promotion", adj_prob := avg_prob * promotion_mult]
-  demand_dt[movement_type == "transfer",  adj_prob := avg_prob * transfer_mult]
-
-  # ------------------------------------------------------------------
-  # 6. NA scrubbing: remove to_group destinations not in salary_scale
-  #    Redistribute that probability to "no movement" (i.e., just remove
-  #    the row — the probability simply adds back to staying)
+  # 4. Scrub destinations not in salary_scale_dt
   # ------------------------------------------------------------------
   n_before_scrub <- nrow(demand_dt)
   demand_dt <- demand_dt[to_group %in% valid_to_groups]
   n_scrubbed <- n_before_scrub - nrow(demand_dt)
   if (n_scrubbed > 0) {
-    message("Scrubbed ", n_scrubbed, " transition(s) where to_group not found in salary_scale.")
+    message("Scrubbed ", n_scrubbed, " transition(s) where to_group not found in salary_scale_dt.")
   }
 
   if (nrow(demand_dt) == 0) {
     return(data.table::data.table(
-      from_group     = character(0),
-      to_group       = character(0),
-      movement_type  = character(0),
-      adj_prob       = numeric(0),
-      current_stock  = integer(0),
-      n_movers       = integer(0)
+      from_group    = character(0),
+      to_group      = character(0),
+      movement_rate = numeric(0),
+      current_stock = integer(0),
+      n_movers      = integer(0)
     ))
   }
 
   # ------------------------------------------------------------------
-  # 7. Cap probabilities: total outflow per from_group must be <= 1.0
-  #    Scale back proportionally if exceeded
+  # 5. Cap probabilities: total outflow per from_group must be <= 1.0
   # ------------------------------------------------------------------
-  demand_dt[, total_outflow := sum(adj_prob), by = from_group]
-  demand_dt[total_outflow > 1.0, adj_prob := adj_prob / total_outflow]
+  demand_dt[, total_outflow := sum(movement_rate), by = from_group]
+  demand_dt[total_outflow > 1.0, movement_rate := movement_rate / total_outflow]
   demand_dt[, total_outflow := NULL]
 
   # ------------------------------------------------------------------
-  # 8. Stochastic rounding: n_movers = floor(N) + Bernoulli(N - floor(N))
+  # 6. Stochastic rounding: n_movers = floor(N) + Bernoulli(N - floor(N))
   # ------------------------------------------------------------------
-  demand_dt[, expected_n := current_stock * adj_prob]
+  demand_dt[, expected_n := current_stock * movement_rate]
   demand_dt[, n_movers := {
     floor_n    <- floor(expected_n)
     fractional <- expected_n - floor_n
@@ -553,10 +497,9 @@ compute_movement_demand <- function(contract_dt,
   demand_dt <- demand_dt[n_movers > 0]
 
   # ------------------------------------------------------------------
-  # 9. Return clean output
+  # 7. Return clean output
   # ------------------------------------------------------------------
-  result <- demand_dt[, .(from_group, to_group, movement_type, adj_prob,
-                          current_stock, n_movers)]
+  result <- demand_dt[, .(from_group, to_group, movement_rate, current_stock, n_movers)]
   data.table::setkeyv(result, c("from_group", "to_group"))
   return(result)
 }
@@ -583,46 +526,132 @@ compute_movement_summary <- function(movers_dt,
                                      stock_before,
                                      stock_after) {
 
-  # Actual movements by type
-  if (!is.null(movers_dt) && nrow(movers_dt) > 0 && "movement_type" %in% names(movers_dt)) {
-    n_promotions <- movers_dt[movement_type == "promotion", .N]
-    n_transfers  <- movers_dt[movement_type == "transfer",  .N]
-  } else {
-    n_promotions <- 0L
-    n_transfers  <- 0L
-  }
-  n_total_movers <- n_promotions + n_transfers
+  n_movers <- if (!is.null(movers_dt) && nrow(movers_dt) > 0)
+    nrow(movers_dt) else 0L
 
-  # Historical (baseline) rates
-  if (!is.null(baseline_matrix) && nrow(baseline_matrix) > 0) {
-    hist_promotion_rate <- mean(
-      baseline_matrix[from_group != to_group, avg_prob], na.rm = TRUE
-    )
-  } else {
-    hist_promotion_rate <- NA_real_
-  }
+  n_movers_demanded <- if (!is.null(demand_dt) && nrow(demand_dt) > 0)
+    sum(demand_dt$n_movers, na.rm = TRUE) else 0L
 
-  # Demanded vs actual
-  if (!is.null(demand_dt) && nrow(demand_dt) > 0) {
-    n_promotions_demanded <- sum(demand_dt[movement_type == "promotion", n_movers],
-                                 na.rm = TRUE)
-    n_transfers_demanded  <- sum(demand_dt[movement_type == "transfer",  n_movers],
-                                 na.rm = TRUE)
-  } else {
-    n_promotions_demanded <- 0L
-    n_transfers_demanded  <- 0L
-  }
+  hist_avg_rate <- if (!is.null(baseline_matrix) && nrow(baseline_matrix) > 0)
+    mean(baseline_matrix$movement_rate, na.rm = TRUE) else NA_real_
 
   summary_tbl <- data.table::data.table(
-    n_promotions           = as.integer(n_promotions),
-    n_transfers            = as.integer(n_transfers),
-    n_total_movers         = as.integer(n_total_movers),
-    n_promotions_demanded  = as.integer(n_promotions_demanded),
-    n_transfers_demanded   = as.integer(n_transfers_demanded),
-    hist_avg_movement_rate = hist_promotion_rate,
+    n_movers               = as.integer(n_movers),
+    n_movers_demanded      = as.integer(n_movers_demanded),
+    hist_avg_movement_rate = hist_avg_rate,
     headcount_before       = as.integer(stock_before),
     headcount_after        = as.integer(stock_after)
   )
 
   return(summary_tbl)
+}
+
+
+# =============================================================================
+# compute_fixed_rate_movements() — flat rate path
+# =============================================================================
+
+#' Select Personnel for Movement — Flat Rate
+#'
+#' @description
+#' Applies a single scalar \code{movement_rate} from
+#' \code{policy_params$defaults} uniformly across the active workforce.
+#' Called by \code{\link{simulate_promotions_transfers}} when
+#' \code{policy_params$policy_table} is \code{NULL}.  Movers are distributed
+#' uniformly across all valid destination groups in \code{salary_scale_dt}.
+#'
+#' @param contract_dt data.table.  Current (single-snapshot) contract data.
+#' @param personnel_dt data.table.  Current personnel data.
+#' @param salary_scale_dt data.table.  Pay table; defines valid destination groups.
+#' @param policy_params List.  Canonical three-slot movement policy specification.
+#'   Keys consumed: \code{group_cols}, \code{defaults$movement_rate},
+#'   \code{defaults$active_types}.
+#' @param ref_date Date.  Reference date.
+#' @param personnel_id_col Character.  Default \code{"personnel_id"}.
+#' @param start_date_col Character.  Default \code{"start_date"}.
+#' @param end_date_col Character.  Default \code{"end_date"}.
+#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param status_col Character.  Default \code{"status"}.
+#'
+#' @return data.table with columns \code{from_group}, \code{to_group},
+#'   \code{movement_rate}, \code{current_stock}, \code{n_movers}.
+#'   Empty data.table when no active workers or rate produces zero movers.
+#' @keywords internal
+compute_fixed_rate_movements <- function(
+    contract_dt,
+    personnel_dt,
+    salary_scale_dt,
+    policy_params,
+    ref_date,
+    personnel_id_col  = "personnel_id",
+    start_date_col    = "start_date",
+    end_date_col      = "end_date",
+    contract_type_col = "contract_type_code",
+    status_col        = "status") {
+
+  ref_date      <- validate_date_format(ref_date, "ref_date")
+  group_cols    <- policy_params$group_cols
+  movement_rate <- policy_params$defaults$movement_rate
+
+  if (is.null(movement_rate) || !is.numeric(movement_rate) || length(movement_rate) != 1L)
+    stop("defaults$movement_rate must be a numeric scalar when policy_table is NULL.",
+         call. = FALSE)
+
+  if (!data.table::is.data.table(contract_dt))
+    contract_dt <- data.table::as.data.table(contract_dt)
+
+  # Active workforce
+  active_contracts <- get_active_contracts(
+    contract_dt       = contract_dt,
+    ref_date          = ref_date,
+    start_date_col    = start_date_col,
+    end_date_col      = end_date_col,
+    contract_type_col = contract_type_col
+  )
+
+  person_groups <- unique(active_contracts[, c(personnel_id_col, group_cols), with = FALSE])
+  person_groups <- stats::na.omit(person_groups, cols = group_cols)
+  person_groups <- person_groups[
+    personnel_dt[get(status_col) == "active", .(personnel_id = get(personnel_id_col))],
+    on = personnel_id_col, nomatch = NULL
+  ]
+
+  if (nrow(person_groups) == 0L) return(data.table::data.table())
+
+  person_groups[, from_group := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
+  stock_dt <- person_groups[, .(current_stock = .N), by = from_group]
+
+  # Valid destinations from salary_scale
+  valid_dest <- unique(salary_scale_dt[, group_cols, with = FALSE])
+  valid_dest[, to_group := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
+
+  # Cross-join: each from_group can move to every to_group except self
+  demand_dt <- data.table::CJ(
+    from_group = stock_dt$from_group,
+    to_group   = valid_dest$to_group,
+    unique     = TRUE
+  )
+  demand_dt <- stock_dt[demand_dt, on = "from_group"]
+  demand_dt <- demand_dt[from_group != to_group]
+
+  if (nrow(demand_dt) == 0L) return(data.table::data.table())
+
+  # Distribute movement_rate equally across destinations
+  demand_dt[, n_dest         := .N, by = from_group]
+  demand_dt[, rate_per_dest  := movement_rate / n_dest]
+  demand_dt[, expected_n     := current_stock * rate_per_dest]
+  demand_dt[, n_movers := {
+    floor_n    <- floor(expected_n)
+    fractional <- expected_n - floor_n
+    as.integer(floor_n + stats::rbinom(n = .N, size = 1L, prob = fractional))
+  }]
+  demand_dt <- demand_dt[n_movers > 0]
+
+  if (nrow(demand_dt) == 0L) return(data.table::data.table())
+
+  result <- demand_dt[, .(from_group, to_group,
+                           movement_rate = rate_per_dest,
+                           current_stock, n_movers)]
+  data.table::setkeyv(result, c("from_group", "to_group"))
+  result
 }
