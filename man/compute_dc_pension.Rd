@@ -4,42 +4,30 @@
 \alias{compute_dc_pension}
 \title{Compute Defined-Contribution (DC) Pension}
 \usage{
-compute_dc_pension(dt, params)
+compute_dc_pension(dt)
 }
 \arguments{
-\item{dt}{data.table. Retiree data}
-
-\item{params}{List with parameters:
-\itemize{
-\item balance_col: Column name for account balance
-\item annuity_factor: Factor for converting balance to annual pension
-\item type: "DC" or "NDC" (optional, for notional DC adjustments)
-\item notional_rate: Interest rate for NDC (required if type = "NDC")
-}}
+\item{dt}{data.table.  Retiree subset (\code{pension_type == "dc"}).
+Required columns: \code{balance_col} (character column-pointer),
+\code{annuity_factor} (numeric).  Optional: \code{notional_rate}
+(numeric; NDC interest credit applied to balance before annuitisation).}
 }
 \value{
-Numeric vector of pension amounts
+Numeric vector of DC pension amounts (length \code{nrow(dt)}).
+Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 }
 \description{
-Calculates pension by converting accumulated balance to annuity.
-Supports both standard DC and notional DC (NDC) systems.
-Formula: pension = balance / annuity_factor
+Converts an accumulated DC account balance to a periodic annuity.  Supports
+notional DC (NDC) systems by optionally applying a pre-retirement interest
+credit to the balance.  All parameters are read from per-row columns on
+\code{dt}, pre-resolved by \code{\link{resolve_policy_table}}.
 }
-\examples{
-\dontrun{
-# Standard DC
-params <- list(
-  balance_col = "account_balance",
-  annuity_factor = 18
-)
-
-# Notional DC
-params <- list(
-  balance_col = "notional_balance",
-  annuity_factor = 18,
-  type = "NDC",
-  notional_rate = 0.015
-)
-}
+\details{
+\strong{Formula:}
+\deqn{P_i = \frac{B_i \cdot (1 + r_i)}{A_i}}
+where \eqn{B_i} = balance from the column named by \code{balance_col},
+\eqn{r_i} = \code{notional_rate} (0 when absent), and \eqn{A_i} =
+\code{annuity_factor}.  \code{pmax(pension, 0)} prevents negative pensions
+from negative balances.
 }
 \keyword{internal}

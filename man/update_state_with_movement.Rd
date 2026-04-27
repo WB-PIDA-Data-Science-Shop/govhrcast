@@ -9,6 +9,7 @@ update_state_with_movement(
   personnel_dt,
   movers_dt,
   policy_params,
+  salary_scale_dt = NULL,
   ref_date,
   personnel_id_col = "personnel_id",
   salary_col = "gross_salary_lcu",

@@ -219,9 +219,8 @@ test_that("simulate_horizon: returns a horizon object", {
     personnel_dt       = s$pt,
     salary_scale_dt    = s$ss,
     n_periods          = 2L,
-    retirement_policy  = list(eligibility_type = "age_only", min_age = 999,
-                               pension_type = "flat",
-                               pension_params = list(flat_amount = 500)),
+    retirement_policy  = list(defaults = list(eligibility_type = "age_only", min_age = 999,
+                               pension_type = "flat", flat_amount = 500)),
     salary_growth_rate = 0,
     ref_date           = s$ref,
     age_col            = "age",
@@ -237,9 +236,8 @@ test_that("simulate_horizon: $summary_dt alias still works for backward compat",
     personnel_dt       = s$pt,
     salary_scale_dt    = s$ss,
     n_periods          = 2L,
-    retirement_policy  = list(eligibility_type = "age_only", min_age = 999,
-                               pension_type = "flat",
-                               pension_params = list(flat_amount = 500)),
+    retirement_policy  = list(defaults = list(eligibility_type = "age_only", min_age = 999,
+                               pension_type = "flat", flat_amount = 500)),
     salary_growth_rate = 0,
     ref_date           = s$ref,
     age_col            = "age",
@@ -251,8 +249,8 @@ test_that("simulate_horizon: $summary_dt alias still works for backward compat",
 
 test_that("simulate_horizon: metadata contains policy_args", {
   s   <- make_sim_state()
-  ret_pol <- list(eligibility_type = "age_only", min_age = 999,
-                  pension_type = "flat", pension_params = list(flat_amount = 500))
+  ret_pol <- list(defaults = list(eligibility_type = "age_only", min_age = 999,
+                  pension_type = "flat", flat_amount = 500))
   res <- simulate_horizon(
     contract_dt        = s$ct,
     personnel_dt       = s$pt,

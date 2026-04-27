@@ -13,21 +13,35 @@ get_active_contracts(
 )
 }
 \arguments{
-\item{contract_dt}{data.table. Contract data}
+\item{contract_dt}{data.table.  Contract register.  Required columns:
+\code{start_date_col}, \code{end_date_col}, \code{contract_type_col}.}
 
-\item{ref_date}{Date. Reference date}
+\item{ref_date}{Date.  The snapshot date.  A contract is included if
+\code{start_date <= ref_date} and
+(\code{is.na(end_date)} or \code{end_date >= ref_date}).}
 
-\item{start_date_col}{Character. Name of start date column (default: "start_date")}
+\item{start_date_col}{Character.  Contract start date column.
+(default: \code{"start_date"}).}
 
-\item{end_date_col}{Character. Name of end date column (default: "end_date")}
+\item{end_date_col}{Character.  Contract end date column; \code{NA} for
+open-ended contracts.  (default: \code{"end_date"}).}
 
-\item{contract_type_col}{Character. Name of contract type column (default: "contract_type_code")}
+\item{contract_type_col}{Character.  Contract classification column.
+Contracts with type \code{"inactive"} or \code{"pensioner"} are
+excluded.  (default: \code{"contract_type_code"}).}
 }
 \value{
-data.table of active contracts
+data.table.  Subset of \code{contract_dt} containing only active
+contracts at \code{ref_date}.  All original columns are preserved.
 }
 \description{
-Filters contracts that are active at a given reference date.
-A contract is active if it has started and has not ended before ref_date.
+Returns the strictly active workforce subset of \code{contract_dt}:
+contracts that have started, have not yet ended, and are not classified as
+\code{"inactive"} or \code{"pensioner"}.
+
+Use this filter for headcount, attrition, hiring demand, and retirement
+eligibility computations.  For wage bill computations use
+\code{\link{get_salary_bearing_contracts}} instead, which retains
+inactive-but-paid staff.
 }
 \keyword{internal}

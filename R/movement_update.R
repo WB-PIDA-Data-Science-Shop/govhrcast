@@ -93,19 +93,16 @@ identify_movers <- function(contract_dt,
 
   if (is.null(demand_dt) || nrow(demand_dt) == 0) {
     return(data.table::data.table(
-      personnel_id  = character(0),
-      from_group    = character(0),
-      to_group      = character(0),
-      movement_type = character(0)
+      personnel_id = character(0),
+      from_group   = character(0),
+      to_group     = character(0)
     ))
   }
 
-  group_cols          <- policy_params$group_cols
-  promotion_strategy  <- if (!is.null(policy_params$promotion_strategy))
-                           policy_params$promotion_strategy else "tenure"
-  promotion_order_col <- policy_params$promotion_order_col  # NULL → fall back to strategy
-  transfer_strategy   <- if (!is.null(policy_params$transfer_strategy))
-                           policy_params$transfer_strategy else "random"
+  group_cols         <- policy_params$group_cols
+  movement_strategy  <- policy_params$defaults$movement_strategy %||%
+                        policy_params$promotion_strategy %||% "tenure"
+  promotion_order_col <- policy_params$promotion_order_col
 
   # ------------------------------------------------------------------
   # Build active workforce view with all needed ranking columns
@@ -138,8 +135,7 @@ identify_movers <- function(contract_dt,
   # ------------------------------------------------------------------
   # Compute tenure (total) for tenure-based strategies
   # ------------------------------------------------------------------
-  needs_tenure <- (promotion_strategy == "tenure") ||
-                  (transfer_strategy %in% c("tenure", "reverse_tenure"))
+  needs_tenure <- movement_strategy %in% c("tenure", "reverse_tenure")
 
   # promotion_order_col is a user-supplied numeric column; if it's not already
   # in the workforce view, check contract_dt (and join if needed).
@@ -175,7 +171,7 @@ identify_movers <- function(contract_dt,
   # ------------------------------------------------------------------
   # Compute time-in-grade for tenure-based PROMOTION strategy
   # ------------------------------------------------------------------
-  needs_tig <- (promotion_strategy == "tenure")
+  needs_tig <- (movement_strategy == "tenure")
   if (needs_tig && ref_date_col %in% names(contract_dt)) {
     tig_dt <- compute_time_in_grade(
       contract_dt = contract_dt,
@@ -200,7 +196,7 @@ identify_movers <- function(contract_dt,
   # ------------------------------------------------------------------
   # Compute max_salary per from_group for wage_based promotion
   # ------------------------------------------------------------------
-  if (promotion_strategy == "wage_based" && salary_col %in% names(workforce)) {
+  if (movement_strategy == "wage_based" && salary_col %in% names(workforce)) {
     max_salary_dt <- workforce[, .(max_salary = max(get(salary_col), na.rm = TRUE)),
                                by = .(.from_group)]
     workforce <- max_salary_dt[workforce, on = ".from_group"]
@@ -220,7 +216,6 @@ identify_movers <- function(contract_dt,
     row          <- demand_dt[i]
     fg           <- row$from_group
     tg           <- row$to_group
-    mtype        <- row$movement_type
     n_select     <- row$n_movers
 
     # Eligible pool: in the from_group and not yet selected
@@ -233,18 +228,15 @@ identify_movers <- function(contract_dt,
     # Cap to available pool
     n_select <- min(n_select, nrow(pool))
 
-    # Select using strategy
-    selected_ids <- if (mtype == "promotion") {
-      # promotion_order_col takes precedence over promotion_strategy when supplied
-      if (!is.null(promotion_order_col) && promotion_order_col %in% names(pool)) {
-        data.table::setorderv(pool, promotion_order_col, order = -1L)
-        head(pool[[personnel_id_col]], n_select)
-      } else {
-        switch(
-          promotion_strategy,
+    selected_ids <- if (!is.null(promotion_order_col) &&
+                        promotion_order_col %in% names(pool)) {
+      data.table::setorderv(pool, promotion_order_col, order = -1L)
+      head(pool[[personnel_id_col]], n_select)
+    } else {
+      switch(
+        movement_strategy,
 
-          "tenure" = {
-          # Rank by time_in_grade descending
+        "tenure" = {
           if ("time_in_grade" %in% names(pool)) {
             data.table::setorderv(pool, "time_in_grade", order = -1L)
           } else {
@@ -254,34 +246,8 @@ identify_movers <- function(contract_dt,
         },
 
         "wage_based" = {
-          # Rank by salary_ratio ascending (lowest paid relative to max gets promoted)
           if ("salary_ratio" %in% names(pool)) {
             data.table::setorderv(pool, "salary_ratio", order = 1L)
-          }
-          head(pool[[personnel_id_col]], n_select)
-        },
-
-        # Default: tenure
-        {
-          if ("time_in_grade" %in% names(pool)) {
-            data.table::setorderv(pool, "time_in_grade", order = -1L)
-          }
-          head(pool[[personnel_id_col]], n_select)
-        }
-      )
-      }  # end else (promotion_order_col not set)
-    } else {
-      # Transfer strategies
-      switch(
-        transfer_strategy,
-
-        "random" = {
-          sample(pool[[personnel_id_col]], size = n_select, replace = FALSE)
-        },
-
-        "tenure" = {
-          if ("tenure_years" %in% names(pool)) {
-            data.table::setorderv(pool, "tenure_years", order = -1L)
           }
           head(pool[[personnel_id_col]], n_select)
         },
@@ -293,7 +259,7 @@ identify_movers <- function(contract_dt,
           head(pool[[personnel_id_col]], n_select)
         },
 
-        # Default: random
+        # default: random
         sample(pool[[personnel_id_col]], size = n_select, replace = FALSE)
       )
     }
@@ -301,10 +267,9 @@ identify_movers <- function(contract_dt,
     if (length(selected_ids) == 0) next
 
     mover_list[[i]] <- data.table::data.table(
-      personnel_id  = selected_ids,
-      from_group    = fg,
-      to_group      = tg,
-      movement_type = mtype
+      personnel_id = selected_ids,
+      from_group   = fg,
+      to_group     = tg
     )
 
     already_selected <- c(already_selected, selected_ids)
@@ -317,10 +282,9 @@ identify_movers <- function(contract_dt,
 
   if (nrow(movers_dt) == 0) {
     movers_dt <- data.table::data.table(
-      personnel_id  = character(0),
-      from_group    = character(0),
-      to_group      = character(0),
-      movement_type = character(0)
+      personnel_id = character(0),
+      from_group   = character(0),
+      to_group     = character(0)
     )
   }
 
@@ -366,6 +330,7 @@ update_state_with_movement <- function(contract_dt,
                                        personnel_dt,
                                        movers_dt,
                                        policy_params,
+                                       salary_scale_dt = NULL,
                                        ref_date,
                                        personnel_id_col = "personnel_id",
                                        salary_col = "gross_salary_lcu",
@@ -401,9 +366,9 @@ update_state_with_movement <- function(contract_dt,
   movers_dt[is.na(salary_before), salary_before := 0]
 
   group_cols         <- policy_params$group_cols
-  salary_scale       <- policy_params$salary_scale
-  salary_update_rule <- if (!is.null(policy_params$salary_update_rule))
-                          policy_params$salary_update_rule else "scale"
+  salary_scale       <- salary_scale_dt %||% policy_params$salary_scale
+  salary_update_rule <- policy_params$defaults$salary_update_rule %||%
+                        policy_params$salary_update_rule %||% "scale"
 
   if (!salary_update_rule %in% c("scale", "keep")) {
     stop('policy_params$salary_update_rule must be "scale" or "keep"', call. = FALSE)

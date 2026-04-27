@@ -1,77 +1,234 @@
-#' Simulate Retirement Module
+#' Simulate Retirement Events for One Period
 #'
 #' @description
-#' Main user-facing function for simulating retirement events. Orchestrates
-#' the entire retirement workflow: eligibility determination, pension calculation,
-#' and state updates.
+#' Core module for simulating public sector retirement in a single period.
+#' Orchestrates a five-stage logic gate pipeline:
+#' \enumerate{
+#'   \item \strong{Input validation} — structural checks on \code{contract_dt},
+#'     \code{personnel_dt}, and \code{policy_params} via
+#'     \code{\link{check_retirement_inputs}}.
+#'   \item \strong{Panel snapshot selection} — if \code{contract_dt} is a
+#'     longitudinal panel, the snapshot closest to (but not exceeding)
+#'     \code{ref_date} is selected via \code{\link{select_nearest_ref_date}}.
+#'   \item \strong{Eligibility gate} — \code{\link{identify_retirees}} applies
+#'     vectorised per-row eligibility rules (age, tenure, or both), resolved
+#'     through \code{\link{resolve_policy_table}} to handle group-level
+#'     policy variation.
+#'   \item \strong{Pension calculation} — pension parameters are resolved to
+#'     per-row columns via a single \code{\link{resolve_policy_table}} call,
+#'     then \code{\link{compute_pension}} dispatches to the appropriate formula
+#'     (DB, DC, flat, or hybrid) per retiree.
+#'   \item \strong{State update} — \code{\link{update_contracts_for_retirees}}
+#'     and \code{\link{update_personnel_for_retirees}} mutate the working copies
+#'     of \code{contract_dt} and \code{personnel_dt} in place.
+#' }
 #'
 #' @import data.table
 #'
-#' @param contract_dt data.table. Contract data in govhr harmonized format
-#' @param personnel_dt data.table. Personnel data in govhr harmonized format
-#' @param policy_params List. Retirement policy parameters including:
+#' @param contract_dt data.table. Active workforce contracts in
+#'   \pkg{govhr}-harmonised format.  Required columns: \code{personnel_id_col},
+#'   \code{contract_id_col}, \code{start_date_col}, \code{end_date_col},
+#'   \code{contract_type_col}, \code{salary_col}.  May be a multi-year panel
+#'   with a \code{ref_date_col} snapshot column — the nearest snapshot to
+#'   \code{ref_date} is selected automatically.
+#' @param personnel_dt data.table. Personnel register in \pkg{govhr}-harmonised
+#'   format.  Required columns: \code{personnel_id_col}, \code{birth_date_col}.
+#' @param policy_params List. Retirement policy specification in the unified
+#'   three-slot format:
 #'   \describe{
-#'     \item{eligibility_type}{Character. One of: "age_only", "tenure_only", "age_and_tenure"}
-#'     \item{min_age}{Numeric. Minimum retirement age (required for age-based eligibility)}
-#'     \item{min_tenure}{Numeric. Minimum years of service (required for tenure-based eligibility)}
-#'     \item{pension_type}{Character. One of: "db", "dc", "flat", "hybrid"}
-#'     \item{pension_params}{List. Parameters specific to the chosen pension type}
+#'     \item{\code{defaults}}{Named list of scalar fallback values applied to
+#'       every employee not matched by \code{policy_table}.  Recognised keys:
+#'       \describe{
+#'         \item{\code{eligibility_type}}{Character scalar. Eligibility rule:
+#'           \code{"age_only"}, \code{"tenure_only"}, or
+#'           \code{"age_and_tenure"}.}
+#'         \item{\code{min_age}}{Numeric scalar. Minimum age threshold in years
+#'           (required when \code{eligibility_type} involves age).}
+#'         \item{\code{min_tenure}}{Numeric scalar. Minimum years of service
+#'           (required when \code{eligibility_type} involves tenure).}
+#'         \item{\code{pension_type}}{Character scalar. Pension formula:
+#'           \code{"db"} (defined-benefit), \code{"dc"} (defined-contribution),
+#'           \code{"flat"}, or \code{"hybrid"} (DB + DC).}
+#'         \item{\code{accrual_rate}}{Numeric scalar. Annual DB accrual rate
+#'           (e.g. \code{0.02} = 2\% of final salary per year of service).}
+#'         \item{\code{ref_wage_col}}{Character scalar. Column pointer — names
+#'           the salary column in \code{contract_dt} to use as the DB wage base
+#'           (default: \code{"gross_salary_lcu"}).}
+#'         \item{\code{max_years}}{Numeric scalar. Service cap for DB accrual.
+#'           \code{NA} = no cap.}
+#'         \item{\code{replacement_cap}}{Numeric scalar. Maximum pension as a
+#'           fraction of final salary (e.g. \code{0.80} = 80\%).  \code{NA} =
+#'           no cap.}
+#'         \item{\code{balance_col}}{Character scalar. Column pointer — names
+#'           the DC account balance column in \code{contract_dt}.}
+#'         \item{\code{annuity_factor}}{Numeric scalar. DC annuity divisor
+#'           (e.g. \code{15} = 15-year payout horizon).}
+#'         \item{\code{flat_amount}}{Numeric scalar. Fixed periodic pension for
+#'           flat-rate systems.}
+#'       }
+#'     }
+#'     \item{\code{group_cols}}{Character vector. Columns in \code{contract_dt}
+#'       used as the join key for group-level policy variation (e.g.
+#'       \code{c("paygrade", "occupation_isconame")}).  \code{NULL} for
+#'       scalar-only dispatch.}
+#'     \item{\code{policy_table}}{data.table. Lookup table with \code{group_cols}
+#'       plus any per-group parameter columns that override \code{defaults}.
+#'       \code{NULL} when group-level variation is not required.}
 #'   }
-#' @param ref_date Date. Reference date for retirement simulation
-#' @param ref_date_col Character. Name of reference date column in panel data (default: "ref_date")
-#' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
-#' @param birth_date_col Character. Name of birth date column (default: "birth_date")
-#' @param contract_id_col Character. Name of contract ID column (default: "contract_id")
-#' @param start_date_col Character. Name of start date column (default: "start_date")
-#' @param end_date_col Character. Name of end date column (default: "end_date")
-#' @param salary_col Character. Name of salary column (default: "gross_salary_lcu")
-#' @param contract_type_col Character. Name of contract type column (default: "contract_type_code")
-#' @param status_col Character. Name of status column (default: "status")
-#' @param age_col Character. Name of the age column used for eligibility
-#'   evaluation (default: \code{"age"}).
-#' @param tenure_col Character. Name of the tenure-in-years column used for
-#'   tenure-based eligibility (default: \code{"tenure_years"}).
+#'   When omitted, a standard DB \code{age_and_tenure} policy is used
+#'   (\code{min_age = 60}, \code{min_tenure = 10}, \code{accrual_rate = 0.02},
+#'   \code{max_years = 35}, \code{replacement_cap = 0.80}).
+#' @param ref_date Date. The simulation period date.  Used as the reference for
+#'   age and tenure computation and as the closing date stamped on retired
+#'   contracts.  Note: if \code{contract_dt} is a panel, panel snapshot
+#'   selection uses \code{ref_date} as an upper bound, but age and tenure are
+#'   always computed against this exact date.
+#' @param ref_date_col Character. Column in \code{contract_dt} (and optionally
+#'   \code{personnel_dt}) identifying the panel snapshot date.
+#'   (default: \code{"ref_date"}).  Ignored if \code{contract_dt} is a
+#'   single cross-section.
+#' @param personnel_id_col Character. Unique personnel identifier present in
+#'   both \code{contract_dt} and \code{personnel_dt}.
+#'   (default: \code{"personnel_id"}).
+#' @param birth_date_col Character. Date column in \code{personnel_dt}
+#'   containing each person's date of birth.  Used by \code{\link{compute_age}}
+#'   when a pre-computed age column is absent.
+#'   (default: \code{"birth_date"}).
+#' @param contract_id_col Character. Unique contract identifier in
+#'   \code{contract_dt}.  Used to deduplicate panel snapshots during tenure
+#'   computation.  (default: \code{"contract_id"}).
+#' @param start_date_col Character. Contract start date column in
+#'   \code{contract_dt}.  (default: \code{"start_date"}).
+#' @param end_date_col Character. Contract end date column in \code{contract_dt}.
+#'   Open-ended contracts have \code{NA} here.
+#'   (default: \code{"end_date"}).
+#' @param salary_col Character. Gross salary column in \code{contract_dt}.
+#'   Used as the pension wage base when \code{ref_wage_col} is not overridden
+#'   in \code{policy_params}.  (default: \code{"gross_salary_lcu"}).
+#' @param contract_type_col Character. Contract classification column in
+#'   \code{contract_dt}.  Active contracts are any type not in
+#'   \code{c("inactive", "pensioner")}.  Retired contracts are reclassified
+#'   to \code{"pensioner"} by \code{\link{update_contracts_for_retirees}}.
+#'   (default: \code{"contract_type_code"}).
+#' @param status_col Character. Employment status column in
+#'   \code{personnel_dt}.  Set to \code{"inactive"} for retiring personnel.
+#'   (default: \code{"status"}).
+#' @param age_col Character. Column in \code{personnel_dt} containing
+#'   pre-computed age in years.  When present, \code{\link{compute_age}} is
+#'   skipped for efficiency.  (default: \code{"age"}).
+#' @param tenure_col Character. Column in \code{personnel_dt} containing
+#'   pre-computed tenure in years.  When present,
+#'   \code{\link{compute_tenure}} is skipped for efficiency.
+#'   (default: \code{"tenure_years"}).
 #'
-#' @return List containing:
+#' @details
+#' \strong{Order of operations:}
+#' \enumerate{
+#'   \item \code{\link{check_retirement_inputs}} — validates all inputs before
+#'     any computation.
+#'   \item Deep copies of \code{contract_dt} and \code{personnel_dt} are made
+#'     via \code{data.table::copy()} to protect the caller's objects.
+#'   \item If \code{ref_date_col} exists in \code{contract_dt}, the panel is
+#'     filtered to the nearest snapshot using
+#'     \code{\link{select_nearest_ref_date}}.
+#'   \item \code{\link{identify_retirees}} builds a per-person eligibility
+#'     table.  Group-level thresholds are resolved via a single
+#'     \code{\link{resolve_policy_table}} join.
+#'   \item \code{\link{prepare_retiree_data}} enriches the eligible pool with
+#'     salary, fills any \code{NA} age/tenure values, and selects the primary
+#'     contract per retiree.
+#'   \item All pension parameters are stamped onto \code{retirees_dt} as columns
+#'     using \code{data.table::set()} (avoids shallow-copy warnings from
+#'     \code{:=} inside a loop).  \code{\link{compute_pension}} then dispatches
+#'     each row to the correct formula.
+#'   \item \code{\link{update_contracts_for_retirees}} closes active contracts
+#'     and zeros salaries in place.  \code{\link{update_personnel_for_retirees}}
+#'     sets \code{status_col} to \code{"inactive"}.
+#' }
+#'
+#' @section Retirement eligibility vs. retirement choice:
+#' This function currently equates eligibility with retirement (100\% take-up).
+#' A future \code{choice_model} argument will apply a probabilistic retirement
+#' choice model to the eligible pool before state updates.
+#'
+#' @section Data Integrity:
+#' \code{contract_dt} and \code{personnel_dt} are deep-copied at entry
+#' (\code{data.table::copy()}).  The caller's original objects are never
+#' modified.  The returned \code{contract_dt} and \code{personnel_dt} are the
+#' mutated copies.
+#'
+#' @return Named list with four elements:
 #'   \describe{
-#'     \item{summary}{data.table with retirement summary statistics}
-#'     \item{contract_dt}{Updated contract data with retirees marked}
-#'     \item{personnel_dt}{Updated personnel data with retirees marked inactive}
-#'     \item{retirees_dt}{data.table of retirees with pension amounts}
+#'     \item{\code{summary}}{\code{data.table} (1 row) with aggregate retirement
+#'       statistics for the period: \code{n_retired} (integer),
+#'       \code{total_pension} (numeric), \code{avg_pension} (numeric),
+#'       \code{avg_age} (numeric), \code{avg_tenure} (numeric).}
+#'     \item{\code{contract_dt}}{\code{data.table}.  Updated contract register.
+#'       Retiring contracts have \code{contract_type_col} set to
+#'       \code{"pensioner"}, \code{end_date_col} set to \code{ref_date}, and
+#'       \code{salary_col} set to \code{0}.}
+#'     \item{\code{personnel_dt}}{\code{data.table}.  Updated personnel register.
+#'       Retiring personnel have \code{status_col} set to \code{"inactive"}.}
+#'     \item{\code{retirees_dt}}{\code{data.table}.  One row per retiree with
+#'       all resolved pension parameter columns (\code{pension_type},
+#'       \code{accrual_rate}, \code{ref_wage_col}, etc.) plus a \code{pension}
+#'       column containing the computed periodic pension amount.}
 #'   }
 #'
 #' @examples
 #' \dontrun{
 #' library(data.table)
-#' library(govhr)
+#' library(govhrcast)
 #'
 #' # Load example data
-#' contract_dt <- as.data.table(govhr::bra_hrmis_contract)
-#' personnel_dt <- as.data.table(govhr::bra_hrmis_personnel)
+#' contract_dt  <- data.table::copy(bra_hrmis_contract)
+#' personnel_dt <- data.table::copy(bra_hrmis_personnel)
+#' ref_date     <- as.Date("2014-01-01")
 #'
-#' # Define retirement policy
+#' # Scalar policy (no group differentiation)
 #' policy_params <- list(
-#'   eligibility_type = "age_and_tenure",
-#'   min_age = 60,
-#'   min_tenure = 20,
-#'   pension_type = "db",
-#'   pension_params = list(
-#'     accrual_rate = 0.02,
-#'     ref_wage_col = "gross_salary_lcu",
-#'     max_years = 35,
-#'     replacement_cap = 0.80
+#'   group_cols   = NULL,
+#'   policy_table = NULL,
+#'   defaults = list(
+#'     eligibility_type = "age_and_tenure",
+#'     pension_type     = "db",
+#'     min_age          = 60,
+#'     min_tenure       = 20,
+#'     accrual_rate     = 0.02,
+#'     ref_wage_col     = "gross_salary_lcu",
+#'     max_years        = 35,
+#'     replacement_cap  = 0.80
+#'   )
+#' )
+#'
+#' # Group-level policy: different accrual_rate per paygrade
+#' accrual_tbl <- data.table::data.table(
+#'   paygrade     = c("D",   "E"),
+#'   accrual_rate = c(0.025, 0.03)
+#' )
+#' policy_grouped <- list(
+#'   group_cols   = "paygrade",
+#'   policy_table = accrual_tbl,
+#'   defaults = list(
+#'     eligibility_type = "age_and_tenure",
+#'     pension_type     = "db",
+#'     min_age          = 60,
+#'     min_tenure       = 20,
+#'     accrual_rate     = 0.02,
+#'     ref_wage_col     = "gross_salary_lcu",
+#'     max_years        = 35,
+#'     replacement_cap  = 0.80
 #'   )
 #' )
 #'
 #' # Run simulation
 #' results <- simulate_retirement(
-#'   contract_dt = contract_dt,
+#'   contract_dt  = contract_dt,
 #'   personnel_dt = personnel_dt,
-#'   policy_params = policy_params,
-#'   ref_date = as.Date("2025-01-01")
+#'   ref_date     = ref_date,
+#'   policy_params = policy_params
 #' )
 #'
-#' # View results
 #' results$summary
 #' results$retirees_dt
 #' }
@@ -79,8 +236,21 @@
 #' @export
 simulate_retirement <- function(contract_dt,
                                 personnel_dt,
-                                policy_params,
                                 ref_date,
+                                policy_params = list(
+                                  group_cols   = NULL,
+                                  policy_table = NULL,
+                                  defaults = list(
+                                    eligibility_type = "age_and_tenure",
+                                    pension_type     = "db",
+                                    min_age          = 60,
+                                    min_tenure       = 10,
+                                    accrual_rate     = 0.02,
+                                    ref_wage_col     = "gross_salary_lcu",
+                                    max_years        = 35,
+                                    replacement_cap  = 0.80
+                                  )
+                                ),
                                 ref_date_col = "ref_date",
                                 personnel_id_col = "personnel_id",
                                 birth_date_col = "birth_date",
@@ -95,7 +265,6 @@ simulate_retirement <- function(contract_dt,
   
   # ========================================
   # 1. Input Validation
-  # ========================================
   check_retirement_inputs(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
@@ -193,11 +362,23 @@ simulate_retirement <- function(contract_dt,
   # ========================================
   # 5. Compute Pensions
   # ========================================
-  retirees_dt[, pension := compute_pension(
-    retirees_dt = .SD,
-    policy_type = policy_params$pension_type,
-    params = policy_params$pension_params
-  )]
+  # Resolve all policy params (eligibility + pension) to per-row columns on
+  # retirees_dt via a single policy_table join + defaults fill.
+  .all_pension_params <- c(
+    "pension_type", "accrual_rate", "ref_wage_col",
+    "max_years", "replacement_cap",
+    "balance_col", "annuity_factor", "notional_rate",
+    "flat_amount"
+  )
+  .resolved_pension <- resolve_policy_table(
+    policy_params,
+    retirees_dt,
+    .all_pension_params
+  )
+  for (.p in names(.resolved_pension))
+    data.table::set(retirees_dt, j = .p, value = .resolved_pension[[.p]])
+
+  data.table::set(retirees_dt, j = "pension", value = compute_pension(retirees_dt))
   
   # ========================================
   # 6. Update State

@@ -95,10 +95,9 @@ compute_movement_effect <- function(movers_dt,
                                     contract_dt_after,
                                     personnel_id_col = "personnel_id",
                                     salary_col       = "gross_salary_lcu") {
-  zero <- list(promotion = 0, transfer = 0)
+  zero <- list(movement = 0)
   if (is.null(movers_dt) || nrow(movers_dt) == 0L) return(zero)
   if (!"salary_before" %in% names(movers_dt))       return(zero)
-  if (!"movement_type" %in% names(movers_dt))        return(zero)
   if (!salary_col %in% names(contract_dt_after))     return(zero)
 
   # Sum post-move salary per person (across all their contracts after move)
@@ -113,16 +112,10 @@ compute_movement_effect <- function(movers_dt,
   mv[is.na(salary_after), salary_after := 0]
   mv[, salary_diff := salary_after - salary_before]
 
-  promotion_effect <- mv[movement_type == "promotion",
-                          sum(salary_diff, na.rm = TRUE)]
-  transfer_effect  <- mv[movement_type == "transfer",
-                          sum(salary_diff, na.rm = TRUE)]
+  movement_effect <- mv[, sum(salary_diff, na.rm = TRUE)]
+  if (length(movement_effect) == 0L) movement_effect <- 0
 
-  # Protect against empty subsets returning numeric(0)
-  if (length(promotion_effect) == 0L) promotion_effect <- 0
-  if (length(transfer_effect)  == 0L) transfer_effect  <- 0
-
-  list(promotion = promotion_effect, transfer = transfer_effect)
+  list(movement = movement_effect)
 }
 
 
@@ -190,18 +183,21 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 # simulate_scenario() -- single-period orchestrator
 # ===========================================================================
 
-# Internal helper: sum of max-salary-per-person for all non-pensioner contracts.
-# Wage bill definition: one salary observation per person (the highest across
-# any concurrent contracts), summed over all active (non-pensioner) people.
+# Internal helper: salary-bearing payroll total.
+# Wage bill definition: sum of ALL salary-bearing contract rows per person,
+# then sum across persons.  A person with two simultaneous active contracts
+# contributes both salaries.  Inactive-but-paid staff (non-NA salary,
+# non-pensioner) are included because the government is paying their salary.
+# Pensioner rows are excluded — their cost is tracked in pensioner_register.
 # Used three times in simulate_scenario() for wage_bill_start, pre_cola, and
 # wage_bill_end snapshots.  No roxygen: internal only, not exported.
 .active_wage_bill <- function(contract_dt,
-                               contract_type_col,
-                               salary_col,
-                               personnel_id_col) {
+                              contract_type_col,
+                              salary_col,
+                              personnel_id_col) {
   contract_dt[
-    get(contract_type_col) != "pensioner",
-    .(salary = if (.N > 0L) max(get(salary_col), na.rm = TRUE) else 0),
+    get(contract_type_col) != "pensioner" & !is.na(get(salary_col)),
+    .(salary = sum(get(salary_col), na.rm = TRUE)),
     by = c(personnel_id_col)
   ][, sum(salary, na.rm = TRUE)]
 }
@@ -479,15 +475,10 @@ simulate_scenario <- function(contract_dt,
   transfer_effect  <- 0
 
   if (!is.null(movement_policy)) {
-    if (is.null(movement_policy$salary_scale)) {
-      # NECESSARY copy: salary_scale_dt is shared across periods; simulate_promotions_transfers()
-      # modifies the scale by reference via COLA step — copy protects the caller's object.
-      movement_policy$salary_scale <- data.table::copy(salary_scale_dt)
-    }
-
     mov_result <- simulate_promotions_transfers(
       contract_dt       = contract_dt,
       personnel_dt      = personnel_dt,
+      salary_scale_dt   = data.table::copy(salary_scale_dt),
       policy_params     = movement_policy,
       ref_date          = period_date,
       personnel_id_col  = personnel_id_col,
@@ -504,10 +495,9 @@ simulate_scenario <- function(contract_dt,
     personnel_dt <- mov_result$personnel_dt
 
     if (!is.null(mov_result$summary)) {
-      n_prom <- mov_result$summary$n_promotions
-      n_tran <- mov_result$summary$n_transfers
-      n_promotions <- as.integer(if (!is.null(n_prom)) n_prom else 0L)
-      n_transfers  <- as.integer(if (!is.null(n_tran)) n_tran else 0L)
+      n_movers_val <- mov_result$summary$n_movers
+      n_promotions <- as.integer(if (!is.null(n_movers_val)) n_movers_val else 0L)
+      n_transfers  <- 0L
     }
 
     mov_effects <- compute_movement_effect(
@@ -516,8 +506,8 @@ simulate_scenario <- function(contract_dt,
       personnel_id_col  = personnel_id_col,
       salary_col        = salary_col
     )
-    promotion_effect <- mov_effects$promotion
-    transfer_effect  <- mov_effects$transfer
+    promotion_effect <- mov_effects$movement
+    transfer_effect  <- 0
   }
 
   # ------------------------------------------------------------------
@@ -938,12 +928,12 @@ simulate_horizon <- function(contract_dt,
   # For movement, pre-compute the baseline from the full panel BEFORE stripping
   # ref_date.  simulate_horizon works on single-snapshot data in each period, so
   # without this cache simulate_promotions_transfers would never see a panel.
-  if (!is.null(movement_policy) && is.null(movement_policy$baseline_matrix)) {
+  if (!is.null(movement_policy) && is.null(movement_policy$policy_table)) {
     ref_date_col_name <- "ref_date"   # standard column name used throughout
     has_panel <- ref_date_col_name %in% names(contract_dt) &&
                  data.table::uniqueN(contract_dt[[ref_date_col_name]]) >= 2L
     if (has_panel) {
-      movement_policy$baseline_matrix <- estimate_movement_baseline(
+      movement_policy$policy_table <- estimate_movement_baseline(
         contract_dt       = contract_dt,
         group_cols        = movement_policy$group_cols,
         personnel_id_col  = personnel_id_col,
@@ -972,19 +962,18 @@ simulate_horizon <- function(contract_dt,
                                !is.null(retirement_policy$pensioner_type_value))
     retirement_policy$pensioner_type_value else "pensioner"
 
-  # Drop 'inactive' contracts from the starting snapshot.  These represent
-  # exits from prior periods (in panel data) and must not pollute:
-  #   - headcount / wage bill snapshots (inactive != pensioner, so they'd be counted)
-  #   - retirement identification (inactive persons may appear retirement-eligible)
-  #   - hiring demand (inactive group_cols values trigger replacement hires for
-  #     est_ids that are absent from the salary scale → NA salary → -Inf wage bill)
-  # Pensioner contracts are intentionally kept — they seed the pensioner register.
-  .active_types_keep_ <- c("perm", "fterm", "temp", "permanent",
-                            .pensioner_type_val_)
-  if (any(!contract_dt[[contract_type_col]] %in% .active_types_keep_)) {
-    contract_dt <- contract_dt[
-      get(contract_type_col) %in% .active_types_keep_
-    ]
+  # Retain only salary-bearing contracts in the starting snapshot.
+  # Rule: keep a row if it is a pensioner contract (needed to seed the
+  # pensioner register) OR if it has a non-NA salary (the government is paying,
+  # regardless of contract_type — this correctly includes inactive staff on
+  # government-funded leave or training).
+  # Drop rows that are neither: these are truly separated staff whose contract
+  # lingers in panel data with no salary, and must not inflate headcount or
+  # the wage bill.
+  .has_salary_ <- !is.na(contract_dt[[salary_col]])
+  .is_pensioner_ <- contract_dt[[contract_type_col]] == .pensioner_type_val_
+  if (any(!(.has_salary_ | .is_pensioner_))) {
+    contract_dt <- contract_dt[.has_salary_ | .is_pensioner_]
   }
 
   if (!salary_col %in% names(contract_dt)) {
@@ -1104,9 +1093,10 @@ simulate_horizon <- function(contract_dt,
   if (!is.null(retirement_policy) &&
       !is.null(age_col) && age_col %in% names(personnel_dt)) {
 
-    .min_age_    <- retirement_policy$min_age    %||% Inf
-    .min_tenure_ <- retirement_policy$min_tenure %||% 0
-    .elig_type_  <- retirement_policy$eligibility_type %||% "age_only"
+    .rp_defs_    <- retirement_policy$defaults %||% list()
+    .min_age_    <- .rp_defs_$min_age    %||% Inf
+    .min_tenure_ <- .rp_defs_$min_tenure %||% 0
+    .elig_type_  <- .rp_defs_$eligibility_type %||% "age_only"
 
     # Backlog threshold = min_age + period_fraction.
     # People aged exactly [min_age, min_age + period_fraction) at ref_date
@@ -1177,12 +1167,18 @@ simulate_horizon <- function(contract_dt,
         if (!"tenure_years" %in% names(.backlog_primary_))
           .backlog_primary_[, tenure_years := NA_real_]
 
-        # Compute pension amounts
-        .backlog_primary_[, pension := compute_pension(
-          retirees_dt = .SD,
-          policy_type = retirement_policy$pension_type %||% "flat",
-          params      = retirement_policy$pension_params %||% list(flat_amount = 0)
-        )]
+        # Compute pension amounts — add param columns required by new compute_pension(dt)
+        .bp_defs_ <- retirement_policy$defaults %||% list()
+        data.table::set(.backlog_primary_, j = "pension_type",    value = .bp_defs_$pension_type    %||% "flat")
+        data.table::set(.backlog_primary_, j = "flat_amount",     value = .bp_defs_$flat_amount     %||% 0)
+        data.table::set(.backlog_primary_, j = "accrual_rate",    value = .bp_defs_$accrual_rate    %||% NA_real_)
+        data.table::set(.backlog_primary_, j = "ref_wage_col",    value = .bp_defs_$ref_wage_col    %||% NA_character_)
+        data.table::set(.backlog_primary_, j = "max_years",       value = .bp_defs_$max_years       %||% NA_real_)
+        data.table::set(.backlog_primary_, j = "replacement_cap", value = .bp_defs_$replacement_cap %||% NA_real_)
+        data.table::set(.backlog_primary_, j = "balance_col",     value = .bp_defs_$balance_col     %||% NA_character_)
+        data.table::set(.backlog_primary_, j = "annuity_factor",  value = .bp_defs_$annuity_factor  %||% NA_real_)
+        data.table::set(.backlog_primary_, j = "notional_rate",   value = .bp_defs_$notional_rate   %||% NA_real_)
+        data.table::set(.backlog_primary_, j = "pension",         value = compute_pension(.backlog_primary_))
 
         # Append to pensioner register
         .ref_backlog_ <- ref_date

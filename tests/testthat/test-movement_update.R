@@ -75,7 +75,7 @@ test_that("identify_movers returns correct columns", {
     ref_date     = "2016-01-01"
   )
   expect_true(data.table::is.data.table(movers))
-  expect_true(all(c("personnel_id", "from_group", "to_group", "movement_type") %in%
+  expect_true(all(c("personnel_id", "from_group", "to_group") %in%
                     names(movers)))
 })
 
@@ -92,9 +92,8 @@ test_that("identify_movers selects correct number of movers", {
     policy_params = pp,
     ref_date     = "2016-01-01"
   )
-  # demand asks for 1 promotion (G1->G2) and 1 transfer (G2->G1)
-  expect_equal(movers[movement_type == "promotion", .N], 1L)
-  expect_equal(movers[movement_type == "transfer",  .N], 1L)
+  # demand asks for 1 mover G1->G2 and 1 mover G2->G1
+  expect_equal(nrow(movers), 2L)
 })
 
 test_that("identify_movers with promotion_strategy=tenure selects longest time-in-grade", {
@@ -167,9 +166,10 @@ test_that("identify_movers with transfer_strategy=reverse_tenure selects shortes
     movement_type = "transfer", adj_prob = 0.33,
     current_stock = 3L, n_movers = 1L
   )
-  pp <- list(group_cols = "paygrade",
-             promotion_strategy = "tenure",
-             transfer_strategy  = "reverse_tenure")
+  pp <- list(
+    group_cols = "paygrade",
+    defaults   = list(movement_strategy = "reverse_tenure")
+  )
   movers <- identify_movers(
     contract_dt  = w$contract_dt,
     personnel_dt = w$personnel_dt,

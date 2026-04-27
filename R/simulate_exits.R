@@ -7,30 +7,66 @@
 #' Mirrors the structure of \code{simulate_retirement()} and
 #' \code{simulate_hiring()}.
 #'
+#' @section Exit rate modelling — status quo and future upgrade path:
+#' The current \code{"status_quo"} mode applies historically estimated
+#' group-level exit rates, held constant across all projection periods.  This
+#' is equivalent to assuming that the \emph{composition} of exits — by grade,
+#' contract type, and tenure — is stationary.  For short-horizon projections
+#' (1–5 years) with stable workforce compositions this is a defensible
+#' assumption.
+#'
+#' A planned upgrade will replace group-level rates with a \strong{survival
+#' model} (e.g. Weibull or Cox proportional hazard) estimated from the
+#' individual-level panel data.  The survival model approach:
+#' \itemize{
+#'   \item conditions exit probability on individual characteristics
+#'     (tenure, age, grade, salary) that change over the simulation horizon;
+#'   \item naturally handles compositional change as the workforce ages and
+#'     grade structures evolve;
+#'   \item produces a per-person, per-period exit probability vector that
+#'     replaces the current group rate lookup.
+#' }
+#' The simulation architecture is already compatible with this upgrade: the
+#' survival model would be estimated once (outside the period loop) and its
+#' \code{predict()} output passed as a pre-computed probability column on
+#' \code{contract_dt}, replacing the rate-lookup in
+#' \code{compute_status_quo_exits()}.  No changes to the orchestration layer
+#' (\code{simulate_scenario()}) would be required.
+#'
 #' @import data.table
 #'
 #' @param contract_dt data.table.  Contract data in govhr harmonised format.
 #' @param personnel_dt data.table.  Personnel data in govhr harmonised format.
-#' @param policy_params List.  Exit policy parameters:
+#' @param policy_params List.  Exit policy specification in the canonical
+#'   three-slot format:
 #'   \describe{
-#'     \item{mode}{Character.  \code{"status_quo"} (default) — apply historical
-#'       rates; \code{"fixed_rate"} — apply a user-supplied scalar rate.}
-#'     \item{group_cols}{Character vector or \code{NULL}.  Grouping columns
-#'       (e.g. \code{"est_id"}).}
-#'     \item{exit_rates_dt}{data.table or \code{NULL}.  Pre-computed rates
-#'       from \code{estimate_historical_exit_rates()}.  If \code{NULL} and
-#'       \code{mode = "status_quo"}, an error is raised — rates must be
-#'       estimated in the caller's prologue and supplied here.}
-#'     \item{exit_strategy}{Character.  \code{"random"} (default) or a numeric
-#'       column name in \code{contract_dt} (ascending — lowest exits first).}
-#'     \item{exit_multiplier}{Numeric.  Scale the historical rate.  Default
-#'       \code{1.0}.}
-#'     \item{fixed_rate}{Numeric.  Required when \code{mode = "fixed_rate"};
-#'       applied as a flat attrition rate regardless of history.}
-#'     \item{active_types}{Character vector.  Contract type values treated as
-#'       active and eligible for exit.  Default \code{"active"}.}
-#'     \item{exited_type}{Character.  Value written to \code{contract_type_col}
-#'       after exit.  Default \code{"inactive"}.}
+#'     \item{\code{group_cols}}{Character vector or \code{NULL}.  Columns in
+#'       \code{contract_dt} used as the join key for group-level rate lookup
+#'       (e.g. \code{"est_id"}, \code{"paygrade"}).  \code{NULL} for
+#'       scalar-only dispatch.}
+#'     \item{\code{policy_table}}{data.table with \code{group_cols} plus an
+#'       \code{exit_rate} column, and optionally an \code{exit_multiplier}
+#'       column for per-group reform scenarios.  Pass the output of
+#'       \code{\link{estimate_historical_exit_rates}} here for
+#'       \code{mode = "status_quo"}.  \code{NULL} when
+#'       \code{mode = "fixed_rate"}.}
+#'     \item{\code{defaults}}{Named list of scalar fallback values:
+#'       \describe{
+#'         \item{\code{exit_rate}}{Numeric scalar.  Required when
+#'           \code{policy_table = NULL} (flat rate applied to all active
+#'           workers).  Also used as the fallback rate for groups absent from
+#'           \code{policy_table}.}
+#'         \item{\code{exit_strategy}}{Character.  \code{"random"} (default)
+#'           or the name of a numeric column in \code{contract_dt} to rank
+#'           by (ascending — lowest values exit first).}
+#'         \item{\code{active_types}}{Character vector.  Contract type values
+#'           treated as active and eligible for exit.  Default
+#'           \code{"active"}.}
+#'         \item{\code{exited_type}}{Character.  Value written to
+#'           \code{contract_type_col} after exit.  Default
+#'           \code{"inactive"}.}
+#'       }
+#'     }
 #'   }
 #' @param ref_date Date.  Reference date for this simulation period.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
@@ -53,18 +89,40 @@
 #' \dontrun{
 #' library(data.table)
 #'
+#' # Fixed rate — 5% scalar attrition
 #' exit_policy <- list(
-#'   mode          = "fixed_rate",
-#'   fixed_rate    = 0.05,
-#'   exit_strategy = "random",
-#'   active_types  = "permanent",
-#'   exited_type   = "inactive"
+#'   group_cols   = NULL,
+#'   policy_table = NULL,
+#'   defaults = list(
+#'     exit_rate     = 0.05,
+#'     exit_strategy = "random",
+#'     active_types  = c("perm", "fterm", "temp"),
+#'     exited_type   = "inactive"
+#'   )
+#' )
+#'
+#' # Status quo — historical rates from panel, with reform multiplier by group
+#' rates_dt <- estimate_historical_exit_rates(
+#'   panel_contract_dt  = panel_contract_dt,
+#'   panel_personnel_dt = panel_personnel_dt,
+#'   group_cols         = "paygrade"
+#' )
+#' rates_dt[, exit_multiplier := ifelse(paygrade %in% c("A","B"), 0.8, 1.0)]
+#'
+#' exit_policy_reform <- list(
+#'   group_cols   = "paygrade",
+#'   policy_table = rates_dt,
+#'   defaults = list(
+#'     exit_strategy = "random",
+#'     active_types  = c("perm", "fterm", "temp"),
+#'     exited_type   = "inactive"
+#'   )
 #' )
 #'
 #' result <- simulate_exits(
-#'   contract_dt  = contract_dt,
-#'   personnel_dt = personnel_dt,
-#'   policy_params = exit_policy,
+#'   contract_dt   = contract_dt,
+#'   personnel_dt  = personnel_dt,
+#'   policy_params = exit_policy_reform,
 #'   ref_date      = as.Date("2025-01-01")
 #' )
 #' result$summary
@@ -97,66 +155,67 @@ simulate_exits <- function(contract_dt,
   else
     personnel_dt <- data.table::copy(personnel_dt)
 
-  mode          <- policy_params$mode          %||% "status_quo"
-  group_cols    <- policy_params$group_cols
-  exit_strategy <- policy_params$exit_strategy %||% "random"
-  multiplier    <- policy_params$exit_multiplier %||% 1.0
-  active_types  <- policy_params$active_types  %||% "active"
-  exited_type   <- policy_params$exited_type   %||% "inactive"
+  exit_strategy <- policy_params$defaults$exit_strategy %||% "random"
+  active_types  <- policy_params$defaults$active_types  %||% "active"
+  exited_type   <- policy_params$defaults$exited_type   %||% "inactive"
 
   # ------------------------------------------------------------------
-  # 1. Build rates table (or use supplied one)
+  # 1. Validate policy_params
   # ------------------------------------------------------------------
-  exit_rates_dt <- policy_params$exit_rates_dt
+  has_policy_table <- !is.null(policy_params$policy_table)
+  has_group_cols   <- !is.null(policy_params$group_cols) &&
+                       length(policy_params$group_cols) > 0L
+  has_exit_rate    <- !is.null(policy_params$defaults$exit_rate) &&
+                       is.numeric(policy_params$defaults$exit_rate) &&
+                       length(policy_params$defaults$exit_rate) == 1L
 
-  if (mode == "fixed_rate") {
-    fixed_rate <- policy_params$fixed_rate
-    if (is.null(fixed_rate) || !is.numeric(fixed_rate) || length(fixed_rate) != 1L)
-      stop("exit_policy$fixed_rate must be a numeric scalar when mode = 'fixed_rate'.",
-           call. = FALSE)
-    exit_rates_dt <- data.table::data.table(exit_rate = fixed_rate)
+  if (has_group_cols && !has_policy_table)
+    stop(
+      "policy_params$group_cols is set but policy_table is NULL. ",
+      "Did you forget to pass the output of estimate_historical_exit_rates() ",
+      "as policy_table?",
+      call. = FALSE
+    )
 
-  } else if (mode == "status_quo") {
-    if (is.null(exit_rates_dt)) {
-      stop(
-        "exit_policy$exit_rates_dt must be supplied when mode = 'status_quo'. ",
-        "Call estimate_historical_exit_rates() in your simulation prologue and ",
-        "store the result in exit_policy$exit_rates_dt.",
-        call. = FALSE
-      )
-    }
-  } else {
-    stop("exit_policy$mode must be 'status_quo' or 'fixed_rate', got: '", mode, "'.",
-         call. = FALSE)
-  }
+  if (!has_policy_table && !has_exit_rate)
+    stop(
+      "policy_table is NULL and defaults$exit_rate is not set. ",
+      "Supply either a policy_table (for group-level status quo rates) or ",
+      "defaults$exit_rate (for a flat scalar rate).",
+      call. = FALSE
+    )
 
   # ------------------------------------------------------------------
   # 2. Identify exits
   # ------------------------------------------------------------------
-  exits_dt <- compute_status_quo_exits(
-    contract_dt       = contract_dt,
-    exit_rates_dt     = exit_rates_dt,
-    group_cols        = group_cols,
-    exit_strategy     = exit_strategy,
-    exit_multiplier   = multiplier,
-    personnel_id_col  = personnel_id_col,
-    contract_type_col = contract_type_col,
-    active_types      = active_types
-  )
+  exits_dt <- if (!is.null(policy_params$policy_table)) {
+    compute_status_quo_exits(
+      contract_dt       = contract_dt,
+      policy_params     = policy_params,
+      personnel_id_col  = personnel_id_col,
+      contract_type_col = contract_type_col
+    )
+  } else {
+    compute_fixed_rate_exits(
+      contract_dt       = contract_dt,
+      policy_params     = policy_params,
+      personnel_id_col  = personnel_id_col,
+      contract_type_col = contract_type_col
+    )
+  }
 
   # Attach salary at exit for savings computation
   if (!is.null(exits_dt) && nrow(exits_dt) > 0L) {
-    # Join salary from primary contract
+    # Sum ALL active contract salaries per exiting person.
+    # A person with two simultaneous contracts costs both salaries;
     salary_at_exit <- contract_dt[
       get(personnel_id_col) %in% exits_dt[[personnel_id_col]] &
         get(contract_type_col) %in% active_types,
-      .(max_sal = max(get(salary_col), na.rm = TRUE)),
+      .(total_sal = sum(get(salary_col), na.rm = TRUE)),
       by = c(personnel_id_col)
     ]
-    data.table::setnames(salary_at_exit, personnel_id_col, ".pid_exit_")
-    data.table::setnames(salary_at_exit, ".pid_exit_", personnel_id_col)
     exits_dt <- salary_at_exit[exits_dt, on = personnel_id_col]
-    data.table::setnames(exits_dt, "max_sal", salary_col)
+    data.table::setnames(exits_dt, "total_sal", salary_col)
   }
 
   n_exits      <- if (!is.null(exits_dt)) nrow(exits_dt) else 0L
@@ -166,6 +225,10 @@ simulate_exits <- function(contract_dt,
   # 3. Update state
   # ------------------------------------------------------------------
   if (!is.null(exits_dt) && nrow(exits_dt) > 0L) {
+
+    ### remember contract_dt and personnel_dt are updated in place
+    ### this means that we do not need to make any assignments
+
     update_contracts_for_exits(
       contract_dt       = contract_dt,
       exits_dt          = exits_dt,

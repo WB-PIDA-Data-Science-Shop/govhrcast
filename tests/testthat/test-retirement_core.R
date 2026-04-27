@@ -37,8 +37,9 @@ test_that("identify_retirees works with age_only eligibility", {
   personnel_dt <- create_test_personnel_dt()
   
   policy_params <- list(
-    eligibility_type = "age_only",
-    min_age = 60
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(eligibility_type = "age_only", min_age = 60)
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -69,8 +70,9 @@ test_that("identify_retirees respects exact min_age boundary", {
   )
   
   policy_params <- list(
-    eligibility_type = "age_only",
-    min_age = 60
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(eligibility_type = "age_only", min_age = 60)
   )
   
   ref_date <- as.Date("2025-01-01")  # P001 is exactly 60.00, P002 is 59.997
@@ -92,8 +94,9 @@ test_that("identify_retirees works with tenure_only eligibility", {
   personnel_dt <- create_test_personnel_dt()
   
   policy_params <- list(
-    eligibility_type = "tenure_only",
-    min_tenure = 15
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(eligibility_type = "tenure_only", min_tenure = 15)
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -129,8 +132,9 @@ test_that("identify_retirees respects exact min_tenure boundary", {
   )
   
   policy_params <- list(
-    eligibility_type = "tenure_only",
-    min_tenure = 15
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(eligibility_type = "tenure_only", min_tenure = 15)
   )
   
   ref_date <- as.Date("2025-01-01")  # P001 has exactly 15.000 years, P002 slightly less
@@ -151,9 +155,9 @@ test_that("identify_retirees works with age_and_tenure eligibility", {
   personnel_dt <- create_test_personnel_dt()
   
   policy_params <- list(
-    eligibility_type = "age_and_tenure",
-    min_age = 60,
-    min_tenure = 15
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(eligibility_type = "age_and_tenure", min_age = 60, min_tenure = 15)
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -191,9 +195,9 @@ test_that("identify_retirees AND logic works correctly", {
   )
   
   policy_params <- list(
-    eligibility_type = "age_and_tenure",
-    min_age = 60,
-    min_tenure = 15
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(eligibility_type = "age_and_tenure", min_age = 60, min_tenure = 15)
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -223,8 +227,9 @@ test_that("identify_retirees handles missing birth_date for tenure_only", {
   )
   
   policy_params <- list(
-    eligibility_type = "tenure_only",
-    min_tenure = 15
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(eligibility_type = "tenure_only", min_tenure = 15)
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -252,8 +257,9 @@ test_that("identify_retirees handles empty personnel list", {
   )
   
   policy_params <- list(
-    eligibility_type = "tenure_only",
-    min_tenure = 15
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(eligibility_type = "tenure_only", min_tenure = 15)
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -273,8 +279,9 @@ test_that("identify_retirees handles NA in computed age", {
   )
   
   policy_params <- list(
-    eligibility_type = "age_only",
-    min_age = 60
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(eligibility_type = "age_only", min_age = 60)
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -303,8 +310,9 @@ test_that("identify_retirees handles NA in computed tenure", {
   )
   
   policy_params <- list(
-    eligibility_type = "tenure_only",
-    min_tenure = 15
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(eligibility_type = "tenure_only", min_tenure = 15)
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -566,4 +574,115 @@ test_that("prepare_retiree_data preserves all contract columns", {
   expect_equal(result$position_id, "POS1")
   expect_equal(result$paygrade_code, "G10")
   expect_equal(result$org_unit_id, "ORG1")
+})
+
+
+# ===========================================================================
+# identify_retirees() — group-level policy params via policy_table
+# ===========================================================================
+
+test_that("identify_retirees: group-level min_age via policy_table dispatches correctly", {
+  contract_dt <- data.table::data.table(
+    personnel_id       = c("P001", "P002", "P003"),
+    contract_id        = c("C001", "C002", "C003"),
+    start_date         = as.Date("2000-01-01"),
+    end_date           = as.Date(NA),
+    contract_type_code = "perm",
+    gross_salary_lcu   = c(5000, 4000, 3000),
+    grade              = c("A", "B", "A")
+  )
+  personnel_dt <- data.table::data.table(
+    personnel_id = c("P001", "P002", "P003"),
+    # P001/P002: age 65 at ref_date; P003: age 50
+    birth_date   = as.Date(c("1960-01-01", "1960-01-01", "1975-01-01"))
+  )
+  # Grade A: min_age 60 → P001 (65) retires, P003 (50) does not
+  # Grade B: min_age 68 → P002 (65) does NOT retire
+  grade_tbl <- data.table::data.table(
+    grade   = c("A", "B"),
+    min_age = c(60,  68)
+  )
+  policy_params <- list(
+    group_cols   = "grade",
+    policy_table = grade_tbl,
+    defaults     = list(eligibility_type = "age_only", min_age = 60)
+  )
+  result <- identify_retirees(
+    contract_dt   = contract_dt,
+    personnel_dt  = personnel_dt,
+    policy_params = policy_params,
+    ref_date      = as.Date("2025-01-01")
+  )
+  expect_equal(result[personnel_id == "P001"]$retire, 1L)
+  expect_equal(result[personnel_id == "P002"]$retire, 0L)
+  expect_equal(result[personnel_id == "P003"]$retire, 0L)
+})
+
+test_that("identify_retirees: group-level min_tenure via policy_table dispatches correctly", {
+  contract_dt <- data.table::data.table(
+    personnel_id       = c("P001", "P002"),
+    contract_id        = c("C001", "C002"),
+    start_date         = as.Date(c("1995-01-01", "2010-01-01")),
+    end_date           = as.Date(NA),
+    contract_type_code = "perm",
+    gross_salary_lcu   = c(5000, 4000),
+    grade              = c("A", "B")
+  )
+  personnel_dt <- data.table::data.table(
+    personnel_id = c("P001", "P002"),
+    birth_date   = as.Date(c("1970-01-01", "1970-01-01"))
+  )
+  # P001: tenure ~30 yrs, grade A (min_tenure 25) → retires
+  # P002: tenure ~15 yrs, grade B (min_tenure 20) → does NOT retire
+  grade_tbl <- data.table::data.table(
+    grade      = c("A", "B"),
+    min_tenure = c(25,  20)
+  )
+  policy_params <- list(
+    group_cols   = "grade",
+    policy_table = grade_tbl,
+    defaults     = list(eligibility_type = "tenure_only", min_tenure = 25)
+  )
+  result <- identify_retirees(
+    contract_dt   = contract_dt,
+    personnel_dt  = personnel_dt,
+    policy_params = policy_params,
+    ref_date      = as.Date("2025-01-01")
+  )
+  expect_equal(result[personnel_id == "P001"]$retire, 1L)
+  expect_equal(result[personnel_id == "P002"]$retire, 0L)
+})
+
+test_that("identify_retirees: unmatched grade uses default min_age from defaults", {
+  contract_dt <- data.table::data.table(
+    personnel_id       = c("P001", "P002"),
+    contract_id        = c("C001", "C002"),
+    start_date         = as.Date("2000-01-01"),
+    end_date           = as.Date(NA),
+    contract_type_code = "perm",
+    gross_salary_lcu   = c(5000, 4000),
+    grade              = c("A", "C")  # grade C not in policy_table
+  )
+  personnel_dt <- data.table::data.table(
+    personnel_id = c("P001", "P002"),
+    birth_date   = as.Date(c("1960-01-01", "1960-01-01"))  # both age 65
+  )
+  # Grade C unmatched → falls back to default min_age = 62; age 65 >= 62 → retires
+  grade_tbl <- data.table::data.table(
+    grade   = c("A"),
+    min_age = c(60)
+  )
+  policy_params <- list(
+    group_cols   = "grade",
+    policy_table = grade_tbl,
+    defaults     = list(eligibility_type = "age_only", min_age = 62)
+  )
+  result <- identify_retirees(
+    contract_dt   = contract_dt,
+    personnel_dt  = personnel_dt,
+    policy_params = policy_params,
+    ref_date      = as.Date("2025-01-01")
+  )
+  expect_equal(result[personnel_id == "P001"]$retire, 1L)  # grade A, min_age 60
+  expect_equal(result[personnel_id == "P002"]$retire, 1L)  # grade C, default 62
 })

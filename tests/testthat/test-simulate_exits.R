@@ -63,11 +63,14 @@ test_that("simulate_exits: fixed_rate mode returns correct structure", {
   d <- make_exit_test_data()
 
   exit_policy <- list(
-    mode          = "fixed_rate",
-    fixed_rate    = 0.5,    # 50% → 2 of 4 exit
-    exit_strategy = "random",
-    active_types  = "permanent",
-    exited_type   = "inactive"
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_rate     = 0.5,
+      exit_strategy = "random",
+      active_types  = "permanent",
+      exited_type   = "inactive"
+    )
   )
 
   result <- simulate_exits(
@@ -86,11 +89,14 @@ test_that("simulate_exits: fixed_rate = 0 → no exits", {
   d <- make_exit_test_data()
 
   exit_policy <- list(
-    mode          = "fixed_rate",
-    fixed_rate    = 0,
-    exit_strategy = "random",
-    active_types  = "permanent",
-    exited_type   = "inactive"
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_rate     = 0,
+      exit_strategy = "random",
+      active_types  = "permanent",
+      exited_type   = "inactive"
+    )
   )
 
   result <- simulate_exits(
@@ -109,11 +115,14 @@ test_that("simulate_exits: exiting personnel contracts are marked inactive", {
 
   # Force all 4 to exit
   exit_policy <- list(
-    mode          = "fixed_rate",
-    fixed_rate    = 1.0,
-    exit_strategy = "random",
-    active_types  = "permanent",
-    exited_type   = "inactive"
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_rate     = 1.0,
+      exit_strategy = "random",
+      active_types  = "permanent",
+      exited_type   = "inactive"
+    )
   )
 
   result <- simulate_exits(
@@ -131,11 +140,14 @@ test_that("simulate_exits: exit_savings equals sum of exited salaries", {
   d <- make_exit_test_data()
 
   exit_policy <- list(
-    mode          = "fixed_rate",
-    fixed_rate    = 1.0,
-    exit_strategy = "random",
-    active_types  = "permanent",
-    exited_type   = "inactive"
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_rate     = 1.0,
+      exit_strategy = "random",
+      active_types  = "permanent",
+      exited_type   = "inactive"
+    )
   )
 
   result <- simulate_exits(
@@ -149,14 +161,16 @@ test_that("simulate_exits: exit_savings equals sum of exited salaries", {
                sum(d$contract_dt$gross_salary_lcu))
 })
 
-test_that("simulate_exits: status_quo mode errors when exit_rates_dt is NULL", {
+test_that("simulate_exits: no policy_table and no exit_rate → error", {
   d <- make_exit_test_data()
 
   exit_policy <- list(
-    mode          = "status_quo",
-    exit_rates_dt = NULL,
-    exit_strategy = "random",
-    active_types  = "permanent"
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_strategy = "random",
+      active_types  = "permanent"
+    )
   )
 
   expect_error(
@@ -166,7 +180,7 @@ test_that("simulate_exits: status_quo mode errors when exit_rates_dt is NULL", {
       policy_params = exit_policy,
       ref_date      = as.Date("2025-01-01")
     ),
-    regexp = "exit_rates_dt"
+    regexp = "exit_rate"
   )
 })
 
@@ -174,11 +188,14 @@ test_that("simulate_exits: status_quo mode with pre-supplied rates works", {
   d <- make_exit_test_data()
 
   exit_policy <- list(
-    mode          = "status_quo",
-    exit_rates_dt = data.table::data.table(exit_rate = 0.25),  # 25% of 4 = 1
-    exit_strategy = "random",
-    active_types  = "permanent",
-    exited_type   = "inactive"
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_rate     = 0.25,         # 25% of 4 = 1 exit
+      exit_strategy = "random",
+      active_types  = "permanent",
+      exited_type   = "inactive"
+    )
   )
 
   result <- simulate_exits(
@@ -191,12 +208,16 @@ test_that("simulate_exits: status_quo mode with pre-supplied rates works", {
   expect_equal(result$summary$n_exits, 1L)
 })
 
-test_that("simulate_exits: invalid mode raises error", {
+test_that("simulate_exits: group_cols set without policy_table → error", {
   d <- make_exit_test_data()
 
   exit_policy <- list(
-    mode       = "turbo_mode",
-    fixed_rate = 0.05
+    group_cols   = "status",
+    policy_table = NULL,
+    defaults = list(
+      exit_rate    = 0.05,
+      active_types = "permanent"
+    )
   )
 
   expect_error(
@@ -206,7 +227,7 @@ test_that("simulate_exits: invalid mode raises error", {
       policy_params = exit_policy,
       ref_date      = as.Date("2025-01-01")
     ),
-    regexp = "mode"
+    regexp = "group_cols"
   )
 })
 
@@ -234,11 +255,14 @@ test_that("Phase 3c: simulate_horizon with exit_policy reduces n_headcount_end",
   )
 
   exit_policy <- list(
-    mode          = "fixed_rate",
-    fixed_rate    = 0.2,     # 2 of 10 exit per period
-    exit_strategy = "random",
-    active_types  = "permanent",
-    exited_type   = "inactive"
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_rate     = 0.2,     # 2 of 10 exit per period
+      exit_strategy = "random",
+      active_types  = "permanent",
+      exited_type   = "inactive"
+    )
   )
 
   res <- simulate_horizon(
@@ -297,17 +321,19 @@ test_that("Phase 3c: n_non_ret_exits column present in comparison when exit_poli
 test_that("compute_status_quo_exits: returns personnel_id for selected exiters", {
   d <- make_exit_test_data()
 
-  exit_rates_dt <- data.table::data.table(exit_rate = 0.5)
-
   result <- compute_status_quo_exits(
     contract_dt       = d$contract_dt,
-    exit_rates_dt     = exit_rates_dt,
-    group_cols        = NULL,
-    exit_strategy     = "random",
-    exit_multiplier   = 1.0,
+    policy_params     = list(
+      group_cols   = NULL,
+      policy_table = NULL,
+      defaults     = list(
+        exit_rate     = 0.5,
+        exit_strategy = "random",
+        active_types  = "permanent"
+      )
+    ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code",
-    active_types      = "permanent"
+    contract_type_col = "contract_type_code"
   )
 
   expect_s3_class(result, "data.table")
@@ -315,21 +341,22 @@ test_that("compute_status_quo_exits: returns personnel_id for selected exiters",
   expect_equal(nrow(result), 2L)
 })
 
-test_that("compute_status_quo_exits: exit_multiplier scales exits correctly", {
+test_that("compute_status_quo_exits: exit_rate = 0 → no exits", {
   d <- make_exit_test_data()
 
-  exit_rates_dt <- data.table::data.table(exit_rate = 0.5)
-
-  # multiplier = 0 → no exits
   result <- compute_status_quo_exits(
     contract_dt       = d$contract_dt,
-    exit_rates_dt     = exit_rates_dt,
-    group_cols        = NULL,
-    exit_strategy     = "random",
-    exit_multiplier   = 0,
+    policy_params     = list(
+      group_cols   = NULL,
+      policy_table = NULL,
+      defaults     = list(
+        exit_rate     = 0,
+        exit_strategy = "random",
+        active_types  = "permanent"
+      )
+    ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code",
-    active_types      = "permanent"
+    contract_type_col = "contract_type_code"
   )
 
   expect_equal(nrow(result), 0L)
@@ -345,13 +372,16 @@ test_that("compute_status_quo_exits: grouped — correct exit count per group", 
 
   result <- compute_status_quo_exits(
     contract_dt       = d$contract_dt,
-    exit_rates_dt     = d$exit_rates_dt,
-    group_cols        = "est_id",
-    exit_strategy     = "random",
-    exit_multiplier   = 1.0,
+    policy_params     = list(
+      group_cols   = "est_id",
+      policy_table = d$exit_rates_dt,
+      defaults     = list(
+        exit_strategy = "random",
+        active_types  = "permanent"
+      )
+    ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code",
-    active_types      = "permanent"
+    contract_type_col = "contract_type_code"
   )
 
   expect_s3_class(result, "data.table")
@@ -370,13 +400,16 @@ test_that("compute_status_quo_exits: grouped — no person selected twice", {
 
   result <- compute_status_quo_exits(
     contract_dt       = d$contract_dt,
-    exit_rates_dt     = rates_all,
-    group_cols        = "est_id",
-    exit_strategy     = "random",
-    exit_multiplier   = 1.0,
+    policy_params     = list(
+      group_cols   = "est_id",
+      policy_table = rates_all,
+      defaults     = list(
+        exit_strategy = "random",
+        active_types  = "permanent"
+      )
+    ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code",
-    active_types      = "permanent"
+    contract_type_col = "contract_type_code"
   )
 
   expect_equal(nrow(result), 6L)
@@ -392,13 +425,16 @@ test_that("compute_status_quo_exits: grouped — group with zero rate produces n
 
   result <- compute_status_quo_exits(
     contract_dt       = d$contract_dt,
-    exit_rates_dt     = rates_zero_e2,
-    group_cols        = "est_id",
-    exit_strategy     = "random",
-    exit_multiplier   = 1.0,
+    policy_params     = list(
+      group_cols   = "est_id",
+      policy_table = rates_zero_e2,
+      defaults     = list(
+        exit_strategy = "random",
+        active_types  = "permanent"
+      )
+    ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code",
-    active_types      = "permanent"
+    contract_type_col = "contract_type_code"
   )
 
   # Only 1 exit from E1; E2 contributes nothing
@@ -425,13 +461,16 @@ test_that("compute_status_quo_exits: grouped — unknown group in contract_dt ge
 
   result <- compute_status_quo_exits(
     contract_dt       = ct_extended,
-    exit_rates_dt     = d$exit_rates_dt,   # no row for E3
-    group_cols        = "est_id",
-    exit_strategy     = "random",
-    exit_multiplier   = 1.0,
+    policy_params     = list(
+      group_cols   = "est_id",
+      policy_table = d$exit_rates_dt,   # no row for E3
+      defaults     = list(
+        exit_strategy = "random",
+        active_types  = "permanent"
+      )
+    ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code",
-    active_types      = "permanent"
+    contract_type_col = "contract_type_code"
   )
 
   # P99 must not be selected (E3 rate imputed to 0)
@@ -453,13 +492,16 @@ test_that("compute_status_quo_exits: empty active workforce returns empty data.t
 
   result <- compute_status_quo_exits(
     contract_dt       = ct_pensioner,
-    exit_rates_dt     = rates,
-    group_cols        = "est_id",
-    exit_strategy     = "random",
-    exit_multiplier   = 1.0,
+    policy_params     = list(
+      group_cols   = "est_id",
+      policy_table = rates,
+      defaults     = list(
+        exit_strategy = "random",
+        active_types  = "permanent"
+      )
+    ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code",
-    active_types      = "permanent"
+    contract_type_col = "contract_type_code"
   )
 
   expect_s3_class(result, "data.table")

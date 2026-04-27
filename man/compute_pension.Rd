@@ -4,20 +4,43 @@
 \alias{compute_pension}
 \title{Compute Pension Amounts}
 \usage{
-compute_pension(retirees_dt, policy_type, params)
+compute_pension(retirees_dt)
 }
 \arguments{
-\item{retirees_dt}{data.table. Retiree data with salary and tenure information}
-
-\item{policy_type}{Character. One of: "db", "dc", "flat", "hybrid"}
-
-\item{params}{List. Policy-specific parameters for pension calculation}
+\item{retirees_dt}{data.table.  Enriched retiree table produced by the
+pension-parameter resolution stage of \code{\link{simulate_retirement}}.
+Required columns (all stamped as per-row by
+\code{\link{resolve_policy_table}}):
+\describe{
+\item{\code{pension_type}}{Character.  One of \code{"db"},
+\code{"dc"}, \code{"flat"}, \code{"hybrid"}.}
+\item{\code{accrual_rate}}{Numeric. DB accrual rate (required for DB
+and hybrid).}
+\item{\code{ref_wage_col}}{Character column-pointer naming the wage
+column (required for DB and hybrid).}
+\item{\code{tenure_years}}{Numeric. Years of service (DB and hybrid).}
+\item{\code{max_years}}{Numeric. Service cap; \code{NA} = uncapped
+(DB and hybrid).}
+\item{\code{replacement_cap}}{Numeric. Replacement rate ceiling;
+\code{NA} = uncapped (DB and hybrid).}
+\item{\code{balance_col}}{Character column-pointer naming the DC
+account balance (DC and hybrid).}
+\item{\code{annuity_factor}}{Numeric. DC annuity divisor (DC and
+hybrid).}
+\item{\code{flat_amount}}{Numeric. Uniform pension amount (flat only).}
+}}
 }
 \value{
-Numeric vector of pension amounts
+Numeric vector of length \code{nrow(retirees_dt)} giving the
+periodic pension amount for each retiree.  Order matches the row order
+of \code{retirees_dt}.
 }
 \description{
-Main dispatcher function that routes pension calculation to the appropriate
-method based on policy type. Uses switch() for clean routing.
+Dispatcher that routes each row in \code{retirees_dt} to the appropriate
+pension formula (\code{"db"}, \code{"dc"}, \code{"flat"}, or
+\code{"hybrid"}) based on the per-row \code{pension_type} column.  Iterates
+over each unique type present in the cohort, computes pensions for that
+subset, and accumulates results into a single numeric vector aligned with
+\code{retirees_dt}.
 }
 \keyword{internal}

@@ -49,19 +49,21 @@ make_salary_scale <- function() {
 }
 
 null_retirement_policy <- list(
-  eligibility_type = "age_only",
-  min_age          = 999,
-  pension_type     = "flat",
-  pension_params   = list(flat_amount = 1000)
+  defaults = list(
+    eligibility_type = "age_only", min_age = 999,
+    pension_type = "flat", flat_amount = 1000
+    )
 )
 
 null_movement_policy <- list(
-  group_cols           = "est_id",
-  salary_scale         = make_salary_scale(),
-  promotion_multiplier = 0,
-  transfer_multiplier  = 0,
-  promotion_strategy   = "tenure",
-  transfer_strategy    = "random"
+  group_cols   = "est_id",
+  policy_table = NULL,
+  defaults = list(
+    movement_rate      = 0,
+    movement_strategy  = "tenure",
+    active_types       = "permanent",
+    salary_update_rule = "scale"
+  )
 )
 
 null_hiring_policy <- list(
@@ -110,17 +112,15 @@ test_that("compute_exit_effect: respects custom salary_col name", {
 # compute_movement_effect()
 # ===========================================================================
 
-test_that("compute_movement_effect: returns zeros for NULL movers_dt", {
+test_that("compute_movement_effect: returns zero for NULL movers_dt", {
   after <- data.table::data.table(personnel_id = "P1", gross_salary_lcu = 12000)
   r <- compute_movement_effect(NULL, after)
-  expect_equal(r$promotion, 0)
-  expect_equal(r$transfer,  0)
+  expect_equal(r$movement, 0)
 })
 
-test_that("compute_movement_effect: returns zeros for zero-row movers_dt", {
+test_that("compute_movement_effect: returns zero for zero-row movers_dt", {
   movers <- data.table::data.table(
     personnel_id  = character(0),
-    movement_type = character(0),
     salary_before = numeric(0)
   )
   after <- data.table::data.table(
@@ -128,50 +128,42 @@ test_that("compute_movement_effect: returns zeros for zero-row movers_dt", {
     gross_salary_lcu = numeric(0)
   )
   r <- compute_movement_effect(movers, after)
-  expect_equal(r$promotion, 0)
-  expect_equal(r$transfer,  0)
+  expect_equal(r$movement, 0)
 })
 
-test_that("compute_movement_effect: returns zeros when salary_before missing", {
+test_that("compute_movement_effect: returns zero when salary_before missing", {
   movers <- data.table::data.table(
-    personnel_id  = "P1",
-    movement_type = "promotion"
+    personnel_id = "P1"
     # no salary_before column
   )
   after <- data.table::data.table(personnel_id = "P1", gross_salary_lcu = 12000)
   r <- compute_movement_effect(movers, after)
-  expect_equal(r$promotion, 0)
-  expect_equal(r$transfer,  0)
+  expect_equal(r$movement, 0)
 })
 
-test_that("compute_movement_effect: correct promotion diff", {
+test_that("compute_movement_effect: correct movement diff (upward move)", {
   movers <- data.table::data.table(
     personnel_id  = "P1",
-    movement_type = "promotion",
     salary_before = 10000
   )
   after <- data.table::data.table(personnel_id = "P1", gross_salary_lcu = 12000)
   r <- compute_movement_effect(movers, after)
-  expect_equal(r$promotion, 2000)
-  expect_equal(r$transfer,  0)
+  expect_equal(r$movement, 2000)
 })
 
-test_that("compute_movement_effect: correct transfer diff", {
+test_that("compute_movement_effect: correct movement diff (lateral move)", {
   movers <- data.table::data.table(
     personnel_id  = "P1",
-    movement_type = "transfer",
     salary_before = 12000
   )
   after <- data.table::data.table(personnel_id = "P1", gross_salary_lcu = 11000)
   r <- compute_movement_effect(movers, after)
-  expect_equal(r$promotion, 0)
-  expect_equal(r$transfer,  -1000)
+  expect_equal(r$movement, -1000)
 })
 
-test_that("compute_movement_effect: splits promotion and transfer effects", {
+test_that("compute_movement_effect: sums total movement effect across all movers", {
   movers <- data.table::data.table(
     personnel_id  = c("P1", "P2"),
-    movement_type = c("promotion", "transfer"),
     salary_before = c(10000, 12000)
   )
   after <- data.table::data.table(
@@ -179,8 +171,8 @@ test_that("compute_movement_effect: splits promotion and transfer effects", {
     gross_salary_lcu = c(13000, 11500)
   )
   r <- compute_movement_effect(movers, after)
-  expect_equal(r$promotion, 3000)
-  expect_equal(r$transfer,  -500)
+  # P1: +3000, P2: -500 => total = 2500
+  expect_equal(r$movement, 2500)
 })
 
 
@@ -352,10 +344,10 @@ test_that("simulate_scenario: pensioner_register gains rows after retirements", 
   n <- 2L; sal <- 10000
   s <- make_horizon_state(n = n, salary = sal, ages = rep(65L, n))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 60,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 5000)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 60,
+      pension_type = "flat", flat_amount = 5000
+      )
   )
   r <- simulate_scenario(
     contract_dt        = s$contract_dt,
@@ -376,10 +368,10 @@ test_that("simulate_scenario: pensioner_register gains rows after retirements", 
 test_that("simulate_scenario: exit_savings positive when retirees have salary", {
   s <- make_horizon_state(n = 2L, salary = 10000, ages = rep(65L, 2L))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 60,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 1000)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 60,
+      pension_type = "flat", flat_amount = 1000
+      )
   )
   r <- simulate_scenario(
     contract_dt        = s$contract_dt,
@@ -622,10 +614,10 @@ test_that("pension_cost_total >= pension_cost_new from period 2 onwards", {
   s <- make_horizon_state(n = 4L, salary = 10000,
                           ages = c(64L, 64L, 40L, 40L))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 65,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 1000)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 65,
+      pension_type = "flat", flat_amount = 1000
+      )
   )
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
@@ -797,10 +789,10 @@ test_that("n_headcount_start excludes pensioner rows", {
   n_active <- 2L
   s <- make_horizon_state(n = n_active, salary = 10000, ages = rep(30L, n_active))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 65,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 1000)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 65,
+      pension_type = "flat", flat_amount = 1000
+      )
   )
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
@@ -823,10 +815,10 @@ test_that("n_headcount_end decreases after retirements (pensioners excluded)", {
   n <- 4L
   s <- make_horizon_state(n = n, salary = 10000, ages = rep(66L, n))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 65,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 1000)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 65,
+      pension_type = "flat", flat_amount = 1000
+      )
   )
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
@@ -848,10 +840,10 @@ test_that("wage_bill_start is 0 after all workers become pensioners", {
   n <- 2L
   s <- make_horizon_state(n = n, salary = 10000, ages = rep(66L, n))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 65,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 500)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 65,
+      pension_type = "flat", flat_amount = 500
+      )
   )
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
@@ -872,10 +864,10 @@ test_that("exit_savings equals pre-retirement salary bill when all workers retir
   n <- 2L; sal <- 10000
   s <- make_horizon_state(n = n, salary = sal, ages = rep(66L, n))
   retire_policy <- list(
-    eligibility_type = "age_only",
-    min_age          = 65,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 500)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 65,
+      pension_type = "flat", flat_amount = 500
+      )
   )
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
@@ -985,10 +977,10 @@ test_that("simulate_horizon: status_quo mode produces hires close to historical 
   )
 
   retire_policy_off <- list(
-    eligibility_type = "age_only",
-    min_age          = 999,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 500)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 999,
+      pension_type = "flat", flat_amount = 500
+      )
   )
 
   res <- simulate_horizon(
@@ -1039,10 +1031,10 @@ make_phase1b_inputs <- function(ref_date = as.Date("2020-01-01")) {
     gross_salary_lcu = 10000
   )
   retire_off <- list(
-    eligibility_type = "age_only",
-    min_age          = 999L,
-    pension_type     = "flat",
-    pension_params   = list(flat_amount = 500)
+    defaults = list(
+      eligibility_type = "age_only", min_age = 999L,
+      pension_type = "flat", flat_amount = 500
+      )
   )
   list(
     contract_dt     = contract_dt,

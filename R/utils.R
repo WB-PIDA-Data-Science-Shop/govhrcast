@@ -21,13 +21,17 @@ utils::globalVariables(c(
 #' Calculate Years Between Two Dates
 #'
 #' @description
-#' Vectorized function to compute time elapsed in years between two date vectors.
-#' Uses 365.25 days per year to account for leap years.
+#' Vectorised computation of elapsed time in years between two \code{Date}
+#' vectors.  Uses a 365.25-day year to account for leap years consistently
+#' across all age and tenure calculations in the package.
 #'
-#' @param start_date Date vector. Start dates
-#' @param end_date Date vector. End dates
+#' @param start_date Date vector.  Start dates.  Recycled to length of
+#'   \code{end_date} by standard R rules.
+#' @param end_date Date vector.  End dates.  Must be coercible to \code{Date}
+#'   via \code{as.numeric(difftime(..., units = "days"))}.
 #'
-#' @return Numeric vector of years elapsed
+#' @return Numeric vector (length = \code{max(length(start_date), length(end_date))})
+#'   of elapsed years.  Negative if \code{end_date < start_date}.
 #' @keywords internal
 #'
 #' @examples
@@ -46,14 +50,25 @@ compute_years <- function(start_date, end_date) {
 #' Calculate Age from Birth Date
 #'
 #' @description
-#' Computes age in years for each personnel at a reference date.
+#' Computes age in fractional years at a reference date for every person in
+#' \code{personnel_dt}.  Thin wrapper around \code{\link{compute_years}}
+#' that extracts the birth date column and returns a tidy two-column
+#' \code{data.table} ready for joining onto eligibility tables.
 #'
-#' @param personnel_dt data.table. Personnel data
-#' @param ref_date Date. Reference date for age calculation
-#' @param birth_date_col Character. Name of birth date column (default: "birth_date")
-#' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
+#' @param personnel_dt data.table.  Personnel register.  Required columns:
+#'   \code{personnel_id_col}, \code{birth_date_col}.
+#' @param ref_date Date.  The reference date used as the \emph{end} date for
+#'   the age interval.  Typically the simulation period close date.
+#' @param birth_date_col Character.  Date of birth column in
+#'   \code{personnel_dt}.  (default: \code{"birth_date"}).
+#' @param personnel_id_col Character.  Unique personnel identifier column.
+#'   (default: \code{"personnel_id"}).
 #'
-#' @return data.table with personnel_id and age columns
+#' @return data.table (one row per person) with columns:
+#'   \describe{
+#'     \item{\code{personnel_id}}{Personnel identifier.}
+#'     \item{\code{age}}{Numeric.  Age in fractional years at \code{ref_date}.}
+#'   }
 #' @keywords internal
 #'
 #' @examples
@@ -196,16 +211,30 @@ compute_tenure <- function(contract_dt,
 #' Get Active Contracts at Reference Date
 #'
 #' @description
-#' Filters contracts that are active at a given reference date.
-#' A contract is active if it has started and has not ended before ref_date.
+#' Returns the strictly active workforce subset of \code{contract_dt}:
+#' contracts that have started, have not yet ended, and are not classified as
+#' \code{"inactive"} or \code{"pensioner"}.
 #'
-#' @param contract_dt data.table. Contract data
-#' @param ref_date Date. Reference date
-#' @param start_date_col Character. Name of start date column (default: "start_date")
-#' @param end_date_col Character. Name of end date column (default: "end_date")
-#' @param contract_type_col Character. Name of contract type column (default: "contract_type_code")
+#' Use this filter for headcount, attrition, hiring demand, and retirement
+#' eligibility computations.  For wage bill computations use
+#' \code{\link{get_salary_bearing_contracts}} instead, which retains
+#' inactive-but-paid staff.
 #'
-#' @return data.table of active contracts
+#' @param contract_dt data.table.  Contract register.  Required columns:
+#'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col}.
+#' @param ref_date Date.  The snapshot date.  A contract is included if
+#'   \code{start_date <= ref_date} and
+#'   (\code{is.na(end_date)} or \code{end_date >= ref_date}).
+#' @param start_date_col Character.  Contract start date column.
+#'   (default: \code{"start_date"}).
+#' @param end_date_col Character.  Contract end date column; \code{NA} for
+#'   open-ended contracts.  (default: \code{"end_date"}).
+#' @param contract_type_col Character.  Contract classification column.
+#'   Contracts with type \code{"inactive"} or \code{"pensioner"} are
+#'   excluded.  (default: \code{"contract_type_code"}).
+#'
+#' @return data.table.  Subset of \code{contract_dt} containing only active
+#'   contracts at \code{ref_date}.  All original columns are preserved.
 #' @keywords internal
 get_active_contracts <- function(contract_dt,
                                  ref_date,
@@ -225,19 +254,72 @@ get_active_contracts <- function(contract_dt,
 }
 
 
+#' Get Salary-Bearing Contracts at Reference Date
+#'
+#' @description
+#' Returns all contract rows where the government is paying a salary — that is,
+#' any row that is \emph{not} a pensioner contract and has a non-\code{NA}
+#' salary value.  This is the correct filter for wage bill computation.
+#'
+#' Unlike \code{get_active_contracts()}, which restricts to personnel who are
+#' actively working, this function deliberately retains inactive-but-paid staff
+#' (e.g. those on government-funded leave or training) because the government
+#' is still paying their salary and they must be counted in the wage bill.
+#'
+#' @param contract_dt data.table.  Contract data.
+#' @param salary_col Character.  Name of the salary column.
+#'   Default \code{"gross_salary_lcu"}.
+#' @param contract_type_col Character.  Name of the contract type column.
+#'   Default \code{"contract_type_code"}.
+#' @param pensioner_type Character scalar.  The contract type value that
+#'   identifies pensioner rows.  Default \code{"pensioner"}.
+#'
+#' @return data.table of salary-bearing contract rows (a subset of
+#'   \code{contract_dt}).
+#' @keywords internal
+get_salary_bearing_contracts <- function(contract_dt,
+                                         salary_col          = "gross_salary_lcu",
+                                         contract_type_col   = "contract_type_code",
+                                         pensioner_type      = "pensioner") {
+  contract_dt[
+    get(contract_type_col) != pensioner_type &
+    !is.na(get(salary_col))
+  ]
+}
+
+
 #' Get Primary Contract for Each Personnel
 #'
 #' @description
-#' For personnel with multiple active contracts, selects the primary contract
-#' based on priority: (1) latest start_date, (2) highest salary, (3) lowest contract_id.
+#' Deduplicates \code{contract_dt} to one row per person by applying a
+#' three-level priority rule: (1) latest \code{start_date}, (2) highest
+#' salary, (3) lowest \code{contract_id} (tie-break for determinism).
+#' Typically called on the output of \code{\link{get_active_contracts}} to
+#' obtain a unique primary contract per eligible employee.
 #'
-#' @param contract_dt data.table. Contract data (should be pre-filtered for active contracts)
-#' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
-#' @param contract_id_col Character. Name of contract ID column (default: "contract_id")
-#' @param start_date_col Character. Name of start date column (default: "start_date")
-#' @param salary_col Character. Name of salary column for prioritization (default: "gross_salary_lcu")
+#' @param contract_dt data.table.  Contract register, pre-filtered to the
+#'   relevant subset (e.g. active contracts only).  Required columns:
+#'   \code{personnel_id_col}, \code{contract_id_col}, \code{start_date_col},
+#'   \code{salary_col}.
+#' @param personnel_id_col Character.  Personnel identifier column.
+#'   (default: \code{"personnel_id"}).
+#' @param contract_id_col Character.  Contract identifier column used as the
+#'   deterministic tie-break (lowest value wins).
+#'   (default: \code{"contract_id"}).
+#' @param start_date_col Character.  Contract start date column.
+#'   (default: \code{"start_date"}).
+#' @param salary_col Character.  Salary column for the second priority level
+#'   (highest salary wins when start dates are tied).
+#'   (default: \code{"gross_salary_lcu"}).
 #'
-#' @return data.table with one row per personnel (their primary contract)
+#' @details
+#' Sorts \code{contract_dt} in place (\code{data.table::setorderv}) before
+#' taking \code{.SD[1]} per group.  The caller's table is reordered as a
+#' side-effect; pass \code{data.table::copy(contract_dt)} if the original
+#' row order must be preserved.
+#'
+#' @return data.table.  One row per unique \code{personnel_id_col} value,
+#'   containing all original columns of the highest-priority contract.
 #' @keywords internal
 get_primary_contract <- function(contract_dt,
                                  personnel_id_col = "personnel_id",
@@ -484,4 +566,266 @@ roll_snapshot_pairs <- function(panel_dt, date_col, f, ...) {
   if (length(non_null) == 0L) return(data.table::data.table())
 
   data.table::rbindlist(non_null, fill = TRUE, use.names = TRUE)
+}
+
+
+#' Extract group_cols from a param spec
+#'
+#' @description
+#' Returns the \code{group_cols} slot when \code{param_spec} is a three-slot
+#' list, otherwise \code{NULL}. Used internally to collect all contract
+#' columns that must be joined onto the working data before calling
+#' \code{dispatch_param()}.
+#'
+#' @param param_spec A bare scalar, or a list with a \code{group_cols} slot.
+#' @return Character vector or \code{NULL}.
+#' @keywords internal
+.param_group_cols <- function(param_spec) {
+  if (is.list(param_spec) && !data.table::is.data.table(param_spec))
+    param_spec$group_cols
+  else
+    NULL
+}
+
+
+#' Dispatch a Policy Parameter to a Per-Row Vector
+#'
+#' @description
+#' Resolves a policy parameter specification into a numeric vector aligned
+#' to the rows of \code{working_dt}. Accepts three input forms:
+#' \itemize{
+#'   \item A bare scalar (e.g. \code{60}) — repeated for every row.
+#'   \item A three-slot list with \code{group_cols = NULL} — \code{default}
+#'         is repeated for every row.
+#'   \item A three-slot list with \code{group_cols} and \code{policy_table} — the
+#'         param table is joined onto \code{working_dt} by \code{group_cols}
+#'         and the \code{param_name} column is returned; unmatched rows are
+#'         filled with \code{default}, or an error is raised if
+#'         \code{default} is \code{NULL}.
+#' }
+#'
+#' @param param_spec Scalar, or a list with slots:
+#'   \describe{
+#'     \item{default}{Scalar fallback value. Used directly when
+#'       \code{group_cols} is \code{NULL}, or as fill for unmatched rows
+#'       when \code{group_cols} is set.}
+#'     \item{group_cols}{Character vector of column names in
+#'       \code{working_dt} that define the grouping key. \code{NULL} for
+#'       scalar dispatch.}
+#'     \item{policy_table}{data.table with \code{group_cols} plus a column named
+#'       \code{param_name} holding the per-group values. Required when
+#'       \code{group_cols} is non-\code{NULL}.}
+#'   }
+#' @param working_dt data.table. The working data against which the parameter
+#'   is resolved. Must contain all columns listed in \code{group_cols}.
+#' @param param_name Character scalar. Name of the parameter being resolved;
+#'   must match the value column in \code{dt}.
+#'
+#' @return Numeric (or logical/character) vector of length \code{nrow(working_dt)}.
+#'
+#' @examples
+#' \dontrun{
+#' library(data.table)
+#' dt <- data.table(grade = c("A", "B", "A"), salary = c(5000, 4000, 3000))
+#'
+#' # Scalar dispatch
+#' dispatch_param(60, dt, "min_age")
+#' # [1] 60 60 60
+#'
+#' # Group-level dispatch
+#' lookup <- data.table(grade = c("A", "B"), min_age = c(60, 55))
+#' dispatch_param(
+#'   list(default = NULL, group_cols = "grade", policy_table = lookup),
+#'   dt, "min_age"
+#' )
+#' # [1] 60 55 60
+#' }
+#'
+#' @keywords internal
+dispatch_param <- function(param_spec, working_dt, param_name) {
+
+  # --- Normalise bare scalar to canonical three-slot form -----------------
+  if (!is.list(param_spec) || data.table::is.data.table(param_spec))
+    param_spec <- list(default = param_spec, group_cols = NULL, policy_table = NULL)
+
+  group_cols   <- param_spec$group_cols
+  default      <- param_spec$default
+  lookup_dt    <- param_spec$policy_table
+
+  # --- Validate: policy_table without group_cols or group_cols without policy_table ---
+  if (is.null(group_cols) && !is.null(lookup_dt))
+    stop("dispatch_param: '", param_name,
+         "' has policy_table but group_cols is NULL. ",
+         "Specify group_cols or remove policy_table.", call. = FALSE)
+
+  if (!is.null(group_cols) && is.null(lookup_dt))
+    stop("dispatch_param: '", param_name,
+         "' has group_cols but policy_table is NULL. ",
+         "Provide a policy_table or set group_cols = NULL for scalar dispatch.",
+         call. = FALSE)
+
+  # --- Scalar path: no join needed ----------------------------------------
+  if (is.null(group_cols))
+    return(rep(default, nrow(working_dt)))
+
+  # --- Group-level path ---------------------------------------------------
+
+  # Validate group_cols exist in working_dt
+  missing_cols <- setdiff(group_cols, names(working_dt))
+  if (length(missing_cols) > 0L)
+    stop("dispatch_param: '", param_name,
+         "' group_cols not found in working_dt: ",
+         paste(missing_cols, collapse = ", "), call. = FALSE)
+
+  # Validate value column exists in lookup_dt
+  if (!param_name %in% names(lookup_dt))
+    stop("dispatch_param: '", param_name,
+         "' column not found in dt. ",
+         "dt must contain a column named '", param_name, "'.", call. = FALSE)
+
+  # Select only the columns we need — avoid dragging extra cols through join
+  lookup_slim <- lookup_dt[, c(group_cols, param_name), with = FALSE]
+
+  # Left-join: every row of working_dt gets the matched value (or NA)
+  joined <- lookup_slim[working_dt, on = group_cols]
+  vals   <- joined[[param_name]]
+
+  # Fill unmatched rows
+  unmatched <- is.na(vals)
+  if (any(unmatched)) {
+    if (is.null(default))
+      stop("dispatch_param: '", param_name, "' has ",
+           sum(unmatched), " unmatched group(s) and no default value. ",
+           "Add a default or make the lookup dt exhaustive.", call. = FALSE)
+    vals[unmatched] <- default
+  }
+
+  vals
+}
+
+
+#' Resolve All Policy Parameters to Per-Row Vectors
+#'
+#' @description
+#' The unified group-level policy parameter resolver.  Performs a single left
+#' join of \code{policy_params$policy_table} onto \code{working_dt} by
+#' \code{policy_params$group_cols}, then fills every unmatched cell (and every
+#' parameter not present in \code{policy_table}) from
+#' \code{policy_params$defaults}.
+#'
+#' The result is a named list of vectors, each of length
+#' \code{nrow(working_dt)}, ready to be assigned as columns on the working
+#' data.table.  Parameters absent from both \code{defaults} and
+#' \code{policy_table} are silently omitted.
+#'
+#' @param policy_params List.  Must contain at minimum a \code{defaults} named
+#'   list of scalar fallback values.  Optionally:
+#'   \describe{
+#'     \item{group_cols}{Character vector of join-key column names present in
+#'       \code{working_dt}.  \code{NULL} for scalar-only dispatch.}
+#'     \item{policy_table}{data.table with \code{group_cols} plus any
+#'       per-group parameter columns; or \code{NULL}.}
+#'   }
+#' @param working_dt data.table.  The working data to resolve parameters
+#'   against.  Must contain all columns listed in \code{group_cols}.
+#' @param param_names Character vector.  Names of parameters to resolve.
+#'
+#' @return Named list of vectors, each of length \code{nrow(working_dt)}.
+#'
+#' @examples
+#' \dontrun{
+#' library(data.table)
+#' dt <- data.table(paygrade = c("A", "B", "A"), salary = c(5000, 4000, 3000))
+#'
+#' # Scalar path — no policy_table
+#' policy_params <- list(
+#'   group_cols   = NULL,
+#'   policy_table = NULL,
+#'   defaults     = list(min_age = 60, pension_type = "db")
+#' )
+#' resolve_policy_table(policy_params, dt, c("min_age", "pension_type"))
+#' # $min_age: c(60, 60, 60)  $pension_type: c("db","db","db")
+#'
+#' # Group-level path
+#' pt <- data.table(paygrade = c("A", "B"), min_age = c(60, 55))
+#' policy_params <- list(
+#'   group_cols   = "paygrade",
+#'   policy_table = pt,
+#'   defaults     = list(min_age = 58, pension_type = "db")
+#' )
+#' resolve_policy_table(policy_params, dt, c("min_age", "pension_type"))
+#' # $min_age: c(60, 55, 60)  $pension_type: c("db","db","db")
+#' }
+#'
+#' @keywords internal
+resolve_policy_table <- function(policy_params, working_dt, param_names) {
+
+  defaults     <- if (is.null(policy_params$defaults)) list()
+                  else policy_params$defaults
+  group_cols   <- policy_params$group_cols
+  policy_table <- policy_params$policy_table
+
+  n      <- nrow(working_dt)
+  result <- vector("list", length(param_names))
+  names(result) <- param_names
+
+  # --- Initialise every requested param from defaults ----------------------
+  for (p in param_names) {
+    val <- defaults[[p]]
+    if (!is.null(val)) result[[p]] <- rep(val, n)
+  }
+
+  # --- Group-level override via policy_table --------------------------------
+  if (!is.null(policy_table) && !is.null(group_cols)) {
+
+    missing_gc <- setdiff(group_cols, names(working_dt))
+    if (length(missing_gc) > 0L)
+      stop("resolve_policy_table: group_cols not found in working_dt: ",
+           paste(missing_gc, collapse = ", "), call. = FALSE)
+
+    # Coerce policy_table join keys to match working_dt types.
+    # A type mismatch (e.g. factor vs character) silently produces all-NA
+    # matches in data.table joins, so we coerce before the join.
+    policy_table <- data.table::copy(policy_table)  # avoid modifying caller's table
+    for (.gc in group_cols) {
+      .wclass <- class(working_dt[[.gc]])[1L]
+      .pclass <- class(policy_table[[.gc]])[1L]
+      if (!identical(.wclass, .pclass)) {
+        tryCatch(
+          data.table::set(policy_table, j = .gc,
+                          value = methods::as(policy_table[[.gc]], .wclass)),
+          error = function(e)
+            warning("resolve_policy_table: could not coerce policy_table$", .gc,
+                    " from ", .pclass, " to ", .wclass,
+                    ". Join may produce NA values.", call. = FALSE)
+        )
+      }
+    }
+
+    cols_to_get <- intersect(param_names, names(policy_table))
+    if (length(cols_to_get) > 0L) {
+      lookup_slim <- policy_table[, c(group_cols, cols_to_get), with = FALSE]
+      joined      <- lookup_slim[working_dt, on = group_cols]
+      for (p in cols_to_get) {
+        vals      <- joined[[p]]
+        unmatched <- is.na(vals)
+        if (any(unmatched)) {
+          fallback <- defaults[[p]]
+          if (!is.null(fallback)) {
+            vals[unmatched] <- fallback
+          } else if (all(unmatched)) {
+            stop("resolve_policy_table: '", p,
+                 "' has unmatched groups and no default. ",
+                 "Add a default or make policy_table exhaustive.",
+                 call. = FALSE)
+          }
+          # partial match with no fallback: leave NAs in place
+        }
+        result[[p]] <- vals
+      }
+    }
+  }
+
+  # Drop NULLs (params not in defaults and not in policy_table)
+  Filter(Negate(is.null), result)
 }

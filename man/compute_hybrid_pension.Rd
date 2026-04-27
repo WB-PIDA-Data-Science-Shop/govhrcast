@@ -4,38 +4,23 @@
 \alias{compute_hybrid_pension}
 \title{Compute Hybrid Pension}
 \usage{
-compute_hybrid_pension(dt, params)
+compute_hybrid_pension(dt)
 }
 \arguments{
-\item{dt}{data.table. Retiree data}
-
-\item{params}{List with parameters:
-\itemize{
-\item db_params: List of parameters for DB component
-\item dc_params: List of parameters for DC component
-}}
+\item{dt}{data.table.  Retiree subset (\code{pension_type == "hybrid"}).
+Must contain all columns required by \code{\link{compute_db_pension}} and
+\code{\link{compute_dc_pension}}.}
 }
 \value{
-Numeric vector of pension amounts
+Numeric vector of hybrid pension amounts (length \code{nrow(dt)}).
+Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 }
 \description{
-Combines DB and DC pension components into a single pension.
-Formula: pension = DB_part + DC_part
-}
-\examples{
-\dontrun{
-params <- list(
-  db_params = list(
-    accrual_rate = 0.015,
-    ref_wage_col = "gross_salary_lcu",
-    max_years = 30
-  ),
-  dc_params = list(
-    balance_col = "dc_balance",
-    annuity_factor = 20
-  )
-)
-pensions <- compute_hybrid_pension(retirees_dt, params)
-}
+Adds a DB pillar and a DC pillar to produce a hybrid pension entitlement.
+Delegates entirely to \code{\link{compute_db_pension}} and
+\code{\link{compute_dc_pension}}; \code{dt} must satisfy the column
+requirements of both sub-functions.
+
+\strong{Formula:} \eqn{P_i = P^{\text{DB}}_i + P^{\text{DC}}_i}
 }
 \keyword{internal}

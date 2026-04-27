@@ -7,16 +7,20 @@
 compute_years(start_date, end_date)
 }
 \arguments{
-\item{start_date}{Date vector. Start dates}
+\item{start_date}{Date vector.  Start dates.  Recycled to length of
+\code{end_date} by standard R rules.}
 
-\item{end_date}{Date vector. End dates}
+\item{end_date}{Date vector.  End dates.  Must be coercible to \code{Date}
+via \code{as.numeric(difftime(..., units = "days"))}.}
 }
 \value{
-Numeric vector of years elapsed
+Numeric vector (length = \code{max(length(start_date), length(end_date))})
+of elapsed years.  Negative if \code{end_date < start_date}.
 }
 \description{
-Vectorized function to compute time elapsed in years between two date vectors.
-Uses 365.25 days per year to account for leap years.
+Vectorised computation of elapsed time in years between two \code{Date}
+vectors.  Uses a 365.25-day year to account for leap years consistently
+across all age and tenure calculations in the package.
 }
 \examples{
 \dontrun{

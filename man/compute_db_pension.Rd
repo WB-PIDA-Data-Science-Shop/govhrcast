@@ -4,35 +4,36 @@
 \alias{compute_db_pension}
 \title{Compute Defined-Benefit (DB) Pension}
 \usage{
-compute_db_pension(dt, params)
+compute_db_pension(dt)
 }
 \arguments{
-\item{dt}{data.table. Retiree data}
-
-\item{params}{List with parameters:
-\itemize{
-\item accrual_rate: Annual accrual rate (e.g., 0.02 for 2\% per year)
-\item ref_wage_col: Column name for reference wage
-\item max_years: Maximum years counted for pension (optional, default: no cap)
-\item replacement_cap: Maximum replacement rate (optional, default: 1.0)
-}}
+\item{dt}{data.table.  Retiree subset (\code{pension_type == "db"}).
+Required columns: \code{accrual_rate} (numeric), \code{ref_wage_col}
+(character column-pointer), \code{tenure_years} (numeric).  Optional:
+\code{max_years} (numeric or \code{NA}), \code{replacement_cap}
+(numeric or \code{NA}).}
 }
 \value{
-Numeric vector of pension amounts
+Numeric vector of DB pension amounts (length \code{nrow(dt)}).
+Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 }
 \description{
-Calculates pension based on accrual rate, years of service, and reference wage.
-Formula: pension = min(accrual_rate * years * ref_wage, replacement_cap * ref_wage)
+Computes periodic pension entitlement under a final-salary defined-benefit
+scheme.  All parameters are read from per-row columns on \code{dt},
+pre-resolved by \code{\link{resolve_policy_table}}.
 }
-\examples{
-\dontrun{
-params <- list(
-  accrual_rate = 0.02,
-  ref_wage_col = "gross_salary_lcu",
-  max_years = 35,
-  replacement_cap = 0.80
-)
-pensions <- compute_db_pension(retirees_dt, params)
+\details{
+\strong{Formula:}
+\deqn{P_i = \min(\alpha_i \cdot \min(s_i, S^{\max}) \cdot w_i,\; c_i \cdot w_i)}
+where:
+\itemize{
+\item \eqn{\alpha_i} = \code{accrual_rate} (e.g. 0.02 = 2\\% per year),
+\item \eqn{s_i} = \code{tenure_years},
+\item \eqn{S^{\max}} = \code{max_years} (\code{NA} = uncapped),
+\item \eqn{w_i} = wage from the column named by \code{ref_wage_col},
+\item \eqn{c_i} = \code{replacement_cap} (\code{NA} = uncapped).
 }
+\code{pmax(pension, 0)} is applied to prevent negative pensions from
+non-positive accrual rates or wages.
 }
 \keyword{internal}

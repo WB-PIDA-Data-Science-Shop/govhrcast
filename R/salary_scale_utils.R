@@ -73,9 +73,9 @@ NULL
 #'
 #' @export
 apply_salary_scale_adjustment <- function(salary_scale_dt,
-                                           adjustment,
-                                           salary_col = "gross_salary_lcu",
-                                           key_col    = NULL) {
+                                          adjustment,
+                                          salary_col = "gross_salary_lcu",
+                                          key_col    = NULL) {
 
   if (!data.table::is.data.table(salary_scale_dt))
     stop("salary_scale_dt must be a data.table.", call. = FALSE)

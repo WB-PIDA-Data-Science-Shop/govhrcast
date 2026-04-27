@@ -22,26 +22,36 @@ simulate_exits(
 
 \item{personnel_dt}{data.table.  Personnel data in govhr harmonised format.}
 
-\item{policy_params}{List.  Exit policy parameters:
+\item{policy_params}{List.  Exit policy specification in the canonical
+three-slot format:
 \describe{
-\item{mode}{Character.  \code{"status_quo"} (default) — apply historical
-rates; \code{"fixed_rate"} — apply a user-supplied scalar rate.}
-\item{group_cols}{Character vector or \code{NULL}.  Grouping columns
-(e.g. \code{"est_id"}).}
-\item{exit_rates_dt}{data.table or \code{NULL}.  Pre-computed rates
-from \code{estimate_historical_exit_rates()}.  If \code{NULL} and
-\code{mode = "status_quo"}, an error is raised — rates must be
-estimated in the caller's prologue and supplied here.}
-\item{exit_strategy}{Character.  \code{"random"} (default) or a numeric
-column name in \code{contract_dt} (ascending — lowest exits first).}
-\item{exit_multiplier}{Numeric.  Scale the historical rate.  Default
-\code{1.0}.}
-\item{fixed_rate}{Numeric.  Required when \code{mode = "fixed_rate"};
-applied as a flat attrition rate regardless of history.}
-\item{active_types}{Character vector.  Contract type values treated as
-active and eligible for exit.  Default \code{"active"}.}
-\item{exited_type}{Character.  Value written to \code{contract_type_col}
-after exit.  Default \code{"inactive"}.}
+\item{\code{group_cols}}{Character vector or \code{NULL}.  Columns in
+\code{contract_dt} used as the join key for group-level rate lookup
+(e.g. \code{"est_id"}, \code{"paygrade"}).  \code{NULL} for
+scalar-only dispatch.}
+\item{\code{policy_table}}{data.table with \code{group_cols} plus an
+\code{exit_rate} column, and optionally an \code{exit_multiplier}
+column for per-group reform scenarios.  Pass the output of
+\code{\link{estimate_historical_exit_rates}} here for
+\code{mode = "status_quo"}.  \code{NULL} when
+\code{mode = "fixed_rate"}.}
+\item{\code{defaults}}{Named list of scalar fallback values:
+\describe{
+\item{\code{exit_rate}}{Numeric scalar.  Required when
+\code{policy_table = NULL} (flat rate applied to all active
+workers).  Also used as the fallback rate for groups absent from
+\code{policy_table}.}
+\item{\code{exit_strategy}}{Character.  \code{"random"} (default)
+or the name of a numeric column in \code{contract_dt} to rank
+by (ascending — lowest values exit first).}
+\item{\code{active_types}}{Character vector.  Contract type values
+treated as active and eligible for exit.  Default
+\code{"active"}.}
+\item{\code{exited_type}}{Character.  Value written to
+\code{contract_type_col} after exit.  Default
+\code{"inactive"}.}
+}
+}
 }}
 
 \item{ref_date}{Date.  Reference date for this simulation period.}
@@ -75,22 +85,72 @@ exit workflow: rate application, state updates, and summary statistics.
 Mirrors the structure of \code{simulate_retirement()} and
 \code{simulate_hiring()}.
 }
+\section{Exit rate modelling — status quo and future upgrade path}{
+
+The current \code{"status_quo"} mode applies historically estimated
+group-level exit rates, held constant across all projection periods.  This
+is equivalent to assuming that the \emph{composition} of exits — by grade,
+contract type, and tenure — is stationary.  For short-horizon projections
+(1–5 years) with stable workforce compositions this is a defensible
+assumption.
+
+A planned upgrade will replace group-level rates with a \strong{survival
+model} (e.g. Weibull or Cox proportional hazard) estimated from the
+individual-level panel data.  The survival model approach:
+\itemize{
+\item conditions exit probability on individual characteristics
+(tenure, age, grade, salary) that change over the simulation horizon;
+\item naturally handles compositional change as the workforce ages and
+grade structures evolve;
+\item produces a per-person, per-period exit probability vector that
+replaces the current group rate lookup.
+}
+The simulation architecture is already compatible with this upgrade: the
+survival model would be estimated once (outside the period loop) and its
+\code{predict()} output passed as a pre-computed probability column on
+\code{contract_dt}, replacing the rate-lookup in
+\code{compute_status_quo_exits()}.  No changes to the orchestration layer
+(\code{simulate_scenario()}) would be required.
+}
+
 \examples{
 \dontrun{
 library(data.table)
 
+# Fixed rate — 5\% scalar attrition
 exit_policy <- list(
-  mode          = "fixed_rate",
-  fixed_rate    = 0.05,
-  exit_strategy = "random",
-  active_types  = "permanent",
-  exited_type   = "inactive"
+  group_cols   = NULL,
+  policy_table = NULL,
+  defaults = list(
+    exit_rate     = 0.05,
+    exit_strategy = "random",
+    active_types  = c("perm", "fterm", "temp"),
+    exited_type   = "inactive"
+  )
+)
+
+# Status quo — historical rates from panel, with reform multiplier by group
+rates_dt <- estimate_historical_exit_rates(
+  panel_contract_dt  = panel_contract_dt,
+  panel_personnel_dt = panel_personnel_dt,
+  group_cols         = "paygrade"
+)
+rates_dt[, exit_multiplier := ifelse(paygrade \%in\% c("A","B"), 0.8, 1.0)]
+
+exit_policy_reform <- list(
+  group_cols   = "paygrade",
+  policy_table = rates_dt,
+  defaults = list(
+    exit_strategy = "random",
+    active_types  = c("perm", "fterm", "temp"),
+    exited_type   = "inactive"
+  )
 )
 
 result <- simulate_exits(
-  contract_dt  = contract_dt,
-  personnel_dt = personnel_dt,
-  policy_params = exit_policy,
+  contract_dt   = contract_dt,
+  personnel_dt  = personnel_dt,
+  policy_params = exit_policy_reform,
   ref_date      = as.Date("2025-01-01")
 )
 result$summary

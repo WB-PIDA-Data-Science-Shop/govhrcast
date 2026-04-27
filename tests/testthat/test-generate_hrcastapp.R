@@ -231,6 +231,7 @@ test_that("comparator: cmp_sid_a resolves to baseline scenario on load (lever-mo
   dt <- make_scenario_dt()   # has salary_growth_rate as lever
   app <- .make_test_app(dt)
 
+  suppressWarnings(
   shiny::testServer(app$server, {
     # Simulate clicking Compare without changing inputs — should resolve
     # to whichever sid has salary_growth_rate matching its default (baseline)
@@ -247,6 +248,7 @@ test_that("comparator: cmp_sid_a resolves to baseline scenario on load (lever-mo
     # sid_b should be scenario 2 (salary_growth_rate = 0.05)
     expect_equal(sid_b, 2L)
   })
+  )
 })
 
 test_that("comparator: compare_dt contains rows for both scenario ids", {

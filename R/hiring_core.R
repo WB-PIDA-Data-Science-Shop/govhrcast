@@ -456,17 +456,16 @@ compute_combined_demand <- function(contract_dt,
 #'
 #' @return data.table with \code{group_cols} (if specified) and \code{hiring_rate} column.
 #' @export
-estimate_historical_hiring_rates <- function(
-    panel_contract_dt,
-    panel_personnel_dt,
-    group_cols,
-    freq              = "year",
-    personnel_id_col  = "personnel_id",
-    ref_date_col      = "ref_date",
-    start_date_col    = "start_date",
-    end_date_col      = "end_date",
-    contract_type_col = "contract_type_code",
-    status_col        = "status") {
+estimate_historical_hiring_rates <- function(panel_contract_dt,
+                                             panel_personnel_dt,
+                                             group_cols,
+                                             freq              = "year",
+                                             personnel_id_col  = "personnel_id",
+                                             ref_date_col      = "ref_date",
+                                             start_date_col    = "start_date",
+                                             end_date_col      = "end_date",
+                                             contract_type_col = "contract_type_code",
+                                             status_col        = "status") {
 
   panel_dates <- sort(unique(panel_personnel_dt[[ref_date_col]]))
   start_str   <- format(min(panel_dates, na.rm = TRUE))

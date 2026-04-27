@@ -17,35 +17,55 @@ update_contracts_for_retirees(
 )
 }
 \arguments{
-\item{contract_dt}{data.table. Contract data}
+\item{contract_dt}{data.table.  Contract register (modified in place by
+\code{:=}).  Required columns: \code{personnel_id_col},
+\code{contract_type_col}, \code{end_date_col}, \code{salary_col}.}
 
-\item{retirees_dt}{data.table. Retiree data with personnel_id}
+\item{retirees_dt}{data.table.  Table of confirmed retirees (\code{retire == 1})
+produced by \code{\link{prepare_retiree_data}}.  Only the
+\code{personnel_id_col} column is used here.}
 
-\item{ref_date}{Date. Reference date for retirement}
+\item{ref_date}{Date.  The simulation period date.  Stamped as
+\code{end_date_col} on all closing contracts.}
 
-\item{personnel_id_col}{Character. Personnel ID column name (default: "personnel_id")}
+\item{personnel_id_col}{Character.  Personnel identifier column in both
+\code{contract_dt} and \code{retirees_dt}.  (default: \code{"personnel_id"}).}
 
-\item{contract_id_col}{Character. Contract ID column name (default: "contract_id")}
+\item{contract_id_col}{Character.  Contract identifier column.  Not used in
+this function; retained for API consistency with other update functions.
+(default: \code{"contract_id"}).}
 
-\item{start_date_col}{Character. Start date column name (default: "start_date")}
+\item{start_date_col}{Character.  Contract start date column.  Not used
+directly; retained for API consistency.  (default: \code{"start_date"}).}
 
-\item{end_date_col}{Character. End date column name (default: "end_date")}
+\item{end_date_col}{Character.  Contract end date column.  Set to
+\code{ref_date} for all closing contracts.  (default: \code{"end_date"}).}
 
-\item{salary_col}{Character. Salary column for prioritization (default: "gross_salary_lcu")}
+\item{salary_col}{Character.  Salary column.  Set to \code{0} to prevent
+double-counting: pension cost is tracked separately via
+\code{pension_amount} in the pensioner register.
+(default: \code{"gross_salary_lcu"}).}
 
-\item{contract_type_col}{Character. Contract type column name (default: "contract_type_code")}
+\item{contract_type_col}{Character.  Contract classification column.  Set
+to \code{"pensioner"} for closing contracts.  Contracts already in
+\code{c("inactive", "pensioner", "closed_due_to_retirement", "terminated")}
+are skipped.  (default: \code{"contract_type_code"}).}
 }
 \value{
-Updated contract_dt with retirement status changes
+\code{contract_dt} (invisibly; the same object, modified in place).
 }
 \description{
-Updates contract_dt to reflect retirements: ALL active contracts for each
-retiring person are marked "pensioner", their salaries are zeroed, and their
-end_date is set to ref_date.  A plain membership filter on personnel_id
-(no join) ensures every contract row for a retiring person is captured,
-regardless of how many simultaneous contracts they hold.
-
-Pension cost is tracked separately in the pensioner_register via
-pension_amount; zeroing salary here prevents double-counting.
+Applies retirement state changes to \code{contract_dt} in a single
+\code{:=} expression.  All open contracts held by retiring personnel are
+simultaneously reclassified as \code{"pensioner"}, their closing date is
+stamped to \code{ref_date}, and their salary is zeroed.
 }
+\section{Data Integrity}{
+
+\code{contract_dt} is modified in place via \code{data.table} \code{:=}.
+The caller's object is mutated.  Pass \code{data.table::copy(contract_dt)}
+if the original must be preserved (\code{\link{simulate_retirement}} does
+this automatically at entry).
+}
+
 \keyword{internal}

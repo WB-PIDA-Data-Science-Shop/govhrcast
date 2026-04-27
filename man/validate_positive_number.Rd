@@ -2,7 +2,7 @@
 % Please edit documentation in R/validation.R
 \name{validate_positive_number}
 \alias{validate_positive_number}
-\title{Validate Positive Number}
+\title{Validate a Positive Number}
 \usage{
 validate_positive_number(num, varname, allow_zero = FALSE)
 }
@@ -17,6 +17,6 @@ validate_positive_number(num, varname, allow_zero = FALSE)
 Invisible TRUE if valid, stops with error otherwise
 }
 \description{
-Validate Positive Number
+Validate a Positive Number
 }
 \keyword{internal}

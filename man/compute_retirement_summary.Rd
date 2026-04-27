@@ -7,16 +7,34 @@
 compute_retirement_summary(retirees_dt, contract_dt = NULL)
 }
 \arguments{
-\item{retirees_dt}{data.table. Retiree data with pension amounts}
+\item{retirees_dt}{data.table.  One row per retiree as returned by the
+pension calculation stage of \code{\link{simulate_retirement}}.  Must
+contain columns: \code{pension} (numeric), \code{age} (numeric),
+\code{tenure_years} (numeric).  When \code{nrow(retirees_dt) == 0} the
+function returns a zero-filled result without inspecting columns.}
 
-\item{contract_dt}{data.table. Original contract data (for wage bill comparison)}
+\item{contract_dt}{data.table.  Unused; kept for API compatibility.  May
+be \code{NULL}.}
 }
 \value{
-data.table with summary statistics
+data.table (1 row) with five columns:
+\describe{
+\item{\code{n_retired}}{Integer.  Count of retirees in the period.
+\code{0L} when there are no retirees.}
+\item{\code{total_pension}}{Numeric.  Sum of all individual periodic
+pension amounts in \code{retirees_dt$pension}.  \code{0} when empty.}
+\item{\code{avg_pension}}{Numeric.  Mean pension across retirees.
+\code{NA_real_} when there are no retirees.}
+\item{\code{avg_age}}{Numeric.  Mean age at retirement.
+\code{NA_real_} when there are no retirees.}
+\item{\code{avg_tenure}}{Numeric.  Mean years of service at retirement.
+\code{NA_real_} when there are no retirees.}
+}
 }
 \description{
-Aggregates key statistics about retirees including count, total pension cost,
-average age, and average tenure. Uses data.table for efficient computation
-on large datasets.
+Aggregates per-period retirement statistics from the enriched retiree
+table produced by \code{\link{simulate_retirement}}.  Returns a consistent
+1-row \code{data.table} even when there are no retirees, so downstream
+horizon accumulators can \code{rbindlist()} safely across all periods.
 }
 \keyword{internal}

@@ -54,8 +54,7 @@ data.table with columns:
 \describe{
 \item{from_group}{Character. Origin state}
 \item{to_group}{Character. Destination state (different from from_group)}
-\item{movement_type}{Character. "promotion" or "transfer"}
-\item{adj_prob}{Numeric. Adjusted probability after multipliers and scrubbing}
+\item{movement_rate}{Numeric. Transition probability (capped to respect outflow <= 1)}
 \item{current_stock}{Integer. Population in from_group}
 \item{n_movers}{Integer. Number of people to move (stochastic rounded)}
 }

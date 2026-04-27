@@ -1,450 +1,61 @@
-###################################################################################################
-################### SANDBOXING THE RETIREMENT CODE TO ENSURE ITS INTUITION ########################
-###################################################################################################
-devtools::load_all()
+##### playing around with the retirement module
 
-library(data.table)
 
-# Working copies — we copy once here so downstream sections don't corrupt each other
 contract_dt  <- data.table::copy(bra_hrmis_contract)
 personnel_dt <- data.table::copy(bra_hrmis_personnel)
 
-# Reference date used throughout
-REF_DATE <- as.Date("2014-01-01")
 
-# Quick look at the data
-range(contract_dt$ref_date)          # panel date range
-uniqueN(contract_dt$personnel_id)    # distinct workers in contract panel
-uniqueN(personnel_dt$personnel_id)   # distinct workers in personnel panel
+#### simulate at the level of the entire public sector
 
-
-###################################################################################################
-# PART 1: compute_age() -------------------------------------------------------------------------
-# Returns one row per personnel with age in years at REF_DATE
-###################################################################################################
-
-age_dt <- compute_age(
-  personnel_dt = personnel_dt[ref_date == "2014-09-01",],
-  ref_date     = REF_DATE,
-  birth_date_col   = "birth_date",
-  personnel_id_col = "personnel_id"
-)
-
-# Inspect
-age_dt
-summary(age_dt$age)
-
-
-###################################################################################################
-# PART 2: compute_tenure() ----------------------------------------------------------------------
-# Returns one row per personnel with total years-of-service as of REF_DATE
-# Handles panel duplication and re-entries
-###################################################################################################
-
-tenure_dt <- compute_tenure(
-  contract_dt      = contract_dt,
-  ref_date         = REF_DATE,
-  personnel_id_col = "personnel_id",
-  contract_id_col  = "contract_id",
-  start_date_col   = "start_date",
-  end_date_col     = "end_date",
-  contract_type_col = "contract_type_code"
-)
-
-# Inspect
-tenure_dt
-summary(tenure_dt$tenure_years)
-
-
-###################################################################################################
-# PART 3: check_retirement_inputs() ------------------------------------------------------------
-# Validates inputs before any simulation; should return silently on valid inputs
-###################################################################################################
-
-# --- 3a. Valid inputs (should pass with no error) ---
-policy_valid <- list(
-  eligibility_type = "age_and_tenure",
-  min_age          = 60,
-  min_tenure       = 20,
-  pension_type     = "db",
-  pension_params   = list(
-    accrual_rate    = 0.02,
-    ref_wage_col    = "gross_salary_lcu",
-    max_years       = 35,
-    replacement_cap = 0.80
+policy_params <- list(
+  group_cols   = NULL,
+  policy_table = NULL,
+  defaults = list(
+    eligibility_type = "age_only",
+    pension_type     = "db",
+    min_age          = 60,
+    accrual_rate     = 0.02,
+    ref_wage_col     = "gross_salary_lcu",
+    max_years        = 35,
+    replacement_cap  = 0.80
   )
 )
 
-check_retirement_inputs(
+results <- simulate_retirement(
   contract_dt   = contract_dt,
   personnel_dt  = personnel_dt,
-  policy_params = policy_valid,
-  ref_date      = REF_DATE
-)
-# No output = validation passed
-
-
-# --- 3b. Invalid: bad eligibility_type ---
-tryCatch(
-  check_retirement_inputs(
-    contract_dt   = contract_dt,
-    personnel_dt  = personnel_dt,
-    policy_params = modifyList(policy_valid, list(eligibility_type = "points_based")),
-    ref_date      = REF_DATE
-  ),
-  error = function(e) message("Expected error: ", conditionMessage(e))
+  policy_params = policy_params,
+  ref_date      = as.Date("2014-01-01")
 )
 
-
-# --- 3c. Invalid: min_age missing when age-based eligibility ---
-tryCatch(
-  check_retirement_inputs(
-    contract_dt   = contract_dt,
-    personnel_dt  = personnel_dt,
-    policy_params = list(eligibility_type = "age_only", pension_type = "flat",
-                         pension_params   = list(flat_amount = 1000)),
-    ref_date      = REF_DATE
-  ),
-  error = function(e) message("Expected error: ", conditionMessage(e))
-)
-
-
-# --- 3d. Invalid: bad pension_type ---
-tryCatch(
-  check_retirement_inputs(
-    contract_dt   = contract_dt,
-    personnel_dt  = personnel_dt,
-    policy_params = modifyList(policy_valid, list(pension_type = "points")),
-    ref_date      = REF_DATE
-  ),
-  error = function(e) message("Expected error: ", conditionMessage(e))
-)
-
-
-###################################################################################################
-# PART 4: identify_retirees() — all three eligibility types ------------------------------------
-###################################################################################################
-
-# --- 4a. age_only (retire if age >= 65) ---
-elig_age_only <- identify_retirees(
-  contract_dt   = contract_dt,
-  personnel_dt  = personnel_dt,
-  policy_params = list(eligibility_type = "age_only", min_age = 65),
-  ref_date      = REF_DATE
-)
-
-elig_age_only[order(-age)]
-elig_age_only[, .N, by = retire]
-
-
-# --- 4b. tenure_only (retire if tenure >= 30 years) ---
-elig_tenure_only <- identify_retirees(
-  contract_dt   = contract_dt,
-  personnel_dt  = personnel_dt,
-  policy_params = list(eligibility_type = "tenure_only", min_tenure = 30),
-  ref_date      = REF_DATE
-)
-
-elig_tenure_only[order(-tenure_years)]
-elig_tenure_only[, .N, by = retire]
-
-
-# --- 4c. age_and_tenure (retire if age >= 60 AND tenure >= 20) ---
-elig_both <- identify_retirees(
-  contract_dt   = contract_dt,
-  personnel_dt  = personnel_dt,
-  policy_params = list(eligibility_type = "age_and_tenure", min_age = 60, min_tenure = 20),
-  ref_date      = REF_DATE
-)
-
-elig_both[order(-age)]
-elig_both[, .N, by = retire]
-
-
-###################################################################################################
-# PART 5: compute_pension() — all four pension types ------------------------------------------
-# We build a minimal retirees_dt from the age_and_tenure eligible group to feed each calculator
-###################################################################################################
-
-# Grab actual retirees with their contract salary — use the internal helper the same way
-# simulate_retirement() does internally (prepare_retiree_data is internal, so we replicate it
-# manually here using only exported / accessible pieces)
-
-# Filter elig_both to retirees
-retirees_ids <- unique(elig_both[retire == 1, personnel_id])
-
-# Get one recent snapshot from contract panel, filter to active contracts of retirees
-snap <- contract_dt[ref_date == as.Date("2012-09-01"),]
-active_snap <- snap[is.na(end_date) & contract_type_code != "inactive"]
-retiree_contracts <- active_snap[personnel_id %in% retirees_ids]
-
-# Take highest-salary contract per person (rough primary contract)
-retirees_base <- retiree_contracts[
-  order(personnel_id, -gross_salary_lcu),
-  .SD[1],
-  by = personnel_id
-]
-
-### get the latest tenure numbers for each individual
-retireeat_dt <- elig_both[retire == 1, .SD[which.max(age)], by = personnel_id]
-
-# Merge age and tenure
-retirees_dt <- merge(retirees_base, retireeat_dt, by = "personnel_id")
-
-# Add a synthetic DC balance column for DC/hybrid examples
-retirees_dt[, dc_balance := gross_salary_lcu * tenure_years * 0.10]
-
-nrow(retirees_dt)   # retirees with salary data
-head(retirees_dt[, .(personnel_id, gross_salary_lcu, age, tenure_years, dc_balance)])
-
-
-# --- 5a. Defined Benefit (DB) ---
-# pension = min(accrual_rate * years, replacement_cap) * ref_wage
-db_params <- list(
-  accrual_rate    = 0.02,
-  ref_wage_col    = "gross_salary_lcu",
-  max_years       = 35,
-  replacement_cap = 0.80
-)
-
-db_pensions <- compute_pension(retirees_dt, policy_type = "db", params = db_params)
-summary(db_pensions)
-
-
-# --- 5b. Defined Contribution (DC) ---
-# pension = balance / annuity_factor
-dc_params <- list(
-  balance_col    = "dc_balance",
-  annuity_factor = 18   # divide accumulated balance by expected years in retirement
-)
-
-dc_pensions <- compute_pension(retirees_dt, policy_type = "dc", params = dc_params)
-summary(dc_pensions)
-
-
-# --- 5c. Notional Defined Contribution (NDC) ---
-# Same as DC but balance is grown by a notional interest rate first
-ndc_params <- list(
-  balance_col    = "dc_balance",
-  annuity_factor = 18,
-  type           = "NDC",
-  notional_rate  = 0.015
-)
-
-ndc_pensions <- compute_pension(retirees_dt, policy_type = "dc", params = ndc_params)
-summary(ndc_pensions)
-
-
-# --- 5d. Flat pension ---
-# Same amount for every retiree, regardless of salary or tenure
-flat_params <- list(flat_amount = 1500)
-
-flat_pensions <- compute_pension(retirees_dt, policy_type = "flat", params = flat_params)
-unique(flat_pensions)   # should be a single value
-
-
-# --- 5e. Hybrid (DB + DC) ---
-hybrid_params <- list(
-  db_params = list(
-    accrual_rate = 0.015,
-    ref_wage_col = "gross_salary_lcu",
-    max_years    = 30
-  ),
-  dc_params = list(
-    balance_col    = "dc_balance",
-    annuity_factor = 20
-  )
-)
-
-hybrid_pensions <- compute_pension(retirees_dt, policy_type = "hybrid", params = hybrid_params)
-summary(hybrid_pensions)
-
-
-# Compare all pension types side-by-side
-pension_comparison <- data.table(
-  personnel_id = retirees_dt$personnel_id,
-  gross_salary = retirees_dt$gross_salary_lcu,
-  tenure_years = retirees_dt$tenure_years,
-  db           = db_pensions,
-  dc           = dc_pensions,
-  ndc          = ndc_pensions,
-  flat         = flat_pensions,
-  hybrid       = hybrid_pensions
-)
-
-pension_comparison[order(-gross_salary)]
-
-
-###################################################################################################
-# PART 6: update_contracts_for_retirees() / update_personnel_for_retirees() -------------------
-# State update functions; operate in-place on data.table copies
-###################################################################################################
-
-# Fresh working copies for mutation
-contract_upd  <- data.table::copy(contract)
-personnel_upd <- data.table::copy(personnel)
-
-# Subset contract to the snapshot the simulation would use
-selected_ref <- govhrcast:::select_nearest_ref_date(contract_upd$ref_date, REF_DATE)
-contract_snap_upd <- contract_upd[ref_date == selected_ref]
-
-# Re-use retirees_dt built above (age_and_tenure, age >= 60 & tenure >= 20)
-update_contracts_for_retirees(
-  contract_dt      = contract_snap_upd,
-  retirees_dt      = retirees_dt,
-  ref_date         = REF_DATE,
-  personnel_id_col = "personnel_id",
-  contract_id_col  = "contract_id",
-  start_date_col   = "start_date",
-  end_date_col     = "end_date",
-  salary_col       = "gross_salary_lcu",
-  contract_type_col = "contract_type_code"
-)
-
-# Check that primary contracts flipped to "pensioner"
-contract_snap_upd[contract_type_code == "pensioner", .(contract_id, personnel_id, contract_type_code, end_date)]
-
-# Check that secondary contracts were closed
-contract_snap_upd[contract_type_code == "closed_due_to_retirement",
-                  .(contract_id, personnel_id, contract_type_code, end_date)]
-
-
-# Now update personnel status
-personnel_snap_upd <- personnel_upd[ref_date == selected_ref]
-
-update_personnel_for_retirees(
-  personnel_dt     = personnel_snap_upd,
-  contract_dt      = contract_snap_upd,
-  personnel_id_col = "personnel_id",
-  contract_type_col = "contract_type_code",
-  status_col       = "status"
-)
-
-# Verify status changes
-personnel_snap_upd[status == "inactive", .(personnel_id, status)]
-
-
-###################################################################################################
-# PART 7: simulate_retirement() — all policy combinations -------------------------------------
-###################################################################################################
-
-# --- 7a. Age-only + DB pension ---
-params_age_db <- list(
-  eligibility_type = "age_only",
-  min_age          = 65,
-  pension_type     = "db",
-  pension_params   = list(
-    accrual_rate    = 0.02,
-    ref_wage_col    = "gross_salary_lcu",
-    max_years       = 35,
-    replacement_cap = 0.80
-  )
-)
-
-res_age_db <- simulate_retirement(
-  contract_dt   = bra_hrmis_contract,
-  personnel_dt  = bra_hrmis_personnel,
-  policy_params = params_age_db,
-  ref_date      = REF_DATE
-)
-res_age_db$summary
-
-
-# --- 7b. Tenure-only + DB pension (generous: 25-year threshold) ---
-params_tenure_db <- list(
-  eligibility_type = "tenure_only",
-  min_tenure       = 25,
-  pension_type     = "db",
-  pension_params   = list(
-    accrual_rate    = 0.018,
-    ref_wage_col    = "gross_salary_lcu",
-    max_years       = 30,
-    replacement_cap = 0.75
-  )
-)
-
-res_tenure_db <- simulate_retirement(
-  contract_dt   = bra_hrmis_contract,
-  personnel_dt  = bra_hrmis_personnel,
-  policy_params = params_tenure_db,
-  ref_date      = REF_DATE
-)
-res_tenure_db$summary
-
-
-# --- 7c. Age-and-tenure + DB pension (baseline) ---
-params_both_db <- list(
-  eligibility_type = "age_and_tenure",
-  min_age          = 60,
-  min_tenure       = 20,
-  pension_type     = "db",
-  pension_params   = list(
-    accrual_rate    = 0.02,
-    ref_wage_col    = "gross_salary_lcu",
-    max_years       = 35,
-    replacement_cap = 0.80
-  )
-)
-
-res_both_db <- simulate_retirement(
-  contract_dt   = bra_hrmis_contract,
-  personnel_dt  = bra_hrmis_personnel,
-  policy_params = params_both_db,
-  ref_date      = REF_DATE
-)
-res_both_db$summary
-
-
-# --- 7d. Age-and-tenure + flat pension ---
-params_both_flat <- list(
-  eligibility_type = "age_and_tenure",
-  min_age          = 60,
-  min_tenure       = 20,
-  pension_type     = "flat",
-  pension_params   = list(flat_amount = 1500)
-)
-
-res_both_flat <- simulate_retirement(
-  contract_dt   = bra_hrmis_contract,
-  personnel_dt  = bra_hrmis_personnel,
-  policy_params = params_both_flat,
-  ref_date      = REF_DATE
-)
-res_both_flat$summary
-
-
-# --- 7e. Age-only + flat pension (broadest eligibility, cheapest pension) ---
-params_age_flat <- list(
-  eligibility_type = "age_only",
-  min_age          = 60,
-  pension_type     = "flat",
-  pension_params   = list(flat_amount = 1200)
-)
-
-res_age_flat <- simulate_retirement(
-  contract_dt   = bra_hrmis_contract,
-  personnel_dt  = bra_hrmis_personnel,
-  policy_params = params_age_flat,
-  ref_date      = REF_DATE
-)
-res_age_flat$summary
-
-
-# --- 7f. Inspect retirees_dt output ---
-res_both_db$retirees_dt[, .(personnel_id, age, tenure_years, gross_salary_lcu, pension)]
-res_both_db$retirees_dt[order(-pension), .(personnel_id, gross_salary_lcu, tenure_years, pension)]
-
-
-###################################################################################################
-# PART 8: Scenario comparison ------------------------------------------------------------------
-###################################################################################################
-
-scenario_summary <- rbindlist(list(
-  cbind(scenario = "age_only_db_65",     res_age_db$summary),
-  cbind(scenario = "tenure_only_db_25",  res_tenure_db$summary),
-  cbind(scenario = "both_db_60_20",      res_both_db$summary),
-  cbind(scenario = "both_flat_60_20",    res_both_flat$summary),
-  cbind(scenario = "age_flat_60",        res_age_flat$summary)
-))
-
-scenario_summary[order(-n_retired)]
+results$summary
+
+
+#### simulate at the department level
+
+policy_table <- 
+  unique(contract_dt[, c("occupation_isconame", "paygrade")]) |>
+  mutate(min_age = sample(seq(50, 65, 5), replace = TRUE))
+
+policy_dt <- 
+  unique(contract_dt[, c("occupation_isconame", "paygrade")])[,
+  .(occupation_isconame, 
+    paygrade, 
+    min_age = sample(seq(50, 65, 5), replace = TRUE))][]
+
+policy_params <- list(group_cols = c("occupation_isconame", "paygrade"),
+                      policy_table = policy_dt,
+                      defaults = list(
+                        eligibility_type = "age_only",
+                        pension_type     = "db",
+                        min_age          = 60,
+                        accrual_rate     = 0.02,
+                        ref_wage_col     = "gross_salary_lcu",
+                        max_years        = 35,
+                        replacement_cap  = 0.80
+                      ))
+
+results <- simulate_retirement(contract_dt = contract_dt,
+                               personnel_dt = personnel_dt,
+                               policy_params = policy_params,
+                               ref_date = as.Date("2014-01-01"))

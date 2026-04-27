@@ -7,6 +7,7 @@
 simulate_promotions_transfers(
   contract_dt,
   personnel_dt,
+  salary_scale_dt,
   policy_params,
   ref_date,
   ref_date_col = "ref_date",
@@ -26,28 +27,30 @@ A single-period subset is also accepted (transitions matrix will be empty).}
 
 \item{personnel_dt}{data.table. Personnel data in govhr harmonized format.}
 
-\item{policy_params}{List. Movement policy parameters:
+\item{salary_scale_dt}{data.table. Salary scale keyed on group_cols.
+Must include the salary column. Required.}
+
+\item{policy_params}{List. Canonical 3-slot movement policy:
 \describe{
 \item{group_cols}{Character vector. State-defining columns, e.g.,
-\code{c("est_id", "paygrade")}. Required.}
-\item{salary_scale}{data.table. Salary scale keyed on group_cols.
-Must include a salary column. Required.}
-\item{promotion_multiplier}{Numeric scalar. Multiplier applied to all
-promotion probabilities (default: 1.0 = status quo).}
-\item{transfer_multiplier}{Numeric scalar. Multiplier applied to all
-transfer probabilities (default: 1.0).}
-\item{promotion_strategy}{Character. How to rank promotion candidates:
-\code{"tenure"} (longest time-in-grade first) or
-\code{"wage_based"} (lowest paid relative to grade max first).
-Default: \code{"tenure"}.}
-\item{transfer_strategy}{Character. How to rank transfer candidates:
-\code{"random"}, \code{"tenure"} (longest total tenure first), or
-\code{"reverse_tenure"} (shortest total tenure first, LIFO).
-Default: \code{"random"}.}
-\item{salary_update_rule}{Character. How to set salary after a move:
-\code{"scale"} (default) assigns the destination salary from
-\code{salary_scale}; \code{"keep"} retains the mover's pre-move salary.
-Use \code{"keep"} when movements should not affect the wage bill.}
+\code{c("est_id", "paygrade")}. Or \code{NULL} for flat-rate path.}
+\item{policy_table}{data.table or \code{NULL}. Pre-computed transition
+probability matrix (output of \code{estimate_movement_baseline()}).
+When non-NULL, the panel-baseline step is skipped.}
+\item{defaults}{Named list. Must include:
+\describe{
+\item{movement_rate}{Numeric. Flat exit rate used when
+\code{policy_table} is \code{NULL}.}
+\item{movement_strategy}{Character. Candidate selection:
+\code{"random"}, \code{"tenure"}, \code{"reverse_tenure"}, or
+\code{"wage_based"}. Default: \code{"tenure"}.}
+\item{active_types}{Character vector. Contract type codes treated as
+active (default: \code{"perm"}).}
+\item{salary_update_rule}{Character. \code{"scale"} (destination
+salary from \code{salary_scale_dt}) or \code{"keep"} (retain
+pre-move salary). Default: \code{"scale"}.}
+}
+}
 }}
 
 \item{ref_date}{Date or character. Reference date for the simulation snapshot.}
@@ -72,21 +75,21 @@ Use \code{"keep"} when movements should not affect the wage bill.}
 \value{
 Named list:
 \describe{
-\item{summary}{data.table. High-level statistics: promotions, transfers,
+\item{summary}{data.table. High-level statistics: n_movers,
 historical rates, headcount before/after.}
 \item{contract_dt}{data.table. Updated contracts with new group assignments
 and salaries for movers. This is the simulation-period snapshot only.}
 \item{personnel_dt}{data.table. Personnel data (unchanged by this module).}
 \item{movers_dt}{data.table. Records for each mover: personnel_id,
-from_group, to_group, movement_type.}
+from_group, to_group.}
 \item{baseline_matrix}{data.table. Estimated transition probabilities
 from the full panel data.}
 \item{demand_dt}{data.table. Policy-adjusted movement demand by transition.}
 }
 }
 \description{
-Main user-facing function for simulating internal labor movements (promotions
-and transfers). Orchestrates the full workflow:
+Main user-facing function for simulating internal labor movements.
+Orchestrates the full workflow:
 \enumerate{
 \item Input validation
 \item Estimate empirical movement baseline from full panel data
@@ -104,23 +107,28 @@ library(data.table)
 contract_dt  <- copy(bra_hrmis_contract)
 personnel_dt <- copy(bra_hrmis_personnel)
 
+salary_scale_dt <- data.table(
+  est_id           = unique(contract_dt$est_id),
+  gross_salary_lcu = 5000
+)
+
 policy_params <- list(
-  group_cols          = c("est_id"),
-  salary_scale        = data.table(
-    est_id           = unique(contract_dt$est_id),
-    gross_salary_lcu = 5000
-  ),
-  promotion_multiplier = 1.0,
-  transfer_multiplier  = 1.0,
-  promotion_strategy   = "tenure",
-  transfer_strategy    = "random"
+  group_cols   = c("est_id"),
+  policy_table = NULL,
+  defaults = list(
+    movement_rate     = 0.05,
+    movement_strategy = "tenure",
+    active_types      = "perm",
+    salary_update_rule = "scale"
+  )
 )
 
 results <- simulate_promotions_transfers(
-  contract_dt  = contract_dt,
-  personnel_dt = personnel_dt,
-  policy_params = policy_params,
-  ref_date     = "2016-09-01"
+  contract_dt     = contract_dt,
+  personnel_dt    = personnel_dt,
+  salary_scale_dt = salary_scale_dt,
+  policy_params   = policy_params,
+  ref_date        = "2016-09-01"
 )
 
 results$summary
