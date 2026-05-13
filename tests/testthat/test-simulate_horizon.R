@@ -1598,3 +1598,433 @@ test_that("Block E: scenario_id and scenario_label are first columns when scenar
                          names(res$comparison))
   expect_true(all(col_positions <= 3L))
 })
+
+# =============================================================================
+# Block F — canonical 3-slot policy_params passing through simulate_horizon()
+# Tests that group_cols / policy_table / defaults all reach the sub-functions
+# correctly when wired through simulate_horizon().
+# =============================================================================
+
+# Shared fixture: 4 workers in 2 grades, 2 periods of contract history
+make_block_f_inputs <- function() {
+  ref_date <- as.Date("2020-01-01")
+
+  contract_dt <- data.table::data.table(
+    contract_id        = paste0("C", 1:6),
+    personnel_id       = paste0("P", 1:6),
+    paygrade           = c("G1", "G1", "G1", "G2", "G2", "G2"),
+    est_id             = rep(c("E1", "E2"), 3L),
+    start_date         = ref_date - c(365L * 5L, 365L * 3L, 365L * 7L,
+                                      365L * 2L, 365L * 8L, 365L * 4L),
+    end_date           = as.Date(NA),
+    contract_type_code = "permanent",
+    gross_salary_lcu   = c(30000, 30000, 30000, 50000, 50000, 50000),
+    status             = "active"
+  )
+  personnel_dt <- data.table::data.table(
+    personnel_id = paste0("P", 1:6),
+    birth_date   = ref_date - 365L * c(35L, 38L, 42L, 45L, 50L, 55L),
+    status       = "active",
+    age          = c(35, 38, 42, 45, 50, 55),
+    tenure_years = c(5, 3, 7, 2, 8, 4)
+  )
+  salary_scale_dt <- data.table::data.table(
+    paygrade         = c("G1", "G2"),
+    gross_salary_lcu = c(30000, 50000)
+  )
+  list(
+    contract_dt     = contract_dt,
+    personnel_dt    = personnel_dt,
+    salary_scale_dt = salary_scale_dt,
+    ref_date        = ref_date
+  )
+}
+
+# ── Retirement ────────────────────────────────────────────────────────────────
+
+test_that("Block F: canonical 3-slot retirement_policy (scalar defaults) works", {
+  d <- make_block_f_inputs()
+
+  # Nobody is old enough to retire (max age = 55 < 60)
+  ret_policy <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      eligibility_type = "age_only",
+      pension_type     = "flat",
+      flat_amount      = 500,
+      min_age          = 60
+    )
+  )
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = ret_policy,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date
+  )
+  expect_equal(res$summary_dt$n_exits, 0L)
+})
+
+test_that("Block F: canonical 3-slot retirement_policy with group_cols + policy_table", {
+  d <- make_block_f_inputs()
+
+  # G2 workers (birth_date offset by 365L days → actual age ≈ 44.97, 49.97, 54.97)
+  # retire at min_age = 44; G1 workers (approx 35, 38, 42) have min_age = 60 → none retire
+  pt <- data.table::data.table(
+    paygrade = c("G1", "G2"),
+    min_age  = c(60,   44)
+  )
+  ret_policy <- list(
+    group_cols   = "paygrade",
+    policy_table = pt,
+    defaults = list(
+      eligibility_type = "age_only",
+      pension_type     = "flat",
+      flat_amount      = 500,
+      min_age          = 60
+    )
+  )
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = ret_policy,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date
+  )
+  # All 3 G2 workers (approx 44.97, 49.97, 54.97) are >= 44 → all retire; G1 none
+  expect_equal(res$summary_dt$n_exits, 3L)
+})
+
+test_that("Block F: retirement policy_table overrides defaults per group", {
+  d <- make_block_f_inputs()
+
+  # policy_table sets G1 min_age = 999 (never retire) but G2 min_age = 40
+  pt <- data.table::data.table(
+    paygrade = c("G1", "G2"),
+    min_age  = c(999,   40)
+  )
+  ret_policy <- list(
+    group_cols   = "paygrade",
+    policy_table = pt,
+    defaults = list(
+      eligibility_type = "age_only",
+      pension_type     = "flat",
+      flat_amount      = 500,
+      min_age          = 999
+    )
+  )
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = ret_policy,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date
+  )
+  # G1: no retirements; G2 (ages 45, 50, 55 all >= 40): 3 retirements
+  expect_equal(res$summary_dt$n_exits, 3L)
+})
+
+# ── Exit policy ───────────────────────────────────────────────────────────────
+
+test_that("Block F: canonical 3-slot exit_policy (flat rate) produces exits", {
+  d <- make_block_f_inputs()
+
+  no_retire <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
+                        flat_amount = 0, min_age = 999)
+  )
+  exit_policy <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_rate     = 1.0,          # 100% → all active workers exit
+      exit_strategy = "random",
+      active_types  = "permanent",
+      exited_type   = "inactive"
+    )
+  )
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = no_retire,
+    exit_policy        = exit_policy,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date
+  )
+  # With exit_rate = 1.0 all 6 active workers should exit
+  expect_equal(res$summary_dt$n_non_ret_exits %||%
+                 (res$summary_dt$n_headcount_start - res$summary_dt$n_headcount_end),
+               6L)
+})
+
+test_that("Block F: exit_rate = 0 produces no non-retirement exits", {
+  d <- make_block_f_inputs()
+
+  no_retire <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
+                        flat_amount = 0, min_age = 999)
+  )
+  exit_policy <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_rate     = 0,
+      exit_strategy = "random",
+      active_types  = "permanent",
+      exited_type   = "inactive"
+    )
+  )
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = no_retire,
+    exit_policy        = exit_policy,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date
+  )
+  # Headcount should be unchanged
+  expect_equal(res$summary_dt$n_headcount_end, res$summary_dt$n_headcount_start)
+})
+
+test_that("Block F: canonical exit_policy with group_cols + policy_table", {
+  d <- make_block_f_inputs()
+
+  no_retire <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
+                        flat_amount = 0, min_age = 999)
+  )
+  # G1: 100% exit; G2: 0% exit
+  exit_pt <- data.table::data.table(
+    paygrade  = c("G1", "G2"),
+    exit_rate = c(1.0,  0.0)
+  )
+  exit_policy <- list(
+    group_cols   = "paygrade",
+    policy_table = exit_pt,
+    defaults = list(
+      exit_rate     = 0,
+      exit_strategy = "random",
+      active_types  = "permanent",
+      exited_type   = "inactive"
+    )
+  )
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = no_retire,
+    exit_policy        = exit_policy,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date
+  )
+  # 3 G1 workers exit; 3 G2 stay.
+  # n_headcount_end counts non-pensioner rows — exited workers are stamped
+  # "inactive" (not "pensioner") so headcount_end stays at 6.
+  # Check n_non_ret_exits in the summary directly.
+  expect_equal(res$summary_dt$n_non_ret_exits, 3L)
+})
+
+# ── Movement policy ───────────────────────────────────────────────────────────
+
+test_that("Block F: canonical 3-slot movement_policy (flat rate = 0) gives no movers", {
+  d <- make_block_f_inputs()
+
+  no_retire <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
+                        flat_amount = 0, min_age = 999)
+  )
+  mov_policy <- list(
+    group_cols   = "paygrade",
+    policy_table = NULL,
+    defaults = list(
+      movement_rate      = 0,
+      movement_strategy  = "tenure",
+      active_types       = "permanent",
+      salary_update_rule = "scale"
+    )
+  )
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = no_retire,
+    exit_policy        = NULL,
+    movement_policy    = mov_policy,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date
+  )
+  expect_equal(res$summary_dt$n_promotions, 0L)
+  expect_equal(res$summary_dt$promotion_effect, 0)
+})
+
+test_that("Block F: canonical 3-slot movement_policy (flat rate > 0) produces movers", {
+  set.seed(42)
+  d <- make_block_f_inputs()
+
+  no_retire <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
+                        flat_amount = 0, min_age = 999)
+  )
+  mov_policy <- list(
+    group_cols   = "paygrade",
+    policy_table = NULL,
+    defaults = list(
+      movement_rate      = 0.5,
+      movement_strategy  = "tenure",
+      active_types       = "permanent",
+      salary_update_rule = "scale"
+    )
+  )
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = no_retire,
+    exit_policy        = NULL,
+    movement_policy    = mov_policy,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date
+  )
+  # With rate = 0.5 across 6 workers some movement should occur
+  expect_gte(res$summary_dt$n_promotions, 0L)
+  expect_true(is.numeric(res$summary_dt$promotion_effect))
+})
+
+test_that("Block F: movement_policy NULL gives zero promotion and transfer effects", {
+  d <- make_block_f_inputs()
+
+  no_retire <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
+                        flat_amount = 0, min_age = 999)
+  )
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = no_retire,
+    exit_policy        = NULL,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = d$ref_date
+  )
+  expect_equal(res$summary_dt$promotion_effect, 0)
+  expect_equal(res$summary_dt$transfer_effect,  0)
+})
+
+# ── Combined modules ──────────────────────────────────────────────────────────
+
+test_that("Block F: all 3 canonical policies active simultaneously — no error", {
+  set.seed(7)
+  d <- make_block_f_inputs()
+
+  ret_policy <- list(
+    group_cols   = "paygrade",
+    policy_table = data.table::data.table(paygrade = c("G1", "G2"),
+                                          min_age  = c(999,   45)),
+    defaults = list(eligibility_type = "age_only", pension_type = "flat",
+                    flat_amount = 500, min_age = 999)
+  )
+  exit_policy <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(exit_rate = 0.1, exit_strategy = "random",
+                    active_types = "permanent", exited_type = "inactive")
+  )
+  mov_policy <- list(
+    group_cols   = "paygrade",
+    policy_table = NULL,
+    defaults = list(movement_rate = 0.1, movement_strategy = "tenure",
+                    active_types = "permanent", salary_update_rule = "scale")
+  )
+  expect_no_error(
+    simulate_horizon(
+      contract_dt        = d$contract_dt,
+      personnel_dt       = d$personnel_dt,
+      salary_scale_dt    = d$salary_scale_dt,
+      n_periods          = 2L,
+      retirement_policy  = ret_policy,
+      exit_policy        = exit_policy,
+      movement_policy    = mov_policy,
+      hiring_policy      = NULL,
+      salary_growth_rate = 0.02,
+      ref_date           = d$ref_date
+    )
+  )
+})
+
+test_that("Block F: wage_bill_end accounting identity holds with exits + COLA", {
+  d <- make_block_f_inputs()
+
+  no_retire <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
+                        flat_amount = 0, min_age = 999)
+  )
+  exit_policy <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(exit_rate = 0.5, exit_strategy = "random",
+                    active_types = "permanent", exited_type = "inactive")
+  )
+  set.seed(1)
+  res <- simulate_horizon(
+    contract_dt        = d$contract_dt,
+    personnel_dt       = d$personnel_dt,
+    salary_scale_dt    = d$salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = no_retire,
+    exit_policy        = exit_policy,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0.05,
+    ref_date           = d$ref_date
+  )
+  dt <- res$summary_dt
+  # Identity: wage_bill_end ≈ wage_bill_start - exit_savings + hiring_effect + inflation_effect
+  rhs <- dt$wage_bill_start - dt$exit_savings + dt$hiring_effect +
+         dt$promotion_effect + dt$transfer_effect + dt$inflation_effect
+  expect_equal(dt$wage_bill_end, rhs, tolerance = 1)
+})

@@ -44,15 +44,24 @@ ledger from prior periods.  Must contain columns \code{personnel_id},
 \code{pension_amount}, \code{period_date}.  Pass \code{NULL} (default)
 for the first period — an empty register is initialised internally.}
 
-\item{retirement_policy}{List or \code{NULL}.  Passed to
-\code{simulate_retirement()}.  Pass \code{NULL} to skip retirement.}
+\item{retirement_policy}{List or \code{NULL}.  Canonical 3-slot policy passed
+to \code{simulate_retirement()}: \code{group_cols}, \code{policy_table},
+\code{defaults} (keys: \code{eligibility_type}, \code{pension_type},
+\code{min_age}, \code{min_tenure}, \code{accrual_rate},
+\code{ref_wage_col}, \code{max_years}, \code{replacement_cap}).
+Pass \code{NULL} to skip retirement.}
 
-\item{exit_policy}{List or \code{NULL}.  Policy parameters for non-retirement
-attrition.  Passed to \code{compute_status_quo_exits()}.  Pass \code{NULL}
-to model zero attrition.}
+\item{exit_policy}{List or \code{NULL}.  Canonical 3-slot policy passed to
+\code{simulate_exits()}: \code{group_cols}, \code{policy_table},
+\code{defaults} (keys: \code{exit_rate}, \code{exit_strategy},
+\code{active_types}, \code{exited_type}).
+Pass \code{NULL} to model zero non-retirement attrition.}
 
-\item{movement_policy}{List or \code{NULL}.  Passed to
-\code{simulate_promotions_transfers()}.  Pass \code{NULL} to skip.}
+\item{movement_policy}{List or \code{NULL}.  Canonical 3-slot policy passed
+to \code{simulate_promotions_transfers()}: \code{group_cols},
+\code{policy_table}, \code{defaults} (keys: \code{movement_rate},
+\code{movement_strategy}, \code{active_types}, \code{salary_update_rule}).
+Pass \code{NULL} to skip movements.}
 
 \item{hiring_policy}{List or \code{NULL}.  Passed to
 \code{simulate_hiring()}.  Pass \code{NULL} to skip.}

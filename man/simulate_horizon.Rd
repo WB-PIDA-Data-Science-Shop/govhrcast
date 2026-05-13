@@ -43,26 +43,61 @@ simulate_horizon(
 
 \item{n_periods}{Integer. Number of annual periods to simulate.}
 
-\item{retirement_policy}{List or \code{NULL}. Policy parameters for
-\code{simulate_retirement()}. Pass \code{NULL} to skip.}
+\item{retirement_policy}{List or \code{NULL}. Canonical 3-slot policy passed
+to \code{simulate_retirement()}:
+\describe{
+\item{\code{group_cols}}{Character vector or \code{NULL}. Columns that
+define policy groups (e.g. \code{c("paygrade", "occupation_isconame")}).}
+\item{\code{policy_table}}{data.table or \code{NULL}. Per-group overrides
+keyed on \code{group_cols}.  \code{NULL} for scalar-only dispatch.}
+\item{\code{defaults}}{Named list. Fallback values for all groups.
+Keys: \code{eligibility_type} (\code{"age_only"},
+\code{"tenure_only"}, \code{"age_and_tenure"}),
+\code{pension_type} (\code{"db"}, \code{"dc"}, \code{"flat"},
+\code{"hybrid"}), \code{min_age}, \code{min_tenure},
+\code{accrual_rate}, \code{ref_wage_col}, \code{max_years},
+\code{replacement_cap}.}
+}
+Pass \code{NULL} to skip retirement entirely.}
 
-\item{exit_policy}{List or \code{NULL}. Policy parameters controlling
-non-retirement attrition (voluntary exits, contract non-renewals).  When
-non-\code{NULL}, must contain at minimum \code{mode} (one of
-\code{"fixed_rate"}, \code{"status_quo"}) and \code{exit_strategy}.
-Pass \code{NULL} (default) to model zero non-retirement attrition.}
+\item{exit_policy}{List or \code{NULL}. Canonical 3-slot policy passed to
+\code{simulate_exits()}:
+\describe{
+\item{\code{group_cols}}{Character vector or \code{NULL}.}
+\item{\code{policy_table}}{data.table or \code{NULL}. Per-group exit
+rates keyed on \code{group_cols}.}
+\item{\code{defaults}}{Named list. Keys: \code{exit_rate} (required
+when \code{policy_table = NULL}), \code{exit_strategy}
+(\code{"random"} or a numeric column name), \code{active_types},
+\code{exited_type}.}
+}
+Pass \code{NULL} to model zero non-retirement attrition.}
 
-\item{movement_policy}{List or \code{NULL}. Policy parameters for
-\code{simulate_promotions_transfers()}. Pass \code{NULL} to skip.}
+\item{movement_policy}{List or \code{NULL}. Canonical 3-slot policy passed
+to \code{simulate_promotions_transfers()}:
+\describe{
+\item{\code{group_cols}}{Character vector or \code{NULL}. State-defining
+columns (e.g. \code{"paygrade"}).}
+\item{\code{policy_table}}{data.table or \code{NULL}. Pre-computed
+transition matrix (output of \code{estimate_movement_baseline()}).}
+\item{\code{defaults}}{Named list. Keys: \code{movement_rate} (required
+when \code{policy_table = NULL}), \code{movement_strategy}
+(\code{"random"}, \code{"tenure"}, \code{"reverse_tenure"},
+\code{"wage_based"}), \code{active_types}, \code{salary_update_rule}.}
+}
+Pass \code{NULL} to skip movements.}
 
-\item{hiring_policy}{List or \code{NULL}. Policy parameters for
-\code{simulate_hiring()}. Must include \code{mode} and \code{salary_scale}.
-Pass \code{NULL} to skip hiring in all periods.
-For \code{mode = "status_quo"}, also include \code{group_cols} and
-optionally \code{rate_mult} (default 1).  The full panel tables
+\item{hiring_policy}{List or \code{NULL}. Policy parameters passed to
+\code{simulate_hiring()}. Must include \code{mode} (one of
+\code{"flow"}, \code{"stock"}, \code{"combined"}, \code{"status_quo"})
+and \code{salary_scale} (a data.table keyed on \code{group_cols}).
+For \code{mode = "flow"}: also \code{group_cols}, \code{replacement_rate}.
+For \code{mode = "stock"}: also \code{group_cols}, \code{stock_targets}.
+For \code{mode = "status_quo"}: also \code{group_cols} and optionally
+\code{rate_mult} (default 1).  The panel tables
 (\code{panel_contract_dt} and \code{panel_personnel_dt}) are injected
-automatically by \code{simulate_horizon()} from the \code{contract_dt} and
-\code{personnel_dt} arguments — you do \emph{not} need to set them manually.}
+automatically — you do \emph{not} need to supply them.
+Pass \code{NULL} to skip hiring in all periods.}
 
 \item{salary_growth_rate}{Numeric scalar or vector of length \code{n_periods}.
 Annual COLA / inflation rate applied to salaries and the pay scale.
@@ -212,20 +247,38 @@ results <- simulate_horizon(
   salary_scale_dt    = salary_scale,
   n_periods          = 5L,
   retirement_policy  = list(
-    eligibility_type = "age_and_tenure",
-    min_age          = 60,
-    min_tenure       = 20,
-    pension_type     = "db",
-    pension_params   = list(accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu",
-                            max_years = 35, replacement_cap = 0.80)
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      eligibility_type = "age_and_tenure",
+      pension_type     = "db",
+      min_age          = 60,
+      min_tenure       = 20,
+      accrual_rate     = 0.02,
+      ref_wage_col     = "gross_salary_lcu",
+      max_years        = 35,
+      replacement_cap  = 0.80
+    )
+  ),
+  exit_policy = list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_rate     = 0.05,
+      exit_strategy = "random",
+      active_types  = c("permanent", "fterm"),
+      exited_type   = "inactive"
+    )
   ),
   movement_policy = list(
-    group_cols           = "est_id",
-    salary_scale         = salary_scale,
-    promotion_multiplier = 1.0,
-    transfer_multiplier  = 1.0,
-    promotion_strategy   = "tenure",
-    transfer_strategy    = "random"
+    group_cols   = "est_id",
+    policy_table = NULL,
+    defaults = list(
+      movement_rate      = 0.05,
+      movement_strategy  = "tenure",
+      active_types       = "permanent",
+      salary_update_rule = "scale"
+    )
   ),
   hiring_policy = list(
     mode             = "flow",

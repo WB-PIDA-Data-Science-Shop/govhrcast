@@ -130,15 +130,15 @@
 #'
 #' @export
 simulate_exits <- function(contract_dt,
-                            personnel_dt,
-                            policy_params,
-                            ref_date,
-                            personnel_id_col  = "personnel_id",
-                            contract_id_col   = "contract_id",
-                            contract_type_col = "contract_type_code",
-                            status_col        = "status",
-                            salary_col        = "gross_salary_lcu",
-                            end_date_col      = "end_date") {
+                           personnel_dt,
+                           policy_params,
+                           ref_date,
+                           personnel_id_col  = "personnel_id",
+                           contract_id_col   = "contract_id",
+                           contract_type_col = "contract_type_code",
+                           status_col        = "status",
+                           salary_col        = "gross_salary_lcu",
+                           end_date_col      = "end_date") {
 
   # ------------------------------------------------------------------
   # 0. Validate & copy
