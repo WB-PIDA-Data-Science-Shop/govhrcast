@@ -257,6 +257,14 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'   Pass \code{NULL} to skip movements.
 #' @param hiring_policy List or \code{NULL}.  Passed to
 #'   \code{simulate_hiring()}.  Pass \code{NULL} to skip.
+#' @param retirement_hazard_model A calibrated \code{hazard_model} object or
+#'   \code{NULL} (default).  Forwarded to \code{\link{simulate_retirement}}.
+#'   When non-\code{NULL}, retirement take-up is governed by
+#'   \code{\link{predict_hazard}} instead of the 100\% take-up assumption.
+#' @param exit_hazard_model A calibrated \code{hazard_model} object or
+#'   \code{NULL} (default).  Forwarded to \code{\link{simulate_exits}}.
+#'   Activates hazard-mode exit selection when
+#'   \code{exit_policy$defaults$exit_strategy = "hazard"}.
 #' @param salary_growth_rate Numeric scalar.  COLA rate for this period.
 #'   Default \code{0}.
 #' @param pension_cola_rate Numeric scalar.  Annual COLA rate applied to
@@ -266,6 +274,8 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'   \code{pensioner_register} for cohort auditing.  Default: \code{Sys.Date()}.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param contract_id_col Character.  Default \code{"contract_id"}.
+#' @param birth_date_col Character.  Column holding date of birth.  Required
+#'   when a hazard model uses age as a covariate.  Default \code{"birth_date"}.
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
@@ -332,15 +342,18 @@ simulate_scenario <- function(contract_dt,
                                personnel_dt,
                                salary_scale_dt,
                                period_date,
-                               pensioner_register  = NULL,
-                               retirement_policy   = NULL,
-                               exit_policy         = NULL,
-                               movement_policy     = NULL,
-                               hiring_policy       = NULL,
+                               pensioner_register      = NULL,
+                               retirement_policy       = NULL,
+                               exit_policy             = NULL,
+                               movement_policy         = NULL,
+                               hiring_policy           = NULL,
+                               retirement_hazard_model = NULL,
+                               exit_hazard_model       = NULL,
                                salary_growth_rate  = 0,
                                pension_cola_rate   = 0,
                                personnel_id_col    = "personnel_id",
                                contract_id_col     = "contract_id",
+                               birth_date_col      = "birth_date",
                                start_date_col      = "start_date",
                                end_date_col        = "end_date",
                                salary_col          = "gross_salary_lcu",
@@ -405,19 +418,21 @@ simulate_scenario <- function(contract_dt,
 
   if (!is.null(retirement_policy)) {
     ret_result <- simulate_retirement(
-      contract_dt       = contract_dt,
-      personnel_dt      = personnel_dt,
-      policy_params     = retirement_policy,
-      ref_date          = period_date,
-      personnel_id_col  = personnel_id_col,
-      contract_id_col   = contract_id_col,
-      start_date_col    = start_date_col,
-      end_date_col      = end_date_col,
-      salary_col        = salary_col,
-      contract_type_col = contract_type_col,
-      status_col        = status_col,
-      age_col           = age_col,
-      tenure_col        = tenure_col
+      contract_dt             = contract_dt,
+      personnel_dt            = personnel_dt,
+      policy_params           = retirement_policy,
+      ref_date                = period_date,
+      retirement_hazard_model = retirement_hazard_model,
+      personnel_id_col        = personnel_id_col,
+      contract_id_col         = contract_id_col,
+      birth_date_col          = birth_date_col,
+      start_date_col          = start_date_col,
+      end_date_col            = end_date_col,
+      salary_col              = salary_col,
+      contract_type_col       = contract_type_col,
+      status_col              = status_col,
+      age_col                 = age_col,
+      tenure_col              = tenure_col
     )
     retirees_dt  <- ret_result$retirees_dt
     contract_dt  <- ret_result$contract_dt
@@ -462,7 +477,10 @@ simulate_scenario <- function(contract_dt,
       personnel_dt      = personnel_dt,
       policy_params     = exit_policy,
       ref_date          = period_date,
+      exit_hazard_model = exit_hazard_model,
       personnel_id_col  = personnel_id_col,
+      birth_date_col    = birth_date_col,
+      start_date_col    = start_date_col,
       contract_id_col   = contract_id_col,
       contract_type_col = contract_type_col,
       status_col        = status_col,
@@ -746,6 +764,18 @@ simulate_scenario <- function(contract_dt,
 #'   (\code{panel_contract_dt} and \code{panel_personnel_dt}) are injected
 #'   automatically — you do \emph{not} need to supply them.
 #'   Pass \code{NULL} to skip hiring in all periods.
+#' @param retirement_hazard_model A calibrated \code{hazard_model} object
+#'   returned by \code{\link{fit_hazard_model}} and
+#'   \code{\link{select_hazard_threshold}}, or \code{NULL} (default).
+#'   When supplied, the object is passed unchanged to \code{\link{simulate_scenario}}
+#'   every period so that \code{\link{simulate_retirement}} uses hazard-based
+#'   take-up rather than the 100\% take-up assumption.  The model is fitted
+#'   \emph{once} by the caller before passing to this function.
+#' @param exit_hazard_model A calibrated \code{hazard_model} object or
+#'   \code{NULL} (default).  Passed unchanged to \code{\link{simulate_scenario}}
+#'   every period.  Activates hazard-mode exit selection when
+#'   \code{exit_policy$defaults$exit_strategy = "hazard"}.  Fit once before
+#'   calling this function.
 #' @param salary_growth_rate Numeric scalar or vector of length \code{n_periods}.
 #'   Annual COLA / inflation rate applied to salaries and the pay scale.
 #'   Default \code{0} (no inflation).
@@ -904,10 +934,25 @@ simulate_horizon <- function(contract_dt,
                              personnel_dt,
                              salary_scale_dt,
                              n_periods,
-                             retirement_policy  = NULL,
+                             retirement_policy  = list(
+                               group_cols   = NULL,
+                               policy_table = NULL,
+                               defaults = list(
+                                 eligibility_type = "age_and_tenure",
+                                 pension_type     = "db",
+                                 min_age          = 60,
+                                 min_tenure       = 10,
+                                 accrual_rate     = 0.02,
+                                 ref_wage_col     = "gross_salary_lcu",
+                                 max_years        = 35,
+                                 replacement_cap  = 0.80
+                               )
+                             ),
                              exit_policy        = NULL,
                              movement_policy    = NULL,
                              hiring_policy      = NULL,
+                             retirement_hazard_model = NULL,
+                             exit_hazard_model       = NULL,
                              salary_growth_rate = 0,
                              pension_cola_rate  = salary_growth_rate,
                              base_year          = as.integer(format(Sys.Date(), "%Y")),
@@ -1007,6 +1052,40 @@ simulate_horizon <- function(contract_dt,
     }
   }
 
+  # For exit, pre-estimate historical rates from the full panel BEFORE stripping
+  # ref_date, so simulate_exits() receives a ready-made policy_table.
+  if (!is.null(exit_policy) && is.null(exit_policy$policy_table)) {
+    ref_date_col_name <- "ref_date"
+    has_panel <- ref_date_col_name %in% names(contract_dt) &&
+                 data.table::uniqueN(contract_dt[[ref_date_col_name]]) >= 2L
+    if (has_panel) {
+      exit_policy$policy_table <- tryCatch(
+        estimate_historical_exit_rates(
+          panel_contract_dt = contract_dt,
+          panel_personnel_dt = personnel_dt,
+          group_cols        = exit_policy$group_cols,
+          personnel_id_col  = personnel_id_col,
+          ref_date_col      = ref_date_col_name,
+          start_date_col    = start_date_col,
+          end_date_col      = end_date_col,
+          contract_type_col = contract_type_col,
+          status_col        = status_col
+        ),
+        error = function(e) {
+          warning("simulate_horizon: exit rate estimation failed — ",
+                  conditionMessage(e), ". Falling back to defaults$exit_rate.",
+                  call. = FALSE)
+          NULL
+        }
+      )
+    } else if (is.null(exit_policy$defaults$exit_rate)) {
+      warning("simulate_horizon: single-snapshot data and no exit_rate in ",
+              "exit_policy$defaults. Non-retirement exits will be skipped.",
+              call. = FALSE)
+      exit_policy <- NULL
+    }
+  }
+
   # If data contains a ref_date panel column, subset to the starting snapshot
   # before stripping so that sub-modules see a single-period snapshot
   start_ref <- ref_date   # capture before any column could shadow it
@@ -1102,7 +1181,7 @@ simulate_horizon <- function(contract_dt,
   # Age: overwrite age_col using birth_date_col, if both are available.
   # This is forward-compatible with Phase 2b where the prologue will also
   # pre-compute tenure once and increment it per period rather than
-  # recomputing inside identify_retirees().
+  # recomputing inside identify_eligibility().
   if (!is.null(birth_date_col) &&
       !is.null(age_col) &&
       birth_date_col %in% names(personnel_dt)) {
@@ -1114,7 +1193,7 @@ simulate_horizon <- function(contract_dt,
 
   # Tenure: compute from contract history and inject into personnel_dt.
   # This replaces the per-period compute_tenure() call inside
-  # identify_retirees() with a single upfront computation.
+  # identify_eligibility() with a single upfront computation.
   if (!is.null(tenure_col)) {
     tenure_init <- compute_tenure(
       contract_dt       = contract_dt,
@@ -1147,7 +1226,7 @@ simulate_horizon <- function(contract_dt,
   # untreated they all fire in period 1, making n_exits in the first
   # period 2–5× higher than any subsequent period.
   #
-  # Fix: apply the same eligibility check used inside identify_retirees()
+  # Fix: apply the same eligibility check used inside identify_eligibility()
   # against the already-computed age / tenure columns, retire the backlog
   # into the pensioner_register at period_date = ref_date, and mark their
   # contracts / personnel status accordingly.  Period 1 then only catches
@@ -1178,7 +1257,7 @@ simulate_horizon <- function(contract_dt,
       with = FALSE
     ]
 
-    # Apply the same switch logic as identify_retirees(), but using the
+    # Apply the same switch logic as identify_eligibility(), but using the
     # backlog cutoffs (min_age + period_fraction) not the raw thresholds.
     .pre_elig_[, .already_eligible_ := switch(
       .elig_type_,
@@ -1286,19 +1365,22 @@ simulate_horizon <- function(contract_dt,
     cur_date    <- .advance_period(ref_date, t - 1L, unit = period_unit)
 
     scenario_result <- simulate_scenario(
-      contract_dt        = contract_dt,
-      personnel_dt       = personnel_dt,
-      salary_scale_dt    = salary_scale_dt,
-      period_date        = cur_date,
-      pensioner_register = pensioner_register,
-      retirement_policy  = retirement_policy,
-      exit_policy        = exit_policy,
-      movement_policy    = movement_policy,
-      hiring_policy      = hiring_policy,
+      contract_dt             = contract_dt,
+      personnel_dt            = personnel_dt,
+      salary_scale_dt         = salary_scale_dt,
+      period_date             = cur_date,
+      pensioner_register      = pensioner_register,
+      retirement_policy       = retirement_policy,
+      exit_policy             = exit_policy,
+      movement_policy         = movement_policy,
+      hiring_policy           = hiring_policy,
+      retirement_hazard_model = retirement_hazard_model,
+      exit_hazard_model       = exit_hazard_model,
       salary_growth_rate = growth,
       pension_cola_rate  = cola_rate,
       personnel_id_col   = personnel_id_col,
       contract_id_col    = contract_id_col,
+      birth_date_col     = birth_date_col,
       start_date_col     = start_date_col,
       end_date_col       = end_date_col,
       salary_col         = salary_col,

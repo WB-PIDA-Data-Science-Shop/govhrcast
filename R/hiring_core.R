@@ -133,10 +133,10 @@ compute_flow_demand <- function(contract_dt,
   group_cols <- policy_params$group_cols
   replacement_rate <- policy_params$replacement_rate
   
-  # If retirees_dt not provided, compute it using identify_retirees
+  # If retirees_dt not provided, compute it using identify_eligibility
   if (is.null(retirees_dt) || nrow(retirees_dt) == 0) {
     # Use retirement module's eligibility logic
-    eligibility_dt <- identify_retirees(
+    eligibility_dt <- identify_eligibility(
       contract_dt = contract_dt,
       personnel_dt = personnel_dt,
       policy_params = policy_params,  # Must contain eligibility_type, min_age, min_tenure

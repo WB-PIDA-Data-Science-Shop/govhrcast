@@ -14,10 +14,13 @@ simulate_scenario(
   exit_policy = NULL,
   movement_policy = NULL,
   hiring_policy = NULL,
+  retirement_hazard_model = NULL,
+  exit_hazard_model = NULL,
   salary_growth_rate = 0,
   pension_cola_rate = 0,
   personnel_id_col = "personnel_id",
   contract_id_col = "contract_id",
+  birth_date_col = "birth_date",
   start_date_col = "start_date",
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
@@ -66,6 +69,16 @@ Pass \code{NULL} to skip movements.}
 \item{hiring_policy}{List or \code{NULL}.  Passed to
 \code{simulate_hiring()}.  Pass \code{NULL} to skip.}
 
+\item{retirement_hazard_model}{A calibrated \code{hazard_model} object or
+\code{NULL} (default).  Forwarded to \code{\link{simulate_retirement}}.
+When non-\code{NULL}, retirement take-up is governed by
+\code{\link{predict_hazard}} instead of the 100\\% take-up assumption.}
+
+\item{exit_hazard_model}{A calibrated \code{hazard_model} object or
+\code{NULL} (default).  Forwarded to \code{\link{simulate_exits}}.
+Activates hazard-mode exit selection when
+\code{exit_policy$defaults$exit_strategy = "hazard"}.}
+
 \item{salary_growth_rate}{Numeric scalar.  COLA rate for this period.
 Default \code{0}.}
 
@@ -76,6 +89,9 @@ Default \code{0}.}
 \item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
 
 \item{contract_id_col}{Character.  Default \code{"contract_id"}.}
+
+\item{birth_date_col}{Character.  Column holding date of birth.  Required
+when a hazard model uses age as a covariate.  Default \code{"birth_date"}.}
 
 \item{start_date_col}{Character.  Default \code{"start_date"}.}
 

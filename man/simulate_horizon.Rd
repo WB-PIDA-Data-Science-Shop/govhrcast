@@ -9,10 +9,15 @@ simulate_horizon(
   personnel_dt,
   salary_scale_dt,
   n_periods,
-  retirement_policy = NULL,
+  retirement_policy = list(group_cols = NULL, policy_table = NULL, defaults =
+    list(eligibility_type = "age_and_tenure", pension_type = "db", min_age = 60,
+    min_tenure = 10, accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu", max_years =
+    35, replacement_cap = 0.8)),
   exit_policy = NULL,
   movement_policy = NULL,
   hiring_policy = NULL,
+  retirement_hazard_model = NULL,
+  exit_hazard_model = NULL,
   salary_growth_rate = 0,
   pension_cola_rate = salary_growth_rate,
   base_year = as.integer(format(Sys.Date(), "\%Y")),
@@ -98,6 +103,20 @@ For \code{mode = "status_quo"}: also \code{group_cols} and optionally
 (\code{panel_contract_dt} and \code{panel_personnel_dt}) are injected
 automatically — you do \emph{not} need to supply them.
 Pass \code{NULL} to skip hiring in all periods.}
+
+\item{retirement_hazard_model}{A calibrated \code{hazard_model} object
+returned by \code{\link{fit_hazard_model}} and
+\code{\link{select_hazard_threshold}}, or \code{NULL} (default).
+When supplied, the object is passed unchanged to \code{\link{simulate_scenario}}
+every period so that \code{\link{simulate_retirement}} uses hazard-based
+take-up rather than the 100\\% take-up assumption.  The model is fitted
+\emph{once} by the caller before passing to this function.}
+
+\item{exit_hazard_model}{A calibrated \code{hazard_model} object or
+\code{NULL} (default).  Passed unchanged to \code{\link{simulate_scenario}}
+every period.  Activates hazard-mode exit selection when
+\code{exit_policy$defaults$exit_strategy = "hazard"}.  Fit once before
+calling this function.}
 
 \item{salary_growth_rate}{Numeric scalar or vector of length \code{n_periods}.
 Annual COLA / inflation rate applied to salaries and the pay scale.

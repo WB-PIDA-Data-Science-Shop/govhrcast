@@ -270,6 +270,7 @@ test_that("Phase 3c: simulate_horizon with exit_policy reduces n_headcount_end",
     personnel_dt       = personnel_dt,
     salary_scale_dt    = salary_scale_dt,
     n_periods          = 1L,
+    retirement_policy  = NULL,
     exit_policy        = exit_policy,
     salary_growth_rate = 0,
     ref_date           = as.Date("2020-01-01")
@@ -306,6 +307,7 @@ test_that("Phase 3c: n_non_ret_exits column present in comparison when exit_poli
     personnel_dt       = personnel_dt,
     salary_scale_dt    = salary_scale_dt,
     n_periods          = 1L,
+    retirement_policy  = NULL,
     salary_growth_rate = 0,
     ref_date           = as.Date("2020-01-01")
   )

@@ -1340,6 +1340,7 @@ test_that("Phase 2c: pre-existing pensioners seed pension_cost_total in period 1
     personnel_dt       = d$personnel_dt,
     salary_scale_dt    = d$salary_scale_dt,
     n_periods          = 2L,
+    retirement_policy  = NULL,
     salary_growth_rate = 0,
     ref_date           = d$ref_date
   )
@@ -1359,6 +1360,7 @@ test_that("Phase 2c: pension_cola_rate = 0 keeps pension_cost_total constant", {
     personnel_dt       = d$personnel_dt,
     salary_scale_dt    = d$salary_scale_dt,
     n_periods          = 3L,
+    retirement_policy  = NULL,
     salary_growth_rate = 0.05,
     pension_cola_rate  = 0,
     ref_date           = d$ref_date
@@ -1378,6 +1380,7 @@ test_that("Phase 2c: pension_cola_rate > 0 grows pension_cost_total each period"
     personnel_dt       = d$personnel_dt,
     salary_scale_dt    = d$salary_scale_dt,
     n_periods          = 3L,
+    retirement_policy  = NULL,
     salary_growth_rate = 0,
     pension_cola_rate  = 0.05,
     ref_date           = d$ref_date
@@ -1481,6 +1484,7 @@ test_that("Block E: scenario_name stamps scenario_id and scenario_label columns"
     personnel_dt       = d$personnel_dt,
     salary_scale_dt    = d$salary_scale_dt,
     n_periods          = 2L,
+    retirement_policy  = NULL,
     salary_growth_rate = 0,
     ref_date           = d$ref_date,
     scenario_name      = "Baseline"
@@ -1500,6 +1504,7 @@ test_that("Block E: is_baseline = TRUE stamps TRUE in is_baseline column", {
     personnel_dt       = d$personnel_dt,
     salary_scale_dt    = d$salary_scale_dt,
     n_periods          = 1L,
+    retirement_policy  = NULL,
     salary_growth_rate = 0,
     ref_date           = d$ref_date,
     scenario_name      = "BAU",
@@ -1518,6 +1523,7 @@ test_that("Block E: is_baseline = FALSE (default) stamps FALSE", {
     personnel_dt       = d$personnel_dt,
     salary_scale_dt    = d$salary_scale_dt,
     n_periods          = 1L,
+    retirement_policy  = NULL,
     salary_growth_rate = 0,
     ref_date           = d$ref_date,
     scenario_name      = "Alt"
@@ -1534,6 +1540,7 @@ test_that("Block E: scenario_name = NULL omits scenario_id and scenario_label", 
     personnel_dt       = d$personnel_dt,
     salary_scale_dt    = d$salary_scale_dt,
     n_periods          = 1L,
+    retirement_policy  = NULL,
     salary_growth_rate = 0,
     ref_date           = d$ref_date
     # scenario_name omitted (defaults to NULL)
@@ -1554,6 +1561,7 @@ test_that("Block E: scenario_name and is_baseline stored in metadata", {
     personnel_dt       = d$personnel_dt,
     salary_scale_dt    = d$salary_scale_dt,
     n_periods          = 1L,
+    retirement_policy  = NULL,
     salary_growth_rate = 0,
     ref_date           = d$ref_date,
     scenario_name      = "Scenario A",
@@ -1573,6 +1581,7 @@ test_that("Block E: non-character scenario_name raises error", {
       personnel_dt       = d$personnel_dt,
       salary_scale_dt    = d$salary_scale_dt,
       n_periods          = 1L,
+      retirement_policy  = NULL,
       salary_growth_rate = 0,
       ref_date           = d$ref_date,
       scenario_name      = 42L    # must be character
@@ -1589,6 +1598,7 @@ test_that("Block E: scenario_id and scenario_label are first columns when scenar
     personnel_dt       = d$personnel_dt,
     salary_scale_dt    = d$salary_scale_dt,
     n_periods          = 1L,
+    retirement_policy  = NULL,
     salary_growth_rate = 0,
     ref_date           = d$ref_date,
     scenario_name      = "Test"

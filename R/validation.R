@@ -472,7 +472,10 @@ check_retirement_inputs <- function(contract_dt,
     if (is.null(.defaults$min_age) && !.age_in_pt)
       stop("min_age is required for eligibility_type '",
            .defaults$eligibility_type, "'", call. = FALSE)
-    validate_column_exists(personnel_dt, birth_date_col, "personnel_dt")
+    # birth_date_col is optional: NULL means age was pre-computed by the caller
+    # (e.g. simulate_horizon Phase 1b) and is already present in personnel_dt.
+    if (!is.null(birth_date_col))
+      validate_column_exists(personnel_dt, birth_date_col, "personnel_dt")
   }
 
   if (.needs_tenure) {

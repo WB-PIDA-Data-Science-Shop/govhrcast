@@ -208,6 +208,96 @@ compute_tenure <- function(contract_dt,
 }
 
 
+#' Compute Tenure from a Stacked Contract Panel (Panel Version)
+#'
+#' @description
+#' Vectorised equivalent of \code{\link{compute_tenure}} for a panel dataset
+#' where \code{ref_date_col} is a column rather than a scalar.  Computes
+#' cumulative years of service per \emph{person × snapshot} in a single pass
+#' over the full stacked panel — no per-snapshot loop required.
+#'
+#' The union-of-intervals algorithm is identical to \code{compute_tenure}:
+#' contracts are sorted by start date, a \code{cummax} propagates the furthest
+#' end seen so far, and each interval's contribution is classified as a new
+#' span, partial extension, or nested (zero-contribution) segment.  The key
+#' difference is that \code{ref_date_col} participates in every row-wise
+#' comparison and in the \code{cummax} grouping key, so each
+#' \code{(personnel_id, ref_date)} pair is handled independently.
+#'
+#' @param contract_dt data.table.  Full stacked contract panel.  Must contain
+#'   \code{personnel_id_col}, \code{ref_date_col}, \code{contract_id_col},
+#'   \code{start_date_col}, \code{end_date_col}, and \code{contract_type_col}.
+#' @param personnel_id_col Character.  Default: \code{"personnel_id"}.
+#' @param ref_date_col Character.  Name of the snapshot date column.
+#'   Default: \code{"ref_date"}.
+#' @param contract_id_col Character.  Default: \code{"contract_id"}.
+#' @param start_date_col Character.  Default: \code{"start_date"}.
+#' @param end_date_col Character.  Default: \code{"end_date"}.
+#' @param contract_type_col Character.  Default: \code{"contract_type_code"}.
+#'
+#' @return data.table with columns \code{personnel_id_col},
+#'   \code{ref_date_col}, and \code{tenure_years}.  One row per unique
+#'   \code{(personnel_id, ref_date)} combination present in
+#'   \code{contract_dt}.
+#' @keywords internal
+compute_tenure_panel <- function(contract_dt,
+                                 personnel_id_col  = "personnel_id",
+                                 ref_date_col      = "ref_date",
+                                 contract_id_col   = "contract_id",
+                                 start_date_col    = "start_date",
+                                 end_date_col      = "end_date",
+                                 contract_type_col = "contract_type_code") {
+
+  # 1. Filter: active types only, started on or before each row's ref_date
+  dt <- contract_dt[
+    get(start_date_col) <= get(ref_date_col) &
+      !get(contract_type_col) %in% c("inactive", "pensioner")
+  ]
+
+  # 2. Cap open-ended / future contracts at each row's ref_date
+  dt[, .eff_end := data.table::fifelse(
+    is.na(get(end_date_col)) | get(end_date_col) > get(ref_date_col),
+    get(ref_date_col),
+    get(end_date_col)
+  )]
+
+  # 3. Dedup panel snapshots: one row per (contract_id, start_date, ref_date)
+  dt <- dt[dt[, .I[1L], by = c(contract_id_col, start_date_col, ref_date_col)]$V1]
+
+  # 4. Numeric days for arithmetic; drop zero-length contracts
+  dt[, .s := as.numeric(get(start_date_col))]
+  dt[, .e := as.numeric(.eff_end)]
+  dt <- dt[.e > .s]
+
+  if (nrow(dt) == 0L) {
+    empty <- data.table::data.table(
+      .pid = character(0), .refdt = as.Date(character(0)), tenure_years = numeric(0)
+    )
+    data.table::setnames(empty, c(".pid", ".refdt"), c(personnel_id_col, ref_date_col))
+    return(empty)
+  }
+
+  # 5. Sort by (person, snapshot, start) then apply cummax within each group
+  data.table::setorderv(dt, c(personnel_id_col, ref_date_col, ".s"))
+  dt[, .lag_max_e := data.table::shift(cummax(.e), fill = -1e15),
+     by = c(personnel_id_col, ref_date_col)]
+
+  # 6. Classify and sum contributions
+  dt[, .contrib := data.table::fcase(
+    .s >= .lag_max_e,  .e - .s,
+    .e >  .lag_max_e,  .e - .lag_max_e,
+    default = 0
+  )]
+
+  result <- dt[,
+    .(tenure_years = sum(.contrib, na.rm = TRUE) / 365.25),
+    by = c(personnel_id_col, ref_date_col)
+  ]
+
+  result
+}
+
+
 #' Get Active Contracts at Reference Date
 #'
 #' @description
@@ -829,3 +919,245 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
   # Drop NULLs (params not in defaults and not in policy_table)
   Filter(Negate(is.null), result)
 }
+
+
+#' Build Status Quo Policy Parameters from Panel Data
+#'
+#' @description
+#' Convenience helper that constructs all four canonical policy objects
+#' (retirement, exit, movement, hiring) pre-configured for a status quo
+#' projection — i.e. one that replicates recently observed behaviour
+#' with no policy change.  Panel-based parameters (exit rates, movement
+#' transition matrix) are estimated from the supplied data.
+#'
+#' @details
+#' **What each policy does** \cr
+#' \describe{
+#'   \item{\code{retirement}}{Standard \code{age_and_tenure} rule with
+#'     \code{min_age = 60}, \code{min_tenure = 10}, defined-benefit pension
+#'     (\code{accrual_rate = 0.02}, \code{max_years = 35},
+#'     \code{replacement_cap = 0.80}).  Purely scalar — no panel needed.}
+#'   \item{\code{exit}}{Non-retirement attrition at the historically
+#'     observed aggregate rate, estimated via
+#'     \code{estimate_historical_exit_rates()}.  Falls back to a 5\%
+#'     annual rate with a warning when fewer than two snapshots are present.}
+#'   \item{\code{movement}}{Grade/group transition probabilities estimated
+#'     from the panel via \code{estimate_movement_baseline()}.  Requires
+#'     \code{movement_group_cols} to be specified (see argument).  Falls back
+#'     to a 5\% flat movement rate with a warning when the panel is
+#'     insufficient.}
+#'   \item{\code{hiring}}{Flow-based replacement at 1:1 (\code{replacement_rate
+#'     = 1.0}), using \code{salary_scale_dt} for new-hire pay.}
+#' }
+#'
+#' The returned list is designed to be passed directly to
+#' \code{simulate_horizon()} and can be inspected or modified before use:
+#' \preformatted{
+#' policies <- make_status_quo_policies(
+#'   contract_dt     = ct,
+#'   personnel_dt    = pt,
+#'   salary_scale_dt = ss
+#' )
+#' # Inspect estimated exit rates:
+#' policies$exit$policy_table
+#' # Override retirement age before running:
+#' policies$retirement$defaults$min_age <- 58
+#'
+#' simulate_horizon(
+#'   contract_dt       = ct,
+#'   personnel_dt      = pt,
+#'   salary_scale_dt   = ss,
+#'   n_periods         = 10L,
+#'   retirement_policy = policies$retirement,
+#'   exit_policy       = policies$exit,
+#'   movement_policy   = policies$movement,
+#'   hiring_policy     = policies$hiring
+#' )
+#' }
+#'
+#' @param contract_dt data.table.  Full panel contract microdata (multiple
+#'   \code{ref_date} snapshots).  Used for exit rate and movement baseline
+#'   estimation.
+#' @param personnel_dt data.table.  Full panel personnel microdata.
+#' @param salary_scale_dt data.table.  Pay table injected into the hiring
+#'   policy.  Must contain a salary column matching \code{salary_col}.
+#' @param movement_group_cols Character vector or \code{NULL}.  Columns that
+#'   define mobility states for the movement baseline (e.g.
+#'   \code{c("paygrade")}).  \code{NULL} disables movement estimation and the
+#'   movement policy is set to \code{NULL} (skip).
+#' @param exit_group_cols Character vector or \code{NULL}.  Group columns for
+#'   historical exit rate estimation.  \code{NULL} estimates an aggregate rate.
+#' @param hiring_group_cols Character vector or \code{NULL}.  Group columns
+#'   for the flow-based hiring policy.  \code{NULL} hires at the aggregate
+#'   level.
+#' @param personnel_id_col Character.  Default \code{"personnel_id"}.
+#' @param ref_date_col Character.  Default \code{"ref_date"}.
+#' @param start_date_col Character.  Default \code{"start_date"}.
+#' @param end_date_col Character.  Default \code{"end_date"}.
+#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param status_col Character.  Default \code{"status"}.
+#' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
+#'
+#' @return Named list with four elements:
+#'   \describe{
+#'     \item{\code{retirement}}{Canonical 3-slot retirement policy list.}
+#'     \item{\code{exit}}{Canonical 3-slot exit policy list, with
+#'       \code{policy_table} populated from panel estimation (or \code{NULL}
+#'       with a scalar fallback when panel is insufficient).}
+#'     \item{\code{movement}}{Canonical 3-slot movement policy list, with
+#'       \code{policy_table} populated from panel estimation, or \code{NULL}
+#'       when \code{movement_group_cols = NULL}.}
+#'     \item{\code{hiring}}{Flat hiring policy list ready for
+#'       \code{simulate_hiring()}.}
+#'   }
+#'
+#' @export
+make_status_quo_policies <- function(contract_dt,
+                                     personnel_dt,
+                                     salary_scale_dt,
+                                     movement_group_cols = NULL,
+                                     exit_group_cols     = NULL,
+                                     hiring_group_cols   = NULL,
+                                     personnel_id_col    = "personnel_id",
+                                     ref_date_col        = "ref_date",
+                                     start_date_col      = "start_date",
+                                     end_date_col        = "end_date",
+                                     contract_type_col   = "contract_type_code",
+                                     status_col          = "status",
+                                     salary_col          = "gross_salary_lcu") {
+
+  if (!data.table::is.data.table(contract_dt))
+    contract_dt <- data.table::as.data.table(contract_dt)
+  if (!data.table::is.data.table(personnel_dt))
+    personnel_dt <- data.table::as.data.table(personnel_dt)
+
+  has_panel <- ref_date_col %in% names(contract_dt) &&
+               data.table::uniqueN(contract_dt[[ref_date_col]]) >= 2L
+
+  # ------------------------------------------------------------------
+  # 1. Retirement — fully scalar, no estimation needed
+  # ------------------------------------------------------------------
+  retirement <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      eligibility_type = "age_and_tenure",
+      pension_type     = "db",
+      min_age          = 60,
+      min_tenure       = 10,
+      accrual_rate     = 0.02,
+      ref_wage_col     = salary_col,
+      max_years        = 35,
+      replacement_cap  = 0.80
+    )
+  )
+
+  # ------------------------------------------------------------------
+  # 2. Exits — estimate from panel; fall back to 5% scalar
+  # ------------------------------------------------------------------
+  if (has_panel) {
+    exit_rates <- tryCatch(
+      estimate_historical_exit_rates(
+        panel_contract_dt = contract_dt,
+        panel_personnel_dt = personnel_dt,
+        group_cols        = exit_group_cols,
+        personnel_id_col  = personnel_id_col,
+        ref_date_col      = ref_date_col,
+        start_date_col    = start_date_col,
+        end_date_col      = end_date_col,
+        contract_type_col = contract_type_col,
+        status_col        = status_col
+      ),
+      error = function(e) {
+        warning("make_status_quo_policies: exit rate estimation failed (",
+                conditionMessage(e), "). Falling back to exit_rate = 0.05.",
+                call. = FALSE)
+        NULL
+      }
+    )
+  } else {
+    warning("make_status_quo_policies: fewer than 2 snapshots in contract_dt; ",
+            "cannot estimate historical exit rates. Falling back to exit_rate = 0.05.",
+            call. = FALSE)
+    exit_rates <- NULL
+  }
+
+  exit <- list(
+    group_cols   = exit_group_cols,
+    policy_table = exit_rates,
+    defaults = list(
+      exit_rate     = 0.05,      # fallback when policy_table estimation fails
+      exit_strategy = "random",
+      active_types  = c("permanent", "fterm", "temp"),
+      exited_type   = "inactive"
+    )
+  )
+
+  # ------------------------------------------------------------------
+  # 3. Movement — estimate from panel when group_cols supplied
+  # ------------------------------------------------------------------
+  if (!is.null(movement_group_cols) && has_panel) {
+    mov_baseline <- tryCatch(
+      estimate_movement_baseline(
+        contract_dt       = contract_dt,
+        group_cols        = movement_group_cols,
+        personnel_id_col  = personnel_id_col,
+        ref_date_col      = ref_date_col,
+        start_date_col    = start_date_col,
+        end_date_col      = end_date_col,
+        contract_type_col = contract_type_col
+      ),
+      error = function(e) {
+        warning("make_status_quo_policies: movement baseline estimation failed (",
+                conditionMessage(e), "). Falling back to movement_rate = 0.05.",
+                call. = FALSE)
+        NULL
+      }
+    )
+    movement <- list(
+      group_cols   = movement_group_cols,
+      policy_table = mov_baseline,
+      defaults = list(
+        movement_rate      = 0.05,
+        movement_strategy  = "tenure",
+        active_types       = "permanent",
+        salary_update_rule = "scale"
+      )
+    )
+  } else if (!is.null(movement_group_cols) && !has_panel) {
+    warning("make_status_quo_policies: fewer than 2 snapshots; ",
+            "cannot estimate movement baseline. Falling back to movement_rate = 0.05.",
+            call. = FALSE)
+    movement <- list(
+      group_cols   = movement_group_cols,
+      policy_table = NULL,
+      defaults = list(
+        movement_rate      = 0.05,
+        movement_strategy  = "tenure",
+        active_types       = "permanent",
+        salary_update_rule = "scale"
+      )
+    )
+  } else {
+    # movement_group_cols = NULL: skip movement module
+    movement <- NULL
+  }
+
+  # ------------------------------------------------------------------
+  # 4. Hiring — flow-based 1:1 replacement
+  # ------------------------------------------------------------------
+  hiring <- list(
+    mode             = "flow",
+    group_cols       = hiring_group_cols,
+    replacement_rate = 1.0,
+    salary_scale     = data.table::copy(salary_scale_dt)
+  )
+
+  list(
+    retirement = retirement,
+    exit       = exit,
+    movement   = movement,
+    hiring     = hiring
+  )
+}
+
