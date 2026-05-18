@@ -323,8 +323,12 @@ identify_movers <- function(contract_dt,
 #'   \describe{
 #'     \item{contract_dt}{Updated contract data}
 #'     \item{personnel_dt}{Updated personnel data (unchanged in current spec)}
-#'     \item{movers_dt}{The input movers_dt (passed through for reporting)}
+#'   \item{movers_dt}{The input movers_dt (passed through for reporting)}
 #'   }
+#' @section Data Integrity:
+#'   Modifies \code{contract_dt} **in place** via data.table reference semantics
+#'   before returning the list.  Pass \code{data.table::copy()} if the original
+#'   must be preserved.
 #' @keywords internal
 update_state_with_movement <- function(contract_dt,
                                        personnel_dt,

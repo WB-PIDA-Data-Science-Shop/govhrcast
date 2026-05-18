@@ -7,24 +7,33 @@
 validate_policy_table(policy_params)
 }
 \arguments{
-\item{policy_params}{List.  The policy parameters object to validate.}
+\item{policy_params}{List.  Must contain at minimum a \code{defaults}
+named list.  \code{group_cols} and \code{policy_table} are optional but
+must be supplied together.}
 }
 \value{
-Invisible TRUE if valid, stops with error otherwise.
+Invisible \code{TRUE}.  Stops with an informative error on the
+first violation found.
 }
 \description{
-Validates the structure of a \code{policy_params} list using the unified
-flat-table design: a \code{defaults} list, an optional \code{group_cols}
-character vector, and an optional \code{policy_table} data.table.
+Validates the three-slot structure shared by all govhrcast policy objects:
+a \code{defaults} named list, an optional \code{group_cols} character
+vector, and an optional \code{policy_table} data.table.  Called at the
+top of every \code{simulate_*()} entry point before any computation begins.
+}
+\section{Error Conditions}{
 
-Checks:
-\itemize{
-\item \code{policy_params} is a list.
-\item \code{defaults} is a named list (may be empty).
-\item \code{group_cols} and \code{policy_table} are either both supplied
-or both \code{NULL}.
-\item When supplied, \code{policy_table} must be a non-empty data.table
-containing all columns named in \code{group_cols}.
+\describe{
+\item{Not a list}{\code{policy_params} is not an R list.}
+\item{Missing defaults}{\code{policy_params$defaults} is \code{NULL} or
+is not a list.}
+\item{group_cols without policy_table}{\code{group_cols} is non-\code{NULL}
+but \code{policy_table} is \code{NULL}.}
+\item{policy_table without group_cols}{\code{policy_table} is
+non-\code{NULL} but \code{group_cols} is \code{NULL}.}
+\item{Bad policy_table}{\code{policy_table} is not a data.table, has 0
+rows, or is missing one or more of the \code{group_cols} columns.}
 }
 }
+
 \keyword{internal}

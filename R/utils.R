@@ -416,7 +416,10 @@ get_primary_contract <- function(contract_dt,
                                  contract_id_col = "contract_id",
                                  start_date_col = "start_date",
                                  salary_col = "gross_salary_lcu") {
-  
+
+  # Copy to avoid mutating the caller's table via setorderv
+  contract_dt <- data.table::copy(contract_dt)
+
   # Order by priority: start_date DESC, salary DESC, contract_id ASC
   data.table::setorderv(
     contract_dt,

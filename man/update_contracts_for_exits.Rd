@@ -43,4 +43,11 @@ and sets \code{end_date_col} to \code{ref_date}.  Uses a plain membership
 filter on \code{personnel_id} so that multi-contract persons are handled
 correctly in one pass.
 }
+\section{Data Integrity}{
+
+Modifies \code{contract_dt} \strong{in place} via data.table reference semantics.
+The caller's table is changed; pass \code{data.table::copy()} if the
+original must be preserved.
+}
+
 \keyword{internal}

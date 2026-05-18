@@ -184,14 +184,18 @@ compute_flow_demand <- function(contract_dt,
     if (!is.null(group_cols) && length(group_cols) > 0) {
       missing_cols <- setdiff(group_cols, names(exits_dt))
       if (length(missing_cols) > 0) {
-        # Get grouping info from contract_dt
-        contract_info <- contract_dt[
-          get(personnel_id_col) %in% exits_dt$personnel_id,
-          c(personnel_id_col, group_cols),
-          with = FALSE
-        ]
-        
-        exits_dt <- contract_info[exits_dt, on = c(personnel_id = "personnel_id")]
+        # Get one primary contract per exiting person to recover group_cols.
+        # get_primary_contract() deduplicates to one row per person, preventing
+        # row duplication for multi-contract individuals.
+        primary_info <- get_primary_contract(
+          contract_dt      = contract_dt[
+            get(personnel_id_col) %in% exits_dt$personnel_id
+          ],
+          personnel_id_col = personnel_id_col,
+          start_date_col   = start_date_col
+        )[, c(personnel_id_col, group_cols), with = FALSE]
+
+        exits_dt <- primary_info[exits_dt, on = c(personnel_id = "personnel_id")]
       }
     }
   }
@@ -482,12 +486,16 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
   )
   # hire_events columns: personnel_id_col, ref_date, type_event
 
-  # Join to contract panel to retrieve group_cols per hire
+  # Join to contract panel to retrieve group_cols per hire.
+  # govhr::add_contract_to_event() deduplicates to one row per
+  # person x ref_date x keep_vars before joining, preventing row
+  # duplication for multi-contract individuals.
   if (!is.null(group_cols) && length(group_cols) > 0) {
-    contract_groups <- unique(
-      panel_contract_dt[, c(personnel_id_col, ref_date_col, group_cols), with = FALSE]
+    hire_events <- govhr::add_contract_to_event(
+      event_dt    = hire_events,
+      contract_dt = panel_contract_dt,
+      keep_vars   = group_cols
     )
-    hire_events <- contract_groups[hire_events, on = c(personnel_id_col, ref_date_col)]
 
     hire_counts <- hire_events[
       !is.na(get(group_cols[[1]])),   # drop hires without a matching group

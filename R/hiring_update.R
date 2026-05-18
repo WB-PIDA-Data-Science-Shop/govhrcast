@@ -385,6 +385,10 @@ select_personnel_to_remove <- function(contract_dt,
 #'     \item new_contracts_dt: New contracts added (for reporting)
 #'     \item terminated_contracts_dt: Contracts terminated in downsizing (salary reflects cost saved)
 #'   }
+#' @section Data Integrity:
+#'   Modifies \code{contract_dt} and \code{personnel_dt} **in place** via
+#'   data.table reference semantics.  Pass \code{data.table::copy()} on
+#'   each if the originals must be preserved.
 #' @keywords internal
 update_state_with_adjustment <- function(contract_dt,
                                          personnel_dt,

@@ -61,4 +61,11 @@ Updates \code{contract_dt} to reflect new group assignments (org_id and/or
 paygrade_id) and re-assigns compensation from the salary scale for all
 selected movers. Returns modified copies.
 }
+\section{Data Integrity}{
+
+Modifies \code{contract_dt} \strong{in place} via data.table reference semantics
+before returning the list.  Pass \code{data.table::copy()} if the original
+must be preserved.
+}
+
 \keyword{internal}

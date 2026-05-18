@@ -19,33 +19,88 @@ check_retirement_inputs(
 )
 }
 \arguments{
-\item{contract_dt}{data.table. Contract data}
+\item{contract_dt}{data.table.  Non-empty contract snapshot.}
 
-\item{personnel_dt}{data.table. Personnel data}
+\item{personnel_dt}{data.table.  Non-empty personnel snapshot.}
 
-\item{policy_params}{List. Policy parameters}
+\item{policy_params}{List.  Three-slot policy object.  Validated by
+\code{\link{validate_policy_table}}.  The \code{defaults} sub-list must
+contain:
+\describe{
+\item{\code{eligibility_type}}{One of \code{"age_only"},
+\code{"tenure_only"}, \code{"age_and_tenure"}.}
+\item{\code{pension_type}}{One of \code{"db"}, \code{"dc"},
+\code{"flat"}, \code{"hybrid"}.}
+\item{\code{min_age}}{Required when \code{eligibility_type} involves
+age.  May be omitted if \code{policy_table} carries a \code{min_age}
+column.}
+\item{\code{min_tenure}}{Required when \code{eligibility_type} involves
+tenure.  May be omitted if \code{policy_table} carries a
+\code{min_tenure} column.}
+}}
 
-\item{ref_date}{Date. Reference date}
+\item{ref_date}{Date or character convertible to Date.  Reference date for
+the simulation period.}
 
-\item{personnel_id_col}{Character. Personnel ID column name}
+\item{personnel_id_col}{Character.  Must exist in both \code{contract_dt}
+and \code{personnel_dt}.  Default \code{"personnel_id"}.}
 
-\item{birth_date_col}{Character. Birth date column name}
+\item{birth_date_col}{Character or \code{NULL}.  Must exist in
+\code{personnel_dt} when \code{eligibility_type} involves age.  Pass
+\code{NULL} when age is pre-computed by the caller.  Default
+\code{"birth_date"}.}
 
-\item{contract_id_col}{Character. Contract ID column name}
+\item{contract_id_col}{Character.  Default \code{"contract_id"}.}
 
-\item{start_date_col}{Character. Start date column name}
+\item{start_date_col}{Character.  Default \code{"start_date"}.}
 
-\item{end_date_col}{Character. End date column name}
+\item{end_date_col}{Character.  Default \code{"end_date"}.}
 
-\item{contract_type_col}{Character. Contract type column name}
+\item{contract_type_col}{Character.  Default \code{"contract_type_code"}.}
 
-\item{status_col}{Character. Status column name}
+\item{status_col}{Character.  Default \code{"status"}.}
 }
 \value{
-Invisible TRUE if valid, stops with error otherwise
+Invisible \code{TRUE}.  Stops with an informative error on the
+first violation found.
 }
 \description{
-Validates all inputs for retirement simulation, including data tables,
-policy parameters, and column specifications.
+Gate-keeper called at the start of \code{\link{simulate_retirement}}.
+Validates all inputs — data tables, column names, policy structure, and
+eligibility/pension parameter consistency — before any computation begins.
+Stops on the first violation with an error message that names the
+offending argument.
 }
+\section{Error Conditions}{
+
+\describe{
+\item{Empty tables}{\code{contract_dt} or \code{personnel_dt} has 0 rows.}
+\item{Invalid ref_date}{\code{ref_date} cannot be parsed as a Date, is NA,
+or is not length 1.}
+\item{Invalid policy structure}{\code{validate_policy_table()} fails — see
+that function for sub-conditions.}
+\item{Missing required defaults}{\code{eligibility_type} or
+\code{pension_type} absent from \code{policy_params$defaults}.}
+\item{Invalid eligibility_type}{Value not in \code{c("age_only",
+    "tenure_only", "age_and_tenure")}, either in defaults or in
+\code{policy_table}.}
+\item{Invalid pension_type}{Value not in \code{c("db", "dc", "flat",
+    "hybrid")}, either in defaults or in \code{policy_table}.}
+\item{Missing min_age}{\code{eligibility_type} requires age but
+\code{min_age} is absent from both \code{defaults} and
+\code{policy_table}.}
+\item{Missing birth_date_col}{The column named by \code{birth_date_col}
+is absent from \code{personnel_dt} (when \code{birth_date_col} is not
+\code{NULL}).}
+\item{Missing min_tenure}{\code{eligibility_type} requires tenure but
+\code{min_tenure} is absent from both \code{defaults} and
+\code{policy_table}.}
+\item{Missing contract columns}{One or more of \code{contract_id_col},
+\code{personnel_id_col}, \code{start_date_col}, \code{end_date_col},
+\code{contract_type_col} absent from \code{contract_dt}.}
+\item{Missing personnel columns}{\code{personnel_id_col} or
+\code{status_col} absent from \code{personnel_dt}.}
+}
+}
+
 \keyword{internal}

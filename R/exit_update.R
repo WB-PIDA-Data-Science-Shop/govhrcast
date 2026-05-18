@@ -31,6 +31,10 @@ NULL
 #'   Default \code{"inactive"}.
 #'
 #' @return \code{contract_dt} (invisibly; modified by reference in place).
+#' @section Data Integrity:
+#'   Modifies \code{contract_dt} **in place** via data.table reference semantics.
+#'   The caller's table is changed; pass \code{data.table::copy()} if the
+#'   original must be preserved.
 #' @keywords internal
 update_contracts_for_exits <- function(contract_dt,
                                        exits_dt,
@@ -70,6 +74,10 @@ update_contracts_for_exits <- function(contract_dt,
 #' @param status_col Character.  Default \code{"status"}.
 #'
 #' @return \code{personnel_dt} (invisibly; modified by reference in place).
+#' @section Data Integrity:
+#'   Modifies \code{personnel_dt} **in place** via data.table reference semantics.
+#'   The caller's table is changed; pass \code{data.table::copy()} if the
+#'   original must be preserved.
 #' @keywords internal
 update_personnel_for_exits <- function(personnel_dt,
                                        exits_dt,

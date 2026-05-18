@@ -103,8 +103,6 @@ validate_date_format <- function(date, varname) {
   return(date)
 }
 
-#' Validate Positive Number
-#'
 #' Validate a Policy Parameter Specification
 #'
 #' @description
@@ -113,20 +111,29 @@ validate_date_format <- function(date, varname) {
 #' \code{dispatch_param()}.  Raises an informative error if the structure is
 #' invalid.
 #'
-#' Checks performed:
-#' \itemize{
-#'   \item Bare scalar: must be numeric, length 1, non-NA, and positive.
-#'   \item Three-slot list: \code{default} must be a positive scalar or NULL;
-#'     \code{group_cols} and \code{policy_table} must both be present or both
-#'     absent; \code{policy_table} must be a data.table containing
-#'     \code{group_cols} columns and a column named \code{param_name}.
+#' @param param_spec Numeric scalar or named list with slots \code{default},
+#'   \code{group_cols}, and \code{policy_table}.  A bare scalar is interpreted
+#'   as a group-free constant rate.
+#' @param param_name Character scalar.  Used in error messages and as the
+#'   expected value column name in \code{policy_table}.
+#'
+#' @return Invisible \code{TRUE}.  Stops with an informative error on the
+#'   first violation found.
+#'
+#' @section Error Conditions:
+#' \describe{
+#'   \item{Non-numeric scalar}{\code{param_spec} is not a list and is not a
+#'     numeric scalar of length 1.}
+#'   \item{Non-positive scalar}{\code{param_spec <= 0} (bare scalar path).}
+#'   \item{Invalid default}{\code{param_spec$default} is non-numeric, length
+#'     != 1, NA, or <= 0 (when not \code{NULL}).}
+#'   \item{Mismatched group spec}{\code{group_cols} supplied without
+#'     \code{policy_table}, or vice versa.}
+#'   \item{Bad policy_table}{\code{policy_table} is not a data.table, has 0
+#'     rows, is missing one or more \code{group_cols} columns, or does not
+#'     contain a column named \code{param_name}.}
 #' }
 #'
-#' @param param_spec Scalar or three-slot list.
-#' @param param_name Character scalar. Name used in error messages and expected
-#'   as the value column in \code{policy_table}.
-#'
-#' @return Invisible TRUE if valid, stops with error otherwise.
 #' @keywords internal
 validate_param_spec <- function(param_spec, param_name) {
 
@@ -324,23 +331,31 @@ validate_required_params <- function(params, required_params, context) {
 #' Validate a Unified Policy Parameters Object
 #'
 #' @description
-#' Validates the structure of a \code{policy_params} list using the unified
-#' flat-table design: a \code{defaults} list, an optional \code{group_cols}
-#' character vector, and an optional \code{policy_table} data.table.
+#' Validates the three-slot structure shared by all govhrcast policy objects:
+#' a \code{defaults} named list, an optional \code{group_cols} character
+#' vector, and an optional \code{policy_table} data.table.  Called at the
+#' top of every \code{simulate_*()} entry point before any computation begins.
 #'
-#' Checks:
-#' \itemize{
-#'   \item \code{policy_params} is a list.
-#'   \item \code{defaults} is a named list (may be empty).
-#'   \item \code{group_cols} and \code{policy_table} are either both supplied
-#'     or both \code{NULL}.
-#'   \item When supplied, \code{policy_table} must be a non-empty data.table
-#'     containing all columns named in \code{group_cols}.
+#' @param policy_params List.  Must contain at minimum a \code{defaults}
+#'   named list.  \code{group_cols} and \code{policy_table} are optional but
+#'   must be supplied together.
+#'
+#' @return Invisible \code{TRUE}.  Stops with an informative error on the
+#'   first violation found.
+#'
+#' @section Error Conditions:
+#' \describe{
+#'   \item{Not a list}{\code{policy_params} is not an R list.}
+#'   \item{Missing defaults}{\code{policy_params$defaults} is \code{NULL} or
+#'     is not a list.}
+#'   \item{group_cols without policy_table}{\code{group_cols} is non-\code{NULL}
+#'     but \code{policy_table} is \code{NULL}.}
+#'   \item{policy_table without group_cols}{\code{policy_table} is
+#'     non-\code{NULL} but \code{group_cols} is \code{NULL}.}
+#'   \item{Bad policy_table}{\code{policy_table} is not a data.table, has 0
+#'     rows, or is missing one or more of the \code{group_cols} columns.}
 #' }
 #'
-#' @param policy_params List.  The policy parameters object to validate.
-#'
-#' @return Invisible TRUE if valid, stops with error otherwise.
 #' @keywords internal
 validate_policy_table <- function(policy_params) {
 
@@ -381,22 +396,76 @@ validate_policy_table <- function(policy_params) {
 #' Check Retirement Module Inputs
 #'
 #' @description
-#' Validates all inputs for retirement simulation, including data tables,
-#' policy parameters, and column specifications.
+#' Gate-keeper called at the start of \code{\link{simulate_retirement}}.
+#' Validates all inputs — data tables, column names, policy structure, and
+#' eligibility/pension parameter consistency — before any computation begins.
+#' Stops on the first violation with an error message that names the
+#' offending argument.
 #'
-#' @param contract_dt data.table. Contract data
-#' @param personnel_dt data.table. Personnel data
-#' @param policy_params List. Policy parameters
-#' @param ref_date Date. Reference date
-#' @param personnel_id_col Character. Personnel ID column name
-#' @param birth_date_col Character. Birth date column name
-#' @param contract_id_col Character. Contract ID column name
-#' @param start_date_col Character. Start date column name
-#' @param end_date_col Character. End date column name
-#' @param contract_type_col Character. Contract type column name
-#' @param status_col Character. Status column name
+#' @param contract_dt data.table.  Non-empty contract snapshot.
+#' @param personnel_dt data.table.  Non-empty personnel snapshot.
+#' @param policy_params List.  Three-slot policy object.  Validated by
+#'   \code{\link{validate_policy_table}}.  The \code{defaults} sub-list must
+#'   contain:
+#'   \describe{
+#'     \item{\code{eligibility_type}}{One of \code{"age_only"},
+#'       \code{"tenure_only"}, \code{"age_and_tenure"}.}
+#'     \item{\code{pension_type}}{One of \code{"db"}, \code{"dc"},
+#'       \code{"flat"}, \code{"hybrid"}.}
+#'     \item{\code{min_age}}{Required when \code{eligibility_type} involves
+#'       age.  May be omitted if \code{policy_table} carries a \code{min_age}
+#'       column.}
+#'     \item{\code{min_tenure}}{Required when \code{eligibility_type} involves
+#'       tenure.  May be omitted if \code{policy_table} carries a
+#'       \code{min_tenure} column.}
+#'   }
+#' @param ref_date Date or character convertible to Date.  Reference date for
+#'   the simulation period.
+#' @param personnel_id_col Character.  Must exist in both \code{contract_dt}
+#'   and \code{personnel_dt}.  Default \code{"personnel_id"}.
+#' @param birth_date_col Character or \code{NULL}.  Must exist in
+#'   \code{personnel_dt} when \code{eligibility_type} involves age.  Pass
+#'   \code{NULL} when age is pre-computed by the caller.  Default
+#'   \code{"birth_date"}.
+#' @param contract_id_col Character.  Default \code{"contract_id"}.
+#' @param start_date_col Character.  Default \code{"start_date"}.
+#' @param end_date_col Character.  Default \code{"end_date"}.
+#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param status_col Character.  Default \code{"status"}.
 #'
-#' @return Invisible TRUE if valid, stops with error otherwise
+#' @return Invisible \code{TRUE}.  Stops with an informative error on the
+#'   first violation found.
+#'
+#' @section Error Conditions:
+#' \describe{
+#'   \item{Empty tables}{\code{contract_dt} or \code{personnel_dt} has 0 rows.}
+#'   \item{Invalid ref_date}{\code{ref_date} cannot be parsed as a Date, is NA,
+#'     or is not length 1.}
+#'   \item{Invalid policy structure}{\code{validate_policy_table()} fails — see
+#'     that function for sub-conditions.}
+#'   \item{Missing required defaults}{\code{eligibility_type} or
+#'     \code{pension_type} absent from \code{policy_params$defaults}.}
+#'   \item{Invalid eligibility_type}{Value not in \code{c("age_only",
+#'     "tenure_only", "age_and_tenure")}, either in defaults or in
+#'     \code{policy_table}.}
+#'   \item{Invalid pension_type}{Value not in \code{c("db", "dc", "flat",
+#'     "hybrid")}, either in defaults or in \code{policy_table}.}
+#'   \item{Missing min_age}{\code{eligibility_type} requires age but
+#'     \code{min_age} is absent from both \code{defaults} and
+#'     \code{policy_table}.}
+#'   \item{Missing birth_date_col}{The column named by \code{birth_date_col}
+#'     is absent from \code{personnel_dt} (when \code{birth_date_col} is not
+#'     \code{NULL}).}
+#'   \item{Missing min_tenure}{\code{eligibility_type} requires tenure but
+#'     \code{min_tenure} is absent from both \code{defaults} and
+#'     \code{policy_table}.}
+#'   \item{Missing contract columns}{One or more of \code{contract_id_col},
+#'     \code{personnel_id_col}, \code{start_date_col}, \code{end_date_col},
+#'     \code{contract_type_col} absent from \code{contract_dt}.}
+#'   \item{Missing personnel columns}{\code{personnel_id_col} or
+#'     \code{status_col} absent from \code{personnel_dt}.}
+#' }
+#'
 #' @keywords internal
 check_retirement_inputs <- function(contract_dt, 
                                     personnel_dt, 

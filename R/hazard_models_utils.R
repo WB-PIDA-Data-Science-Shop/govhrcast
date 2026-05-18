@@ -600,14 +600,17 @@ build_exit_hazard_data <- function(panel_contract_dt,
   #    Infer freq from the median inter-snapshot gap when not supplied.
   # ------------------------------------------------------------------
   if (is.null(freq)) {
-    .gaps  <- as.integer(diff(panel_dates))
-    .med   <- stats::median(.gaps)
-    freq   <- dplyr::case_when(
-      .med >= 360 ~ "year",
-      .med >=  85 ~ "quarter",
-      .med >=  27 ~ "month",
-      TRUE        ~ "day"
-    )
+    # Infer cadence from the median gap between consecutive snapshot dates.
+    # findInterval maps the median gap (in days) to a bucket:
+    #   < 27 days  → "day"
+    #   27–84      → "month"
+    #   85–359     → "quarter"
+    #   >= 360     → "year"
+    .gaps <- as.integer(diff(panel_dates))
+    .med  <- stats::median(.gaps)
+    freq  <- c("day", "month", "quarter", "year")[
+      findInterval(.med, c(27, 85, 360)) + 1L
+    ]
   }
 
   fire_events <- govhr::detect_personnel_event(
@@ -1215,17 +1218,14 @@ predict_hazard <- function(hazard_model,
   # 6. Score: predict probabilities; apply threshold to get event flag.
   #    NA probabilities (unseen factor levels) → event = 0L.
   # ------------------------------------------------------------------
-  probs <- tryCatch(
+  # suppressWarnings: new factor levels in score_dt (unseen at fit time) produce
+  # a "prediction from rank-deficient fit" warning — expected at scoring time,
+  # not indicative of a model fault.  NA probabilities from those rows are
+  # mapped to event = 0L below.
+  probs <- suppressWarnings(
     stats::predict(hazard_model$model,
                    newdata = score_dt,
-                   type    = "response"),
-    warning = function(w) {
-      suppressWarnings(
-        stats::predict(hazard_model$model,
-                       newdata = score_dt,
-                       type    = "response")
-      )
-    }
+                   type    = "response")
   )
 
   out <- data.table::data.table(

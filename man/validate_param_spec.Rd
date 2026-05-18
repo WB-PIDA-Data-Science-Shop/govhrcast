@@ -2,35 +2,42 @@
 % Please edit documentation in R/validation.R
 \name{validate_param_spec}
 \alias{validate_param_spec}
-\title{Validate Positive Number}
+\title{Validate a Policy Parameter Specification}
 \usage{
 validate_param_spec(param_spec, param_name)
 }
 \arguments{
-\item{param_spec}{Scalar or three-slot list.}
+\item{param_spec}{Numeric scalar or named list with slots \code{default},
+\code{group_cols}, and \code{policy_table}.  A bare scalar is interpreted
+as a group-free constant rate.}
 
-\item{param_name}{Character scalar. Name used in error messages and expected
-as the value column in \code{policy_table}.}
+\item{param_name}{Character scalar.  Used in error messages and as the
+expected value column name in \code{policy_table}.}
 }
 \value{
-Invisible TRUE if valid, stops with error otherwise.
+Invisible \code{TRUE}.  Stops with an informative error on the
+first violation found.
 }
 \description{
 Accepts either a bare positive scalar or a three-slot param spec list
 (\code{default}, \code{group_cols}, \code{policy_table}) as produced by
 \code{dispatch_param()}.  Raises an informative error if the structure is
 invalid.
+}
+\section{Error Conditions}{
 
-Checks performed:
-\itemize{
-\item Bare scalar: must be numeric, length 1, non-NA, and positive.
-\item Three-slot list: \code{default} must be a positive scalar or NULL;
-\code{group_cols} and \code{policy_table} must both be present or both
-absent; \code{policy_table} must be a data.table containing
-\code{group_cols} columns and a column named \code{param_name}.
+\describe{
+\item{Non-numeric scalar}{\code{param_spec} is not a list and is not a
+numeric scalar of length 1.}
+\item{Non-positive scalar}{\code{param_spec <= 0} (bare scalar path).}
+\item{Invalid default}{\code{param_spec$default} is non-numeric, length
+!= 1, NA, or <= 0 (when not \code{NULL}).}
+\item{Mismatched group spec}{\code{group_cols} supplied without
+\code{policy_table}, or vice versa.}
+\item{Bad policy_table}{\code{policy_table} is not a data.table, has 0
+rows, is missing one or more \code{group_cols} columns, or does not
+contain a column named \code{param_name}.}
 }
 }
-\details{
-Validate a Policy Parameter Specification
-}
+
 \keyword{internal}

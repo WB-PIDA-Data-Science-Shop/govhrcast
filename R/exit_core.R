@@ -14,7 +14,8 @@ NULL
 # Suppress R CMD check NOTEs for data.table column names.
 utils::globalVariables(c(
   "n_exits",   # estimate_historical_exit_rates: column created by := and used in ratio
-  "exit_rate", # resolve_policy_table output stamped onto active_dt
+  "exit_rate", # groups_dt: resolved rate column in compute_status_quo_exits grouped path
+  "n_exit",    # groups_dt: exit count column in compute_status_quo_exits grouped path
   "rank_val"   # .select_exits: ordering column built from dynamic strategy col
 ))
 
@@ -84,12 +85,16 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
   )
   # fire_events columns: personnel_id_col, ref_date, type_event
 
-  # Join to contract panel to retrieve group_cols per exit
+  # Join to contract panel to retrieve group_cols per exit.
+  # govhr::add_contract_to_event() deduplicates to one row per
+  # person x ref_date x keep_vars before joining, preventing row
+  # duplication for multi-contract individuals.
   if (!is.null(group_cols) && length(group_cols) > 0) {
-    contract_groups <- unique(
-      panel_contract_dt[, c(personnel_id_col, ref_date_col, group_cols), with = FALSE]
+    fire_events <- govhr::add_contract_to_event(
+      event_dt    = fire_events,
+      contract_dt = panel_contract_dt,
+      keep_vars   = group_cols
     )
-    fire_events <- contract_groups[fire_events, on = c(personnel_id_col, ref_date_col)]
 
     exit_counts <- fire_events[
       !is.na(get(group_cols[[1]])),
@@ -192,50 +197,78 @@ compute_status_quo_exits <- function(
     return(data.table::data.table())
   }
 
-  # Resolve exit_rate and exit_multiplier to per-row columns via a single
-  # resolve_policy_table() call.  For scalar-only dispatch (group_cols = NULL)
-  # this simply repeats the defaults.  For group-level, it left-joins
-  # policy_table onto active_dt and fills unmatched cells from defaults.
-  resolved <- resolve_policy_table(
-    policy_params,
-    active_dt,
-    "exit_rate"
-  )
-  active_dt[, exit_rate := resolved$exit_rate %||% rep(0, .N)]
-  active_dt[is.na(exit_rate), exit_rate := 0]
-
   if (is.null(group_cols) || length(group_cols) == 0L) {
-    # Scalar path — single overall rate
-    n_active <- data.table::uniqueN(active_dt[[personnel_id_col]])
-    rate     <- active_dt$exit_rate[1L]
-    n_exit   <- min(round(n_active * rate), n_active)
+    # Scalar path — resolve rate from a 1-row table (no N-row join).
+    resolved_s <- resolve_policy_table(policy_params, active_dt[1L],
+                                       c("exit_rate", "exit_multiplier"))
+    s_rate <- resolved_s$exit_rate %||% 0
+    s_mult <- resolved_s$exit_multiplier %||% 1
+    if (is.na(s_rate)) s_rate <- 0
+    if (is.na(s_mult)) s_mult <- 1
+    eff_rate <- s_rate * s_mult
 
+    n_active <- data.table::uniqueN(active_dt[[personnel_id_col]])
+    n_exit   <- min(round(n_active * eff_rate), n_active)
     if (n_exit <= 0L) return(data.table::data.table())
 
-    pool_ids <- unique(active_dt[[personnel_id_col]])
+    pool_ids     <- unique(active_dt[[personnel_id_col]])
     selected_ids <- .select_exits(pool_ids, active_dt, n_exit,
                                    exit_strategy, personnel_id_col)
     return(data.table::data.table(personnel_id = selected_ids))
   }
 
-  # Grouped exit selection — exit_rate and exit_multiplier already stamped
-  # as columns on active_dt; .compute_group_exits() reads them from .SD.
-  selected_per_group <- active_dt[, .compute_group_exits(
-    .SD,
-    exit_strategy    = exit_strategy,
-    personnel_id_col = personnel_id_col
+  # Grouped path — scale-optimised for large HRMIS data.
+  #
+  # Key insight: resolve_policy_table() is O(N) when called on the full
+  # active_dt (one row per contract), but the policy lookup only varies at
+  # group level (G << N rows).  We therefore:
+  #   1. Aggregate active_dt to one row per group, capturing n_active and
+  #      the unique pool of personnel_ids as a list column  — single O(N) pass.
+  #   2. Resolve rates on the G-row groups_dt — O(G) join instead of O(N).
+  #   3. Compute n_exit per group on groups_dt — purely vectorised on G rows.
+  #   4. Sample from the per-group pool with lapply — no .SD copy per group.
+  #
+  # For N = 1M, G = 200: step 2 is ~5,000x cheaper than the old approach.
+
+  groups_dt <- active_dt[, .(
+    n_active = data.table::uniqueN(get(personnel_id_col)),
+    pool_ids = list(unique(get(personnel_id_col)))
   ), by = group_cols]
 
-  if (nrow(selected_per_group) == 0L || !("personnel_id" %in% names(selected_per_group))) {
-    return(data.table::data.table())
+  # Resolve rates on the compact G-row table
+  resolved_g <- resolve_policy_table(
+    policy_params,
+    groups_dt,
+    c("exit_rate", "exit_multiplier")
+  )
+  groups_dt[, exit_rate := resolved_g$exit_rate %||% rep(0, .N)]
+  groups_dt[is.na(exit_rate), exit_rate := 0]
+
+  if (!is.null(resolved_g$exit_multiplier)) {
+    groups_dt[, exit_rate := exit_rate *
+                data.table::fifelse(is.na(resolved_g$exit_multiplier), 1,
+                                    resolved_g$exit_multiplier)]
   }
 
-  # Keep only the ID column; deduplicate in case group definitions overlap.
-  result <- unique(
-    selected_per_group[, .(personnel_id)],
-    by = "personnel_id"
+  groups_dt[, n_exit := pmin(as.integer(round(n_active * exit_rate)), n_active)]
+
+  # Sample from each group's pool — no .SD copy, no [, by =] overhead
+  selected_ids <- unlist(
+    mapply(
+      function(pool, n_exit, grp_dt) {
+        if (n_exit <= 0L || length(pool) == 0L) return(character(0))
+        .select_exits(pool, active_dt, n_exit, exit_strategy, personnel_id_col)
+      },
+      groups_dt$pool_ids,
+      groups_dt$n_exit,
+      SIMPLIFY = FALSE
+    ),
+    use.names = FALSE
   )
 
+  if (length(selected_ids) == 0L) return(data.table::data.table())
+
+  result <- data.table::data.table(personnel_id = unique(selected_ids))
   data.table::setnames(result, "personnel_id", personnel_id_col)
   result
 }
@@ -305,30 +338,6 @@ compute_fixed_rate_exits <- function(
 
 
 # ---------------------------------------------------------------------------
-# Internal: compute exits for one group slice (called from [, by = group_cols]).
-# exit_rate is read from per-row columns stamped onto group_dt by
-# resolve_policy_table() in compute_status_quo_exits().
-# @param group_dt        data.table. Rows for this group (.SD from calling context).
-# @param exit_strategy   Character. "random" or a column name for ranked exit.
-# @param personnel_id_col Character. Name of the personnel ID column.
-# @return list with one element `personnel_id` (character vector of selected IDs).
-# @keywords internal
-.compute_group_exits <- function(group_dt,
-                                 exit_strategy,
-                                 personnel_id_col) {
-  n_active_grp <- data.table::uniqueN(group_dt[[personnel_id_col]])
-  rate         <- group_dt$exit_rate[1L] %||% 0
-  n_exit_grp   <- as.integer(min(round(n_active_grp * rate), n_active_grp))
-  if (n_exit_grp <= 0L) {
-    return(list(personnel_id = character(0)))
-  }
-  pool_ids <- unique(group_dt[[personnel_id_col]])
-  list(
-    personnel_id = .select_exits(pool_ids, group_dt, n_exit_grp,
-                                  exit_strategy, personnel_id_col)
-  )
-}
-
 
 # ---------------------------------------------------------------------------
 # Internal: select exits from a pool using strategy
