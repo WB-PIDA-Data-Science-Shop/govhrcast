@@ -79,18 +79,18 @@
 # @return reg_dt with age and tenure_years columns joined in.
 # -----------------------------------------------------------------------------
 .attach_age_tenure <- function(reg_dt,
-                                personnel_dt,
-                                contract_dt,
-                                personnel_id_col   = "personnel_id",
-                                ref_date_col       = "ref_date",
-                                age_col            = "age",
-                                tenure_col         = "tenure_years",
-                                birth_date_col     = "birth_date",
-                                start_date_col     = "start_date",
-                                end_date_col       = "end_date",
-                                contract_type_col  = "contract_type_code",
-                                contract_id_col    = "contract_id",
-                                ref_date           = NULL) {
+                               personnel_dt,
+                               contract_dt,
+                               personnel_id_col   = "personnel_id",
+                               ref_date_col       = "ref_date",
+                               age_col            = "age",
+                               tenure_col         = "tenure_years",
+                               birth_date_col     = "birth_date",
+                               start_date_col     = "start_date",
+                               end_date_col       = "end_date",
+                               contract_type_col  = "contract_type_code",
+                               contract_id_col    = "contract_id",
+                               ref_date           = NULL) {
 
   is_panel  <- !is.null(ref_date_col)
   join_cols <- if (is_panel) c(personnel_id_col, ref_date_col)
