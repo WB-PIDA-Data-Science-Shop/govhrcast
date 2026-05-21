@@ -1283,6 +1283,17 @@ simulate_horizon <- function(contract_dt,
     )
   }
 
+  # Remove pre-existing pensioner contracts from the working snapshot now that
+  # they are captured in the register.  Keeping them in contract_dt with
+  # salary = 0 would silently inflate row counts and make contract_type
+  # filtering harder in every downstream module.  Personnel rows are removed
+  # by the same key so that headcount counts stay consistent.
+  if (nrow(existing_pensioners) > 0L) {
+    .pensioner_ids_ <- unique(existing_pensioners[[personnel_id_col]])
+    contract_dt  <- contract_dt[!get(personnel_id_col) %in% .pensioner_ids_]
+    personnel_dt <- personnel_dt[!get(personnel_id_col) %in% .pensioner_ids_]
+  }
+
   # ====================================================================
   # P2/P3. Auto-compute age and tenure from source columns (Phase 1b)
   # ====================================================================
@@ -1320,144 +1331,6 @@ simulate_horizon <- function(contract_dt,
       }
       personnel_dt[tenure_init, (tenure_col) := i.tenure_years,
                    on = c(personnel_id_col)]
-    }
-  }
-
-  # ====================================================================
-  # PRE-LOOP: Retire the already-eligible backlog (Phase 2c Part C)
-  # ====================================================================
-  # Problem: the starting snapshot may contain active employees who are
-  # already past the retirement eligibility threshold at ref_date.  These
-  # are people who *should* have retired before the simulation window —
-  # either due to a data quality lag (HRMIS not updated) or because they
-  # crossed the threshold in the partial year before ref_date.  If left
-  # untreated they all fire in period 1, making n_exits in the first
-  # period 2–5× higher than any subsequent period.
-  #
-  # Fix: apply the same eligibility check used inside identify_eligibility()
-  # against the already-computed age / tenure columns, retire the backlog
-  # into the pensioner_register at period_date = ref_date, and mark their
-  # contracts / personnel status accordingly.  Period 1 then only catches
-  # the genuine marginal cohort.
-  if (!is.null(retirement_policy) &&
-      !is.null(age_col) && age_col %in% names(personnel_dt)) {
-
-    .rp_defs_    <- retirement_policy$defaults %||% list()
-    .min_age_    <- .rp_defs_$min_age    %||% Inf
-    .min_tenure_ <- .rp_defs_$min_tenure %||% 0
-    .elig_type_  <- .rp_defs_$eligibility_type %||% "age_only"
-
-    # Backlog threshold = min_age + period_fraction.
-    # People aged exactly [min_age, min_age + period_fraction) at ref_date
-    # crossed the threshold during the 12 months (or 1 month, etc.) *before*
-    # ref_date — they are the genuine period-1 marginal cohort and must NOT
-    # be pre-retired here.  Only those already past (min_age + period_fraction)
-    # are true backlog cases that should have retired in a prior period.
-    .backlog_age_cutoff_    <- .min_age_ + period_fraction
-    .backlog_tenure_cutoff_ <- .min_tenure_ + period_fraction
-
-    # Build a small eligibility table using the pre-computed columns.
-    .pre_elig_ <- personnel_dt[
-      get(status_col) == "active",
-      c(personnel_id_col, age_col,
-        if (!is.null(tenure_col) && tenure_col %in% names(personnel_dt))
-          tenure_col else NULL),
-      with = FALSE
-    ]
-
-    # Apply the same switch logic as identify_eligibility(), but using the
-    # backlog cutoffs (min_age + period_fraction) not the raw thresholds.
-    .pre_elig_[, .already_eligible_ := switch(
-      .elig_type_,
-      "age_only"      = get(age_col) >= .backlog_age_cutoff_,
-      "tenure_only"   = if (!is.null(tenure_col) && tenure_col %in% names(.pre_elig_))
-                          get(tenure_col) >= .backlog_tenure_cutoff_ else FALSE,
-      "age_and_tenure"= get(age_col) >= .backlog_age_cutoff_ &
-                        if (!is.null(tenure_col) && tenure_col %in% names(.pre_elig_))
-                          get(tenure_col) >= .backlog_tenure_cutoff_ else FALSE,
-      FALSE
-    )]
-
-    .backlog_ids_ <- .pre_elig_[.already_eligible_ == TRUE,
-                                 get(personnel_id_col)]
-
-    if (length(.backlog_ids_) > 0L) {
-
-      # Get their primary active contract to derive salary and group info
-      .backlog_contracts_ <- get_active_contracts(
-        contract_dt       = contract_dt,
-        ref_date          = ref_date,
-        start_date_col    = start_date_col,
-        end_date_col      = end_date_col,
-        contract_type_col = contract_type_col
-      )[get(personnel_id_col) %in% .backlog_ids_]
-
-      if (nrow(.backlog_contracts_) > 0L) {
-        .backlog_primary_ <- get_primary_contract(
-          contract_dt      = .backlog_contracts_,
-          personnel_id_col = personnel_id_col,
-          contract_id_col  = contract_id_col,
-          start_date_col   = start_date_col,
-          salary_col       = salary_col
-        )
-
-        # Join age / tenure onto primary contracts
-        .backlog_primary_[.pre_elig_[, c(personnel_id_col, age_col,
-          if (!is.null(tenure_col) && tenure_col %in% names(.pre_elig_))
-            tenure_col else NULL), with = FALSE],
-          c("age", "tenure_years") :=
-            list(get(paste0("i.", age_col)),
-                 if (!is.null(tenure_col) && tenure_col %in% names(.pre_elig_))
-                   get(paste0("i.", tenure_col)) else NA_real_),
-          on = c(personnel_id_col)
-        ]
-        if (!"age" %in% names(.backlog_primary_))
-          .backlog_primary_[, age := NA_real_]
-        if (!"tenure_years" %in% names(.backlog_primary_))
-          .backlog_primary_[, tenure_years := NA_real_]
-
-        # Compute pension amounts — add param columns required by new compute_pension(dt)
-        .bp_defs_ <- retirement_policy$defaults %||% list()
-        data.table::set(.backlog_primary_, j = "pension_type",    value = .bp_defs_$pension_type    %||% "flat")
-        data.table::set(.backlog_primary_, j = "flat_amount",     value = .bp_defs_$flat_amount     %||% 0)
-        data.table::set(.backlog_primary_, j = "accrual_rate",    value = .bp_defs_$accrual_rate    %||% NA_real_)
-        data.table::set(.backlog_primary_, j = "ref_wage_col",    value = .bp_defs_$ref_wage_col    %||% NA_character_)
-        data.table::set(.backlog_primary_, j = "max_years",       value = .bp_defs_$max_years       %||% NA_real_)
-        data.table::set(.backlog_primary_, j = "replacement_cap", value = .bp_defs_$replacement_cap %||% NA_real_)
-        data.table::set(.backlog_primary_, j = "balance_col",     value = .bp_defs_$balance_col     %||% NA_character_)
-        data.table::set(.backlog_primary_, j = "annuity_factor",  value = .bp_defs_$annuity_factor  %||% NA_real_)
-        data.table::set(.backlog_primary_, j = "notional_rate",   value = .bp_defs_$notional_rate   %||% NA_real_)
-        data.table::set(.backlog_primary_, j = "pension",         value = compute_pension(.backlog_primary_))
-
-        # Append to pensioner register
-        .ref_backlog_ <- ref_date
-        .backlog_reg_ <- .backlog_primary_[, .(
-          personnel_id               = get(personnel_id_col),
-          pension_amount             = pension,
-          final_salary               = get(salary_col),
-          tenure_years_at_retirement = tenure_years,
-          age_at_retirement          = age,
-          period_date                = .ref_backlog_
-        )]
-        pensioner_register <- data.table::rbindlist(
-          list(pensioner_register, .backlog_reg_),
-          use.names = TRUE, fill = TRUE
-        )
-      }
-
-      # Flip contracts: mark all active contracts for backlog ids as pensioner
-      contract_dt[
-        get(personnel_id_col) %in% .backlog_ids_ &
-          !get(contract_type_col) %in% c(.pensioner_type_val_, "inactive"),
-        c(contract_type_col, end_date_col, salary_col) :=
-          list(.pensioner_type_val_, ref_date, 0)
-      ]
-
-      # Flip personnel status to inactive
-      personnel_dt[
-        get(personnel_id_col) %in% .backlog_ids_,
-        (status_col) := "inactive"
-      ]
     }
   }
 

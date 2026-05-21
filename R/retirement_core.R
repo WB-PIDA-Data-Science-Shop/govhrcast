@@ -122,17 +122,17 @@ utils::globalVariables(c(
 #'
 #' @keywords internal
 identify_eligibility <- function(contract_dt,
-                              personnel_dt,
-                              policy_params,
-                              ref_date,
-                              personnel_id_col = "personnel_id",
-                              contract_id_col = "contract_id",
-                              birth_date_col = "birth_date",
-                              start_date_col = "start_date",
-                              end_date_col = "end_date",
-                              contract_type_col = "contract_type_code",
-                              age_col   = "age",
-                              tenure_col = "tenure_years") {
+                                 personnel_dt,
+                                 policy_params,
+                                 ref_date,
+                                 personnel_id_col  = "personnel_id",
+                                 contract_id_col   = "contract_id",
+                                 birth_date_col    = "birth_date",
+                                 start_date_col    = "start_date",
+                                 end_date_col      = "end_date",
+                                 contract_type_col = "contract_type_code",
+                                 age_col           = "age",
+                                 tenure_col        = "tenure_years") {
   
   # Determine the effective scalar eligibility_type from defaults.
   # Used to decide which metrics to compute before the per-row resolution.
