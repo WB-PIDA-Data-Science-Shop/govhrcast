@@ -176,7 +176,7 @@ simulate_exits <- function(contract_dt,
                        is.numeric(policy_params$defaults$exit_rate) &&
                        length(policy_params$defaults$exit_rate) == 1L
 
-  if (has_group_cols && !has_policy_table)
+  if (has_group_cols && !has_policy_table && exit_strategy != "hazard")
     stop(
       "policy_params$group_cols is set but policy_table is NULL. ",
       "Did you forget to pass the output of estimate_historical_exit_rates() ",
@@ -184,7 +184,7 @@ simulate_exits <- function(contract_dt,
       call. = FALSE
     )
 
-  if (!has_policy_table && !has_exit_rate)
+  if (!has_policy_table && !has_exit_rate && exit_strategy != "hazard")
     stop(
       "policy_table is NULL and defaults$exit_rate is not set. ",
       "Supply either a policy_table (for group-level status quo rates) or ",

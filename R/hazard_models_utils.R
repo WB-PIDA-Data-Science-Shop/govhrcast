@@ -357,7 +357,17 @@ build_retirement_hazard_data <- function(panel_contract_dt,
   )
 
   # ------------------------------------------------------------------
-  # 3. Flag outcome, sort, truncate spells at first retirement
+  # 3. Flag outcome, sort, truncate spells at first retirement.
+  #
+  #    Outcome labelling strategy: pensioners exist ONLY in panel_contract_dt;
+  #    they are absent from panel_personnel_dt (they have left employment).
+  #    Labelling retired = 1 on the pensioner snapshot would produce NA
+  #    covariates (no personnel row) → those rows are dropped in fit_hazard_model().
+  #
+  #    Fix: shift the label BACK one period.  The last snapshot where the
+  #    person is still an active worker (T-1) gets retired = 1.  This encodes
+  #    "will retire next period" — the observation where all covariates are
+  #    available.  The pensioner row itself is then dropped.
   # ------------------------------------------------------------------
   primary_dt[, (outcome_col) := as.integer(
     get(contract_type_col) == "pensioner"
@@ -365,8 +375,8 @@ build_retirement_hazard_data <- function(panel_contract_dt,
 
   data.table::setorderv(primary_dt, c(personnel_id_col, ref_date_col))
 
-  # For each person: keep rows up to and including the first retired = 1.
-  # Persons who never retire keep all their rows (censored).
+  # For each person: find the first pensioner snapshot, assign retired = 1 to
+  # the immediately preceding row, then drop all pensioner rows.
   primary_dt[,
     .first_retire_date := {
       ret_dates <- get(ref_date_col)[get(outcome_col) == 1L]
@@ -375,8 +385,26 @@ build_retirement_hazard_data <- function(panel_contract_dt,
     by = c(personnel_id_col)
   ]
 
-  reg_dt <- primary_dt[
-    is.na(.first_retire_date) | get(ref_date_col) <= .first_retire_date
+  # Shift label: the row just before the first pensioner snapshot gets retired = 1.
+  # Use shift() (lag) within the person group: if the NEXT row is the retirement
+  # snapshot, this row is the last-active row → outcome = 1.
+  # Guard against NA .first_retire_date (persons who never retire) — comparing
+  # a Date to NA produces NA, which would corrupt the outcome column.
+  primary_dt[,
+    (outcome_col) := {
+      is_ret <- !is.na(.first_retire_date) &
+                  get(ref_date_col) == .first_retire_date
+      # lead indicator: next row triggers retirement
+      data.table::shift(as.integer(is_ret), n = -1L, fill = 0L)
+    },
+    by = c(personnel_id_col)
+  ]
+
+  # Keep only active-worker rows: drop pensioner rows and all rows after
+  # the shifted label (there should be none, but guard for safety).
+  reg_dt <- primary_dt[get(contract_type_col) != "pensioner"]
+  reg_dt <- reg_dt[
+    is.na(.first_retire_date) | get(ref_date_col) < .first_retire_date
   ]
   reg_dt[, .first_retire_date := NULL]
 
@@ -850,7 +878,9 @@ fit_hazard_model <- function(reg_dt,
   eqn <- stats::as.formula(
     paste0(outcome_col, " ~ ", paste(covariates, collapse = " + "))
   )
-  model_obj <- stats::glm(eqn, family = family, data = model_dt)
+  model_obj <- suppressWarnings(
+    stats::glm(eqn, family = family, data = model_dt)
+  )
 
   # ------------------------------------------------------------------
   # 5. Return slim hazard_model object
@@ -1239,4 +1269,405 @@ predict_hazard <- function(hazard_model,
   data.table::setcolorder(out, c(personnel_id_col, "prob", "event"))
 
   out
+}
+
+
+# =============================================================================
+# project_retirement_hazard
+# =============================================================================
+
+#' Project Retirement Events for a Simulation Snapshot
+#'
+#' @description
+#' End-to-end retirement projection for one simulation period.  When
+#' \code{use_hazard_model = TRUE} (the default), the function estimates a
+#' discrete-time hazard model from the historical panel and scores the
+#' current simulation snapshot.  When \code{use_hazard_model = FALSE}, it
+#' falls back to the eligibility-based status-quo rule via
+#' \code{\link{identify_eligibility}}.
+#'
+#' @param panel_contract_dt data.table.  Historical contract panel (all
+#'   snapshots stacked) used to build the training dataset.
+#' @param panel_personnel_dt data.table.  Historical personnel panel (all
+#'   snapshots stacked).
+#' @param sim_contract_dt data.table.  Single-period simulation contract
+#'   snapshot to score.  Must not contain a stacked \code{ref_date_col}.
+#' @param sim_personnel_dt data.table.  Single-period simulation personnel
+#'   snapshot.
+#' @param use_hazard_model Logical.  Default \code{FALSE}.  When \code{TRUE},
+#'   a binomial GLM is estimated from the historical panel and used to predict
+#'   retirements in the simulation snapshot — requires that the panel contains
+#'   observable active→pensioner transitions for the same individuals.  In most
+#'   government HRMIS systems, pensioners are stored as a separate population
+#'   (different personnel IDs) with no observable transition from the active
+#'   workforce; in that case the hazard model will have near-zero training
+#'   events and the eligibility-rule path (\code{FALSE}) is the correct choice.
+#'   When \code{FALSE}, retirements are identified by the eligibility rule in
+#'   \code{retirement_policy} (requires \code{retirement_policy} and
+#'   \code{ref_date} to be non-\code{NULL}).
+#' @param retirement_policy Optional named list (canonical 3-slot structure).
+#'   \itemize{
+#'     \item \strong{TRUE path}: if supplied, an \code{eligible} flag is added
+#'       as a covariate to the training dataset via
+#'       \code{\link{build_retirement_hazard_data}}.
+#'     \item \strong{FALSE path}: \emph{required}; passed to
+#'       \code{\link{identify_eligibility}} to determine who is eligible.
+#'   }
+#' @param extra_covariates Character vector or \code{NULL}.  Additional columns
+#'   from \code{panel_contract_dt} to include as model covariates (e.g.
+#'   \code{c("paygrade", "gross_salary_lcu")}).  Default: \code{NULL}.
+#' @param threshold_method Character.  Passed to
+#'   \code{\link{select_hazard_threshold}}.  One of \code{"youden"} (default)
+#'   or \code{"f1"}.
+#' @param age_col Character or \code{NULL}.  Pre-computed age column.
+#'   Default: \code{"age"}.
+#' @param tenure_col Character or \code{NULL}.  Pre-computed tenure column.
+#'   Default: \code{"tenure_years"}.
+#' @param personnel_id_col Character.  Default: \code{"personnel_id"}.
+#' @param ref_date_col Character.  Default: \code{"ref_date"}.
+#' @param birth_date_col Character.  Default: \code{"birth_date"}.
+#' @param start_date_col Character.  Default: \code{"start_date"}.
+#' @param end_date_col Character.  Default: \code{"end_date"}.
+#' @param contract_type_col Character.  Default: \code{"contract_type_code"}.
+#' @param contract_id_col Character.  Default: \code{"contract_id"}.
+#' @param salary_col Character.  Default: \code{"gross_salary_lcu"}.
+#' @param ref_date Date scalar or \code{NULL}.  Snapshot date of
+#'   \code{sim_contract_dt}.  Required on the FALSE path and whenever age or
+#'   tenure must be computed on-the-fly.  Default: \code{NULL}.
+#'
+#' @return A \code{data.table} with one row per active person in
+#'   \code{sim_contract_dt}:
+#'   \describe{
+#'     \item{\code{personnel_id_col}}{Person identifier.}
+#'     \item{\code{prob}}{Predicted retirement probability (TRUE path) or
+#'       \code{NA_real_} (FALSE path).}
+#'     \item{\code{event}}{Integer 0/1.  1 = predicted retiree this period.}
+#'   }
+#'   On the TRUE path, the fitted \code{\link{fit_hazard_model}} object is
+#'   stored as \code{attr(result, "hazard_model")}.
+#'
+#' @seealso \code{\link{build_retirement_hazard_data}},
+#'   \code{\link{fit_hazard_model}}, \code{\link{select_hazard_threshold}},
+#'   \code{\link{predict_hazard}}, \code{\link{identify_eligibility}}
+#'
+#' @export
+project_retirement_hazard <- function(panel_contract_dt,
+                                      panel_personnel_dt,
+                                      sim_contract_dt,
+                                      sim_personnel_dt,
+                                      use_hazard_model   = FALSE,
+                                      retirement_policy  = NULL,
+                                      extra_covariates   = NULL,
+                                      threshold_method   = "youden",
+                                      age_col            = "age",
+                                      tenure_col         = "tenure_years",
+                                      personnel_id_col   = "personnel_id",
+                                      ref_date_col       = "ref_date",
+                                      birth_date_col     = "birth_date",
+                                      start_date_col     = "start_date",
+                                      end_date_col       = "end_date",
+                                      contract_type_col  = "contract_type_code",
+                                      contract_id_col    = "contract_id",
+                                      salary_col         = "gross_salary_lcu",
+                                      ref_date           = NULL) {
+
+  if (use_hazard_model) {
+
+    # ------------------------------------------------------------------
+    # TRUE path: build → fit → threshold → predict
+    # ------------------------------------------------------------------
+
+    # 1. Build person-period regression dataset from historical panel
+    train_dt <- build_retirement_hazard_data(
+      panel_contract_dt  = panel_contract_dt,
+      panel_personnel_dt = panel_personnel_dt,
+      retirement_policy  = retirement_policy,
+      extra_covariates   = extra_covariates,
+      age_col            = age_col,
+      tenure_col         = tenure_col,
+      outcome_col        = "retired",
+      personnel_id_col   = personnel_id_col,
+      ref_date_col       = ref_date_col,
+      birth_date_col     = birth_date_col,
+      start_date_col     = start_date_col,
+      end_date_col       = end_date_col,
+      contract_type_col  = contract_type_col,
+      contract_id_col    = contract_id_col,
+      salary_col         = salary_col
+    )
+
+    # 2. Auto-detect covariates: age + tenure_years + eligible (if retirement_policy
+    #    was supplied) + any extra_covariates that landed in train_dt.
+    #    Exclude the id, date, and outcome columns.
+    reserved <- c(personnel_id_col, ref_date_col, "retired")
+    covs <- intersect(
+      c("age", "tenure_years", "eligible", extra_covariates),
+      setdiff(names(train_dt), reserved)
+    )
+    if (length(covs) == 0L)
+      stop("No usable covariates found in training data.", call. = FALSE)
+
+    # 3. Fit binomial GLM
+    hm <- fit_hazard_model(
+      reg_dt      = train_dt,
+      outcome_col = "retired",
+      covariates  = covs
+    )
+
+    # 4. Calibrate optimal probability threshold on training data
+    hm <- select_hazard_threshold(hm, train_dt, method = threshold_method)
+
+    # 5. Score the simulation snapshot
+    preds <- predict_hazard(
+      hazard_model      = hm,
+      contract_dt       = sim_contract_dt,
+      personnel_dt      = sim_personnel_dt,
+      age_col           = age_col,
+      tenure_col        = tenure_col,
+      personnel_id_col  = personnel_id_col,
+      birth_date_col    = birth_date_col,
+      start_date_col    = start_date_col,
+      end_date_col      = end_date_col,
+      contract_type_col = contract_type_col,
+      contract_id_col   = contract_id_col,
+      salary_col        = salary_col,
+      ref_date          = ref_date
+    )
+
+    attr(preds, "hazard_model") <- hm
+    preds
+
+  } else {
+
+    # ------------------------------------------------------------------
+    # FALSE path: eligibility-based status-quo rule
+    # ------------------------------------------------------------------
+    if (is.null(retirement_policy))
+      stop("retirement_policy must be supplied when use_hazard_model = FALSE.",
+           call. = FALSE)
+    if (is.null(ref_date))
+      stop("ref_date must be supplied when use_hazard_model = FALSE.",
+           call. = FALSE)
+
+    elig_dt <- identify_eligibility(
+      contract_dt       = sim_contract_dt,
+      personnel_dt      = sim_personnel_dt,
+      policy_params     = retirement_policy,
+      ref_date          = ref_date,
+      personnel_id_col  = personnel_id_col,
+      contract_id_col   = contract_id_col,
+      birth_date_col    = birth_date_col,
+      start_date_col    = start_date_col,
+      end_date_col      = end_date_col,
+      contract_type_col = contract_type_col,
+      age_col           = age_col,
+      tenure_col        = tenure_col
+    )
+
+    out <- elig_dt[, .(
+      .pid  = get(personnel_id_col),
+      prob  = NA_real_,
+      event = as.integer(retire == 1L)
+    )]
+    data.table::setnames(out, ".pid", personnel_id_col)
+    data.table::setcolorder(out, c(personnel_id_col, "prob", "event"))
+    out
+  }
+}
+
+
+# =============================================================================
+# project_exit_hazard
+# =============================================================================
+
+#' Project Non-Retirement Exit Events for a Simulation Snapshot
+#'
+#' @description
+#' End-to-end non-retirement exit projection for one simulation period.
+#' When \code{use_hazard_model = TRUE} (the default), a discrete-time hazard
+#' model is estimated from the historical panel and scored on the current
+#' simulation snapshot.  When \code{use_hazard_model = FALSE}, a flat
+#' \code{exit_rate} is applied and exiters are selected at random.
+#'
+#' @param panel_contract_dt data.table.  Historical contract panel (all
+#'   snapshots stacked) used to build the training dataset.
+#' @param panel_personnel_dt data.table.  Historical personnel panel (all
+#'   snapshots stacked).
+#' @param sim_contract_dt data.table.  Single-period simulation contract
+#'   snapshot to score.
+#' @param sim_personnel_dt data.table.  Single-period simulation personnel
+#'   snapshot.
+#' @param use_hazard_model Logical.  Default \code{TRUE}.  When \code{TRUE},
+#'   a binomial GLM is estimated and used to predict exits.  When
+#'   \code{FALSE}, a flat \code{exit_rate} random draw is applied (requires
+#'   \code{exit_rate} to be non-\code{NULL}).
+#' @param active_types Character vector or \code{NULL}.  Contract type codes
+#'   considered active (at-risk).  \code{NULL} (default) uses all types except
+#'   \code{"inactive"} and \code{"pensioner"}.
+#' @param exit_rate Numeric scalar or \code{NULL}.  Annual exit probability
+#'   applied on the FALSE path (e.g. \code{0.05}).  Ignored when
+#'   \code{use_hazard_model = TRUE}.
+#' @param freq Character scalar or \code{NULL}.  Panel cadence for
+#'   \code{govhr::detect_personnel_event()}.  \code{NULL} auto-infers.
+#' @param extra_covariates Character vector or \code{NULL}.  Additional columns
+#'   to include as model covariates.  Default: \code{NULL}.
+#' @param threshold_method Character.  One of \code{"youden"} or \code{"f1"}
+#'   (default).  \code{"f1"} is preferred for exit modelling because public
+#'   sector exits are typically rare events (\eqn{<5\%} base rate), where
+#'   precision matters more than joint sensitivity/specificity balance.
+#' @param age_col Character or \code{NULL}.  Default: \code{"age"}.
+#' @param tenure_col Character or \code{NULL}.  Default: \code{"tenure_years"}.
+#' @param personnel_id_col Character.  Default: \code{"personnel_id"}.
+#' @param ref_date_col Character.  Default: \code{"ref_date"}.
+#' @param birth_date_col Character.  Default: \code{"birth_date"}.
+#' @param start_date_col Character.  Default: \code{"start_date"}.
+#' @param end_date_col Character.  Default: \code{"end_date"}.
+#' @param contract_type_col Character.  Default: \code{"contract_type_code"}.
+#' @param contract_id_col Character.  Default: \code{"contract_id"}.
+#' @param salary_col Character.  Default: \code{"gross_salary_lcu"}.
+#' @param ref_date Date scalar or \code{NULL}.  Snapshot date of
+#'   \code{sim_contract_dt}, used on the slow age/tenure computation path.
+#'   Default: \code{NULL}.
+#'
+#' @return A \code{data.table} with one row per active person in
+#'   \code{sim_contract_dt}:
+#'   \describe{
+#'     \item{\code{personnel_id_col}}{Person identifier.}
+#'     \item{\code{prob}}{Predicted exit probability (TRUE path) or
+#'       \code{NA_real_} (FALSE path).}
+#'     \item{\code{event}}{Integer 0/1.  1 = predicted exiter this period.}
+#'   }
+#'   On the TRUE path, the fitted model is stored as
+#'   \code{attr(result, "hazard_model")}.
+#'
+#' @seealso \code{\link{build_exit_hazard_data}}, \code{\link{fit_hazard_model}},
+#'   \code{\link{select_hazard_threshold}}, \code{\link{predict_hazard}}
+#'
+#' @export
+project_exit_hazard <- function(panel_contract_dt,
+                                panel_personnel_dt,
+                                sim_contract_dt,
+                                sim_personnel_dt,
+                                use_hazard_model   = TRUE,
+                                active_types       = NULL,
+                                exit_rate          = NULL,
+                                freq               = NULL,
+                                extra_covariates   = NULL,
+                                threshold_method   = "f1",
+                                age_col            = "age",
+                                tenure_col         = "tenure_years",
+                                personnel_id_col   = "personnel_id",
+                                ref_date_col       = "ref_date",
+                                birth_date_col     = "birth_date",
+                                start_date_col     = "start_date",
+                                end_date_col       = "end_date",
+                                contract_type_col  = "contract_type_code",
+                                contract_id_col    = "contract_id",
+                                salary_col         = "gross_salary_lcu",
+                                ref_date           = NULL) {
+
+  if (use_hazard_model) {
+
+    # ------------------------------------------------------------------
+    # TRUE path: build → fit → threshold → predict
+    # ------------------------------------------------------------------
+
+    # 1. Build person-period regression dataset from historical panel
+    train_dt <- build_exit_hazard_data(
+      panel_contract_dt  = panel_contract_dt,
+      panel_personnel_dt = panel_personnel_dt,
+      active_types       = active_types,
+      freq               = freq,
+      extra_covariates   = extra_covariates,
+      age_col            = age_col,
+      tenure_col         = tenure_col,
+      outcome_col        = "exited",
+      personnel_id_col   = personnel_id_col,
+      ref_date_col       = ref_date_col,
+      birth_date_col     = birth_date_col,
+      start_date_col     = start_date_col,
+      end_date_col       = end_date_col,
+      contract_type_col  = contract_type_col,
+      contract_id_col    = contract_id_col,
+      salary_col         = salary_col
+    )
+
+    # 2. Auto-detect covariates
+    reserved <- c(personnel_id_col, ref_date_col, "exited")
+    covs <- intersect(
+      c("age", "tenure_years", extra_covariates),
+      setdiff(names(train_dt), reserved)
+    )
+    if (length(covs) == 0L)
+      stop("No usable covariates found in training data.", call. = FALSE)
+
+    # 3. Fit binomial GLM
+    hm <- fit_hazard_model(
+      reg_dt      = train_dt,
+      outcome_col = "exited",
+      covariates  = covs
+    )
+
+    # 4. Calibrate optimal probability threshold on training data
+    hm <- select_hazard_threshold(hm, train_dt, method = threshold_method)
+
+    # 5. Score the simulation snapshot
+    preds <- predict_hazard(
+      hazard_model      = hm,
+      contract_dt       = sim_contract_dt,
+      personnel_dt      = sim_personnel_dt,
+      age_col           = age_col,
+      tenure_col        = tenure_col,
+      personnel_id_col  = personnel_id_col,
+      birth_date_col    = birth_date_col,
+      start_date_col    = start_date_col,
+      end_date_col      = end_date_col,
+      contract_type_col = contract_type_col,
+      contract_id_col   = contract_id_col,
+      salary_col        = salary_col,
+      ref_date          = ref_date
+    )
+
+    attr(preds, "hazard_model") <- hm
+    preds
+
+  } else {
+
+    # ------------------------------------------------------------------
+    # FALSE path: flat rate random draw
+    # ------------------------------------------------------------------
+    if (is.null(exit_rate))
+      stop("exit_rate must be supplied when use_hazard_model = FALSE.",
+           call. = FALSE)
+    if (!is.numeric(exit_rate) || length(exit_rate) != 1L ||
+        exit_rate < 0 || exit_rate > 1)
+      stop("exit_rate must be a single numeric value between 0 and 1.",
+           call. = FALSE)
+
+    # Identify active pool from sim snapshot
+    if (is.null(active_types)) {
+      active_ids <- unique(sim_contract_dt[
+        !get(contract_type_col) %in% c("inactive", "pensioner"),
+        get(personnel_id_col)
+      ])
+    } else {
+      active_ids <- unique(sim_contract_dt[
+        get(contract_type_col) %in% active_types,
+        get(personnel_id_col)
+      ])
+    }
+
+    n_active <- length(active_ids)
+    n_exits  <- round(exit_rate * n_active)
+    exiters  <- if (n_exits > 0L) sample(active_ids, n_exits) else character(0L)
+
+    out <- data.table::data.table(
+      .pid  = active_ids,
+      prob  = NA_real_,
+      event = as.integer(active_ids %in% exiters)
+    )
+    data.table::setnames(out, ".pid", personnel_id_col)
+    data.table::setcolorder(out, c(personnel_id_col, "prob", "event"))
+    out
+  }
 }

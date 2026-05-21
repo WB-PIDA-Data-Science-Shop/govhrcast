@@ -349,6 +349,22 @@ simulate_retirement <- function(contract_dt,
   # (event = 1) who are also policy-eligible.  Ineligible predictions are
   # silently dropped — the eligibility gate is always the binding constraint.
   if (!is.null(retirement_hazard_model)) {
+    # If `eligible` is a covariate in the fitted model, inject it onto
+    # personnel_dt so predict_hazard() can use it during scoring.
+    # eligible = 1 for persons identified as policy-eligible this period;
+    # 0 for everyone else (including non-active staff excluded by eligibility_dt).
+    .model_covs_ <- all.vars(stats::formula(retirement_hazard_model$model))[-1L]
+    if ("eligible" %in% .model_covs_) {
+      .elig_flag_ <- eligibility_dt[,
+        c(personnel_id_col, "retire"), with = FALSE
+      ]
+      data.table::setnames(.elig_flag_, "retire", "eligible")
+      personnel_dt[, eligible := 0L]
+      personnel_dt[.elig_flag_[eligible == 1L],
+                   eligible := 1L,
+                   on = personnel_id_col]
+    }
+
     hazard_preds <- predict_hazard(
       hazard_model      = retirement_hazard_model,
       contract_dt       = contract_dt,
@@ -360,9 +376,14 @@ simulate_retirement <- function(contract_dt,
       contract_type_col = contract_type_col,
       ref_date          = ref_date
     )
+
+    # Clean up temporary column
+    if ("eligible" %in% .model_covs_ && "eligible" %in% names(personnel_dt))
+      personnel_dt[, eligible := NULL]
+
     # Persons the model says will retire this period
     hazard_retirers <- hazard_preds[event == 1L, get(personnel_id_col)]
-    # Intersect with eligible pool — eligibility gate is always enforced
+    # Intersect with eligible pool — eligibility gate is always the binding constraint
     eligibility_dt <- eligibility_dt[
       get(personnel_id_col) %in% hazard_retirers
     ]

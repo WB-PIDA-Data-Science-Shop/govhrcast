@@ -16,8 +16,10 @@ simulate_horizon(
   exit_policy = NULL,
   movement_policy = NULL,
   hiring_policy = NULL,
-  retirement_hazard_model = NULL,
-  exit_hazard_model = NULL,
+  retirement_hazard_options = list(use_hazard_model = FALSE, covariates = NULL,
+    custom_model = NULL),
+  exit_hazard_options = list(use_hazard_model = FALSE, covariates = NULL, custom_model =
+    NULL),
   salary_growth_rate = 0,
   pension_cola_rate = salary_growth_rate,
   base_year = as.integer(format(Sys.Date(), "\%Y")),
@@ -104,20 +106,6 @@ For \code{mode = "status_quo"}: also \code{group_cols} and optionally
 automatically — you do \emph{not} need to supply them.
 Pass \code{NULL} to skip hiring in all periods.}
 
-\item{retirement_hazard_model}{A calibrated \code{hazard_model} object
-returned by \code{\link{fit_hazard_model}} and
-\code{\link{select_hazard_threshold}}, or \code{NULL} (default).
-When supplied, the object is passed unchanged to \code{\link{simulate_scenario}}
-every period so that \code{\link{simulate_retirement}} uses hazard-based
-take-up rather than the 100\\% take-up assumption.  The model is fitted
-\emph{once} by the caller before passing to this function.}
-
-\item{exit_hazard_model}{A calibrated \code{hazard_model} object or
-\code{NULL} (default).  Passed unchanged to \code{\link{simulate_scenario}}
-every period.  Activates hazard-mode exit selection when
-\code{exit_policy$defaults$exit_strategy = "hazard"}.  Fit once before
-calling this function.}
-
 \item{salary_growth_rate}{Numeric scalar or vector of length \code{n_periods}.
 Annual COLA / inflation rate applied to salaries and the pay scale.
 Default \code{0} (no inflation).}
@@ -191,6 +179,20 @@ layer and by \code{is_baseline} toggle logic.  Default \code{NULL}
 this run as the reference scenario in multi-scenario comparisons.  Only
 meaningful when \code{scenario_name} is also supplied.  Default
 \code{FALSE}.}
+
+\item{retirement_hazard_model}{A calibrated \code{hazard_model} object
+returned by \code{\link{fit_hazard_model}} and
+\code{\link{select_hazard_threshold}}, or \code{NULL} (default).
+When supplied, the object is passed unchanged to \code{\link{simulate_scenario}}
+every period so that \code{\link{simulate_retirement}} uses hazard-based
+take-up rather than the 100\\% take-up assumption.  The model is fitted
+\emph{once} by the caller before passing to this function.}
+
+\item{exit_hazard_model}{A calibrated \code{hazard_model} object or
+\code{NULL} (default).  Passed unchanged to \code{\link{simulate_scenario}}
+every period.  Activates hazard-mode exit selection when
+\code{exit_policy$defaults$exit_strategy = "hazard"}.  Fit once before
+calling this function.}
 }
 \value{
 An object of class \code{horizon} with two primary components:

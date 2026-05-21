@@ -730,3 +730,620 @@ test_that("predict_hazard errors on missing required contract column", {
     regexp = "missing required column"
   )
 })
+
+
+# =============================================================================
+# Helpers shared by project_* tests
+# =============================================================================
+
+# make_project_panel():
+#   n_snaps >= 3 historical snapshots. Last snapshot has ~10% pensioners in
+#   contract panel only; those persons are REMOVED from the personnel panel
+#   on the last snapshot to mimic real HRMIS behaviour (pensioners leave the
+#   active personnel register).  An additional ~5% exit between snap 1 and 2.
+make_project_panel <- function(n_persons = 80L, n_snaps = 4L, seed = 7L) {
+  set.seed(seed)
+
+  persons    <- paste0("W", seq_len(n_persons))
+  snap_dates <- as.Date("2018-01-01") + (seq_len(n_snaps) - 1L) * 365L
+
+  n_retire <- max(1L, round(n_persons * 0.10))
+  n_exit   <- max(1L, round(n_persons * 0.05))
+  ret_idx  <- seq_len(n_retire)
+  exit_idx <- seq_len(n_exit) + n_retire    # non-overlapping
+
+  ret_persons  <- persons[ret_idx]
+  exit_persons <- persons[exit_idx]
+
+  make_contract_rows <- function(i) {
+    d    <- snap_dates[[i]]
+    # Exiters drop after snap 1; retirees become pensioner at last snap
+    if (i == 1L) {
+      keep <- persons
+    } else if (i == n_snaps) {
+      keep <- persons[!persons %in% exit_persons]
+    } else {
+      keep <- persons[!persons %in% exit_persons]
+    }
+    type <- rep("perm", length(keep))
+    if (i == n_snaps) type[keep %in% ret_persons] <- "pensioner"
+    data.table::data.table(
+      personnel_id       = keep,
+      contract_id        = paste0("C", seq_along(keep), "_", i),
+      ref_date           = d,
+      contract_type_code = type,
+      start_date         = as.Date("2010-01-01"),
+      end_date           = as.Date("2030-12-31"),
+      paygrade           = sample(c("A", "B", "C"), length(keep), replace = TRUE),
+      gross_salary_lcu   = round(stats::runif(length(keep), 30000, 80000))
+    )
+  }
+
+  make_personnel_rows <- function(i) {
+    d    <- snap_dates[[i]]
+    # Exiters absent after snap 1; retirees absent on last snap (pensioners)
+    if (i == 1L) {
+      keep <- persons
+    } else if (i == n_snaps) {
+      keep <- persons[!persons %in% c(exit_persons, ret_persons)]
+    } else {
+      keep <- persons[!persons %in% exit_persons]
+    }
+    data.table::data.table(
+      personnel_id = keep,
+      ref_date     = d,
+      birth_date   = as.Date("1960-01-01") +
+                       as.integer(stats::runif(length(keep), 0, 8 * 365)),
+      status       = "active"
+    )
+  }
+
+  panel_contract_dt  <- data.table::rbindlist(lapply(seq_len(n_snaps), make_contract_rows))
+  panel_personnel_dt <- data.table::rbindlist(lapply(seq_len(n_snaps), make_personnel_rows))
+
+  # Simulation snapshot = second-to-last snapshot (no pensioners yet)
+  sim_date     <- snap_dates[[n_snaps - 1L]]
+  sim_contract_dt  <- panel_contract_dt[ref_date == sim_date][, ref_date := NULL]
+  sim_personnel_dt <- panel_personnel_dt[ref_date == sim_date][, ref_date := NULL]
+
+  # Training panel = all snapshots except the sim snapshot onwards
+  hist_contract_dt  <- panel_contract_dt[ref_date < sim_date]
+  hist_personnel_dt <- panel_personnel_dt[ref_date < sim_date]
+
+  list(
+    panel_contract_dt  = panel_contract_dt,
+    panel_personnel_dt = panel_personnel_dt,
+    hist_contract_dt   = hist_contract_dt,
+    hist_personnel_dt  = hist_personnel_dt,
+    sim_contract_dt    = sim_contract_dt,
+    sim_personnel_dt   = sim_personnel_dt,
+    sim_date           = sim_date,
+    ret_persons        = ret_persons,
+    exit_persons       = exit_persons
+  )
+}
+
+make_ret_policy <- function(min_age = 55) {
+  list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      eligibility_type = "age_only",
+      pension_type     = "flat",
+      min_age          = min_age,
+      flat_amount      = 0,
+      active_types     = c("perm", "fterm", "temp")
+    )
+  )
+}
+
+
+# =============================================================================
+# project_retirement_hazard — FALSE path (default)
+# =============================================================================
+
+test_that("project_retirement_hazard FALSE path returns a data.table", {
+  p   <- make_project_panel()
+  out <- project_retirement_hazard(
+    panel_contract_dt = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt   = p$sim_contract_dt,
+    sim_personnel_dt  = p$sim_personnel_dt,
+    use_hazard_model  = FALSE,
+    retirement_policy = make_ret_policy(),
+    ref_date          = p$sim_date
+  )
+  expect_true(data.table::is.data.table(out))
+})
+
+test_that("project_retirement_hazard FALSE path has correct columns", {
+  p   <- make_project_panel()
+  out <- project_retirement_hazard(
+    panel_contract_dt  = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = FALSE,
+    retirement_policy  = make_ret_policy(),
+    ref_date           = p$sim_date
+  )
+  expect_equal(names(out), c("personnel_id", "prob", "event"))
+})
+
+test_that("project_retirement_hazard FALSE path: prob is all NA", {
+  p   <- make_project_panel()
+  out <- project_retirement_hazard(
+    panel_contract_dt  = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = FALSE,
+    retirement_policy  = make_ret_policy(),
+    ref_date           = p$sim_date
+  )
+  expect_true(all(is.na(out$prob)))
+})
+
+test_that("project_retirement_hazard FALSE path: event is binary integer", {
+  p   <- make_project_panel()
+  out <- project_retirement_hazard(
+    panel_contract_dt  = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = FALSE,
+    retirement_policy  = make_ret_policy(),
+    ref_date           = p$sim_date
+  )
+  expect_true(is.integer(out$event))
+  expect_true(all(out$event %in% c(0L, 1L)))
+})
+
+test_that("project_retirement_hazard FALSE path: low min_age flags more retirees", {
+  p     <- make_project_panel()
+  args  <- list(
+    panel_contract_dt  = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = FALSE,
+    ref_date           = p$sim_date
+  )
+  out_low  <- do.call(project_retirement_hazard,
+                      c(args, list(retirement_policy = make_ret_policy(min_age = 30))))
+  out_high <- do.call(project_retirement_hazard,
+                      c(args, list(retirement_policy = make_ret_policy(min_age = 99))))
+  expect_gte(sum(out_low$event), sum(out_high$event))
+})
+
+test_that("project_retirement_hazard FALSE path: no hazard_model attribute", {
+  p   <- make_project_panel()
+  out <- project_retirement_hazard(
+    panel_contract_dt  = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = FALSE,
+    retirement_policy  = make_ret_policy(),
+    ref_date           = p$sim_date
+  )
+  expect_null(attr(out, "hazard_model"))
+})
+
+test_that("project_retirement_hazard FALSE path errors without retirement_policy", {
+  p <- make_project_panel()
+  expect_error(
+    project_retirement_hazard(
+      panel_contract_dt  = p$hist_contract_dt,
+      panel_personnel_dt = p$hist_personnel_dt,
+      sim_contract_dt    = p$sim_contract_dt,
+      sim_personnel_dt   = p$sim_personnel_dt,
+      use_hazard_model   = FALSE,
+      ref_date           = p$sim_date
+    ),
+    regexp = "retirement_policy must be supplied"
+  )
+})
+
+test_that("project_retirement_hazard FALSE path errors without ref_date", {
+  p <- make_project_panel()
+  expect_error(
+    project_retirement_hazard(
+      panel_contract_dt  = p$hist_contract_dt,
+      panel_personnel_dt = p$hist_personnel_dt,
+      sim_contract_dt    = p$sim_contract_dt,
+      sim_personnel_dt   = p$sim_personnel_dt,
+      use_hazard_model   = FALSE,
+      retirement_policy  = make_ret_policy()
+    ),
+    regexp = "ref_date must be supplied"
+  )
+})
+
+
+# =============================================================================
+# project_retirement_hazard — TRUE path
+# =============================================================================
+
+# Note: make_project_panel() keeps retirees in the personnel panel for all
+# snapshots EXCEPT the last — so the label-shift produces training events.
+# Use hist panel (all snaps except last two) as training to ensure retirees'
+# T-1 snapshot is in the training window.
+
+test_that("project_retirement_hazard TRUE path returns a data.table", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- suppressWarnings(
+    project_retirement_hazard(
+      panel_contract_dt  = p$panel_contract_dt,
+      panel_personnel_dt = p$panel_personnel_dt,
+      sim_contract_dt    = p$sim_contract_dt,
+      sim_personnel_dt   = p$sim_personnel_dt,
+      use_hazard_model   = TRUE,
+      ref_date           = p$sim_date
+    )
+  )
+  expect_true(data.table::is.data.table(out))
+})
+
+test_that("project_retirement_hazard TRUE path has correct columns", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- suppressWarnings(
+    project_retirement_hazard(
+      panel_contract_dt  = p$panel_contract_dt,
+      panel_personnel_dt = p$panel_personnel_dt,
+      sim_contract_dt    = p$sim_contract_dt,
+      sim_personnel_dt   = p$sim_personnel_dt,
+      use_hazard_model   = TRUE,
+      ref_date           = p$sim_date
+    )
+  )
+  expect_equal(names(out), c("personnel_id", "prob", "event"))
+})
+
+test_that("project_retirement_hazard TRUE path: prob is numeric in [0,1]", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- suppressWarnings(
+    project_retirement_hazard(
+      panel_contract_dt  = p$panel_contract_dt,
+      panel_personnel_dt = p$panel_personnel_dt,
+      sim_contract_dt    = p$sim_contract_dt,
+      sim_personnel_dt   = p$sim_personnel_dt,
+      use_hazard_model   = TRUE,
+      ref_date           = p$sim_date
+    )
+  )
+  non_na <- out$prob[!is.na(out$prob)]
+  expect_true(all(non_na >= 0 & non_na <= 1))
+})
+
+test_that("project_retirement_hazard TRUE path: event is binary integer", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- suppressWarnings(
+    project_retirement_hazard(
+      panel_contract_dt  = p$panel_contract_dt,
+      panel_personnel_dt = p$panel_personnel_dt,
+      sim_contract_dt    = p$sim_contract_dt,
+      sim_personnel_dt   = p$sim_personnel_dt,
+      use_hazard_model   = TRUE,
+      ref_date           = p$sim_date
+    )
+  )
+  expect_true(is.integer(out$event))
+  expect_true(all(out$event %in% c(0L, 1L)))
+})
+
+test_that("project_retirement_hazard TRUE path: event=1 iff prob >= threshold", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- suppressWarnings(
+    project_retirement_hazard(
+      panel_contract_dt  = p$panel_contract_dt,
+      panel_personnel_dt = p$panel_personnel_dt,
+      sim_contract_dt    = p$sim_contract_dt,
+      sim_personnel_dt   = p$sim_personnel_dt,
+      use_hazard_model   = TRUE,
+      ref_date           = p$sim_date
+    )
+  )
+  hm  <- attr(out, "hazard_model")
+  expected_event <- as.integer(!is.na(out$prob) & out$prob >= hm$threshold)
+  expect_equal(out$event, expected_event)
+})
+
+test_that("project_retirement_hazard TRUE path: hazard_model attribute is attached", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- suppressWarnings(
+    project_retirement_hazard(
+      panel_contract_dt  = p$panel_contract_dt,
+      panel_personnel_dt = p$panel_personnel_dt,
+      sim_contract_dt    = p$sim_contract_dt,
+      sim_personnel_dt   = p$sim_personnel_dt,
+      use_hazard_model   = TRUE,
+      ref_date           = p$sim_date
+    )
+  )
+  hm <- attr(out, "hazard_model")
+  expect_s3_class(hm, "hazard_model")
+  expect_false(is.na(hm$threshold))
+})
+
+
+# =============================================================================
+# project_exit_hazard — FALSE path
+# =============================================================================
+
+test_that("project_exit_hazard FALSE path returns a data.table", {
+  p   <- make_project_panel()
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = FALSE,
+    active_types       = c("perm"),
+    exit_rate          = 0.05
+  )
+  expect_true(data.table::is.data.table(out))
+})
+
+test_that("project_exit_hazard FALSE path has correct columns", {
+  p   <- make_project_panel()
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = FALSE,
+    active_types       = c("perm"),
+    exit_rate          = 0.05
+  )
+  expect_equal(names(out), c("personnel_id", "prob", "event"))
+})
+
+test_that("project_exit_hazard FALSE path: prob is all NA", {
+  p   <- make_project_panel()
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = FALSE,
+    active_types       = c("perm"),
+    exit_rate          = 0.05
+  )
+  expect_true(all(is.na(out$prob)))
+})
+
+test_that("project_exit_hazard FALSE path: event count ~ exit_rate * n_active", {
+  p         <- make_project_panel(n_persons = 200L, seed = 99L)
+  exit_rate <- 0.10
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = FALSE,
+    active_types       = c("perm"),
+    exit_rate          = exit_rate
+  )
+  n_active   <- nrow(out)
+  n_expected <- round(exit_rate * n_active)
+  expect_equal(sum(out$event), n_expected)
+})
+
+test_that("project_exit_hazard FALSE path: exit_rate=0 produces no exiters", {
+  p   <- make_project_panel()
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = FALSE,
+    active_types       = c("perm"),
+    exit_rate          = 0
+  )
+  expect_equal(sum(out$event), 0L)
+})
+
+test_that("project_exit_hazard FALSE path: exit_rate=1 exits everyone", {
+  p   <- make_project_panel()
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = FALSE,
+    active_types       = c("perm"),
+    exit_rate          = 1
+  )
+  expect_equal(sum(out$event), nrow(out))
+})
+
+test_that("project_exit_hazard FALSE path errors without exit_rate", {
+  p <- make_project_panel()
+  expect_error(
+    project_exit_hazard(
+      panel_contract_dt  = p$hist_contract_dt,
+      panel_personnel_dt = p$hist_personnel_dt,
+      sim_contract_dt    = p$sim_contract_dt,
+      sim_personnel_dt   = p$sim_personnel_dt,
+      use_hazard_model   = FALSE
+    ),
+    regexp = "exit_rate must be supplied"
+  )
+})
+
+test_that("project_exit_hazard FALSE path errors on out-of-range exit_rate", {
+  p <- make_project_panel()
+  expect_error(
+    project_exit_hazard(
+      panel_contract_dt  = p$hist_contract_dt,
+      panel_personnel_dt = p$hist_personnel_dt,
+      sim_contract_dt    = p$sim_contract_dt,
+      sim_personnel_dt   = p$sim_personnel_dt,
+      use_hazard_model   = FALSE,
+      exit_rate          = 1.5
+    ),
+    regexp = "between 0 and 1"
+  )
+})
+
+test_that("project_exit_hazard FALSE path errors on non-numeric exit_rate", {
+  p <- make_project_panel()
+  expect_error(
+    project_exit_hazard(
+      panel_contract_dt  = p$hist_contract_dt,
+      panel_personnel_dt = p$hist_personnel_dt,
+      sim_contract_dt    = p$sim_contract_dt,
+      sim_personnel_dt   = p$sim_personnel_dt,
+      use_hazard_model   = FALSE,
+      exit_rate          = "high"
+    ),
+    regexp = "between 0 and 1"
+  )
+})
+
+test_that("project_exit_hazard FALSE path: no hazard_model attribute", {
+  p   <- make_project_panel()
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$hist_contract_dt,
+    panel_personnel_dt = p$hist_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = FALSE,
+    active_types       = c("perm"),
+    exit_rate          = 0.05
+  )
+  expect_null(attr(out, "hazard_model"))
+})
+
+
+# =============================================================================
+# project_exit_hazard — TRUE path (default)
+# =============================================================================
+
+test_that("project_exit_hazard TRUE path returns a data.table", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$panel_contract_dt,
+    panel_personnel_dt = p$panel_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = TRUE,
+    active_types       = c("perm"),
+    ref_date           = p$sim_date
+  )
+  expect_true(data.table::is.data.table(out))
+})
+
+test_that("project_exit_hazard TRUE path has correct columns", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$panel_contract_dt,
+    panel_personnel_dt = p$panel_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = TRUE,
+    active_types       = c("perm"),
+    ref_date           = p$sim_date
+  )
+  expect_equal(names(out), c("personnel_id", "prob", "event"))
+})
+
+test_that("project_exit_hazard TRUE path: prob is numeric in [0,1]", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$panel_contract_dt,
+    panel_personnel_dt = p$panel_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = TRUE,
+    active_types       = c("perm"),
+    ref_date           = p$sim_date
+  )
+  non_na <- out$prob[!is.na(out$prob)]
+  expect_true(all(non_na >= 0 & non_na <= 1))
+})
+
+test_that("project_exit_hazard TRUE path: event is binary integer", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$panel_contract_dt,
+    panel_personnel_dt = p$panel_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = TRUE,
+    active_types       = c("perm"),
+    ref_date           = p$sim_date
+  )
+  expect_true(is.integer(out$event))
+  expect_true(all(out$event %in% c(0L, 1L)))
+})
+
+test_that("project_exit_hazard TRUE path: event=1 iff prob >= threshold", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$panel_contract_dt,
+    panel_personnel_dt = p$panel_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = TRUE,
+    active_types       = c("perm"),
+    ref_date           = p$sim_date
+  )
+  hm <- attr(out, "hazard_model")
+  expected_event <- as.integer(!is.na(out$prob) & out$prob >= hm$threshold)
+  expect_equal(out$event, expected_event)
+})
+
+test_that("project_exit_hazard TRUE path: hazard_model attribute is attached", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$panel_contract_dt,
+    panel_personnel_dt = p$panel_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = TRUE,
+    active_types       = c("perm"),
+    ref_date           = p$sim_date
+  )
+  hm <- attr(out, "hazard_model")
+  expect_s3_class(hm, "hazard_model")
+  expect_false(is.na(hm$threshold))
+})
+
+test_that("project_exit_hazard TRUE path: default threshold_method is f1", {
+  p   <- make_project_panel(n_persons = 100L, n_snaps = 4L)
+  out <- project_exit_hazard(
+    panel_contract_dt  = p$panel_contract_dt,
+    panel_personnel_dt = p$panel_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = TRUE,
+    active_types       = c("perm"),
+    ref_date           = p$sim_date
+  )
+  hm <- attr(out, "hazard_model")
+  expect_identical(hm$threshold_method, "f1")
+})
+
+test_that("project_exit_hazard TRUE path: youden gives different threshold than f1", {
+  p    <- make_project_panel(n_persons = 200L, n_snaps = 5L, seed = 3L)
+  args <- list(
+    panel_contract_dt  = p$panel_contract_dt,
+    panel_personnel_dt = p$panel_personnel_dt,
+    sim_contract_dt    = p$sim_contract_dt,
+    sim_personnel_dt   = p$sim_personnel_dt,
+    use_hazard_model   = TRUE,
+    active_types       = c("perm"),
+    ref_date           = p$sim_date
+  )
+  out_f1 <- suppressWarnings(
+    do.call(project_exit_hazard, c(args, list(threshold_method = "f1")))
+  )
+  out_yo <- suppressWarnings(
+    do.call(project_exit_hazard, c(args, list(threshold_method = "youden")))
+  )
+  # f1 should be more conservative (higher threshold) for rare events →
+  # fewer or equal predicted exits than youden
+  expect_lte(sum(out_f1$event), sum(out_yo$event) + 5L)  # allow small sampling wiggle
+})

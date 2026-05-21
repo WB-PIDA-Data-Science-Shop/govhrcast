@@ -951,8 +951,16 @@ simulate_horizon <- function(contract_dt,
                              exit_policy        = NULL,
                              movement_policy    = NULL,
                              hiring_policy      = NULL,
-                             retirement_hazard_model = NULL,
-                             exit_hazard_model       = NULL,
+                             retirement_hazard_options = list(
+                               use_hazard_model = FALSE,
+                               covariates       = NULL,
+                               custom_model     = NULL
+                             ),
+                             exit_hazard_options = list(
+                               use_hazard_model = FALSE,
+                               covariates       = NULL,
+                               custom_model     = NULL
+                             ),
                              salary_growth_rate = 0,
                              pension_cola_rate  = salary_growth_rate,
                              base_year          = as.integer(format(Sys.Date(), "%Y")),
@@ -1024,7 +1032,18 @@ simulate_horizon <- function(contract_dt,
   }
   salary_scale_dt <- data.table::copy(salary_scale_dt)
 
-  # For status_quo hiring, the panel must be captured BEFORE ref_date is stripped
+  # ------------------------------------------------------------------
+  # Unpack hazard option lists into internal scalar variables.
+  # ------------------------------------------------------------------
+  .ret_haz_use_   <- isTRUE(retirement_hazard_options$use_hazard_model)
+  .ret_haz_covs_  <- retirement_hazard_options$covariates
+  retirement_hazard_model <- retirement_hazard_options$custom_model
+
+  .exit_haz_use_  <- isTRUE(exit_hazard_options$use_hazard_model)
+  .exit_haz_covs_ <- exit_hazard_options$covariates
+  exit_hazard_model <- exit_hazard_options$custom_model
+
+  ### check if we are status quo modelling
   if (!is.null(hiring_policy) && identical(hiring_policy$mode, "status_quo")) {
     if (is.null(hiring_policy$panel_contract_dt))
       hiring_policy$panel_contract_dt  <- data.table::copy(contract_dt)
@@ -1037,8 +1056,11 @@ simulate_horizon <- function(contract_dt,
   # without this cache simulate_promotions_transfers would never see a panel.
   if (!is.null(movement_policy) && is.null(movement_policy$policy_table)) {
     ref_date_col_name <- "ref_date"   # standard column name used throughout
+    ## check if we have a panel dataset based on reference date
     has_panel <- ref_date_col_name %in% names(contract_dt) &&
                  data.table::uniqueN(contract_dt[[ref_date_col_name]]) >= 2L
+    ### if we have a panel compute the movement baseline rates for transfers and
+    ### promotions
     if (has_panel) {
       movement_policy$policy_table <- estimate_movement_baseline(
         contract_dt       = contract_dt,
@@ -1054,22 +1076,23 @@ simulate_horizon <- function(contract_dt,
 
   # For exit, pre-estimate historical rates from the full panel BEFORE stripping
   # ref_date, so simulate_exits() receives a ready-made policy_table.
-  if (!is.null(exit_policy) && is.null(exit_policy$policy_table)) {
+  # Skipped when .exit_haz_use_ = TRUE — the hazard model replaces rate-based selection.
+  if (!.exit_haz_use_ && !is.null(exit_policy) && is.null(exit_policy$policy_table)) {
     ref_date_col_name <- "ref_date"
     has_panel <- ref_date_col_name %in% names(contract_dt) &&
                  data.table::uniqueN(contract_dt[[ref_date_col_name]]) >= 2L
     if (has_panel) {
       exit_policy$policy_table <- tryCatch(
         estimate_historical_exit_rates(
-          panel_contract_dt = contract_dt,
+          panel_contract_dt  = contract_dt,
           panel_personnel_dt = personnel_dt,
-          group_cols        = exit_policy$group_cols,
-          personnel_id_col  = personnel_id_col,
-          ref_date_col      = ref_date_col_name,
-          start_date_col    = start_date_col,
-          end_date_col      = end_date_col,
-          contract_type_col = contract_type_col,
-          status_col        = status_col
+          group_cols         = exit_policy$group_cols,
+          personnel_id_col   = personnel_id_col,
+          ref_date_col       = ref_date_col_name,
+          start_date_col     = start_date_col,
+          end_date_col       = end_date_col,
+          contract_type_col  = contract_type_col,
+          status_col         = status_col
         ),
         error = function(e) {
           warning("simulate_horizon: exit rate estimation failed — ",
@@ -1087,8 +1110,16 @@ simulate_horizon <- function(contract_dt,
   }
 
   # If data contains a ref_date panel column, subset to the starting snapshot
-  # before stripping so that sub-modules see a single-period snapshot
+  # before stripping so that sub-modules see a single-period snapshot.
+  # Capture the full panel now for optional hazard model fitting below.
+
   start_ref <- ref_date   # capture before any column could shadow it
+  .ref_date_col_name_ <- "ref_date"
+  .has_panel_ <- .ref_date_col_name_ %in% names(contract_dt) &&
+                 data.table::uniqueN(contract_dt[[.ref_date_col_name_]]) >= 2L
+  .full_panel_c_ <- if (.has_panel_) data.table::copy(contract_dt)  else NULL
+  .full_panel_p_ <- if (.has_panel_) data.table::copy(personnel_dt) else NULL
+
   if ("ref_date" %in% names(contract_dt)) {
     contract_dt <- contract_dt[get("ref_date") == start_ref]
     contract_dt[, ref_date := NULL]
@@ -1096,6 +1127,83 @@ simulate_horizon <- function(contract_dt,
   if ("ref_date" %in% names(personnel_dt)) {
     personnel_dt <- personnel_dt[get("ref_date") == start_ref]
     personnel_dt[, ref_date := NULL]
+  }
+
+  # ------------------------------------------------------------------
+  # Auto-fit hazard models from the panel (once, before the loop).
+  # These blocks run only when the user opts in via use_*_hazard = TRUE
+  # and has not already supplied a pre-fitted model object.
+  # The panel is captured above before ref_date stripping so the full
+  # history is available for training.
+  # ------------------------------------------------------------------
+
+  # Retirement hazard: eligibility is always included as a covariate
+  # (via retirement_policy passed to project_retirement_hazard), so the
+  # model learns the jump in retirement probability at the eligibility
+  # threshold.  The hard eligibility gate inside simulate_retirement()
+  # remains as a safety net to prevent policy violations.
+  if (.ret_haz_use_ && is.null(retirement_hazard_model)) {
+    if (!is.null(.full_panel_c_) && !is.null(.full_panel_p_)) {
+      .hz_ret_result_ <- tryCatch(
+        project_retirement_hazard(
+          panel_contract_dt  = .full_panel_c_,
+          panel_personnel_dt = .full_panel_p_,
+          sim_contract_dt    = contract_dt,
+          sim_personnel_dt   = personnel_dt,
+          use_hazard_model   = TRUE,
+          retirement_policy  = retirement_policy,
+          extra_covariates   = .ret_haz_covs_,
+          ref_date           = start_ref
+        ),
+        error = function(e) {
+          warning("simulate_horizon: retirement hazard fitting failed — ",
+                  conditionMessage(e), ". Falling back to eligibility rule.",
+                  call. = FALSE)
+          NULL
+        }
+      )
+      if (!is.null(.hz_ret_result_))
+        retirement_hazard_model <- attr(.hz_ret_result_, "hazard_model")
+    } else {
+      warning("simulate_horizon: use_retirement_hazard = TRUE but no panel ",
+              "data available for training. Falling back to eligibility rule.",
+              call. = FALSE)
+    }
+  }
+
+  # Exit hazard: fitted from the panel; exit_strategy is set to "hazard" on
+  # exit_policy$defaults so simulate_exits() routes to predict_hazard().
+  if (.exit_haz_use_ && is.null(exit_hazard_model)) {
+    if (!is.null(.full_panel_c_) && !is.null(.full_panel_p_)) {
+      .hz_exit_result_ <- tryCatch(
+        project_exit_hazard(
+          panel_contract_dt  = .full_panel_c_,
+          panel_personnel_dt = .full_panel_p_,
+          sim_contract_dt    = contract_dt,
+          sim_personnel_dt   = personnel_dt,
+          use_hazard_model   = TRUE,
+          active_types       = exit_policy$defaults$active_types,
+          extra_covariates   = .exit_haz_covs_,
+          ref_date           = start_ref
+        ),
+        error = function(e) {
+          warning("simulate_horizon: exit hazard fitting failed — ",
+                  conditionMessage(e), ". Falling back to rate-based exits.",
+                  call. = FALSE)
+          NULL
+        }
+      )
+      if (!is.null(.hz_exit_result_)) {
+        exit_hazard_model <- attr(.hz_exit_result_, "hazard_model")
+        # Signal simulate_exits() to use the hazard path
+        if (!is.null(exit_policy))
+          exit_policy$defaults$exit_strategy <- "hazard"
+      }
+    } else {
+      warning("simulate_horizon: use_exit_hazard = TRUE but no panel data ",
+              "available for training. Falling back to rate-based exits.",
+              call. = FALSE)
+    }
   }
 
   # Resolve pensioner type label before any filtering uses it.
@@ -1121,7 +1229,7 @@ simulate_horizon <- function(contract_dt,
     stop("salary_col '", salary_col, "' not found in contract_dt.", call. = FALSE)
   }
 
-  # Initialise pensioner register with expanded schema (Phase 2c Part B)
+  # Initialise pensioner register with expanded schema 
   pensioner_register <- data.table::data.table(
     personnel_id               = character(0),
     pension_amount             = numeric(0),   # COLA-adjusted each period
