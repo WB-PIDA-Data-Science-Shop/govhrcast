@@ -9,7 +9,7 @@
 #' @keywords internal
 NULL
 
-# Suppress R CMD check NOTEs for data.table column names used in identify_retirees().
+# Suppress R CMD check NOTEs for data.table column names used in identify_eligibility().
 utils::globalVariables(c(
   "eligibility_type",  # per-row eligibility type column (resolved via resolve_policy_table)
   "min_age",           # per-row minimum age threshold
@@ -92,7 +92,7 @@ utils::globalVariables(c(
 #'   \item NA validation (missing required thresholds) fires only when the
 #'     caller explicitly supplied \code{eligibility_type} in
 #'     \code{policy_params$defaults}.  This prevents false positives when
-#'     \code{identify_retirees()} is invoked from non-retirement contexts
+#'     \code{identify_eligibility()} is invoked from non-retirement contexts
 #'     (e.g. hiring demand estimation) that omit eligibility configuration.
 #' }
 #'
@@ -121,18 +121,18 @@ utils::globalVariables(c(
 #' \code{choice_model} argument and default to \code{NULL} (100\% take-up).
 #'
 #' @keywords internal
-identify_retirees <- function(contract_dt,
-                              personnel_dt,
-                              policy_params,
-                              ref_date,
-                              personnel_id_col = "personnel_id",
-                              contract_id_col = "contract_id",
-                              birth_date_col = "birth_date",
-                              start_date_col = "start_date",
-                              end_date_col = "end_date",
-                              contract_type_col = "contract_type_code",
-                              age_col   = "age",
-                              tenure_col = "tenure_years") {
+identify_eligibility <- function(contract_dt,
+                                 personnel_dt,
+                                 policy_params,
+                                 ref_date,
+                                 personnel_id_col  = "personnel_id",
+                                 contract_id_col   = "contract_id",
+                                 birth_date_col    = "birth_date",
+                                 start_date_col    = "start_date",
+                                 end_date_col      = "end_date",
+                                 contract_type_col = "contract_type_code",
+                                 age_col           = "age",
+                                 tenure_col        = "tenure_years") {
   
   # Determine the effective scalar eligibility_type from defaults.
   # Used to decide which metrics to compute before the per-row resolution.
@@ -267,7 +267,7 @@ identify_retirees <- function(contract_dt,
 
   # Validate that mandatory thresholds are present for the eligibility type —
   # but only when the caller explicitly supplied an eligibility_type in
-  # policy_params$defaults.  When identify_retirees() is called from a non-
+  # policy_params$defaults.  When identify_eligibility() is called from a non-
   # retirement context (e.g. hiring demand) that provides no eligibility_type,
   # the safe default "age_only" is substituted above purely to keep fcase()
   # from erroring; in that case there is no misconfiguration to report.
@@ -281,12 +281,12 @@ identify_retirees <- function(contract_dt,
       eligibility_type %in% c("tenure_only", "age_and_tenure") & is.na(min_tenure)
     ]
     if (nrow(.bad_age) > 0L)
-      stop("identify_retirees: ", nrow(.bad_age),
+      stop("identify_eligibility: ", nrow(.bad_age),
            " rows have eligibility_type requiring 'min_age' but min_age is NA. ",
            "Check policy_params$defaults$min_age or policy_table.",
            call. = FALSE)
     if (nrow(.bad_ten) > 0L)
-      stop("identify_retirees: ", nrow(.bad_ten),
+      stop("identify_eligibility: ", nrow(.bad_ten),
            " rows have eligibility_type requiring 'min_tenure' but min_tenure is NA. ",
            "Check policy_params$defaults$min_tenure or policy_table.",
            call. = FALSE)
@@ -393,14 +393,14 @@ compute_retirement_summary <- function(retirees_dt, contract_dt = NULL) {
 #' Prepare Retiree Data for Pension Calculation
 #'
 #' @description
-#' Enriches the eligibility table from \code{\link{identify_retirees}} with
+#' Enriches the eligibility table from \code{\link{identify_eligibility}} with
 #' salary and contract information required for pension formula evaluation.
 #' Fills any \code{NA} age or tenure values left by the eligibility stage
 #' (e.g. when \code{eligibility_type = "tenure_only"} left \code{age} as
 #' \code{NA}) and selects one primary contract per retiree via
 #' \code{\link{get_primary_contract}}.
 #'
-#' @param eligibility_dt data.table.  Output of \code{\link{identify_retirees}}
+#' @param eligibility_dt data.table.  Output of \code{\link{identify_eligibility}}
 #'   with columns \code{personnel_id}, \code{retire}, \code{age},
 #'   \code{tenure_years}.  Only rows where \code{retire == 1} are processed;
 #'   the rest are ignored.
@@ -465,7 +465,7 @@ prepare_retiree_data <- function(eligibility_dt,
   }
   
   # Always compute both age and tenure here, regardless of eligibility_type.
-  # identify_retirees() only computes whichever field the eligibility rule needs,
+  # identify_eligibility() only computes whichever field the eligibility rule needs,
   # leaving the other as NA. Pension formulas (e.g. DB) may need both, so we
   # fill any missing values now from the source data.
   if (anyNA(retirees_only$age)) {

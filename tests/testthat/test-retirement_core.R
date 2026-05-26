@@ -29,10 +29,10 @@ create_test_personnel_dt <- function() {
 }
 
 # =============================================================================
-# identify_retirees() - age_only eligibility
+# identify_eligibility() - age_only eligibility
 # =============================================================================
 
-test_that("identify_retirees works with age_only eligibility", {
+test_that("identify_eligibility works with age_only eligibility", {
   contract_dt <- create_test_contract_dt()
   personnel_dt <- create_test_personnel_dt()
   
@@ -44,7 +44,7 @@ test_that("identify_retirees works with age_only eligibility", {
   
   ref_date <- as.Date("2025-01-01")
   
-  result <- identify_retirees(contract_dt, personnel_dt, policy_params, ref_date)
+  result <- identify_eligibility(contract_dt, personnel_dt, policy_params, ref_date)
   
   # Check structure
   expect_s3_class(result, "data.table")
@@ -61,7 +61,7 @@ test_that("identify_retirees works with age_only eligibility", {
   expect_true(all(is.na(result$tenure_years)))
 })
 
-test_that("identify_retirees respects exact min_age boundary", {
+test_that("identify_eligibility respects exact min_age boundary", {
   contract_dt <- create_test_contract_dt()
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
@@ -77,7 +77,7 @@ test_that("identify_retirees respects exact min_age boundary", {
   
   ref_date <- as.Date("2025-01-01")  # P001 is exactly 60.00, P002 is 59.997
   
-  result <- identify_retirees(contract_dt[1:2], personnel_dt, policy_params, ref_date)
+  result <- identify_eligibility(contract_dt[1:2], personnel_dt, policy_params, ref_date)
   
   # Only P001 should be eligible (>= 60), P002 is 59.997 years
   expect_equal(sum(result$retire), 1)
@@ -86,10 +86,10 @@ test_that("identify_retirees respects exact min_age boundary", {
 })
 
 # =============================================================================
-# identify_retirees() - tenure_only eligibility
+# identify_eligibility() - tenure_only eligibility
 # =============================================================================
 
-test_that("identify_retirees works with tenure_only eligibility", {
+test_that("identify_eligibility works with tenure_only eligibility", {
   contract_dt <- create_test_contract_dt()
   personnel_dt <- create_test_personnel_dt()
   
@@ -101,7 +101,7 @@ test_that("identify_retirees works with tenure_only eligibility", {
   
   ref_date <- as.Date("2025-01-01")
   
-  result <- identify_retirees(contract_dt, personnel_dt, policy_params, ref_date)
+  result <- identify_eligibility(contract_dt, personnel_dt, policy_params, ref_date)
   
   # Check structure
   expect_s3_class(result, "data.table")
@@ -117,7 +117,7 @@ test_that("identify_retirees works with tenure_only eligibility", {
   expect_true(all(is.na(result$age)))
 })
 
-test_that("identify_retirees respects exact min_tenure boundary", {
+test_that("identify_eligibility respects exact min_tenure boundary", {
   contract_dt <- data.table(
     contract_id = c("C001", "C002"),
     personnel_id = c("P001", "P002"),
@@ -139,7 +139,7 @@ test_that("identify_retirees respects exact min_tenure boundary", {
   
   ref_date <- as.Date("2025-01-01")  # P001 has exactly 15.000 years, P002 slightly less
   
-  result <- identify_retirees(contract_dt, personnel_dt, policy_params, ref_date)
+  result <- identify_eligibility(contract_dt, personnel_dt, policy_params, ref_date)
   
   # P001 should be eligible (>= 15), P002 should not (< 15)
   expect_equal(result[personnel_id == "P001"]$retire, 1)
@@ -147,10 +147,10 @@ test_that("identify_retirees respects exact min_tenure boundary", {
 })
 
 # =============================================================================
-# identify_retirees() - age_and_tenure eligibility
+# identify_eligibility() - age_and_tenure eligibility
 # =============================================================================
 
-test_that("identify_retirees works with age_and_tenure eligibility", {
+test_that("identify_eligibility works with age_and_tenure eligibility", {
   contract_dt <- create_test_contract_dt()
   personnel_dt <- create_test_personnel_dt()
   
@@ -162,7 +162,7 @@ test_that("identify_retirees works with age_and_tenure eligibility", {
   
   ref_date <- as.Date("2025-01-01")
   
-  result <- identify_retirees(contract_dt, personnel_dt, policy_params, ref_date)
+  result <- identify_eligibility(contract_dt, personnel_dt, policy_params, ref_date)
   
   # Check structure
   expect_s3_class(result, "data.table")
@@ -179,7 +179,7 @@ test_that("identify_retirees works with age_and_tenure eligibility", {
   expect_false(any(is.na(result$tenure_years)))
 })
 
-test_that("identify_retirees AND logic works correctly", {
+test_that("identify_eligibility AND logic works correctly", {
   contract_dt <- data.table(
     contract_id = c("C001", "C002", "C003"),
     personnel_id = c("P001", "P002", "P003"),
@@ -202,7 +202,7 @@ test_that("identify_retirees AND logic works correctly", {
   
   ref_date <- as.Date("2025-01-01")
   
-  result <- identify_retirees(contract_dt, personnel_dt, policy_params, ref_date)
+  result <- identify_eligibility(contract_dt, personnel_dt, policy_params, ref_date)
   
   # P001: age 65 (✓), tenure 25 (✓) -> eligible
   expect_equal(result[personnel_id == "P001"]$retire, 1)
@@ -215,10 +215,10 @@ test_that("identify_retirees AND logic works correctly", {
 })
 
 # =============================================================================
-# identify_retirees() - edge cases
+# identify_eligibility() - edge cases
 # =============================================================================
 
-test_that("identify_retirees handles missing birth_date for tenure_only", {
+test_that("identify_eligibility handles missing birth_date for tenure_only", {
   contract_dt <- create_test_contract_dt()
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002", "P003", "P004"),
@@ -235,13 +235,13 @@ test_that("identify_retirees handles missing birth_date for tenure_only", {
   ref_date <- as.Date("2025-01-01")
   
   # Should not error - age not needed for tenure_only
-  result <- identify_retirees(contract_dt, personnel_dt, policy_params, ref_date)
+  result <- identify_eligibility(contract_dt, personnel_dt, policy_params, ref_date)
   
   expect_s3_class(result, "data.table")
   expect_true(all(is.na(result$age)))
 })
 
-test_that("identify_retirees handles empty personnel list", {
+test_that("identify_eligibility handles empty personnel list", {
   contract_dt <- data.table(
     contract_id = character(),
     personnel_id = character(),
@@ -264,13 +264,13 @@ test_that("identify_retirees handles empty personnel list", {
   
   ref_date <- as.Date("2025-01-01")
   
-  result <- identify_retirees(contract_dt, personnel_dt, policy_params, ref_date)
+  result <- identify_eligibility(contract_dt, personnel_dt, policy_params, ref_date)
   
   expect_s3_class(result, "data.table")
   expect_equal(nrow(result), 0)
 })
 
-test_that("identify_retirees handles NA in computed age", {
+test_that("identify_eligibility handles NA in computed age", {
   contract_dt <- create_test_contract_dt()[1:2]
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
@@ -286,7 +286,7 @@ test_that("identify_retirees handles NA in computed age", {
   
   ref_date <- as.Date("2025-01-01")
   
-  result <- identify_retirees(contract_dt, personnel_dt, policy_params, ref_date)
+  result <- identify_eligibility(contract_dt, personnel_dt, policy_params, ref_date)
   
   # P001 should be eligible
   expect_equal(result[personnel_id == "P001"]$retire, 1)
@@ -295,7 +295,7 @@ test_that("identify_retirees handles NA in computed age", {
   expect_equal(result[personnel_id == "P002"]$retire, 0)
 })
 
-test_that("identify_retirees handles NA in computed tenure", {
+test_that("identify_eligibility handles NA in computed tenure", {
   contract_dt <- data.table(
     contract_id = c("C001", "C002"),
     personnel_id = c("P001", "P002"),
@@ -317,7 +317,7 @@ test_that("identify_retirees handles NA in computed tenure", {
   
   ref_date <- as.Date("2025-01-01")
   
-  result <- identify_retirees(contract_dt, personnel_dt, policy_params, ref_date)
+  result <- identify_eligibility(contract_dt, personnel_dt, policy_params, ref_date)
   
   # P001 should be eligible (25 years)
   expect_equal(result[personnel_id == "P001"]$retire, 1)
@@ -578,10 +578,10 @@ test_that("prepare_retiree_data preserves all contract columns", {
 
 
 # ===========================================================================
-# identify_retirees() — group-level policy params via policy_table
+# identify_eligibility() — group-level policy params via policy_table
 # ===========================================================================
 
-test_that("identify_retirees: group-level min_age via policy_table dispatches correctly", {
+test_that("identify_eligibility: group-level min_age via policy_table dispatches correctly", {
   contract_dt <- data.table::data.table(
     personnel_id       = c("P001", "P002", "P003"),
     contract_id        = c("C001", "C002", "C003"),
@@ -607,7 +607,7 @@ test_that("identify_retirees: group-level min_age via policy_table dispatches co
     policy_table = grade_tbl,
     defaults     = list(eligibility_type = "age_only", min_age = 60)
   )
-  result <- identify_retirees(
+  result <- identify_eligibility(
     contract_dt   = contract_dt,
     personnel_dt  = personnel_dt,
     policy_params = policy_params,
@@ -618,7 +618,7 @@ test_that("identify_retirees: group-level min_age via policy_table dispatches co
   expect_equal(result[personnel_id == "P003"]$retire, 0L)
 })
 
-test_that("identify_retirees: group-level min_tenure via policy_table dispatches correctly", {
+test_that("identify_eligibility: group-level min_tenure via policy_table dispatches correctly", {
   contract_dt <- data.table::data.table(
     personnel_id       = c("P001", "P002"),
     contract_id        = c("C001", "C002"),
@@ -643,7 +643,7 @@ test_that("identify_retirees: group-level min_tenure via policy_table dispatches
     policy_table = grade_tbl,
     defaults     = list(eligibility_type = "tenure_only", min_tenure = 25)
   )
-  result <- identify_retirees(
+  result <- identify_eligibility(
     contract_dt   = contract_dt,
     personnel_dt  = personnel_dt,
     policy_params = policy_params,
@@ -653,7 +653,7 @@ test_that("identify_retirees: group-level min_tenure via policy_table dispatches
   expect_equal(result[personnel_id == "P002"]$retire, 0L)
 })
 
-test_that("identify_retirees: unmatched grade uses default min_age from defaults", {
+test_that("identify_eligibility: unmatched grade uses default min_age from defaults", {
   contract_dt <- data.table::data.table(
     personnel_id       = c("P001", "P002"),
     contract_id        = c("C001", "C002"),
@@ -677,7 +677,7 @@ test_that("identify_retirees: unmatched grade uses default min_age from defaults
     policy_table = grade_tbl,
     defaults     = list(eligibility_type = "age_only", min_age = 62)
   )
-  result <- identify_retirees(
+  result <- identify_eligibility(
     contract_dt   = contract_dt,
     personnel_dt  = personnel_dt,
     policy_params = policy_params,

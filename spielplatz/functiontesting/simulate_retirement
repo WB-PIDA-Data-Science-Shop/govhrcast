@@ -1,6 +1,6 @@
+library(dplyr)
+
 ##### playing around with the retirement module
-
-
 contract_dt  <- data.table::copy(bra_hrmis_contract)
 personnel_dt <- data.table::copy(bra_hrmis_personnel)
 
@@ -32,16 +32,18 @@ results$summary
 
 
 #### simulate at the department level
+set.seed(123)
 
 policy_table <- 
   unique(contract_dt[, c("occupation_isconame", "paygrade")]) |>
-  mutate(min_age = sample(seq(50, 65, 5), replace = TRUE))
+  mutate(min_age = sample(seq(50, 65, 5), size = n(), replace = TRUE))
 
 policy_dt <- 
   unique(contract_dt[, c("occupation_isconame", "paygrade")])[,
   .(occupation_isconame, 
     paygrade, 
-    min_age = sample(seq(50, 65, 5), replace = TRUE))][]
+    min_age = sample(seq(50, 65, 5), size = .N, replace = TRUE))] |>
+  na.omit()
 
 policy_params <- list(group_cols = c("occupation_isconame", "paygrade"),
                       policy_table = policy_dt,

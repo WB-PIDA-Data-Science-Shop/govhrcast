@@ -181,7 +181,11 @@ compute_time_in_grade <- function(contract_dt,
 
   if (nrow(active_t0) == 0L) return(NULL)
 
+  # unique() on (personnel_id, group_cols), then dedup to one row per person.
+  # This prevents multi-contract individuals from appearing in multiple
+  # from_group buckets simultaneously without requiring salary/contract_id cols.
   state_t0 <- unique(active_t0[, c(personnel_id_col, group_cols), with = FALSE])
+  state_t0 <- state_t0[!duplicated(get(personnel_id_col))]
   state_t0 <- stats::na.omit(state_t0, cols = group_cols)
   state_t0[, from_group := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
   data.table::setnames(state_t0, personnel_id_col, ".pid")
@@ -196,6 +200,7 @@ compute_time_in_grade <- function(contract_dt,
   if (nrow(active_t1) == 0L) return(NULL)
 
   state_t1 <- unique(active_t1[, c(personnel_id_col, group_cols), with = FALSE])
+  state_t1 <- state_t1[!duplicated(get(personnel_id_col))]
   state_t1 <- stats::na.omit(state_t1, cols = group_cols)
   state_t1[, to_group := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
   data.table::setnames(state_t1, personnel_id_col, ".pid")

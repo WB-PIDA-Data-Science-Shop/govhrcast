@@ -64,4 +64,11 @@ Main state update function. Handles both hiring (positive net_change) and
 downsizing (negative net_change). Returns modified contract_dt and personnel_dt.
 This is the ONLY function that modifies state in the hiring module.
 }
+\section{Data Integrity}{
+
+Modifies \code{contract_dt} and \code{personnel_dt} \strong{in place} via
+data.table reference semantics.  Pass \code{data.table::copy()} on
+each if the originals must be preserved.
+}
+
 \keyword{internal}

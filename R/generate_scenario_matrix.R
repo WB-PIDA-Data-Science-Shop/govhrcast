@@ -15,12 +15,27 @@
 #' \enumerate{
 #'   \item Exact match to an argument of \code{simulate_horizon()} (e.g.
 #'     \code{n_periods}, \code{salary_growth_rate}).
-#'   \item Prefix \code{"retirement_"} → value injected into
-#'     \code{retirement_policy} (e.g. \code{retirement_min_age} →
-#'     \code{retirement_policy$min_age = value}).
-#'   \item Prefix \code{"movement_"} → injected into \code{movement_policy}.
-#'   \item Prefix \code{"hiring_"} → injected into \code{hiring_policy}.
+#'   \item Prefix \code{"retirement_"} → bare key injected into
+#'     \code{retirement_policy$defaults} if the key exists there, otherwise
+#'     into the top level of \code{retirement_policy}
+#'     (e.g. \code{retirement_min_age} →
+#'     \code{retirement_policy$defaults$min_age}).
+#'   \item Prefix \code{"exit_"} → injected into \code{exit_policy} by the
+#'     same depth rule (e.g. \code{exit_rate} →
+#'     \code{exit_policy$defaults$exit_rate}).
+#'   \item Prefix \code{"movement_"} → injected into \code{movement_policy}
+#'     by the same depth rule.
+#'   \item Prefix \code{"hiring_"} → injected into \code{hiring_policy} by
+#'     the same depth rule.
 #' }
+#' Scalar levers (\code{min_age}, \code{exit_rate}, \code{movement_rate},
+#' \code{replacement_rate}, etc.) live under \code{$defaults} in the canonical
+#' 3-slot policy structure and are injected there automatically.  Structural
+#' keys (\code{group_cols}, \code{policy_table}, \code{mode}) live at the top
+#' level and are injected there.  The base policy objects passed to
+#' \code{generate_scenario_matrix()} may already contain a \code{policy_table}
+#' defining group-level parameter variation; the grid then varies scalar
+#' defaults on top of that fixed group structure.
 #'
 #' **Execution** \cr
 #' The first scenario is always run as a synchronous smoke test before launching
@@ -47,15 +62,23 @@
 #'   conventions.
 #' @param n_periods Integer.  Number of annual periods per scenario.  Can also
 #'   be included in \code{param_grid} to vary it across scenarios.
-#' @param retirement_policy List.  Base retirement policy parameters.  Values
-#'   from \code{param_grid} with prefix \code{"retirement_"} override these each
-#'   run.  Pass \code{NULL} to skip retirement in all scenarios.
-#' @param movement_policy List.  Base movement policy parameters.  Values from
-#'   \code{param_grid} with prefix \code{"movement_"} override these.  Pass
-#'   \code{NULL} to skip.
-#' @param hiring_policy List.  Base hiring policy parameters.  Values from
-#'   \code{param_grid} with prefix \code{"hiring_"} override these.  Pass
-#'   \code{NULL} to skip.
+#' @param retirement_policy List or \code{NULL}.  Base canonical 3-slot
+#'   retirement policy (\code{group_cols}, \code{policy_table}, \code{defaults}).
+#'   Per-scenario scalar overrides are injected from \code{param_grid} entries
+#'   with prefix \code{"retirement_"} into \code{$defaults}.
+#'   Pass \code{NULL} to skip retirement in all scenarios.
+#' @param exit_policy List or \code{NULL}.  Base canonical 3-slot exit policy.
+#'   Per-scenario scalar overrides from \code{param_grid} entries with prefix
+#'   \code{"exit_"} are injected into \code{$defaults}.
+#'   Pass \code{NULL} to skip non-retirement attrition.
+#' @param movement_policy List or \code{NULL}.  Base canonical 3-slot movement
+#'   policy.  Per-scenario scalar overrides from \code{param_grid} entries with
+#'   prefix \code{"movement_"} are injected into \code{$defaults}.
+#'   Pass \code{NULL} to skip.
+#' @param hiring_policy List or \code{NULL}.  Base hiring policy.  Per-scenario
+#'   scalar overrides from \code{param_grid} entries with prefix \code{"hiring_"}
+#'   are injected (into \code{$defaults} if present, else top-level).
+#'   Pass \code{NULL} to skip.
 #' @param salary_growth_rate Numeric scalar.  Base COLA rate.  Overridden per
 #'   scenario if \code{"salary_growth_rate"} appears in \code{param_grid}.
 #' @param base_year Integer.  Calendar year label for period 1.
@@ -111,10 +134,11 @@
 #' pt <- bra_hrmis_personnel[ref_date == as.Date("2016-09-01")]
 #' ss <- data.table(est_id = unique(ct$est_id), gross_salary_lcu = 5000)
 #'
+#' # Grid: vary salary growth, retirement age, and exit rate across scenarios
 #' grid <- list(
-#'   salary_growth_rate      = c(0.02, 0.05, 0.10),
-#'   retirement_min_age      = c(55, 60),
-#'   movement_transfer_multiplier = c(0.5, 1.0, 2.0)
+#'   salary_growth_rate = c(0.02, 0.05, 0.10),
+#'   retirement_min_age = c(55, 60),       # → retirement_policy$defaults$min_age
+#'   exit_exit_rate     = c(0.03, 0.05)   # → exit_policy$defaults$exit_rate
 #' )
 #'
 #' results <- generate_scenario_matrix(
@@ -124,23 +148,40 @@
 #'   param_grid       = grid,
 #'   n_periods        = 5L,
 #'   retirement_policy = list(
-#'     eligibility_type = "age_only",
-#'     min_age          = 60,
-#'     pension_type     = "flat",
-#'     pension_params   = list(flat_amount = 1000)
+#'     group_cols   = NULL,
+#'     policy_table = NULL,
+#'     defaults = list(
+#'       eligibility_type = "age_only",
+#'       pension_type     = "flat",
+#'       min_age          = 60,
+#'       flat_amount      = 1000
+#'     )
+#'   ),
+#'   exit_policy = list(
+#'     group_cols   = NULL,
+#'     policy_table = NULL,
+#'     defaults = list(
+#'       exit_rate     = 0.04,
+#'       exit_strategy = "random",
+#'       active_types  = c("permanent", "fterm"),
+#'       exited_type   = "inactive"
+#'     )
 #'   ),
 #'   movement_policy = list(
-#'     group_cols           = "est_id",
-#'     salary_scale         = ss,
-#'     promotion_multiplier = 1.0,
-#'     transfer_multiplier  = 1.0,
-#'     promotion_strategy   = "tenure",
-#'     transfer_strategy    = "random"
+#'     group_cols   = "est_id",
+#'     policy_table = NULL,
+#'     defaults = list(
+#'       movement_rate      = 0.05,
+#'       movement_strategy  = "tenure",
+#'       active_types       = "permanent",
+#'       salary_update_rule = "scale"
+#'     )
 #'   ),
 #'   hiring_policy = list(
-#'     mode         = "flow",
-#'     group_cols   = "est_id",
-#'     salary_scale = ss
+#'     mode             = "flow",
+#'     group_cols       = "est_id",
+#'     replacement_rate = 1.0,
+#'     salary_scale     = ss
 #'   ),
 #'   salary_growth_rate = 0.03,
 #'   ref_date           = as.Date("2016-09-01")
@@ -159,6 +200,7 @@ generate_scenario_matrix <- function(contract_dt,
                                      param_grid,
                                      n_periods          = 5L,
                                      retirement_policy  = NULL,
+                                     exit_policy        = NULL,
                                      movement_policy    = NULL,
                                      hiring_policy      = NULL,
                                      salary_growth_rate = 0,
@@ -230,9 +272,22 @@ generate_scenario_matrix <- function(contract_dt,
   # Known orchestrator-level scalar levers (subset of simulate_horizon formals)
   horizon_scalars <- c("n_periods", "salary_growth_rate", "base_year")
 
+  # Inject a lever value into a policy list at the correct depth:
+  #   - if the key exists in pol$defaults → inject there (scalar default lever)
+  #   - otherwise → inject at the top level (structural key: group_cols, mode…)
+  .inject <- function(pol, key, val) {
+    if (!is.null(pol$defaults) && key %in% names(pol$defaults)) {
+      pol$defaults[[key]] <- val
+    } else {
+      pol[[key]] <- val
+    }
+    pol
+  }
+
   .build_args <- function(scenario_row) {
     # Start from base values
     ret_pol  <- retirement_policy
+    exit_pol <- exit_policy
     mov_pol  <- movement_policy
     hire_pol <- hiring_policy
     n_per    <- n_periods
@@ -250,13 +305,16 @@ generate_scenario_matrix <- function(contract_dt,
         by <- as.integer(val)
       } else if (startsWith(nm, "retirement_")) {
         key <- sub("^retirement_", "", nm)
-        if (!is.null(ret_pol)) ret_pol[[key]] <- val
+        if (!is.null(ret_pol))  ret_pol  <- .inject(ret_pol,  key, val)
+      } else if (startsWith(nm, "exit_")) {
+        key <- sub("^exit_", "", nm)
+        if (!is.null(exit_pol)) exit_pol <- .inject(exit_pol, key, val)
       } else if (startsWith(nm, "movement_")) {
         key <- sub("^movement_", "", nm)
-        if (!is.null(mov_pol)) mov_pol[[key]] <- val
+        if (!is.null(mov_pol))  mov_pol  <- .inject(mov_pol,  key, val)
       } else if (startsWith(nm, "hiring_")) {
         key <- sub("^hiring_", "", nm)
-        if (!is.null(hire_pol)) hire_pol[[key]] <- val
+        if (!is.null(hire_pol)) hire_pol <- .inject(hire_pol, key, val)
       }
       # Unknown lever names are silently ignored (forward-compatible)
     }
@@ -266,6 +324,7 @@ generate_scenario_matrix <- function(contract_dt,
       salary_growth_rate = sgr,
       base_year          = by,
       retirement_policy  = ret_pol,
+      exit_policy        = exit_pol,
       movement_policy    = mov_pol,
       hiring_policy      = hire_pol
     )
@@ -287,6 +346,7 @@ generate_scenario_matrix <- function(contract_dt,
         salary_scale_dt    = data.table::copy(salary_scale_dt),
         n_periods          = args$n_periods,
         retirement_policy  = args$retirement_policy,
+        exit_policy        = args$exit_policy,
         movement_policy    = args$movement_policy,
         hiring_policy      = args$hiring_policy,
         salary_growth_rate = args$salary_growth_rate,

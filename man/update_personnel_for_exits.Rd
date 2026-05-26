@@ -26,4 +26,11 @@ update_personnel_for_exits(
 \description{
 Sets \code{status_col} to \code{"inactive"} for all exiting personnel.
 }
+\section{Data Integrity}{
+
+Modifies \code{personnel_dt} \strong{in place} via data.table reference semantics.
+The caller's table is changed; pass \code{data.table::copy()} if the
+original must be preserved.
+}
+
 \keyword{internal}

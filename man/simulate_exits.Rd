@@ -9,7 +9,10 @@ simulate_exits(
   personnel_dt,
   policy_params,
   ref_date,
+  exit_hazard_model = NULL,
   personnel_id_col = "personnel_id",
+  birth_date_col = "birth_date",
+  start_date_col = "start_date",
   contract_id_col = "contract_id",
   contract_type_col = "contract_type_code",
   status_col = "status",
@@ -56,7 +59,25 @@ treated as active and eligible for exit.  Default
 
 \item{ref_date}{Date.  Reference date for this simulation period.}
 
+\item{exit_hazard_model}{A calibrated \code{hazard_model} object returned
+by \code{\link{fit_hazard_model}} and \code{\link{select_hazard_threshold}},
+or \code{NULL} (default).  Used only when
+\code{policy_params$defaults$exit_strategy = "hazard"}. When supplied,
+\code{\link{predict_hazard}} is called on the current-period snapshot and
+persons with \code{event = 1} become the exit set.  The
+\code{policy_table} / \code{exit_rate} fields of \code{policy_params} are
+ignored in hazard mode.}
+
 \item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
+
+\item{birth_date_col}{Character.  Column in \code{personnel_dt} holding
+date of birth.  Required only when \code{exit_strategy = "hazard"} and
+the hazard model uses age as a covariate.  Default \code{"birth_date"}.}
+
+\item{start_date_col}{Character.  Column in \code{contract_dt} holding
+contract start date.  Required only when \code{exit_strategy = "hazard"}
+and the hazard model uses tenure as a covariate.  Default
+\code{"start_date"}.}
 
 \item{contract_id_col}{Character.  Default \code{"contract_id"}.}
 
@@ -85,32 +106,21 @@ exit workflow: rate application, state updates, and summary statistics.
 Mirrors the structure of \code{simulate_retirement()} and
 \code{simulate_hiring()}.
 }
-\section{Exit rate modelling — status quo and future upgrade path}{
+\section{Exit rate modelling — status quo and hazard mode}{
 
-The current \code{"status_quo"} mode applies historically estimated
-group-level exit rates, held constant across all projection periods.  This
-is equivalent to assuming that the \emph{composition} of exits — by grade,
-contract type, and tenure — is stationary.  For short-horizon projections
-(1–5 years) with stable workforce compositions this is a defensible
-assumption.
+The \code{"status_quo"} mode applies historically estimated group-level exit
+rates held constant across all projection periods.  This equates the
+\emph{composition} of exits — by grade, contract type, and tenure — to
+past patterns.  For short-horizon projections (1–5 years) with stable
+workforce compositions this is a defensible assumption.
 
-A planned upgrade will replace group-level rates with a \strong{survival
-model} (e.g. Weibull or Cox proportional hazard) estimated from the
-individual-level panel data.  The survival model approach:
-\itemize{
-\item conditions exit probability on individual characteristics
-(tenure, age, grade, salary) that change over the simulation horizon;
-\item naturally handles compositional change as the workforce ages and
-grade structures evolve;
-\item produces a per-person, per-period exit probability vector that
-replaces the current group rate lookup.
-}
-The simulation architecture is already compatible with this upgrade: the
-survival model would be estimated once (outside the period loop) and its
-\code{predict()} output passed as a pre-computed probability column on
-\code{contract_dt}, replacing the rate-lookup in
-\code{compute_status_quo_exits()}.  No changes to the orchestration layer
-(\code{simulate_scenario()}) would be required.
+When \code{exit_hazard_model} is supplied and
+\code{policy_params$defaults$exit_strategy = "hazard"}, the function
+instead calls \code{\link{predict_hazard}} on the current-period snapshot.
+Persons with \code{event = 1} are the exiting set — no rate lookup or
+fixed-rate draw is performed.  All state-update and summary steps run
+unchanged on the hazard-derived exit set.  The existing
+\code{"random"} / \code{"status_quo"} paths are completely unaffected.
 }
 
 \examples{

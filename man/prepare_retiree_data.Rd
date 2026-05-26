@@ -19,7 +19,7 @@ prepare_retiree_data(
 )
 }
 \arguments{
-\item{eligibility_dt}{data.table.  Output of \code{\link{identify_retirees}}
+\item{eligibility_dt}{data.table.  Output of \code{\link{identify_eligibility}}
 with columns \code{personnel_id}, \code{retire}, \code{age},
 \code{tenure_years}.  Only rows where \code{retire == 1} are processed;
 the rest are ignored.}
@@ -63,7 +63,7 @@ Returns an empty \code{data.table()} (zero rows, no columns) when
 \code{eligibility_dt} contains no retirees.
 }
 \description{
-Enriches the eligibility table from \code{\link{identify_retirees}} with
+Enriches the eligibility table from \code{\link{identify_eligibility}} with
 salary and contract information required for pension formula evaluation.
 Fills any \code{NA} age or tenure values left by the eligibility stage
 (e.g. when \code{eligibility_type = "tenure_only"} left \code{age} as

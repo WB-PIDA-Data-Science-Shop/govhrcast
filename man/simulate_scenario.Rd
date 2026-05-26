@@ -14,10 +14,13 @@ simulate_scenario(
   exit_policy = NULL,
   movement_policy = NULL,
   hiring_policy = NULL,
+  retirement_hazard_model = NULL,
+  exit_hazard_model = NULL,
   salary_growth_rate = 0,
   pension_cola_rate = 0,
   personnel_id_col = "personnel_id",
   contract_id_col = "contract_id",
+  birth_date_col = "birth_date",
   start_date_col = "start_date",
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
@@ -44,18 +47,37 @@ ledger from prior periods.  Must contain columns \code{personnel_id},
 \code{pension_amount}, \code{period_date}.  Pass \code{NULL} (default)
 for the first period — an empty register is initialised internally.}
 
-\item{retirement_policy}{List or \code{NULL}.  Passed to
-\code{simulate_retirement()}.  Pass \code{NULL} to skip retirement.}
+\item{retirement_policy}{List or \code{NULL}.  Canonical 3-slot policy passed
+to \code{simulate_retirement()}: \code{group_cols}, \code{policy_table},
+\code{defaults} (keys: \code{eligibility_type}, \code{pension_type},
+\code{min_age}, \code{min_tenure}, \code{accrual_rate},
+\code{ref_wage_col}, \code{max_years}, \code{replacement_cap}).
+Pass \code{NULL} to skip retirement.}
 
-\item{exit_policy}{List or \code{NULL}.  Policy parameters for non-retirement
-attrition.  Passed to \code{compute_status_quo_exits()}.  Pass \code{NULL}
-to model zero attrition.}
+\item{exit_policy}{List or \code{NULL}.  Canonical 3-slot policy passed to
+\code{simulate_exits()}: \code{group_cols}, \code{policy_table},
+\code{defaults} (keys: \code{exit_rate}, \code{exit_strategy},
+\code{active_types}, \code{exited_type}).
+Pass \code{NULL} to model zero non-retirement attrition.}
 
-\item{movement_policy}{List or \code{NULL}.  Passed to
-\code{simulate_promotions_transfers()}.  Pass \code{NULL} to skip.}
+\item{movement_policy}{List or \code{NULL}.  Canonical 3-slot policy passed
+to \code{simulate_promotions_transfers()}: \code{group_cols},
+\code{policy_table}, \code{defaults} (keys: \code{movement_rate},
+\code{movement_strategy}, \code{active_types}, \code{salary_update_rule}).
+Pass \code{NULL} to skip movements.}
 
 \item{hiring_policy}{List or \code{NULL}.  Passed to
 \code{simulate_hiring()}.  Pass \code{NULL} to skip.}
+
+\item{retirement_hazard_model}{A calibrated \code{hazard_model} object or
+\code{NULL} (default).  Forwarded to \code{\link{simulate_retirement}}.
+When non-\code{NULL}, retirement take-up is governed by
+\code{\link{predict_hazard}} instead of the 100\\% take-up assumption.}
+
+\item{exit_hazard_model}{A calibrated \code{hazard_model} object or
+\code{NULL} (default).  Forwarded to \code{\link{simulate_exits}}.
+Activates hazard-mode exit selection when
+\code{exit_policy$defaults$exit_strategy = "hazard"}.}
 
 \item{salary_growth_rate}{Numeric scalar.  COLA rate for this period.
 Default \code{0}.}
@@ -67,6 +89,9 @@ Default \code{0}.}
 \item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
 
 \item{contract_id_col}{Character.  Default \code{"contract_id"}.}
+
+\item{birth_date_col}{Character.  Column holding date of birth.  Required
+when a hazard model uses age as a covariate.  Default \code{"birth_date"}.}
 
 \item{start_date_col}{Character.  Default \code{"start_date"}.}
 
