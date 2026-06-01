@@ -105,7 +105,7 @@ run_month_sim <- function(mo, contract_active, personnel_dt,
   )
 
   hiring_policy <- list(
-    mode         = "status_quo",
+    mode         = "flow",
     group_cols   = c("est_id", "paygrade"),
     salary_scale = salary_scale,
     rate_mult    = 1
