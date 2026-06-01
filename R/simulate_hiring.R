@@ -33,6 +33,12 @@
 #' @param salary_col Character. Name of salary column (default: "gross_salary_lcu")
 #' @param contract_type_col Character. Name of contract type column (default: "contract_type_code")
 #' @param status_col Character. Name of status column (default: "status")
+#' @param hire_date_col Character or \code{NULL}.  Name of a person-level column in
+#'   \code{personnel_dt} that holds the true administrative hire date
+#'   (e.g. \code{"first_employment_date"}).  When supplied and
+#'   \code{policy_params$mode = "status_quo"}, the function counts hires from
+#'   this column instead of using panel first-appearance detection.  Avoids
+#'   left-censoring bias.  Default \code{NULL} (panel first-appearance fallback).
 #'
 #' @return List containing:
 #'   \describe{
@@ -138,7 +144,8 @@ simulate_hiring <- function(contract_dt,
                            end_date_col = "end_date",
                            salary_col = "gross_salary_lcu",
                            contract_type_col = "contract_type_code",
-                           status_col = "status") {
+                           status_col = "status",
+                           hire_date_col = NULL) {
   
   # ========================================
   # 1. Input Validation
@@ -196,6 +203,7 @@ simulate_hiring <- function(contract_dt,
     policy_params = policy_params,
     retirees_dt = retirees_dt,
     ref_date = ref_date,
+    hire_date_col = hire_date_col,
     personnel_id_col = personnel_id_col,
     birth_date_col = birth_date_col,
     start_date_col = start_date_col,

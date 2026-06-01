@@ -1,3 +1,8 @@
+# Suppress R CMD check NOTEs for data.table bare column names.
+utils::globalVariables(c(
+  "event"  # simulate_exits: hazard prediction column used as bare name in [event == 1L]
+))
+
 #' Simulate Non-Retirement Exit Module
 #'
 #' @description

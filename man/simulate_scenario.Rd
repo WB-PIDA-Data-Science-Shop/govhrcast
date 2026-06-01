@@ -28,7 +28,8 @@ simulate_scenario(
   status_col = "status",
   age_col = "age",
   tenure_col = "tenure_years",
-  period_fraction = 1
+  period_fraction = 1,
+  hire_date_col = NULL
 )
 }
 \arguments{
@@ -39,13 +40,14 @@ simulate_scenario(
 \item{salary_scale_dt}{data.table.  Pay table used for movement and hiring
 salary assignment.  Updated in-place each period by \code{salary_growth_rate}.}
 
-\item{period_date}{Date.  Simulation date for this period -- stored in
-\code{pensioner_register} for cohort auditing.  Default: \code{Sys.Date()}.}
+\item{period_date}{Date.  The reference date for this simulation period.
+Stored in \code{pensioner_register} for cohort auditing and used as the
+\code{period_date} column in the returned summary row.}
 
 \item{pensioner_register}{data.table or \code{NULL}.  Accumulated pensioner
 ledger from prior periods.  Must contain columns \code{personnel_id},
 \code{pension_amount}, \code{period_date}.  Pass \code{NULL} (default)
-for the first period — an empty register is initialised internally.}
+for the first period -- an empty register is initialised internally.}
 
 \item{retirement_policy}{List or \code{NULL}.  Canonical 3-slot policy passed
 to \code{simulate_retirement()}: \code{group_cols}, \code{policy_table},
@@ -72,7 +74,7 @@ Pass \code{NULL} to skip movements.}
 \item{retirement_hazard_model}{A calibrated \code{hazard_model} object or
 \code{NULL} (default).  Forwarded to \code{\link{simulate_retirement}}.
 When non-\code{NULL}, retirement take-up is governed by
-\code{\link{predict_hazard}} instead of the 100\\% take-up assumption.}
+\code{\link{predict_hazard}} instead of the 100 percent take-up assumption.}
 
 \item{exit_hazard_model}{A calibrated \code{hazard_model} object or
 \code{NULL} (default).  Forwarded to \code{\link{simulate_exits}}.
@@ -112,13 +114,20 @@ Default \code{"tenure_years"}.}
 \item{period_fraction}{Numeric.  Fraction of a year each period represents
 (1 for annual, 1/12 for monthly, 1/365.25 for daily).  Used to increment
 \code{age_col} and \code{tenure_col} by the correct amount.  Default 1.}
+
+\item{hire_date_col}{Character or \code{NULL}.  Forwarded to
+\code{simulate_hiring()}.  When supplied, historical hiring rates are
+estimated from this person-level hire-date column rather than from panel
+first-appearance detection.  Only relevant when
+\code{hiring_policy$mode = "status_quo"}.  Default \code{NULL}.}
 }
 \value{
 Named list:
 \describe{
 \item{summary}{One-row \code{data.table} with columns:
 \code{period_date}, \code{n_headcount_start}, \code{wage_bill_start},
-\code{n_exits}, \code{exit_savings}, \code{pension_cost_new},
+\code{n_exits}, \code{exit_savings}, \code{n_non_ret_exits},
+\code{non_ret_exit_savings}, \code{pension_cost_new},
 \code{pension_cost_total}, \code{n_promotions}, \code{n_transfers},
 \code{promotion_effect}, \code{transfer_effect}, \code{n_hires},
 \code{hiring_effect}, \code{inflation_effect},
@@ -135,23 +144,22 @@ Runs all govhrcast simulation modules for \emph{one} period (year) and
 returns a one-row wage-bill decomposition summary together with updated
 state objects.  Operations are applied in this order:
 \enumerate{
-\item \strong{Snapshot A} — record \code{wage_bill_start} and \code{n_headcount_start}.
-\item \strong{Retirement} — remove retirees; accumulate \code{pensioner_register}.
-\item \strong{Movements} — apply promotions and transfers.
-\item \strong{Hiring} — fill vacancies.
-\item \strong{Aging} — increment \code{age} and \code{tenure_years}.
-\item \strong{COLA} — scale salary table and contract salaries.
-\item \strong{Snapshot B} — record \code{wage_bill_end} and \code{n_headcount_end}.
+\item \strong{Snapshot A} -- record \code{wage_bill_start} and \code{n_headcount_start}.
+\item \strong{Retirement} -- remove retirees; accumulate \code{pensioner_register}.
+\item \strong{Movements} -- apply promotions and transfers.
+\item \strong{Hiring} -- fill vacancies.
+\item \strong{Aging} -- increment \code{age} and \code{tenure_years}.
+\item \strong{COLA} -- scale salary table and contract salaries.
+\item \strong{Snapshot B} -- record \code{wage_bill_end} and \code{n_headcount_end}.
 }
 }
 \details{
 \strong{Wage bill measurement}: \code{wage_bill_start} and \code{wage_bill_end}
-are computed as \code{sum(salary_col)} over \emph{all} rows in
-\code{contract_dt} with no filtering.  From period 2 onwards pensioner rows
-are present in \code{contract_dt} (with
-\code{contract_type_code = "pensioner"}) and their \code{salary_col} value
-is included automatically.  The \code{pensioner_register} is therefore an
-audit ledger tracking \code{pension_amount} (the pension formula output).
+are computed via an internal helper that sums \code{salary_col} over active
+contract rows only -- rows with \code{contract_type_code = "pensioner"} and
+rows with a missing salary are excluded.  The \code{pensioner_register} is a
+separate audit ledger that tracks \code{pension_amount} (the pension formula
+output) and is never folded into the wage-bill totals.
 }
 \examples{
 \dontrun{
@@ -178,7 +186,6 @@ result <- simulate_scenario(
   contract_dt     = s$contract_dt,
   personnel_dt    = s$personnel_dt,
   salary_scale_dt = data.table(est_id = "E1", gross_salary_lcu = 50000),
-  year            = 2025L,
   period_date     = as.Date("2025-01-01"),
   salary_growth_rate = 0.03
 )

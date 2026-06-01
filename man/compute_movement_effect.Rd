@@ -18,7 +18,7 @@ compute_movement_effect(
 \code{personnel_id_col}.}
 
 \item{contract_dt_after}{data.table.  Contract snapshot \emph{after} the
-movement step — used to look up post-move salaries.}
+movement step -- used to look up post-move salaries.}
 
 \item{personnel_id_col}{Character.  Personnel ID column.  Default:
 \code{"personnel_id"}.}
@@ -27,13 +27,12 @@ movement step — used to look up post-move salaries.}
 \code{"gross_salary_lcu"}.}
 }
 \value{
-Named list with two numeric scalars:
+Named list with one numeric scalar:
 \describe{
-\item{promotion}{Net salary change from promotions
-(post-move minus pre-move, summed across all promotion movers).}
-\item{transfer}{Net salary change from transfers.}
+\item{movement}{Net salary change across all movers
+(post-move minus pre-move, summed regardless of movement type).}
 }
-Both are \code{0} when \code{movers_dt} is \code{NULL} or empty.
+Zero when \code{movers_dt} is \code{NULL} or empty.
 }
 \description{
 Computes the net salary change attributable to promotions and transfers in
@@ -55,7 +54,7 @@ after <- data.table(
   gross_salary_lcu = c(12000, 11000)
 )
 compute_movement_effect(movers, after)
-# list(promotion = 2000, transfer = -1000)
+# list(movement = 1000)
 }
 
 }

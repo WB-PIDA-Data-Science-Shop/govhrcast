@@ -407,7 +407,11 @@ generate_scenario_matrix <- function(contract_dt,
   # ====================================================================
   remaining <- seq(2L, n_scenarios)
 
-  use_parallel <- requireNamespace("future.apply", quietly = TRUE) &&
+  is_dev <- requireNamespace("pkgload", quietly = TRUE) &&
+    pkgload::is_dev_package("govhrcast")
+
+  use_parallel <- !is_dev &&
+    requireNamespace("future.apply", quietly = TRUE) &&
     !inherits(future::plan(), "SequentialFuture")
 
   if (use_parallel) {

@@ -5,6 +5,7 @@
 #' Includes date calculations, tenure computation, and other common operations.
 #'
 #' @import data.table
+#' @importFrom methods as
 #' @name utils
 #' @keywords internal
 NULL

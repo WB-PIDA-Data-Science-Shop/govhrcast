@@ -37,17 +37,17 @@ utils::globalVariables(c(
 #'   \code{personnel_id_col}, \code{birth_date_col}.  Optional:
 #'   \code{age_col}, \code{tenure_col}.
 #' @param policy_params List.  Unified policy specification.  See
-#'   \code{\link{simulate_retirement}} for the full \code{\describe} block.
+#'   \code{\link{simulate_retirement}} for the full three-slot specification.
 #'   Eligibility-relevant keys in \code{defaults}:
-#'   \describe{
-#'     \item{\code{eligibility_type}}{Character scalar.  One of
-#'       \code{"age_only"}, \code{"tenure_only"}, \code{"age_and_tenure"}.}
-#'     \item{\code{min_age}}{Numeric scalar.  Required when
+#'   \itemize{
+#'     \item \code{eligibility_type}: Character scalar.  One of
+#'       \code{"age_only"}, \code{"tenure_only"}, \code{"age_and_tenure"}.
+#'     \item \code{min_age}: Numeric scalar.  Required when
 #'       \code{eligibility_type} is \code{"age_only"} or
-#'       \code{"age_and_tenure"}.}
-#'     \item{\code{min_tenure}}{Numeric scalar.  Required when
+#'       \code{"age_and_tenure"}.
+#'     \item \code{min_tenure}: Numeric scalar.  Required when
 #'       \code{eligibility_type} is \code{"tenure_only"} or
-#'       \code{"age_and_tenure"}.}
+#'       \code{"age_and_tenure"}.
 #'   }
 #' @param ref_date Date.  Reference date for age and tenure computation.
 #' @param personnel_id_col Character.  Unique personnel identifier present in

@@ -44,46 +44,22 @@ selection uses \code{ref_date} as an upper bound, but age and tenure are
 always computed against this exact date.}
 
 \item{policy_params}{List. Retirement policy specification in the unified
-three-slot format:
-\describe{
-\item{\code{defaults}}{Named list of scalar fallback values applied to
-every employee not matched by \code{policy_table}.  Recognised keys:
-\describe{
-\item{\code{eligibility_type}}{Character scalar. Eligibility rule:
-\code{"age_only"}, \code{"tenure_only"}, or
-\code{"age_and_tenure"}.}
-\item{\code{min_age}}{Numeric scalar. Minimum age threshold in years
-(required when \code{eligibility_type} involves age).}
-\item{\code{min_tenure}}{Numeric scalar. Minimum years of service
-(required when \code{eligibility_type} involves tenure).}
-\item{\code{pension_type}}{Character scalar. Pension formula:
-\code{"db"} (defined-benefit), \code{"dc"} (defined-contribution),
-\code{"flat"}, or \code{"hybrid"} (DB + DC).}
-\item{\code{accrual_rate}}{Numeric scalar. Annual DB accrual rate
-(e.g. \code{0.02} = 2\\% of final salary per year of service).}
-\item{\code{ref_wage_col}}{Character scalar. Column pointer — names
-the salary column in \code{contract_dt} to use as the DB wage base
-(default: \code{"gross_salary_lcu"}).}
-\item{\code{max_years}}{Numeric scalar. Service cap for DB accrual.
-\code{NA} = no cap.}
-\item{\code{replacement_cap}}{Numeric scalar. Maximum pension as a
-fraction of final salary (e.g. \code{0.80} = 80\\%).  \code{NA} =
-no cap.}
-\item{\code{balance_col}}{Character scalar. Column pointer — names
-the DC account balance column in \code{contract_dt}.}
-\item{\code{annuity_factor}}{Numeric scalar. DC annuity divisor
-(e.g. \code{15} = 15-year payout horizon).}
-\item{\code{flat_amount}}{Numeric scalar. Fixed periodic pension for
-flat-rate systems.}
-}
-}
-\item{\code{group_cols}}{Character vector. Columns in \code{contract_dt}
-used as the join key for group-level policy variation (e.g.
-\code{c("paygrade", "occupation_isconame")}).  \code{NULL} for
-scalar-only dispatch.}
-\item{\code{policy_table}}{data.table. Lookup table with \code{group_cols}
-plus any per-group parameter columns that override \code{defaults}.
-\code{NULL} when group-level variation is not required.}
+three-slot format.  The list must contain three named elements:
+\itemize{
+\item \code{defaults}: Named list of scalar fallback values.
+Keys: \code{eligibility_type} (\code{"age_only"},
+\code{"tenure_only"}, \code{"age_and_tenure"}),
+\code{min_age}, \code{min_tenure},
+\code{pension_type} (\code{"db"}, \code{"dc"}, \code{"flat"},
+\code{"hybrid"}),
+\code{accrual_rate}, \code{ref_wage_col}, \code{max_years},
+\code{replacement_cap}, \code{balance_col}, \code{annuity_factor},
+\code{flat_amount}.
+\item \code{group_cols}: Character vector or \code{NULL}. Columns in
+\code{contract_dt} used as the join key for group-level policy
+variation.  \code{NULL} for scalar-only dispatch.
+\item \code{policy_table}: data.table or \code{NULL}.  Lookup table
+with \code{group_cols} plus per-group parameter overrides.
 }
 When omitted, a standard DB \code{age_and_tenure} policy is used
 (\code{min_age = 60}, \code{min_tenure = 10}, \code{accrual_rate = 0.02},
@@ -96,7 +72,7 @@ When supplied, \code{\link{predict_hazard}} is called on the
 current-period snapshot and its \code{event = 1} predictions are
 intersected with the eligibility pool before any state updates occur.
 Ineligible persons predicted by the model are silently dropped.
-When \code{NULL}, all eligible persons retire (100\\% take-up).}
+When \code{NULL}, all eligible persons retire (100 percent take-up).}
 
 \item{ref_date_col}{Character. Column in \code{contract_dt} (and optionally
 \code{personnel_dt}) identifying the panel snapshot date.
@@ -216,10 +192,10 @@ sets \code{status_col} to \code{"inactive"}.
 \section{Retirement eligibility vs. retirement choice}{
 
 When \code{retirement_hazard_model} is \code{NULL} (default), this function
-equates eligibility with retirement (100\\% take-up): every person who meets
+equates eligibility with retirement (100 percent take-up): every person who meets
 the policy thresholds retires.
 
-When a calibrated \code{\link{hazard_model}} object is supplied via
+When a calibrated \code{hazard_model} object is supplied via
 \code{retirement_hazard_model}, \code{\link{predict_hazard}} is called on
 the current-period snapshot to obtain a probabilistic retirement prediction
 for each active person.  Only persons for whom \code{event = 1} \emph{and}

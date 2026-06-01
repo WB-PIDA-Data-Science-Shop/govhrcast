@@ -37,7 +37,8 @@ simulate_horizon(
   period_unit = "year",
   birth_date_col = "birth_date",
   scenario_name = NULL,
-  is_baseline = FALSE
+  is_baseline = FALSE,
+  hire_date_col = NULL
 )
 }
 \arguments{
@@ -103,8 +104,30 @@ For \code{mode = "stock"}: also \code{group_cols}, \code{stock_targets}.
 For \code{mode = "status_quo"}: also \code{group_cols} and optionally
 \code{rate_mult} (default 1).  The panel tables
 (\code{panel_contract_dt} and \code{panel_personnel_dt}) are injected
-automatically — you do \emph{not} need to supply them.
+automatically -- you do \emph{not} need to supply them.
 Pass \code{NULL} to skip hiring in all periods.}
+
+\item{retirement_hazard_options}{Named list controlling hazard-model
+retirement.  Three recognised slots:
+\describe{
+\item{\code{use_hazard_model}}{Logical.  \code{TRUE} to fit a GLM on
+\code{contract_dt} / \code{personnel_dt} history and use
+\code{\link{predict_hazard}} for take-up.  Default \code{FALSE}.}
+\item{\code{covariates}}{Character vector of covariate column names
+passed to \code{\link{fit_hazard_model}} when
+\code{use_hazard_model = TRUE}.  Default \code{NULL} (uses
+\code{age} and \code{tenure_years}).}
+\item{\code{custom_model}}{A pre-fitted \code{hazard_model} object
+returned by \code{\link{fit_hazard_model}} /
+\code{\link{select_hazard_threshold}}.  When supplied,
+\code{use_hazard_model} is ignored and this model is used directly.}
+}
+Default: \code{list(use_hazard_model = FALSE, covariates = NULL, custom_model = NULL)}.}
+
+\item{exit_hazard_options}{Named list controlling hazard-model voluntary
+exits.  Same three slots as \code{retirement_hazard_options}:
+\code{use_hazard_model}, \code{covariates}, \code{custom_model}.
+Default: \code{list(use_hazard_model = FALSE, covariates = NULL, custom_model = NULL)}.}
 
 \item{salary_growth_rate}{Numeric scalar or vector of length \code{n_periods}.
 Annual COLA / inflation rate applied to salaries and the pay scale.
@@ -180,31 +203,27 @@ this run as the reference scenario in multi-scenario comparisons.  Only
 meaningful when \code{scenario_name} is also supplied.  Default
 \code{FALSE}.}
 
-\item{retirement_hazard_model}{A calibrated \code{hazard_model} object
-returned by \code{\link{fit_hazard_model}} and
-\code{\link{select_hazard_threshold}}, or \code{NULL} (default).
-When supplied, the object is passed unchanged to \code{\link{simulate_scenario}}
-every period so that \code{\link{simulate_retirement}} uses hazard-based
-take-up rather than the 100\\% take-up assumption.  The model is fitted
-\emph{once} by the caller before passing to this function.}
-
-\item{exit_hazard_model}{A calibrated \code{hazard_model} object or
-\code{NULL} (default).  Passed unchanged to \code{\link{simulate_scenario}}
-every period.  Activates hazard-mode exit selection when
-\code{exit_policy$defaults$exit_strategy = "hazard"}.  Fit once before
-calling this function.}
+\item{hire_date_col}{Character or \code{NULL}.  Name of a person-level column
+in \code{personnel_dt} that holds the true administrative hire date
+(e.g. \code{"first_employment_date"}).  When supplied and
+\code{hiring_policy$mode = "status_quo"}, the function estimates historical
+hiring rates from this column instead of panel first-appearance detection,
+avoiding left-censoring bias.  Passed unchanged to every call of
+\code{simulate_scenario()}.  Default \code{NULL}.}
 }
 \value{
 An object of class \code{horizon} with two primary components:
 \describe{
 \item{\code{$comparison}}{data.table. One row per simulated period with columns:
 \code{period_date}, \code{n_headcount_start}, \code{wage_bill_start},
-\code{n_exits}, \code{exit_savings}, \code{pension_cost_new},
+\code{n_exits}, \code{exit_savings}, \code{n_non_ret_exits},
+\code{non_ret_exit_savings}, \code{pension_cost_new},
 \code{pension_cost_total}, \code{n_promotions}, \code{n_transfers},
 \code{promotion_effect}, \code{transfer_effect}, \code{n_hires},
 \code{hiring_effect}, \code{inflation_effect},
 \code{n_headcount_end}, \code{wage_bill_end}, plus
 \code{exit_savings_pct_of_end_bill},
+\code{non_ret_exit_savings_pct_of_end_bill},
 \code{promotion_effect_pct_of_end_bill},
 \code{transfer_effect_pct_of_end_bill},
 \code{hiring_effect_pct_of_end_bill},
@@ -216,6 +235,10 @@ When \code{scenario_name} is supplied, also includes
 \item{\code{$metadata}}{Named list with \code{policy_args} capturing the
 retirement, movement, and hiring policy parameters used, plus
 \code{scenario_name} and \code{is_baseline} when supplied.}
+\item{\code{$pensioner_register}}{data.table. Accumulated ledger of all
+retirees across all simulated periods, with columns \code{personnel_id},
+\code{pension_amount}, and \code{period_date}.  Always present
+(zero-row table when no retirements occurred).}
 \item{\code{$contract_dt}}{data.table. Final-period contract snapshot.
 Only present when \code{return_microdata = TRUE}.}
 \item{\code{$personnel_dt}}{data.table. Final-period personnel snapshot.
@@ -231,15 +254,15 @@ new hiring, and inflation/COLA.
 \details{
 Within each period the operations are applied in this strict order:
 \enumerate{
-\item \strong{Retirement} — retirees are identified and removed; their pre-retirement
+\item \strong{Retirement} -- retirees are identified and removed; their pre-retirement
 salaries become \code{exit_savings}.
-\item \strong{Movements} — promotions and transfers are applied; the net per-mover
+\item \strong{Movements} -- promotions and transfers are applied; the net per-mover
 salary change is \code{promotion_effect} / \code{transfer_effect}.
-\item \strong{Hiring} — vacancies are filled; new-hire contract salaries sum to
+\item \strong{Hiring} -- vacancies are filled; new-hire contract salaries sum to
 \code{hiring_effect}.
-\item \strong{Aging} — \code{age} and \code{tenure_years} incremented for all
+\item \strong{Aging} -- \code{age} and \code{tenure_years} incremented for all
 active personnel.
-\item \strong{Inflation} — \code{salary_scale_dt} and all contract salaries scaled
+\item \strong{Inflation} -- \code{salary_scale_dt} and all contract salaries scaled
 by \code{(1 + growth_rate)}.
 }
 

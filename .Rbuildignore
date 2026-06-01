@@ -9,3 +9,4 @@
 ^app\.R$
 ^rsconnect$
 ^source-sans-pro$
+^test_results\.txt$

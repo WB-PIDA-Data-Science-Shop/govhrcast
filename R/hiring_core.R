@@ -439,17 +439,34 @@ compute_combined_demand <- function(contract_dt,
 #' Estimate Historical Hiring Rates from Panel Data
 #'
 #' @description
-#' Uses \code{govhr::detect_personnel_event()} to detect hire events across the
-#' full historical panel, joins them to contract data to recover grouping
-#' variables, computes per-group hiring rates (hires / active stock) for each
-#' snapshot, and returns the mean rate per group.
+#' Estimates per-group hiring rates (hires / active stock) from historical panel
+#' data.  Two methods are supported, selected by the \code{hire_date_col}
+#' argument:
+#'
+#' \describe{
+#'   \item{Panel first-appearance (default, \code{hire_date_col = NULL})}{
+#'     Uses \code{govhr::detect_personnel_event()} to detect the first time a
+#'     person appears in the panel.  Left-censored at the panel start date —
+#'     pre-existing staff present at the first snapshot are not counted as hires.}
+#'   \item{Administrative hire date (\code{hire_date_col} supplied)}{
+#'     Uses a person-level hire-date column (e.g. \code{"first_employment_date"})
+#'     read directly from \code{panel_personnel_dt}.  Hire events are counted
+#'     within the \code{[min(panel_dates), max(panel_dates)]} window.  This
+#'     method avoids left-censoring bias and is preferred when the column is
+#'     available.}
+#' }
 #'
 #' @param panel_contract_dt data.table. Full panel of contract data (all ref_dates).
 #' @param panel_personnel_dt data.table. Full panel of personnel data (all ref_dates).
 #' @param group_cols Character vector. Columns to group by (e.g. \code{"est_id"}).
 #'   Pass \code{NULL} for overall (ungrouped) rates.
-#' @param freq Character. Frequency passed to \code{govhr::detect_personnel_event()}.
-#'   Default \code{"year"}.
+#' @param hire_date_col Character or \code{NULL}.  Name of a person-level column
+#'   in \code{panel_personnel_dt} that holds the true administrative hire date
+#'   (e.g. \code{"first_employment_date"}).  When supplied, the function counts
+#'   hires directly from this column instead of using panel first-appearance
+#'   detection.  Default \code{NULL} (panel first-appearance method).
+#' @param freq Character. Frequency passed to \code{govhr::detect_personnel_event()}
+#'   when \code{hire_date_col = NULL}.  Default \code{"year"}.
 #' @param personnel_id_col Character. Personnel ID column. Default \code{"personnel_id"}.
 #' @param ref_date_col Character. Reference-date column in both panel tables.
 #'   Default \code{"ref_date"}.
@@ -463,6 +480,7 @@ compute_combined_demand <- function(contract_dt,
 estimate_historical_hiring_rates <- function(panel_contract_dt,
                                              panel_personnel_dt,
                                              group_cols,
+                                             hire_date_col     = NULL,
                                              freq              = "year",
                                              personnel_id_col  = "personnel_id",
                                              ref_date_col      = "ref_date",
@@ -472,8 +490,111 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
                                              status_col        = "status") {
 
   panel_dates <- sort(unique(panel_personnel_dt[[ref_date_col]]))
-  start_str   <- format(min(panel_dates, na.rm = TRUE))
-  end_str     <- format(max(panel_dates, na.rm = TRUE))
+  panel_start <- min(panel_dates, na.rm = TRUE)
+  panel_end   <- max(panel_dates, na.rm = TRUE)
+
+  # ------------------------------------------------------------------
+  # PATH A: Administrative hire date column (preferred when available)
+  # ------------------------------------------------------------------
+  if (!is.null(hire_date_col)) {
+    if (!hire_date_col %in% names(panel_personnel_dt))
+      stop("hire_date_col '", hire_date_col, "' not found in panel_personnel_dt.",
+           call. = FALSE)
+
+    # One row per person — hire date does not vary across snapshots
+    persons_dt <- unique(panel_personnel_dt[,
+      c(personnel_id_col, hire_date_col), with = FALSE
+    ])
+
+    # Restrict to hires that fall within the observable panel window
+    hire_events <- persons_dt[
+      !is.na(get(hire_date_col)) &
+      get(hire_date_col) >= panel_start &
+      get(hire_date_col) <= panel_end
+    ]
+
+    # Attach group_cols from the most recent contract snapshot for each person
+    if (!is.null(group_cols) && length(group_cols) > 0) {
+      # Use the latest available snapshot per person to recover group_cols;
+      # govhr::add_contract_to_event() deduplicates to one row per person.
+      # We create a synthetic event table keyed on hire date so the helper
+      # can match each hire to its contract context.
+      hire_event_dt <- data.table::copy(hire_events)
+      data.table::setnames(hire_event_dt, hire_date_col, ref_date_col)
+
+      hire_event_dt <- govhr::add_contract_to_event(
+        event_dt    = hire_event_dt,
+        contract_dt = panel_contract_dt,
+        keep_vars   = group_cols
+      )
+
+      hire_counts <- hire_event_dt[
+        !is.na(get(group_cols[[1]])),
+        .(n_hires = .N),
+        by = group_cols
+      ]
+    } else {
+      hire_counts <- data.table::data.table(n_hires = nrow(hire_events))
+    }
+
+    # Stock denominator: mean active stock across all snapshots (same denominator
+    # as in the panel first-appearance path)
+    stock_list <- lapply(panel_dates, function(snap) {
+      ct_snap <- panel_contract_dt[get(ref_date_col) == snap]
+      pt_snap <- panel_personnel_dt[get(ref_date_col) == snap]
+      ct_snap <- ct_snap[, !ref_date_col, with = FALSE]
+      pt_snap <- pt_snap[, !ref_date_col, with = FALSE]
+
+      s <- compute_current_stock(
+        contract_dt       = ct_snap,
+        personnel_dt      = pt_snap,
+        ref_date          = snap,
+        group_cols        = group_cols,
+        personnel_id_col  = personnel_id_col,
+        start_date_col    = start_date_col,
+        end_date_col      = end_date_col,
+        contract_type_col = contract_type_col,
+        status_col        = status_col
+      )
+      s
+    })
+    stock_dt <- data.table::rbindlist(stock_list, fill = TRUE)
+
+    # Average stock across snapshots (denominator = mean annual stock)
+    if (!is.null(group_cols) && length(group_cols) > 0) {
+      mean_stock <- stock_dt[,
+        .(current_stock = mean(current_stock, na.rm = TRUE)),
+        by = group_cols
+      ]
+      result_dt <- hire_counts[mean_stock, on = group_cols]
+    } else {
+      mean_stock <- data.table::data.table(
+        current_stock = mean(stock_dt$current_stock, na.rm = TRUE)
+      )
+      result_dt <- cbind(hire_counts, mean_stock)
+    }
+
+    # Rate = total hires in window / mean annual stock / n_years in window
+    n_years <- as.numeric(difftime(panel_end, panel_start, units = "days")) / 365.25
+    result_dt[is.na(n_hires), n_hires := 0L]
+    result_dt[, hiring_rate := data.table::fifelse(
+      current_stock > 0,
+      (n_hires / n_years) / current_stock,
+      0
+    )]
+
+    if (!is.null(group_cols) && length(group_cols) > 0) {
+      return(result_dt[, c(group_cols, "hiring_rate"), with = FALSE])
+    } else {
+      return(result_dt[, .(hiring_rate)])
+    }
+  }
+
+  # ------------------------------------------------------------------
+  # PATH B: Panel first-appearance (fallback when hire_date_col = NULL)
+  # ------------------------------------------------------------------
+  start_str <- format(panel_start)
+  end_str   <- format(panel_end)
 
   # Detect hire events across the full panel
   hire_events <- govhr::detect_personnel_event(
@@ -576,6 +697,10 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
 #'     \item salary_scale: data.table used for salary assignment of new hires.
 #'   }
 #' @param ref_date Date. Reference date for current-period stock calculation.
+#' @param hire_date_col Character or \code{NULL}.  Forwarded to
+#'   \code{estimate_historical_hiring_rates()}.  When non-\code{NULL}, the
+#'   administrative hire-date column is used instead of panel first-appearance
+#'   detection.  Default \code{NULL}.
 #' @param personnel_id_col Character. Default \code{"personnel_id"}.
 #' @param start_date_col Character. Default \code{"start_date"}.
 #' @param end_date_col Character. Default \code{"end_date"}.
@@ -588,6 +713,7 @@ compute_status_quo_hiring <- function(contract_dt,
                                       personnel_dt,
                                       policy_params,
                                       ref_date,
+                                      hire_date_col     = NULL,
                                       personnel_id_col  = "personnel_id",
                                       start_date_col    = "start_date",
                                       end_date_col      = "end_date",
@@ -602,6 +728,7 @@ compute_status_quo_hiring <- function(contract_dt,
     panel_contract_dt  = policy_params$panel_contract_dt,
     panel_personnel_dt = policy_params$panel_personnel_dt,
     group_cols         = group_cols,
+    hire_date_col      = hire_date_col,
     personnel_id_col   = personnel_id_col,
     start_date_col     = start_date_col,
     end_date_col       = end_date_col,
@@ -671,12 +798,13 @@ estimate_hiring_demand <- function(contract_dt,
                                    policy_params,
                                    retirees_dt = NULL,
                                    ref_date,
-                                   personnel_id_col = "personnel_id",
-                                   birth_date_col = "birth_date",
-                                   start_date_col = "start_date",
-                                   end_date_col = "end_date",
+                                   hire_date_col     = NULL,
+                                   personnel_id_col  = "personnel_id",
+                                   birth_date_col    = "birth_date",
+                                   start_date_col    = "start_date",
+                                   end_date_col      = "end_date",
                                    contract_type_col = "contract_type_code",
-                                   status_col = "status") {
+                                   status_col        = "status") {
   
   mode <- policy_params$mode
   
@@ -725,6 +853,7 @@ estimate_hiring_demand <- function(contract_dt,
       personnel_dt      = personnel_dt,
       policy_params     = policy_params,
       ref_date          = ref_date,
+      hire_date_col     = hire_date_col,
       personnel_id_col  = personnel_id_col,
       start_date_col    = start_date_col,
       end_date_col      = end_date_col,

@@ -18,7 +18,8 @@ simulate_hiring(
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
   contract_type_col = "contract_type_code",
-  status_col = "status"
+  status_col = "status",
+  hire_date_col = NULL
 )
 }
 \arguments{
@@ -60,6 +61,13 @@ simulate_hiring(
 \item{contract_type_col}{Character. Name of contract type column (default: "contract_type_code")}
 
 \item{status_col}{Character. Name of status column (default: "status")}
+
+\item{hire_date_col}{Character or \code{NULL}.  Name of a person-level column in
+\code{personnel_dt} that holds the true administrative hire date
+(e.g. \code{"first_employment_date"}).  When supplied and
+\code{policy_params$mode = "status_quo"}, the function counts hires from
+this column instead of using panel first-appearance detection.  Avoids
+left-censoring bias.  Default \code{NULL} (panel first-appearance fallback).}
 }
 \value{
 List containing:

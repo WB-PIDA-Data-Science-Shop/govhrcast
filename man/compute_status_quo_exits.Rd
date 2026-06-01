@@ -15,7 +15,7 @@ compute_status_quo_exits(
 \item{contract_dt}{data.table.  Current (single-snapshot) contract data.}
 
 \item{policy_params}{List.  Canonical three-slot exit policy specification.
-See \code{\link{simulate_exits}} for the full \code{\describe{}} block.
+See \code{\link{simulate_exits}} for the full three-slot specification.
 Keys consumed here: \code{group_cols}, \code{policy_table} (with
 \code{exit_rate} column), \code{defaults$exit_rate},
 \code{defaults$exit_strategy}, \code{defaults$active_types}.}

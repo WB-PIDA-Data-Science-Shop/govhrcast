@@ -68,6 +68,10 @@ the returned dataset.  Default: \code{"retired"}.}
 \item{contract_type_col}{Character.  Default: \code{"contract_type_code"}.}
 
 \item{contract_id_col}{Character.  Default: \code{"contract_id"}.}
+
+\item{salary_col}{Character.  Name of the salary column used as a tiebreaker
+when selecting the primary contract per person per snapshot (highest salary
+wins).  Default: \code{"gross_salary_lcu"}.}
 }
 \value{
 A \code{data.table} with one row per person per at-risk snapshot.
