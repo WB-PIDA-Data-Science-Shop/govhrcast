@@ -15,6 +15,14 @@
 # Internal helper: coerce character columns to factor, leave others unchanged.
 .chr_to_factor <- function(x) if (is.character(x)) factor(x) else x
 
+# Suppress R CMD check NOTEs for data.table bare column names.
+utils::globalVariables(c(
+  ".tmp_ref",            # build_retirement_hazard_data: temp ref_date column
+  ".first_retire_date",  # build_retirement_hazard_data: first retirement date per person
+  ".first_exit_date",    # build_exit_hazard_data: first non-retirement exit date per person
+  "threshold"            # select_hazard_threshold: diag_dt column used bare in [which.max, threshold]
+))
+
 
 # -----------------------------------------------------------------------------
 # .dedup_to_primary()
@@ -266,6 +274,9 @@
 #' @param end_date_col Character.  Default: \code{"end_date"}.
 #' @param contract_type_col Character.  Default: \code{"contract_type_code"}.
 #' @param contract_id_col Character.  Default: \code{"contract_id"}.
+#' @param salary_col Character.  Name of the salary column used as a tiebreaker
+#'   when selecting the primary contract per person per snapshot (highest salary
+#'   wins).  Default: \code{"gross_salary_lcu"}.
 #'
 #' @return A \code{data.table} with one row per person per at-risk snapshot.
 #'   Always contains:

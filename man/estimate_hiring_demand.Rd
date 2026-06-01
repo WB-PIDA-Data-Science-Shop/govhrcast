@@ -10,6 +10,7 @@ estimate_hiring_demand(
   policy_params,
   retirees_dt = NULL,
   ref_date,
+  hire_date_col = NULL,
   personnel_id_col = "personnel_id",
   birth_date_col = "birth_date",
   start_date_col = "start_date",

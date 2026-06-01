@@ -13,8 +13,10 @@ NULL
 
 # Suppress R CMD check NOTEs for data.table column names.
 utils::globalVariables(c(
-  "t0_date",      # estimate_movement_baseline: grouping column added by := then used in by=
-  "movement_rate" # compute_movement_demand: column used in := and by= expressions
+  "t0_date",       # estimate_movement_baseline: grouping column added by := then used in by=
+  "movement_rate",  # compute_movement_demand: column used in := and by= expressions
+  "n_dest",         # compute_fixed_rate_movements: bare column name in data.table
+  "rate_per_dest"   # compute_fixed_rate_movements: bare column name in data.table
 ))
 
 #' @name movement_core
