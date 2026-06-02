@@ -13,7 +13,7 @@ library(data.table)
 # library(govhrcast)
 library(qs2)
 library(purrr)
-
+library(dplyr)
 # ----------------------------------------------------------------------------
 # 0. Load data
 # ----------------------------------------------------------------------------
@@ -40,15 +40,48 @@ contract_active[, end_date := as.Date(NA)]
 contract_dt[contract_type_code == "pensioner",
             `:=`(base_salary_lcu = NA_real_, 
                  gross_salary_lcu = NA_real_)]
+
 # ----------------------------------------------------------------------------
 # 2. Simulation parameters (from 00-pre-simchecks.R)
 # ----------------------------------------------------------------------------
-SALARY_GROWTH_RATE <- 0.0488   # most recent full-year median (2024)
+
+### what are the overall rates of hiring and exits
+hiring_rates <- estimate_historical_hiring_rates(contract_active |> 
+                                                    mutate(year = year(ref_date)) |>
+                                                    dplyr::filter(!contract_type_code == "pensioner"), 
+                                                 personnel_dt |> 
+                                                   mutate(year = year(ref_date)) |> 
+                                                   dplyr::filter(!status == "pensioner"), 
+                                                  group_cols = "year")
+exit_rates <- estimate_historical_exit_rates(contract_active |> 
+                                                mutate(year = year(ref_date)) |>
+                                                dplyr::filter(!contract_type_code == "pensioner"), 
+                                             personnel_dt |> 
+                                              mutate(year = year(ref_date)) |> 
+                                              dplyr::filter(!status == "pensioner"), 
+                                             group_cols = "year")
+
+### what the salary growth rates over
+
+salary_growth_rate <- 
+govhr::compute_fastsummary(data = contract_dt |>
+                                    mutate(year = year(ref_date)) |>
+                                    dplyr::filter(!contract_type_code == "pensioner"),
+                           cols = "gross_salary_lcu",
+                           groups = "year",
+                           fns = "median") |>
+  govhr::compute_fastchange(col = "value",
+                            date_col = "year")
+
+
+
+
+SALARY_GROWTH_RATE <- salary_growth_rate |> filter(year == 2024) |> pull(value_growth)  # most recent full-year median (2024)
 MIN_RETIREMENT_AGE <- 60L
-EXIT_RATE          <- 0.0076   # aggregate annual non-retirement attrition
+EXIT_RATE          <- exit_rates |> filter(year == 2024) |> pull(exit_rate)   # aggregate annual non-retirement attrition
 N_PERIODS          <- 5L
 HIRE_DATE_COL      <- "first_employment_date"
-
+                            
 # Salary scale is computed per month inside run_month_sim using each month's
 # most recent snapshot, so there is no single global salary_scale object here.
 
@@ -108,7 +141,7 @@ run_month_sim <- function(mo, contract_active, personnel_dt,
     mode         = "flow",
     group_cols   = c("est_id", "paygrade"),
     salary_scale = salary_scale,
-    rate_mult    = 1
+    replacement_rate    = 1
     # panel_contract_dt and panel_personnel_dt injected automatically
     # by simulate_horizon when mode = "status_quo"
   )
