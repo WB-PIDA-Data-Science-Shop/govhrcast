@@ -545,7 +545,8 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
       setnames(hire_counts, "V1", "n_hires")
 
     } else {
-      hire_counts <- hire_events[,.(n_hires = .N), by = ref_date_col]
+      hire_counts <- hire_events[, .(n_hires = .N), by = ref_date_col]
+      hire_counts <- data.table::data.table(n_hires = mean(hire_counts$n_hires, na.rm = TRUE))
     }
 
     # Stock denominator: mean active stock across all snapshots (same denominator
@@ -595,7 +596,7 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
     result_dt[is.na(n_hires), n_hires := 0L]
     result_dt[, hiring_rate := data.table::fifelse(
       current_stock > 0,
-      n_hires / current_stock,
+      n_hires / n_years / current_stock,
       0
     )]
 

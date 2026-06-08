@@ -593,8 +593,6 @@ simulate_scenario <- function(contract_dt,
   }
 
   # ------------------------------------------------------------------
-  # STEP 4: AGING
-  # ------------------------------------------------------------------
   # STEP 5: AGING
   # ------------------------------------------------------------------
   if (!is.null(age_col) && age_col %in% names(personnel_dt)) {
@@ -1326,8 +1324,9 @@ simulate_horizon <- function(contract_dt,
   # This is forward-compatible with Phase 2b where the prologue will also
   # pre-compute tenure once and increment it per period rather than
   # recomputing inside identify_eligibility().
+  # Age: overwrite age_col using birth_date_col, if both are available.
   if (!is.null(birth_date_col) &&
-      is.null(age_col) &&
+      !is.null(age_col) &&
       birth_date_col %in% names(personnel_dt)) {
     .ref_date_p1b_ <- ref_date  # alias: data.table col 'ref_date' must not shadow this
     personnel_dt[, (age_col) := as.numeric(
@@ -1339,7 +1338,7 @@ simulate_horizon <- function(contract_dt,
   # Tenure: compute from contract history and inject into personnel_dt.
   # This replaces the per-period compute_tenure() call inside
   # identify_eligibility() with a single upfront computation.
-  if (is.null(tenure_col)) {
+  if (!is.null(tenure_col)) {
     tenure_init <- compute_tenure(
       contract_dt       = contract_dt,
       ref_date          = ref_date,
@@ -1365,9 +1364,9 @@ simulate_horizon <- function(contract_dt,
   # compute historical hiring rates if status quo hiring is selected
   # so that simulate_hiring() under status quo mode recieves a 
   # pre-computed hiring rate
-  if (hiring_policy$mode == "status_quo"){
+  if (!is.null(hiring_policy) && identical(hiring_policy$mode, "status_quo")){
 
-    if (has_panel){
+    if (.has_panel_){
 
       hiring_policy$squorate_dt <- tryCatch(
         estimate_historical_hiring_rates(
