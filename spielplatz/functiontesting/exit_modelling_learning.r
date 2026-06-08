@@ -4,6 +4,8 @@ library(govhrcast)
 ct <- bra_hrmis_contract[ref_date == as.Date("2016-09-01")]
 pt <- bra_hrmis_personnel[ref_date == as.Date("2016-09-01")]
 
+
+
 # --- Mode 1: fixed_rate ---
 res_fixed <- simulate_exits(
   contract_dt   = ct,

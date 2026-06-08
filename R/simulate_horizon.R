@@ -1327,18 +1327,19 @@ simulate_horizon <- function(contract_dt,
   # pre-compute tenure once and increment it per period rather than
   # recomputing inside identify_eligibility().
   if (!is.null(birth_date_col) &&
-      !is.null(age_col) &&
+      is.null(age_col) &&
       birth_date_col %in% names(personnel_dt)) {
     .ref_date_p1b_ <- ref_date  # alias: data.table col 'ref_date' must not shadow this
     personnel_dt[, (age_col) := as.numeric(
       difftime(.ref_date_p1b_, get(birth_date_col), units = "days")
     ) / 365.25]
   }
+  
 
   # Tenure: compute from contract history and inject into personnel_dt.
   # This replaces the per-period compute_tenure() call inside
   # identify_eligibility() with a single upfront computation.
-  if (!is.null(tenure_col)) {
+  if (is.null(tenure_col)) {
     tenure_init <- compute_tenure(
       contract_dt       = contract_dt,
       ref_date          = ref_date,
@@ -1361,6 +1362,37 @@ simulate_horizon <- function(contract_dt,
 
   period_rows <- vector("list", n_periods)
 
+  # compute historical hiring rates if status quo hiring is selected
+  # so that simulate_hiring() under status quo mode recieves a 
+  # pre-computed hiring rate
+  if (hiring_policy$mode == "status_quo"){
+
+    if (has_panel){
+
+      hiring_policy$squorate_dt <- tryCatch(
+        estimate_historical_hiring_rates(
+          panel_contract_dt  = hiring_policy$panel_contract_dt,
+          panel_personnel_dt = hiring_policy$panel_personnel_dt,
+          group_cols         = hiring_policy$group_cols,
+          hire_date_col      = hire_date_col,
+          personnel_id_col   = personnel_id_col,
+          start_date_col     = start_date_col,
+          end_date_col       = end_date_col,
+          contract_type_col  = contract_type_col,
+          status_col         = status_col
+        ),
+        error = function(e) {
+          warning("simulate_horizon: historical rate estimation failed ",
+                  conditionMessage(e), ". No hiring will be simulated",
+                  call. = FALSE)
+          hiring_policy <- NULL
+        }
+      )
+    }
+
+
+  }
+
   # ====================================================================
   # PERIOD LOOP
   # =====================================================================
@@ -1382,11 +1414,11 @@ simulate_horizon <- function(contract_dt,
       hiring_policy           = hiring_policy,
       retirement_hazard_model = retirement_hazard_model,
       exit_hazard_model       = exit_hazard_model,
-      salary_growth_rate = growth,
-      pension_cola_rate  = cola_rate,
-      personnel_id_col   = personnel_id_col,
-      contract_id_col    = contract_id_col,
-      birth_date_col     = birth_date_col,
+      salary_growth_rate      = growth,
+      pension_cola_rate       = cola_rate,
+      personnel_id_col        = personnel_id_col,
+      contract_id_col         = contract_id_col,
+      birth_date_col          = birth_date_col,
       start_date_col     = start_date_col,
       end_date_col       = end_date_col,
       salary_col         = salary_col,

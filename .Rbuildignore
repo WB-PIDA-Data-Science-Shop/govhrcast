@@ -10,3 +10,4 @@
 ^rsconnect$
 ^source-sans-pro$
 ^test_results\.txt$
+^\.Rproj\.user$

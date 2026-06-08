@@ -18,6 +18,8 @@ dir <- paste0(
 contract_dt  <- qs2::qs_read(paste0(dir, "/bwa_contract.qs2"))
 personnel_dt <- qs2::qs_read(paste0(dir, "/bwa_personnel.qs2"))
 
+
+
 # ----------------------------------------------------------------------------
 # 0. Add end_date column (absent in BWA panel — activity encoded in
 #    contract_type_code).  Required by get_active_contracts() internals.

@@ -14,6 +14,7 @@ library(data.table)
 library(qs2)
 library(purrr)
 library(dplyr)
+library(ggplot2)
 # ----------------------------------------------------------------------------
 # 0. Load data
 # ----------------------------------------------------------------------------
@@ -88,10 +89,14 @@ HIRE_DATE_COL      <- "first_employment_date"
 # ----------------------------------------------------------------------------
 # 3. Helper: run one month's simulation
 # ----------------------------------------------------------------------------
-run_month_sim <- function(mo, contract_active, personnel_dt,
-                          salary_growth_rate,
-                          min_retirement_age, exit_rate,
-                          n_periods, hire_date_col) {
+run_month_statusquo <- function(mo, 
+                                contract_active, 
+                                personnel_dt,
+                                salary_growth_rate,
+                                min_retirement_age, 
+                                exit_rate,
+                                n_periods, 
+                                hire_date_col) {
 
   # --- Subset panel to this calendar month only ---
   ct_mo <- contract_active[data.table::month(ref_date) == mo]
@@ -138,13 +143,11 @@ run_month_sim <- function(mo, contract_active, personnel_dt,
   )
 
   hiring_policy <- list(
-    mode         = "flow",
+    mode         = "status_quo",
     group_cols   = c("est_id", "paygrade"),
     salary_scale = salary_scale,
-    replacement_rate    = 1
-    # panel_contract_dt and panel_personnel_dt injected automatically
-    # by simulate_horizon when mode = "status_quo"
-  )
+    rate_mult    = 1
+   )
 
   # Run simulation -----------------------------------------------------------
   result <- tryCatch(
@@ -189,7 +192,7 @@ cat("\nRunning 12 month simulations sequentially...\n")
 
 month_results <- purrr::map(
   .x = 1:12,
-  .f = run_month_sim,
+  .f = run_month_statusquo,
   contract_active    = contract_active,
   personnel_dt       = personnel_dt,
   salary_growth_rate = SALARY_GROWTH_RATE,
@@ -285,18 +288,18 @@ p_wb <- ggplot(plot_dt, aes(x = ref_date, y = wage_bill / wb_scale,
 
 p_hc <- ggplot(plot_dt, aes(x = ref_date, y = headcount / hc_scale,
                              linetype = type, colour = type)) +
-  geom_line(linewidth = 0.8) +
-  geom_vline(xintercept = as.Date("2025-09-01"), linetype = "dotted",
-             colour = "grey50", linewidth = 0.5) +
-  scale_linetype_manual(values = c("Actual" = "solid", "Simulated" = "dashed")) +
-  scale_colour_manual(values  = c("Actual" = "#1f77b4", "Simulated" = "#ff7f0e")) +
-  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
-  labs(title = "Botswana — Active Headcount: Actual vs Simulated (status quo)",
-       x = NULL, y = "Active employees (thousands)",
-       linetype = NULL, colour = NULL) +
-  theme_minimal(base_size = 11) +
-  theme(legend.position = "bottom",
-        axis.text.x = element_text(angle = 45, hjust = 1))
+        geom_line(linewidth = 0.8) +
+        geom_vline(xintercept = as.Date("2025-09-01"), linetype = "dotted",
+                   colour = "grey50", linewidth = 0.5) +
+        scale_linetype_manual(values = c("Actual" = "solid", "Simulated" = "dashed")) +
+        scale_colour_manual(values  = c("Actual" = "#1f77b4", "Simulated" = "#ff7f0e")) +
+        scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+        labs(title = "Botswana — Active Headcount: Actual vs Simulated (status quo)",
+             x = NULL, y = "Active employees (thousands)",
+             linetype = NULL, colour = NULL) +
+        theme_minimal(base_size = 11) +
+        theme(legend.position = "bottom",
+              axis.text.x = element_text(angle = 45, hjust = 1))
 
 
 
