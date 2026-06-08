@@ -256,8 +256,8 @@ hist_dt[, ref_year := data.table::year(ref_date)]
 #     Plot at period_date + 1 year so simulated points appear after actuals. ---
 sim_dt <- simulation_results[, .(
   ref_date  = period_date + 365L,
-  wage_bill = wage_bill_start,
-  headcount = n_headcount_start
+  wage_bill = wage_bill_end,
+  headcount = n_headcount_end
 )][order(ref_date)]
 
 # --- Combine ---

@@ -195,7 +195,7 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
                               salary_col,
                               personnel_id_col) {
   contract_dt[
-    get(contract_type_col) != "pensioner" & !is.na(get(salary_col)),
+    !get(contract_type_col) %in% c("pensioner", "inactive") & !is.na(get(salary_col)),
     .(salary = sum(get(salary_col), na.rm = TRUE)),
     by = c(personnel_id_col)
   ][, sum(salary, na.rm = TRUE)]
@@ -1325,20 +1325,28 @@ simulate_horizon <- function(contract_dt,
   # pre-compute tenure once and increment it per period rather than
   # recomputing inside identify_eligibility().
   # Age: overwrite age_col using birth_date_col, if both are available.
-  if (!is.null(birth_date_col) &&
+  # Age: compute from birth_date_col only when age_col is not already
+  # populated in personnel_dt (all NA or column absent).
+  .age_missing_ <- is.null(age_col) ||
+    !(age_col %in% names(personnel_dt)) ||
+    all(is.na(personnel_dt[[age_col]]))
+
+  if (.age_missing_ && !is.null(birth_date_col) &&
       !is.null(age_col) &&
       birth_date_col %in% names(personnel_dt)) {
-    .ref_date_p1b_ <- ref_date  # alias: data.table col 'ref_date' must not shadow this
+    .ref_date_p1b_ <- ref_date
     personnel_dt[, (age_col) := as.numeric(
       difftime(.ref_date_p1b_, get(birth_date_col), units = "days")
     ) / 365.25]
   }
-  
 
-  # Tenure: compute from contract history and inject into personnel_dt.
-  # This replaces the per-period compute_tenure() call inside
-  # identify_eligibility() with a single upfront computation.
-  if (!is.null(tenure_col)) {
+  # Tenure: compute from contract history only when tenure_col is not already
+  # populated in personnel_dt (all NA or column absent).
+  .tenure_missing_ <- is.null(tenure_col) ||
+                      !(tenure_col %in% names(personnel_dt)) ||
+                      all(is.na(personnel_dt[[tenure_col]]))
+
+  if (!is.null(tenure_col) && .tenure_missing_) {    
     tenure_init <- compute_tenure(
       contract_dt       = contract_dt,
       ref_date          = ref_date,
