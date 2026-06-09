@@ -69,6 +69,7 @@ compute_pension <- function(retirees_dt) {
       "dc"     = compute_dc_pension(dt_sub),
       "flat"   = compute_flat_pension(dt_sub),
       "hybrid" = compute_hybrid_pension(dt_sub),
+      "rate"   = compute_rate_pension(dt_sub),
       stop("Unknown pension policy type: ", ptype, call. = FALSE)
     )
   }
@@ -242,4 +243,44 @@ compute_flat_pension <- function(dt) {
 #' @keywords internal
 compute_hybrid_pension <- function(dt) {
   compute_db_pension(dt) + compute_dc_pension(dt)
+}
+
+
+
+
+#' Compute Rate Pension
+#'
+#' @description
+#' Computes a pension as a fixed proportion of the retiree's reference wage.
+#' Intended for schemes where the periodic pension is a known percentage of
+#' final salary (e.g. Botswana's 15\% defined-contribution scheme).
+#'
+#' @param dt data.table. Retiree subset (\code{pension_type == "rate"}).
+#'   Required columns: \code{pension_rate} (numeric, e.g. \code{0.15}),
+#'   \code{ref_wage_col} (character column-pointer naming the wage column).
+#'
+#' @details
+#' \strong{Formula:}
+#' \deqn{P_i = r_i \cdot w_i}
+#' where \eqn{r_i} = \code{pension_rate} and \eqn{w_i} = wage from the
+#' column named by \code{ref_wage_col}. \code{pmax(pension, 0)} prevents
+#' negative pensions from non-positive rates or wages.
+#'
+#' @return Numeric vector of pension amounts (length \code{nrow(dt)}).
+#'   Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
+#' @keywords internal
+compute_rate_pension <- function(dt) {
+  if (nrow(dt) == 0L) return(numeric(0))
+
+  wage_col <- dt$ref_wage_col[1L]
+  if (is.null(wage_col) || is.na(wage_col))
+    stop("compute_rate_pension: 'ref_wage_col' column is missing or NA", call. = FALSE)
+  if (!wage_col %in% names(dt))
+    stop("compute_rate_pension: wage column '", wage_col, "' not found in retirees_dt",
+         call. = FALSE)
+  if (!"pension_rate" %in% names(dt))
+    stop("compute_rate_pension: 'pension_rate' column not found in retirees_dt",
+         call. = FALSE)
+
+  pmax(dt$pension_rate * dt[[wage_col]], 0)
 }
