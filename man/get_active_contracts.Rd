@@ -20,15 +20,14 @@ get_active_contracts(
 \code{start_date <= ref_date} and
 (\code{is.na(end_date)} or \code{end_date >= ref_date}).}
 
-\item{start_date_col}{Character.  Contract start date column.
-(default: \code{"start_date"}).}
-
 \item{end_date_col}{Character.  Contract end date column; \code{NA} for
 open-ended contracts.  (default: \code{"end_date"}).}
 
 \item{contract_type_col}{Character.  Contract classification column.
 Contracts with type \code{"inactive"} or \code{"pensioner"} are
 excluded.  (default: \code{"contract_type_code"}).}
+
+\item{start_date}{Date the contract level start date}
 }
 \value{
 data.table.  Subset of \code{contract_dt} containing only active

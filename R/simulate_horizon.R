@@ -418,6 +418,7 @@ simulate_scenario <- function(contract_dt,
   pension_cost_new <- 0
   retirees_dt      <- NULL
 
+
  if (!is.null(retirement_policy)) {
     ret_result <- simulate_retirement(
       contract_dt             = contract_dt,

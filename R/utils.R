@@ -316,8 +316,7 @@ compute_tenure_panel <- function(contract_dt,
 #' @param ref_date Date.  The snapshot date.  A contract is included if
 #'   \code{start_date <= ref_date} and
 #'   (\code{is.na(end_date)} or \code{end_date >= ref_date}).
-#' @param start_date_col Character.  Contract start date column.
-#'   (default: \code{"start_date"}).
+#' @param start_date Date the contract level start date
 #' @param end_date_col Character.  Contract end date column; \code{NA} for
 #'   open-ended contracts.  (default: \code{"end_date"}).
 #' @param contract_type_col Character.  Contract classification column.
