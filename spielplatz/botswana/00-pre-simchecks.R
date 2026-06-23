@@ -18,6 +18,8 @@ dir <- paste0(
 contract_dt  <- qs2::qs_read(paste0(dir, "/bwa_contract.qs2"))
 personnel_dt <- qs2::qs_read(paste0(dir, "/bwa_personnel.qs2"))
 
+
+
 # ----------------------------------------------------------------------------
 # 0. Add end_date column (absent in BWA panel — activity encoded in
 #    contract_type_code).  Required by get_active_contracts() internals.
@@ -118,7 +120,7 @@ cat("Note: start_date is 36.7% missing — do NOT use min_tenure gate.\n")
 # ----------------------------------------------------------------------------
 cat("\n=== 5. Aggregate annual exit rate ===\n")
 
-exit_rates <- govhrcast:::estimate_historical_exit_rates(
+exit_rates <- estimate_historical_exit_rates(
   panel_contract_dt  = contract_active,
   panel_personnel_dt = personnel_dt,
   group_cols         = NULL,

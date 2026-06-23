@@ -516,5 +516,6 @@ prepare_retiree_data <- function(eligibility_dt,
   retirees_dt <- primary_contracts[retirees_only[, .(personnel_id, age, tenure_years)], 
                                    on = personnel_id_col]
   
+ 
   return(retirees_dt)
 }

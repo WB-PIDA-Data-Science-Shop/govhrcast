@@ -514,7 +514,7 @@ check_retirement_inputs <- function(contract_dt,
   }
 
   # Validate pension_type value(s)
-  valid_pension <- c("db", "dc", "flat", "hybrid")
+  valid_pension <- c("db", "dc", "flat", "hybrid", "rate")
   validate_choice(.defaults$pension_type, valid_pension, "pension_type")
   if (!is.null(policy_params$policy_table) &&
       "pension_type" %in% names(policy_params$policy_table)) {

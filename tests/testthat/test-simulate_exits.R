@@ -231,6 +231,80 @@ test_that("simulate_exits: group_cols set without policy_table → error", {
   )
 })
 
+
+# =============================================================================
+# simulate_exits() — wage bill correctness after exits
+# =============================================================================
+
+test_that("update_contracts_for_exits: salary column is NOT zeroed on inactive rows", {
+  # Confirms the known behaviour: exited contracts are relabelled "inactive"
+  # but gross_salary_lcu is left intact. This is the root cause verified by
+  # the wage_bill_end integration test below.
+  d <- make_exit_test_data()
+
+  update_contracts_for_exits(
+    contract_dt       = d$contract_dt,
+    exits_dt          = d$contract_dt[1:2, .(personnel_id)],
+    ref_date          = as.Date("2025-01-01"),
+    active_types      = "permanent",
+    exited_type       = "inactive"
+  )
+
+  inactive_rows <- d$contract_dt[contract_type_code == "inactive"]
+  expect_equal(nrow(inactive_rows), 2L)
+  expect_true(all(!is.na(inactive_rows$gross_salary_lcu)))
+  expect_true(all(inactive_rows$gross_salary_lcu > 0))
+})
+
+test_that("wage_bill_end excludes inactive (exited) workers' salaries", {
+  # 4 workers each earning 10000; all exit (rate = 1.0); no hires, no COLA.
+  # wage_bill_end should be 0, NOT 40000 (which would happen if .active_wage_bill
+  # counts inactive rows because it only filters out "pensioner", not "inactive").
+  n <- 4L; sal <- 10000
+  contract_dt <- data.table::data.table(
+    contract_id        = paste0("C", seq_len(n)),
+    personnel_id       = paste0("P", seq_len(n)),
+    start_date         = as.Date("2010-01-01"),
+    end_date           = as.Date(NA),
+    gross_salary_lcu   = as.numeric(rep(sal, n)),
+    contract_type_code = rep("permanent", n),
+    status             = rep("active", n)
+  )
+  personnel_dt <- data.table::data.table(
+    personnel_id = paste0("P", seq_len(n)),
+    status       = rep("active", n)
+  )
+  salary_scale_dt <- data.table::data.table(
+    grade            = "G1",
+    gross_salary_lcu = sal
+  )
+  exit_policy <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_rate     = 1.0,
+      exit_strategy = "random",
+      active_types  = "permanent",
+      exited_type   = "inactive"
+    )
+  )
+
+  res <- simulate_horizon(
+    contract_dt        = contract_dt,
+    personnel_dt       = personnel_dt,
+    salary_scale_dt    = salary_scale_dt,
+    n_periods          = 1L,
+    retirement_policy  = NULL,
+    exit_policy        = exit_policy,
+    movement_policy    = NULL,
+    hiring_policy      = NULL,
+    salary_growth_rate = 0,
+    ref_date           = as.Date("2020-01-01")
+  )
+
+  expect_equal(res$summary_dt$wage_bill_end, 0)
+})
+
 # =============================================================================
 # simulate_exits() — integration with simulate_horizon()
 # =============================================================================

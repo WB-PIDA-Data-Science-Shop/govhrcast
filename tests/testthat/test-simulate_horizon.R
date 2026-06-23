@@ -1023,8 +1023,8 @@ make_phase1b_inputs <- function(ref_date = as.Date("2020-01-01")) {
     # birth_date gives P1 age = 40, P2 age = 30 at ref_date
     birth_date   = c(ref_date - 365L * 40L, ref_date - 365L * 30L),
     status       = "active",
-    age          = 0,           # intentionally wrong — should be overwritten
-    tenure_years = 0            # intentionally wrong — should be overwritten
+    age          = NA_real_,           # intentionally wrong — should be overwritten
+    tenure_years = NA_real_            # intentionally wrong — should be overwritten
   )
   salary_scale_dt <- data.table::data.table(
     est_id           = "E1",
@@ -1098,6 +1098,7 @@ test_that("Phase 1b: simulate_horizon() auto-computes tenure from contract histo
 
 test_that("Phase 1b: birth_date_col = NULL skips age auto-compute", {
   d <- make_phase1b_inputs()
+  d$personnel_dt[, age := 0]  # override NA so aging step produces ~1, not NA
 
   res <- simulate_horizon(
     contract_dt        = d$contract_dt,

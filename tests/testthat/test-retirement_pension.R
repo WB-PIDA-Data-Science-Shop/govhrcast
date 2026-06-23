@@ -437,3 +437,72 @@ test_that("compute_pension rejects invalid policy type", {
   dt[, pension_type := "invalid_type"]
   expect_error(compute_pension(dt), "Unknown pension policy type: invalid_type")
 })
+
+# =============================================================================
+# compute_rate_pension()
+# =============================================================================
+
+test_that("compute_rate_pension: basic rate * wage calculation", {
+  dt <- data.table::data.table(
+    ref_wage_col     = "gross_salary_lcu",
+    gross_salary_lcu = c(10000, 20000, 5000),
+    pension_rate     = c(0.15, 0.15, 0.15)
+  )
+  result <- compute_rate_pension(dt)
+  expect_equal(result, c(1500, 3000, 750))
+})
+
+test_that("compute_rate_pension: per-row pension_rate is respected", {
+  dt <- data.table::data.table(
+    ref_wage_col     = "gross_salary_lcu",
+    gross_salary_lcu = c(10000, 10000),
+    pension_rate     = c(0.15, 0.50)
+  )
+  result <- compute_rate_pension(dt)
+  expect_equal(result, c(1500, 5000))
+})
+
+test_that("compute_rate_pension: returns numeric(0) for empty input", {
+  dt <- data.table::data.table(
+    ref_wage_col     = character(0),
+    gross_salary_lcu = numeric(0),
+    pension_rate     = numeric(0)
+  )
+  expect_equal(compute_rate_pension(dt), numeric(0))
+})
+
+test_that("compute_rate_pension: negative result floored at zero", {
+  dt <- data.table::data.table(
+    ref_wage_col     = "gross_salary_lcu",
+    gross_salary_lcu = c(10000),
+    pension_rate     = c(-0.1)
+  )
+  expect_equal(compute_rate_pension(dt), 0)
+})
+
+test_that("compute_rate_pension: errors when ref_wage_col missing", {
+  dt <- data.table::data.table(
+    ref_wage_col     = NA_character_,
+    gross_salary_lcu = 10000,
+    pension_rate     = 0.15
+  )
+  expect_error(compute_rate_pension(dt), "missing or NA")
+})
+
+test_that("compute_rate_pension: errors when pension_rate column absent", {
+  dt <- data.table::data.table(
+    ref_wage_col     = "gross_salary_lcu",
+    gross_salary_lcu = 10000
+  )
+  expect_error(compute_rate_pension(dt), "pension_rate")
+})
+
+test_that("compute_pension dispatches to compute_rate_pension", {
+  dt <- data.table::data.table(
+    pension_type     = "rate",
+    ref_wage_col     = "gross_salary_lcu",
+    gross_salary_lcu = 20000,
+    pension_rate     = 0.15
+  )
+  expect_equal(compute_pension(dt), 3000)
+})
