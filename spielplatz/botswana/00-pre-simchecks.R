@@ -120,7 +120,7 @@ cat("Note: start_date is 36.7% missing — do NOT use min_tenure gate.\n")
 # ----------------------------------------------------------------------------
 cat("\n=== 5. Aggregate annual exit rate ===\n")
 
-exit_rates <- govhrcast:::estimate_historical_exit_rates(
+exit_rates <- estimate_historical_exit_rates(
   panel_contract_dt  = contract_active,
   panel_personnel_dt = personnel_dt,
   group_cols         = NULL,

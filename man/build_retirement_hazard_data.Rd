@@ -10,7 +10,7 @@ build_retirement_hazard_data(
   retirement_policy = NULL,
   extra_covariates = NULL,
   age_col = "age",
-  tenure_col = "tenure_years",
+  tenure_col = "tenure",
   outcome_col = "retired",
   personnel_id_col = "personnel_id",
   ref_date_col = "ref_date",
