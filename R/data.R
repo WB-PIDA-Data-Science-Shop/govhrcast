@@ -51,3 +51,47 @@
 #'
 #' @source Derived from \code{govhr::bra_hrmis_personnel} with simulated birth_date
 "bra_hrmis_personnel"
+
+
+
+#' Simulated allowance records for Brazilian civil servants
+#'
+#' A synthetic dataset of disaggregated allowance payments derived from
+#' \code{\link{bra_hrmis_contract}}. Each contract-period record in the source
+#' data with a positive allowance amount has been split into between one and
+#' five allowance line items, with amounts allocated across randomly assigned
+#' allowance categories using Gamma-distributed weights. The total allowance
+#' per \code{contract_id}/\code{ref_date} combination matches the corresponding
+#' value in \code{bra_hrmis_contract}.
+#'
+#' @format A \code{data.table} with 273 rows and 4 variables:
+#' \describe{
+#'   \item{contract_id}{Character. Unique identifier for the employment contract.}
+#'   \item{ref_date}{Date. Reference date for the pay period, formatted as
+#'     \code{YYYY-MM-01}.}
+#'   \item{allowance_type}{Character. Category of the allowance. One of
+#'     \code{"transport"}, \code{"meal"}, \code{"management"}, \code{"hazard"},
+#'     \code{"performance"}, \code{"overtime"}, or \code{"child"}.}
+#'   \item{allowance_lcu}{Numeric. Allowance amount in local currency units (BRL).}
+#' }
+#'
+#' @details
+#' This dataset is simulated for modelling and illustrative purposes. The
+#' disaggregation into allowance types is synthetic and does not reflect actual
+#' administrative records. The number of allowance line items per contract-period
+#' is drawn uniformly from 1 to 5, and amounts are allocated using normalised
+#' Gamma(1) weights. Results are reproducible given \code{set.seed(123)} and
+#' the same snapshot of \code{bra_hrmis_contract}.
+#'
+#' @source Derived from \code{\link{bra_hrmis_contract}}. See
+#'   \code{data-raw/bra_hrmis_allowances.R} for the full simulation script.
+#'
+#' @seealso \code{\link{bra_hrmis_contract}}
+#'
+#' @examples
+#' data(bra_hrmis_allowances)
+#' head(bra_hrmis_allowances)
+#'
+#' # Total allowance per contract-period
+#' bra_hrmis_allowances[, .(total = sum(allowance_lcu)), by = .(contract_id, ref_date)]
+"bra_hrmis_allowances"
