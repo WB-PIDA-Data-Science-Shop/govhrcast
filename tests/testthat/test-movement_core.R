@@ -12,7 +12,7 @@ test_that("estimate_movement_baseline requires at least 2 snapshots", {
     paygrade          = c("G1", "G2"),
     start_date        = as.Date("2010-01-01"),
     end_date          = as.Date(NA),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
   expect_error(
     estimate_movement_baseline(ct, group_cols = "paygrade"),
@@ -26,7 +26,7 @@ test_that("estimate_movement_baseline requires group_cols", {
     personnel_id = c("P1", "P1"),
     start_date = as.Date("2010-01-01"),
     end_date = as.Date(NA),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
   expect_error(
     estimate_movement_baseline(ct, group_cols = NULL),
@@ -49,7 +49,7 @@ make_panel <- function() {
                  "G2", "G1", "G2", "G1"),   # P1: G1->G2, P4: G2->G1
     start_date = as.Date("2010-01-01"),
     end_date   = as.Date(NA),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
 }
 
@@ -93,7 +93,7 @@ test_that("estimate_movement_baseline works with multi-column group_cols", {
     paygrade = c("G1", "G2", "G1", "G2"),
     start_date = as.Date("2010-01-01"),
     end_date   = as.Date(NA),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
   bm <- estimate_movement_baseline(ct, group_cols = c("est_id", "paygrade"))
   expect_true(data.table::is.data.table(bm))
@@ -109,7 +109,7 @@ test_that("estimate_movement_baseline handles 3+ snapshots", {
       paygrade = c("G2", "G2", "G2", "G2"),
       start_date = as.Date("2010-01-01"),
       end_date = as.Date(NA),
-      contract_type_code = "permanent"
+      contract_type = "permanent"
     )
   ))
   bm <- estimate_movement_baseline(ct, group_cols = "paygrade")
@@ -170,7 +170,7 @@ make_snapshot <- function() {
       paygrade          = c("G1", "G1", "G2", "G2"),
       start_date        = as.Date("2010-01-01"),
       end_date          = as.Date(NA),
-      contract_type_code = "permanent"
+      contract_type = "permanent"
     ),
     personnel_dt = data.table::data.table(
       personnel_id = c("P1", "P2", "P3", "P4"),
@@ -281,7 +281,7 @@ test_that("compute_movement_demand returns empty dt when no active personnel", {
     paygrade = character(0),
     start_date = as.Date(character(0)),
     end_date = as.Date(character(0)),
-    contract_type_code = character(0)
+    contract_type = character(0)
   )
   pp_dt <- data.table::data.table(
     personnel_id = character(0),
@@ -310,7 +310,7 @@ test_that("compute_movement_demand classifies movements correctly", {
     paygrade          = c("G1", "G2", "G1", "G2"),
     start_date        = as.Date("2010-01-01"),
     end_date          = as.Date(NA),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
   pp_dt <- data.table::data.table(
     personnel_id = c("P1", "P2", "P3", "P4"),
@@ -515,7 +515,7 @@ test_that("estimate_movement_baseline: 3-period panel averages correctly", {
       paygrade           = c("G1","G1","G2","G2"),   # reverse of 2016 → new movements
       start_date         = as.Date("2010-01-01"),
       end_date           = as.Date(NA),
-      contract_type_code = "permanent"
+      contract_type = "permanent"
     )
   ))
 

@@ -13,7 +13,7 @@ check_movement_inputs(
   personnel_id_col = "personnel_id",
   start_date_col = "start_date",
   end_date_col = "end_date",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   status_col = "status"
 )
 }

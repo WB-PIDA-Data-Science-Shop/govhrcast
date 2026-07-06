@@ -15,7 +15,7 @@ prepare_retiree_data(
   start_date_col = "start_date",
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type_code"
+  contract_type_col = "contract_type"
 )
 }
 \arguments{
@@ -54,7 +54,7 @@ base unless overridden by \code{policy_params$defaults$ref_wage_col}.
 (default: \code{"gross_salary_lcu"}).}
 
 \item{contract_type_col}{Character.  Contract classification column.
-(default: \code{"contract_type_code"}).}
+(default: \code{"contract_type"}).}
 }
 \value{
 data.table.  One row per retiree with all primary contract columns

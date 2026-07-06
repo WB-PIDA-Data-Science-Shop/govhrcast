@@ -3,34 +3,61 @@
 \docType{data}
 \name{bra_hrmis_contract}
 \alias{bra_hrmis_contract}
-\title{Brazil HRMIS Contract Data}
+\title{Brazil (Alagoas) Harmonized HRMIS Contract Dataset}
 \format{
-A data.table with 8,885 rows and 23 columns:
+A data.table with 16,360 observations and 21 variables:
 \describe{
-\item{ref_date}{Date. Reference date for the observation}
-\item{personnel_id}{Character. Unique personnel identifier}
-\item{contract_id}{Character. Contract identifier}
-\item{est_id}{Character. Establishment/organization identifier}
-\item{start_date}{Date. Contract start date}
-\item{end_date}{Date. Contract end date (NA if ongoing)}
-\item{contract_type_code}{Character. Type of contract (perm, fterm, temp, etc.)}
-\item{base_salary_lcu}{Numeric. Base salary in local currency units}
-\item{allowance_lcu}{Numeric. Allowances in local currency units}
-\item{gross_salary_lcu}{Numeric. Gross salary in local currency units}
-\item{net_salary_lcu}{Numeric. Net salary in local currency units}
-\item{whours}{Numeric. Working hours}
-\item{...}{Additional contract attributes}
+\item{contract_id}{Unique contract identifier.}
+\item{personnel_id}{Unique personnel identifier.}
+\item{est_id}{Government establishment employing the personnel member.}
+\item{ref_date}{Reference (snapshot) date of the observation.}
+\item{base_salary_lcu}{Base salary in local currency units (Brazilian Real).}
+\item{allowance_lcu}{Total allowances paid in local currency units.}
+\item{gross_salary_lcu}{Gross salary in local currency units.}
+\item{net_salary_lcu}{Net salary in local currency units.}
+\item{whours}{Contracted weekly working hours.}
+\item{start_date}{Contract start date.}
+\item{end_date}{Contract end date. Missing values indicate contracts that
+were active at the reference date.}
+\item{paygrade}{Pay grade associated with the contract.}
+\item{seniority}{Seniority level or step within the pay structure.}
+\item{occupation_native}{Occupation title in Portuguese.}
+\item{occupation_english}{Occupation title translated into English.}
+\item{occupation_iscocode}{International Standard Classification of
+Occupations (ISCO-08) occupation code.}
+\item{occupation_isconame}{ISCO-08 occupation title.}
+\item{contract_type_native}{Original contract type recorded in Portuguese.}
+\item{contract_type}{Harmonized contract type.}
+\item{contract_tenure}{Length of service under the contract, in years, as
+of the reference date.}
 }
 }
 \source{
-Derived from \code{govhr::bra_hrmis_contract}
+Government of the State of Alagoas, Brazil. Harmonized for the
+\pkg{govhr} package.
 }
 \usage{
 bra_hrmis_contract
 }
 \description{
-Example contract-level HRMIS data from Alagoas state, Brazil.
-This is a subset of the harmonized data from the govhr package,
-formatted as a data.table for use in govhrcast simulations.
+A longitudinal contract-level dataset containing harmonized Human Resource
+Management Information System (HRMIS) records for public sector employees in
+the Brazilian state of Alagoas. Each observation represents a contract for a
+personnel member at a given reference date, allowing employment history,
+remuneration, occupations, contract characteristics, and tenure to be
+analysed over time.
+}
+\details{
+The dataset has been harmonized using the \pkg{govhr} data model to provide
+consistent variable names and coding across HRMIS systems. Multiple
+observations may exist for the same contract because contracts are observed
+repeatedly at different reference dates, forming a longitudinal panel.
+
+Salary variables are expressed in nominal local currency units (LCU).
+}
+\examples{
+data(bra_hrmis_contract)
+
+head(bra_hrmis_contract)
 }
 \keyword{datasets}

@@ -14,7 +14,7 @@ simulate_exits(
   birth_date_col = "birth_date",
   start_date_col = "start_date",
   contract_id_col = "contract_id",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   status_col = "status",
   salary_col = "gross_salary_lcu",
   end_date_col = "end_date"
@@ -81,7 +81,7 @@ and the hazard model uses tenure as a covariate.  Default
 
 \item{contract_id_col}{Character.  Default \code{"contract_id"}.}
 
-\item{contract_type_col}{Character.  Default \code{"contract_type_code"}.}
+\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
 
 \item{status_col}{Character.  Default \code{"status"}.}
 

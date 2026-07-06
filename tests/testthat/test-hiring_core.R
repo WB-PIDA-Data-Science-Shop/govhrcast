@@ -18,7 +18,7 @@ create_test_data_for_hiring <- function() {
     gross_salary_lcu = rep(c(50000, 60000, 70000, 80000), 5),
     department = rep(c("HR", "IT"), each = 10),
     paygrade = rep(c("G5", "G6"), 10),
-    contract_type_code = c(rep("permanent", 15), rep("terminated", 5))
+    contract_type = c(rep("permanent", 15), rep("terminated", 5))
   )
   
   personnel_dt <- data.table(
@@ -426,7 +426,7 @@ test_that("compute_current_stock errors on duplicate personnel_id in personnel_d
     personnel_id      = paste0("P", 1:5),
     start_date        = as.Date("2020-01-01"),
     end_date          = as.Date(NA),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
 
   personnel_dt <- data.table(
@@ -532,7 +532,7 @@ make_hire_date_panel <- function() {
       ref_date           = d,
       start_date         = as.Date("2019-01-01"),
       end_date           = as.Date(NA),
-      contract_type_code = "active",
+      contract_type = "active",
       gross_salary_lcu   = 50000,
       department         = c("HR", "HR", "IT", "IT", "HR")
     )

@@ -96,33 +96,53 @@ compute_age <- function(personnel_dt,
 }
 
 
-#' Calculate Tenure from Contract History
+#' Compute employment tenure from contract history
 #'
-#' @description
-#' Computes total years of service for each personnel as of a reference date
-#' using a vectorised interval-union algorithm based on \code{cummax()}.
-#' Overlapping and nested contracts are correctly de-duplicated; gaps between
-#' contracts are excluded from the total.
+#' Computes cumulative employment tenure for each personnel member as of a
+#' specified reference date while avoiding double-counting overlapping
+#' contracts. Contracts with type \code{"inactive"} or
+#' \code{"pensioner"} are excluded. Open-ended contracts are truncated at
+#' the reference date before overlapping contract periods are merged to
+#' calculate total tenure.
 #'
-#' The algorithm sorts each person's contracts by start date, then propagates
-#' the "furthest right endpoint seen so far" with \code{cummax()}.  Three
-#' cases cover all interval relationships:
-#' \itemize{
-#'   \item \strong{Case 1} (new span): start > lag_cummax → contributes \code{end - start}
-#'   \item \strong{Case 2} (extension): end > lag_cummax ≥ start → contributes \code{end - lag_cummax}
-#'   \item \strong{Case 3} (nested): end ≤ lag_cummax → contributes 0
-#' }
-#' This is O(n log n) for the sort, O(n) for the sweep.
+#' Tenure is calculated independently for each personnel member and,
+#' optionally, within additional grouping variables supplied through
+#' \code{group_cols}. Gaps between contracts are excluded from the total
+#' tenure.
 #'
-#' @param contract_dt data.table. Contract data (may contain panel observations)
-#' @param ref_date Date. Reference date for tenure calculation
-#' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
-#' @param contract_id_col Character. Name of contract ID column (default: "contract_id")
-#' @param start_date_col Character. Name of start date column (default: "start_date")
-#' @param end_date_col Character. Name of end date column (default: "end_date")
-#' @param contract_type_col Character. Name of contract type column (default: "contract_type_code")
+#' The implementation uses an interval-union algorithm based on
+#' \code{cummax()} to efficiently merge overlapping contract periods,
+#' resulting in an \eqn{O(n \log n)} algorithm dominated by the initial
+#' sorting step.
 #'
-#' @return data.table with personnel_id, tenure_days, and tenure_years columns
+#' @param contract_dt data.table containing the contract history. Must include
+#'   personnel identifiers, contract identifiers, contract start and end
+#'   dates, contract types, and any grouping variables supplied in
+#'   \code{group_cols}.
+#' @param ref_date Date. Reference date at which tenure is calculated.
+#' @param personnel_id_col Character. Name of the personnel identifier column.
+#'   Default is \code{"personnel_id"}.
+#' @param contract_id_col Character. Name of the contract identifier column.
+#'   Default is \code{"contract_id"}.
+#' @param start_date_col Character. Name of the contract start date column.
+#'   Default is \code{"start_date"}.
+#' @param end_date_col Character. Name of the contract end date column.
+#'   Default is \code{"end_date"}.
+#' @param contract_type_col Character. Name of the contract type column.
+#'   Default is \code{"contract_type"}.
+#' @param group_cols Optional character vector of additional variables over
+#'   which tenure should be calculated independently (for example,
+#'   establishment, occupation, or organization). Default is
+#'   \code{NULL}.
+#'
+#' @return A data.table with one row per unique combination of
+#'   \code{personnel_id} and optional \code{group_cols}, containing:
+#'   \describe{
+#'     \item{tenure_days}{Total employment tenure in days.}
+#'     \item{tenure_years}{Total employment tenure in years, calculated as
+#'     tenure days divided by 365.25.}
+#'   }
+#'
 #' @keywords internal
 #'
 #' @examples
@@ -138,8 +158,20 @@ compute_tenure <- function(contract_dt,
                            contract_id_col = "contract_id",
                            start_date_col = "start_date",
                            end_date_col = "end_date",
-                           contract_type_col = "contract_type_code") {
+                           contract_type_col = "contract_type",
+                           group_cols = NULL) {
+  
+  # 0. always ensure data.table
+  contract_dt <- as.data.table(contract_dt)
 
+  if (is.null(group_cols) == FALSE) {
+
+     validate_columns_exist(dt = contract_dt, 
+                            colnames = group_cols)
+
+  }
+
+  
   # Alias ref_date to a name that cannot be shadowed by a column named 'ref_date'
   # in panel data.tables (data.table resolves column names before env variables).
   .ref_date_ <- ref_date
@@ -179,14 +211,14 @@ compute_tenure <- function(contract_dt,
   }
 
   # 6. Sort by person then start — O(n log n)
-  data.table::setorderv(dt, c(personnel_id_col, ".s"))
+  data.table::setorderv(dt, c(personnel_id_col, group_cols, ".s"))
 
   # 7. Lagged cummax of end-dates within each person.
   #    fill = -1e15 (a numeric constant far outside any real date range) ensures
   #    the first interval per person is always classified as a new span without
   #    triggering integer overflow.
   dt[, .lag_max_e := data.table::shift(cummax(.e), fill = -1e15),
-     by = c(personnel_id_col)]
+     by = c(personnel_id_col, group_cols)]
 
   # 8. Classify each interval and compute its contribution to the union
   #    >= in Case 1: adjacent intervals (end_prev == start_curr) are new spans,
@@ -198,57 +230,87 @@ compute_tenure <- function(contract_dt,
   )]
 
   # 9. Sum contributions per person
-  result <- dt[,
-    .(tenure_days = sum(.contrib, na.rm = TRUE)),
-    by = .(personnel_id_val = get(personnel_id_col))
-  ]
-  result[, tenure_years := tenure_days / 365.25]
-  data.table::setnames(result, "personnel_id_val", personnel_id_col)
+  # result <- dt[,
+  #   .(tenure_days = sum(.contrib, na.rm = TRUE)),
+  #   by = .(personnel_id_val = get(personnel_id_col))
+  # ]
 
-  result[, c(personnel_id_col, "tenure_days", "tenure_years"), with = FALSE]
+  result <- dt[, .(tenure_days = sum(.contrib, na.rm = TRUE)),
+                  by = c(personnel_id_col, group_cols)]
+
+  result[, tenure_years := tenure_days / 365.25]
+  # data.table::setnames(result, "personnel_id_val", personnel_id_col)
+
+  result[, c(personnel_id_col, group_cols, 
+             "tenure_days", "tenure_years"), with = FALSE]
 }
 
 
-#' Compute Tenure from a Stacked Contract Panel (Panel Version)
+#' Compute employment tenure from a stacked contract panel
 #'
-#' @description
-#' Vectorised equivalent of \code{\link{compute_tenure}} for a panel dataset
-#' where \code{ref_date_col} is a column rather than a scalar.  Computes
-#' cumulative years of service per \emph{person × snapshot} in a single pass
-#' over the full stacked panel — no per-snapshot loop required.
+#' Computes cumulative employment tenure for each personnel member at each
+#' reference date while avoiding double-counting overlapping contracts.
+#' Contracts with type \code{"inactive"} or \code{"pensioner"} are excluded.
+#' Open-ended contracts are truncated at the corresponding reference date,
+#' after which overlapping contract periods are merged before calculating
+#' total tenure.
 #'
-#' The union-of-intervals algorithm is identical to \code{compute_tenure}:
-#' contracts are sorted by start date, a \code{cummax} propagates the furthest
-#' end seen so far, and each interval's contribution is classified as a new
-#' span, partial extension, or nested (zero-contribution) segment.  The key
-#' difference is that \code{ref_date_col} participates in every row-wise
-#' comparison and in the \code{cummax} grouping key, so each
-#' \code{(personnel_id, ref_date)} pair is handled independently.
+#' Tenure is calculated independently within each combination of
+#' \code{personnel_id}, optional grouping variables supplied through
+#' \code{group_cols}, and \code{ref_date}.
 #'
-#' @param contract_dt data.table.  Full stacked contract panel.  Must contain
-#'   \code{personnel_id_col}, \code{ref_date_col}, \code{contract_id_col},
-#'   \code{start_date_col}, \code{end_date_col}, and \code{contract_type_col}.
-#' @param personnel_id_col Character.  Default: \code{"personnel_id"}.
-#' @param ref_date_col Character.  Name of the snapshot date column.
-#'   Default: \code{"ref_date"}.
-#' @param contract_id_col Character.  Default: \code{"contract_id"}.
-#' @param start_date_col Character.  Default: \code{"start_date"}.
-#' @param end_date_col Character.  Default: \code{"end_date"}.
-#' @param contract_type_col Character.  Default: \code{"contract_type_code"}.
+#' @param contract_dt data.table containing the stacked contract panel.
+#'   Must include personnel identifiers, contract identifiers, contract
+#'   start and end dates, reference dates, contract types, and any grouping
+#'   variables supplied in \code{group_cols}.
+#' @param personnel_id_col Character. Name of the personnel identifier column.
+#'   Default is \code{"personnel_id"}.
+#' @param ref_date_col Character. Name of the reference date column.
+#'   Default is \code{"ref_date"}.
+#' @param contract_id_col Character. Name of the contract identifier column.
+#'   Default is \code{"contract_id"}.
+#' @param start_date_col Character. Name of the contract start date column.
+#'   Default is \code{"start_date"}.
+#' @param end_date_col Character. Name of the contract end date column.
+#'   Default is \code{"end_date"}.
+#' @param contract_type_col Character. Name of the contract type column.
+#'   Default is \code{"contract_type"}.
+#' @param group_cols Optional character vector of additional variables over
+#'   which tenure should be calculated independently (for example,
+#'   establishment, occupation, or organization). Default is \code{NULL}.
 #'
-#' @return data.table with columns \code{personnel_id_col},
-#'   \code{ref_date_col}, and \code{tenure_years}.  One row per unique
-#'   \code{(personnel_id, ref_date)} combination present in
-#'   \code{contract_dt}.
+#' @return A data.table with one row per unique combination of
+#'   \code{personnel_id}, optional \code{group_cols}, and
+#'   \code{ref_date}, containing:
+#'   \describe{
+#'     \item{tenure_days}{Total employment tenure in days.}
+#'     \item{tenure_years}{Total employment tenure in years, calculated as
+#'     tenure days divided by 365.25.}
+#'   }
+#'
 #' @keywords internal
+
 compute_tenure_panel <- function(contract_dt,
                                  personnel_id_col  = "personnel_id",
                                  ref_date_col      = "ref_date",
                                  contract_id_col   = "contract_id",
                                  start_date_col    = "start_date",
                                  end_date_col      = "end_date",
-                                 contract_type_col = "contract_type_code") {
+                                 contract_type_col = "contract_type",
+                                 group_cols        = NULL) {
+  
+  # 0. Quick set up ensuring data.table and to define a grouping key once at the start
+  contract_dt <- as.data.table(contract_dt)
 
+  if (is.null(group_cols) == FALSE) {
+
+     validate_columns_exist(dt = contract_dt, 
+                            colnames = group_cols)
+
+  }
+ 
+  by_cols <- c(personnel_id_col, group_cols, ref_date_col)
+  
   # 1. Filter: active types only, started on or before each row's ref_date
   dt <- contract_dt[
     get(start_date_col) <= get(ref_date_col) &
@@ -281,7 +343,7 @@ compute_tenure_panel <- function(contract_dt,
   # 5. Sort by (person, snapshot, start) then apply cummax within each group
   data.table::setorderv(dt, c(personnel_id_col, ref_date_col, ".s"))
   dt[, .lag_max_e := data.table::shift(cummax(.e), fill = -1e15),
-     by = c(personnel_id_col, ref_date_col)]
+     by = by_cols]
 
   # 6. Classify and sum contributions
   dt[, .contrib := data.table::fcase(
@@ -291,11 +353,13 @@ compute_tenure_panel <- function(contract_dt,
   )]
 
   result <- dt[,
-    .(tenure_years = sum(.contrib, na.rm = TRUE) / 365.25),
-    by = c(personnel_id_col, ref_date_col)
+    .(tenure_years = sum(.contrib, na.rm = TRUE) / 365.25,
+      tenure_days = sum(.contrib, na.rm = TRUE)),
+    by = by_cols
   ]
 
-  result
+  result[, c(personnel_id_col, group_cols, ref_date_col, 
+             "tenure_days", "tenure_years"), with = FALSE]
 }
 
 
@@ -321,7 +385,7 @@ compute_tenure_panel <- function(contract_dt,
 #'   open-ended contracts.  (default: \code{"end_date"}).
 #' @param contract_type_col Character.  Contract classification column.
 #'   Contracts with type \code{"inactive"} or \code{"pensioner"} are
-#'   excluded.  (default: \code{"contract_type_code"}).
+#'   excluded.  (default: \code{"contract_type"}).
 #'
 #' @return data.table.  Subset of \code{contract_dt} containing only active
 #'   contracts at \code{ref_date}.  All original columns are preserved.
@@ -330,7 +394,7 @@ get_active_contracts <- function(contract_dt,
                                  ref_date,
                                  start_date_col = "start_date",
                                  end_date_col = "end_date",
-                                 contract_type_col = "contract_type_code") {
+                                 contract_type_col = "contract_type") {
   
   # Filter: started before/on ref_date AND (no end date OR ended after ref_date)
   # AND not inactive AND not pensioner (pensioners are not part of the active workforce)
@@ -360,7 +424,7 @@ get_active_contracts <- function(contract_dt,
 #' @param salary_col Character.  Name of the salary column.
 #'   Default \code{"gross_salary_lcu"}.
 #' @param contract_type_col Character.  Name of the contract type column.
-#'   Default \code{"contract_type_code"}.
+#'   Default \code{"contract_type"}.
 #' @param pensioner_type Character scalar.  The contract type value that
 #'   identifies pensioner rows.  Default \code{"pensioner"}.
 #'
@@ -369,7 +433,7 @@ get_active_contracts <- function(contract_dt,
 #' @keywords internal
 get_salary_bearing_contracts <- function(contract_dt,
                                          salary_col          = "gross_salary_lcu",
-                                         contract_type_col   = "contract_type_code",
+                                         contract_type_col   = "contract_type",
                                          pensioner_type      = "pensioner") {
   contract_dt[
     get(contract_type_col) != pensioner_type &
@@ -997,7 +1061,7 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #' @param ref_date_col Character.  Default \code{"ref_date"}.
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
-#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default \code{"contract_type"}.
 #' @param status_col Character.  Default \code{"status"}.
 #' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
 #'
@@ -1025,7 +1089,7 @@ make_status_quo_policies <- function(contract_dt,
                                      ref_date_col        = "ref_date",
                                      start_date_col      = "start_date",
                                      end_date_col        = "end_date",
-                                     contract_type_col   = "contract_type_code",
+                                     contract_type_col   = "contract_type",
                                      status_col          = "status",
                                      salary_col          = "gross_salary_lcu") {
 

@@ -16,7 +16,7 @@ make_exit_test_data <- function() {
                                    "2012-01-01", "2018-01-01")),
     end_date           = as.Date(c(NA, NA, NA, NA)),
     gross_salary_lcu   = c(60000, 45000, 52000, 38000),
-    contract_type_code = c("permanent", "permanent", "permanent", "permanent"),
+    contract_type = c("permanent", "permanent", "permanent", "permanent"),
     status             = c("active", "active", "active", "active")
   )
 
@@ -36,7 +36,7 @@ make_exit_test_data_grouped <- function() {
     start_date         = as.Date(rep("2010-01-01", 6)),
     end_date           = as.Date(rep(NA, 6)),
     gross_salary_lcu   = c(60000, 50000, 45000, 70000, 55000, 40000),
-    contract_type_code = rep("permanent", 6),
+    contract_type = rep("permanent", 6),
     status             = rep("active", 6)
   )
 
@@ -132,7 +132,7 @@ test_that("simulate_exits: exiting personnel contracts are marked inactive", {
     ref_date      = as.Date("2025-01-01")
   )
 
-  expect_true(all(result$contract_dt$contract_type_code == "inactive"))
+  expect_true(all(result$contract_dt$contract_type == "inactive"))
   expect_true(all(result$personnel_dt$status == "inactive"))
 })
 
@@ -250,7 +250,7 @@ test_that("update_contracts_for_exits: salary column is NOT zeroed on inactive r
     exited_type       = "inactive"
   )
 
-  inactive_rows <- d$contract_dt[contract_type_code == "inactive"]
+  inactive_rows <- d$contract_dt[contract_type == "inactive"]
   expect_equal(nrow(inactive_rows), 2L)
   expect_true(all(!is.na(inactive_rows$gross_salary_lcu)))
   expect_true(all(inactive_rows$gross_salary_lcu > 0))
@@ -267,7 +267,7 @@ test_that("wage_bill_end excludes inactive (exited) workers' salaries", {
     start_date         = as.Date("2010-01-01"),
     end_date           = as.Date(NA),
     gross_salary_lcu   = as.numeric(rep(sal, n)),
-    contract_type_code = rep("permanent", n),
+    contract_type = rep("permanent", n),
     status             = rep("active", n)
   )
   personnel_dt <- data.table::data.table(
@@ -316,7 +316,7 @@ test_that("Phase 3c: simulate_horizon with exit_policy reduces n_headcount_end",
     start_date         = as.Date(rep("2010-01-01", 10)),
     end_date           = as.Date(rep(NA, 10)),
     gross_salary_lcu   = rep(50000, 10),
-    contract_type_code = rep("permanent", 10),
+    contract_type = rep("permanent", 10),
     status             = rep("active", 10)
   )
   personnel_dt <- data.table::data.table(
@@ -364,7 +364,7 @@ test_that("Phase 3c: n_non_ret_exits column present in comparison when exit_poli
     start_date         = as.Date("2010-01-01"),
     end_date           = as.Date(NA),
     gross_salary_lcu   = 50000,
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     status             = "active"
   )
   personnel_dt <- data.table::data.table(
@@ -409,7 +409,7 @@ test_that("compute_status_quo_exits: returns personnel_id for selected exiters",
       )
     ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code"
+    contract_type_col = "contract_type"
   )
 
   expect_s3_class(result, "data.table")
@@ -432,7 +432,7 @@ test_that("compute_status_quo_exits: exit_rate = 0 → no exits", {
       )
     ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code"
+    contract_type_col = "contract_type"
   )
 
   expect_equal(nrow(result), 0L)
@@ -457,7 +457,7 @@ test_that("compute_status_quo_exits: grouped — correct exit count per group", 
       )
     ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code"
+    contract_type_col = "contract_type"
   )
 
   expect_s3_class(result, "data.table")
@@ -485,7 +485,7 @@ test_that("compute_status_quo_exits: grouped — no person selected twice", {
       )
     ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code"
+    contract_type_col = "contract_type"
   )
 
   expect_equal(nrow(result), 6L)
@@ -510,7 +510,7 @@ test_that("compute_status_quo_exits: grouped — group with zero rate produces n
       )
     ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code"
+    contract_type_col = "contract_type"
   )
 
   # Only 1 exit from E1; E2 contributes nothing
@@ -530,7 +530,7 @@ test_that("compute_status_quo_exits: grouped — unknown group in contract_dt ge
     start_date         = as.Date("2010-01-01"),
     end_date           = as.Date(NA),
     gross_salary_lcu   = 50000,
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     status             = "active"
   )
   ct_extended <- data.table::rbindlist(list(d$contract_dt, extra_contract), fill = TRUE)
@@ -546,7 +546,7 @@ test_that("compute_status_quo_exits: grouped — unknown group in contract_dt ge
       )
     ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code"
+    contract_type_col = "contract_type"
   )
 
   # P99 must not be selected (E3 rate imputed to 0)
@@ -561,7 +561,7 @@ test_that("compute_status_quo_exits: empty active workforce returns empty data.t
     start_date         = as.Date("2000-01-01"),
     end_date           = as.Date("2020-01-01"),
     gross_salary_lcu   = 0,
-    contract_type_code = "pensioner",
+    contract_type = "pensioner",
     status             = "inactive"
   )
   rates <- data.table::data.table(est_id = "E1", exit_rate = 1.0)
@@ -577,7 +577,7 @@ test_that("compute_status_quo_exits: empty active workforce returns empty data.t
       )
     ),
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code"
+    contract_type_col = "contract_type"
   )
 
   expect_s3_class(result, "data.table")

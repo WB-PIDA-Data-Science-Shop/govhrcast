@@ -51,7 +51,7 @@
 #' @param start_date_col Character. Contract start date column (default: \code{"start_date"}).
 #' @param end_date_col Character. Contract end date column (default: \code{"end_date"}).
 #' @param salary_col Character. Salary column (default: \code{"gross_salary_lcu"}).
-#' @param contract_type_col Character. Contract type column (default: \code{"contract_type_code"}).
+#' @param contract_type_col Character. Contract type column (default: \code{"contract_type"}).
 #' @param status_col Character. Personnel status column (default: \code{"status"}).
 #'
 #' @return Named list:
@@ -116,7 +116,7 @@ simulate_promotions_transfers <- function(contract_dt,
                                           start_date_col     = "start_date",
                                           end_date_col       = "end_date",
                                           salary_col         = "gross_salary_lcu",
-                                          contract_type_col  = "contract_type_code",
+                                          contract_type_col  = "contract_type",
                                           status_col         = "status") {
 
   # ======================================================================

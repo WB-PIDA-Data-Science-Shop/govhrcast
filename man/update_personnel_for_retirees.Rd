@@ -8,7 +8,7 @@ update_personnel_for_retirees(
   personnel_dt,
   contract_dt,
   personnel_id_col = "personnel_id",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   status_col = "status"
 )
 }
@@ -27,7 +27,7 @@ The function reads \code{contract_type_col} to derive retiring
 
 \item{contract_type_col}{Character.  Contract classification column in
 \code{contract_dt}.  Rows with \code{contract_type_col == "pensioner"}
-identify retiring personnel.  (default: \code{"contract_type_code"}).}
+identify retiring personnel.  (default: \code{"contract_type"}).}
 
 \item{status_col}{Character.  Employment status column in
 \code{personnel_dt}.  Set to \code{"inactive"} for retirees.

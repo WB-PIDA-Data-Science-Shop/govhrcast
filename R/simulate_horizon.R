@@ -219,7 +219,7 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #' @details
 #' **Wage bill measurement**: \code{wage_bill_start} and \code{wage_bill_end}
 #' are computed via an internal helper that sums \code{salary_col} over active
-#' contract rows only -- rows with \code{contract_type_code = "pensioner"} and
+#' contract rows only -- rows with \code{contract_type = "pensioner"} and
 #' rows with a missing salary are excluded.  The \code{pensioner_register} is a
 #' separate audit ledger that tracks \code{pension_amount} (the pension formula
 #' output) and is never folded into the wage-bill totals.
@@ -275,7 +275,7 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
-#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default \code{"contract_type"}.
 #' @param status_col Character.  Default \code{"status"}.
 #' @param age_col Character or \code{NULL}.  Age column to increment.
 #'   Default \code{"age"}.
@@ -317,7 +317,7 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'     est_id             = "E1",
 #'     start_date         = as.Date("2010-01-01"),
 #'     end_date           = as.Date(NA),
-#'     contract_type_code = "permanent",
+#'     contract_type = "permanent",
 #'     gross_salary_lcu   = 50000
 #'   ),
 #'   personnel_dt = data.table(
@@ -358,7 +358,7 @@ simulate_scenario <- function(contract_dt,
                                start_date_col      = "start_date",
                                end_date_col        = "end_date",
                                salary_col          = "gross_salary_lcu",
-                               contract_type_col   = "contract_type_code",
+                               contract_type_col   = "contract_type",
                                status_col          = "status",
                                age_col             = "age",
                                tenure_col          = "tenure_years",
@@ -810,7 +810,7 @@ simulate_scenario <- function(contract_dt,
 #'   \code{"end_date"}).
 #' @param salary_col Character. Salary column (default: \code{"gross_salary_lcu"}).
 #' @param contract_type_col Character. Contract type column (default:
-#'   \code{"contract_type_code"}).
+#'   \code{"contract_type"}).
 #' @param status_col Character. Personnel status column (default:
 #'   \code{"status"}).
 #' @param age_col Character or \code{NULL}. Age column to increment each period.
@@ -994,7 +994,7 @@ simulate_horizon <- function(contract_dt,
                              start_date_col     = "start_date",
                              end_date_col       = "end_date",
                              salary_col         = "gross_salary_lcu",
-                             contract_type_col  = "contract_type_code",
+                             contract_type_col  = "contract_type",
                              status_col         = "status",
                              age_col            = NULL,
                              tenure_col         = NULL,

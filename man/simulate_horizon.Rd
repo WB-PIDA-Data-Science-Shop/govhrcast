@@ -30,7 +30,7 @@ simulate_horizon(
   start_date_col = "start_date",
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   status_col = "status",
   age_col = NULL,
   tenure_col = NULL,
@@ -163,7 +163,7 @@ Used to compute \code{period_date} for each period.}
 \item{salary_col}{Character. Salary column (default: \code{"gross_salary_lcu"}).}
 
 \item{contract_type_col}{Character. Contract type column (default:
-\code{"contract_type_code"}).}
+\code{"contract_type"}).}
 
 \item{status_col}{Character. Personnel status column (default:
 \code{"status"}).}

@@ -23,7 +23,7 @@ generate_scenario_matrix(
   start_date_col = "start_date",
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   status_col = "status",
   age_col = NULL,
   tenure_col = NULL
@@ -85,7 +85,7 @@ scenario (\code{scenario_id = 1}) is used.}
 
 \item{salary_col}{Character.  Default \code{"gross_salary_lcu"}.}
 
-\item{contract_type_col}{Character.  Default \code{"contract_type_code"}.}
+\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
 
 \item{status_col}{Character.  Default \code{"status"}.}
 

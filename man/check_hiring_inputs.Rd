@@ -14,7 +14,7 @@ check_hiring_inputs(
   contract_id_col = "contract_id",
   start_date_col = "start_date",
   end_date_col = "end_date",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   status_col = "status"
 )
 }

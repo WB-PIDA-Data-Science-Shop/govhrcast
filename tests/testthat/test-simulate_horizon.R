@@ -28,7 +28,7 @@ make_horizon_state <- function(n          = 4L,
     est_id             = rep(c("E1", "E2"), length.out = n),
     start_date         = ref_date - 365L * as.integer(tenures),
     end_date           = as.Date(NA),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     gross_salary_lcu   = as.numeric(rep(salary, n))
   )
   personnel_dt <- data.table::data.table(
@@ -902,7 +902,7 @@ make_panel_state <- function() {
                            rep(c("E1", "E2"), 2), "E1", "E2", "E1"),
     start_date         = as.Date("2015-01-01"),
     end_date           = as.Date(NA),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     gross_salary_lcu   = 10000
   )
   personnel_panel <- data.table::data.table(
@@ -1015,7 +1015,7 @@ make_phase1b_inputs <- function(ref_date = as.Date("2020-01-01")) {
     # P1: 10-year contract; P2: 5-year contract
     start_date         = c(ref_date - 365L * 10L, ref_date - 365L * 5L),
     end_date           = as.Date(NA_character_),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     gross_salary_lcu   = c(10000, 10000)
   )
   personnel_dt <- data.table::data.table(
@@ -1269,7 +1269,7 @@ make_phase2c_inputs <- function() {
     start_date       = as.Date(c("2010-01-01", "2015-01-01")),
     end_date         = as.Date(c(NA, NA)),
     gross_salary_lcu = c(50000, 40000),
-    contract_type_code = c("permanent", "permanent"),
+    contract_type = c("permanent", "permanent"),
     status           = c("active", "active")
   )
 
@@ -1304,7 +1304,7 @@ make_phase2c_inputs_with_existing_pensioners <- function() {
                                  "2000-01-01", "1998-01-01")),
     end_date         = as.Date(c(NA, NA, NA, NA)),
     gross_salary_lcu = c(50000, 40000, 20000, 18000),
-    contract_type_code = c("permanent", "permanent", "pensioner", "pensioner"),
+    contract_type = c("permanent", "permanent", "pensioner", "pensioner"),
     status           = c("active", "active", "inactive", "inactive")
   )
 
@@ -1458,7 +1458,7 @@ make_minimal_horizon_inputs <- function() {
     start_date         = as.Date("2010-01-01"),
     end_date           = as.Date(NA),
     gross_salary_lcu   = 50000,
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     status             = "active"
   )
   personnel_dt <- data.table::data.table(
@@ -1628,7 +1628,7 @@ make_block_f_inputs <- function() {
     start_date         = ref_date - c(365L * 5L, 365L * 3L, 365L * 7L,
                                       365L * 2L, 365L * 8L, 365L * 4L),
     end_date           = as.Date(NA),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     gross_salary_lcu   = c(30000, 30000, 30000, 50000, 50000, 50000),
     status             = "active"
   )
@@ -2075,7 +2075,7 @@ make_hazard_panel_inputs <- function(n_persons = 100L, n_snaps = 4L, seed = 42L)
       personnel_id       = keep,
       contract_id        = paste0("HC", seq_along(keep), "_", i),
       ref_date           = d,
-      contract_type_code = type,
+      contract_type = type,
       start_date         = as.Date("2010-01-01"),
       end_date           = as.Date("2035-12-31"),
       gross_salary_lcu   = round(stats::runif(length(keep), 30000, 80000)),

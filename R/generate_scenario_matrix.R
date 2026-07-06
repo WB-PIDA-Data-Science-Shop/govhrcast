@@ -91,7 +91,7 @@
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
-#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default \code{"contract_type"}.
 #' @param status_col Character.  Default \code{"status"}.
 #' @param age_col Character or \code{NULL}.  Name of the age column in
 #'   \code{personnel_dt}.  When \code{NULL} (default), the value
@@ -212,7 +212,7 @@ generate_scenario_matrix <- function(contract_dt,
                                      start_date_col     = "start_date",
                                      end_date_col       = "end_date",
                                      salary_col         = "gross_salary_lcu",
-                                     contract_type_col  = "contract_type_code",
+                                     contract_type_col  = "contract_type",
                                      status_col         = "status",
                                      age_col            = NULL,
                                      tenure_col         = NULL) {

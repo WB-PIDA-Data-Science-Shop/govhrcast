@@ -96,7 +96,7 @@ utils::globalVariables(c(
                                birth_date_col     = "birth_date",
                                start_date_col     = "start_date",
                                end_date_col       = "end_date",
-                               contract_type_col  = "contract_type_code",
+                               contract_type_col  = "contract_type",
                                contract_id_col    = "contract_id",
                                ref_date           = NULL) {
 
@@ -272,7 +272,7 @@ utils::globalVariables(c(
 #' @param birth_date_col Character.  Default: \code{"birth_date"}.
 #' @param start_date_col Character.  Default: \code{"start_date"}.
 #' @param end_date_col Character.  Default: \code{"end_date"}.
-#' @param contract_type_col Character.  Default: \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default: \code{"contract_type"}.
 #' @param contract_id_col Character.  Default: \code{"contract_id"}.
 #' @param salary_col Character.  Name of the salary column used as a tiebreaker
 #'   when selecting the primary contract per person per snapshot (highest salary
@@ -317,7 +317,7 @@ build_retirement_hazard_data <- function(panel_contract_dt,
                                          birth_date_col     = "birth_date",
                                          start_date_col     = "start_date",
                                          end_date_col       = "end_date",
-                                         contract_type_col  = "contract_type_code",
+                                         contract_type_col  = "contract_type",
                                          contract_id_col    = "contract_id",
                                          salary_col         = "gross_salary_lcu") {
 
@@ -556,7 +556,7 @@ build_retirement_hazard_data <- function(panel_contract_dt,
 #' @param birth_date_col Character.  Default: \code{"birth_date"}.
 #' @param start_date_col Character.  Default: \code{"start_date"}.
 #' @param end_date_col Character.  Default: \code{"end_date"}.
-#' @param contract_type_col Character.  Default: \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default: \code{"contract_type"}.
 #' @param contract_id_col Character.  Default: \code{"contract_id"}.
 #' @param salary_col Character.  Salary column used as a tiebreaker in primary
 #'   contract selection.  Default: \code{"gross_salary_lcu"}.
@@ -583,7 +583,7 @@ build_exit_hazard_data <- function(panel_contract_dt,
                                    birth_date_col     = "birth_date",
                                    start_date_col     = "start_date",
                                    end_date_col       = "end_date",
-                                   contract_type_col  = "contract_type_code",
+                                   contract_type_col  = "contract_type",
                                    contract_id_col    = "contract_id",
                                    salary_col         = "gross_salary_lcu") {
 
@@ -1126,7 +1126,7 @@ select_hazard_threshold <- function(hazard_model,
 #' @param birth_date_col Character.  Default: \code{"birth_date"}.
 #' @param start_date_col Character.  Default: \code{"start_date"}.
 #' @param end_date_col Character.  Default: \code{"end_date"}.
-#' @param contract_type_col Character.  Default: \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default: \code{"contract_type"}.
 #' @param contract_id_col Character.  Default: \code{"contract_id"}.
 #' @param salary_col Character.  Tiebreaker column for primary contract
 #'   selection.  Default: \code{"gross_salary_lcu"}.
@@ -1172,7 +1172,7 @@ predict_hazard <- function(hazard_model,
                            birth_date_col    = "birth_date",
                            start_date_col    = "start_date",
                            end_date_col      = "end_date",
-                           contract_type_col = "contract_type_code",
+                           contract_type_col = "contract_type",
                            contract_id_col   = "contract_id",
                            salary_col        = "gross_salary_lcu",
                            ref_date          = NULL) {
@@ -1339,7 +1339,7 @@ predict_hazard <- function(hazard_model,
 #' @param birth_date_col Character.  Default: \code{"birth_date"}.
 #' @param start_date_col Character.  Default: \code{"start_date"}.
 #' @param end_date_col Character.  Default: \code{"end_date"}.
-#' @param contract_type_col Character.  Default: \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default: \code{"contract_type"}.
 #' @param contract_id_col Character.  Default: \code{"contract_id"}.
 #' @param salary_col Character.  Default: \code{"gross_salary_lcu"}.
 #' @param ref_date Date scalar or \code{NULL}.  Snapshot date of
@@ -1377,7 +1377,7 @@ project_retirement_hazard <- function(panel_contract_dt,
                                       birth_date_col     = "birth_date",
                                       start_date_col     = "start_date",
                                       end_date_col       = "end_date",
-                                      contract_type_col  = "contract_type_code",
+                                      contract_type_col  = "contract_type",
                                       contract_id_col    = "contract_id",
                                       salary_col         = "gross_salary_lcu",
                                       ref_date           = NULL) {
@@ -1533,7 +1533,7 @@ project_retirement_hazard <- function(panel_contract_dt,
 #' @param birth_date_col Character.  Default: \code{"birth_date"}.
 #' @param start_date_col Character.  Default: \code{"start_date"}.
 #' @param end_date_col Character.  Default: \code{"end_date"}.
-#' @param contract_type_col Character.  Default: \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default: \code{"contract_type"}.
 #' @param contract_id_col Character.  Default: \code{"contract_id"}.
 #' @param salary_col Character.  Default: \code{"gross_salary_lcu"}.
 #' @param ref_date Date scalar or \code{NULL}.  Snapshot date of
@@ -1572,7 +1572,7 @@ project_exit_hazard <- function(panel_contract_dt,
                                 birth_date_col     = "birth_date",
                                 start_date_col     = "start_date",
                                 end_date_col       = "end_date",
-                                contract_type_col  = "contract_type_code",
+                                contract_type_col  = "contract_type",
                                 contract_id_col    = "contract_id",
                                 salary_col         = "gross_salary_lcu",
                                 ref_date           = NULL) {

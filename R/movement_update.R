@@ -62,7 +62,7 @@ stochastic_round <- function(x) {
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
 #' @param start_date_col Character. Contract start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param salary_col Character. Salary column (default: "gross_salary_lcu")
 #' @param status_col Character. Status column (default: "status")
 #' @param ref_date_col Character. Reference date column for panel data (default: "ref_date")
@@ -84,7 +84,7 @@ identify_movers <- function(contract_dt,
                              personnel_id_col = "personnel_id",
                              start_date_col = "start_date",
                              end_date_col = "end_date",
-                             contract_type_col = "contract_type_code",
+                             contract_type_col = "contract_type",
                              salary_col = "gross_salary_lcu",
                              status_col = "status",
                              ref_date_col = "ref_date") {
@@ -317,7 +317,7 @@ identify_movers <- function(contract_dt,
 #' @param salary_col Character. Salary column (default: "gross_salary_lcu")
 #' @param start_date_col Character. Contract start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #'
 #' @return List containing:
 #'   \describe{
@@ -340,7 +340,7 @@ update_state_with_movement <- function(contract_dt,
                                        salary_col = "gross_salary_lcu",
                                        start_date_col = "start_date",
                                        end_date_col = "end_date",
-                                       contract_type_col = "contract_type_code") {
+                                       contract_type_col = "contract_type") {
 
   ref_date <- validate_date_format(ref_date, "ref_date")
 

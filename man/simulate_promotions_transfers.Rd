@@ -16,7 +16,7 @@ simulate_promotions_transfers(
   start_date_col = "start_date",
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   status_col = "status"
 )
 }
@@ -68,7 +68,7 @@ pre-move salary). Default: \code{"scale"}.}
 
 \item{salary_col}{Character. Salary column (default: \code{"gross_salary_lcu"}).}
 
-\item{contract_type_col}{Character. Contract type column (default: \code{"contract_type_code"}).}
+\item{contract_type_col}{Character. Contract type column (default: \code{"contract_type"}).}
 
 \item{status_col}{Character. Personnel status column (default: \code{"status"}).}
 }

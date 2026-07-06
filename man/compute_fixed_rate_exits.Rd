@@ -8,7 +8,7 @@ compute_fixed_rate_exits(
   contract_dt,
   policy_params,
   personnel_id_col = "personnel_id",
-  contract_type_col = "contract_type_code"
+  contract_type_col = "contract_type"
 )
 }
 \arguments{
@@ -20,7 +20,7 @@ Keys consumed: \code{defaults$exit_rate}, \code{defaults$exit_strategy},
 
 \item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
 
-\item{contract_type_col}{Character.  Default \code{"contract_type_code"}.}
+\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
 }
 \value{
 data.table with \code{personnel_id_col} identifying personnel

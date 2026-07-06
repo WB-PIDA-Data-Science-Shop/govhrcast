@@ -77,7 +77,7 @@ generate_new_personnel <- function(n,
 #' @param contract_id_col Character. Contract ID column (default: "contract_id")
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #'
 #' @return data.table with new contract records
 #' @keywords internal
@@ -88,7 +88,7 @@ generate_new_contracts <- function(personnel_ids,
                                    contract_id_col = "contract_id",
                                    start_date_col = "start_date",
                                    end_date_col = "end_date",
-                                   contract_type_col = "contract_type_code") {
+                                   contract_type_col = "contract_type") {
   
   n <- length(personnel_ids)
   
@@ -110,13 +110,13 @@ generate_new_contracts <- function(personnel_ids,
     personnel_id = personnel_ids,
     start_date = ref_date,
     end_date = as.Date(NA),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
   
   # Rename columns to match user's schema
   data.table::setnames(new_contracts,
                        old = c("contract_id", "personnel_id", "start_date", 
-                               "end_date", "contract_type_code"),
+                               "end_date", "contract_type"),
                        new = c(contract_id_col, personnel_id_col, start_date_col,
                                end_date_col, contract_type_col))
   
@@ -269,7 +269,7 @@ assign_compensation <- function(new_contracts_dt,
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param status_col Character. Status column (default: "status")
 #'
 #' @return Character vector of personnel_ids to remove
@@ -283,7 +283,7 @@ select_personnel_to_remove <- function(contract_dt,
                                        personnel_id_col = "personnel_id",
                                        start_date_col = "start_date",
                                        end_date_col = "end_date",
-                                       contract_type_col = "contract_type_code",
+                                       contract_type_col = "contract_type",
                                        status_col = "status") {
   
   if (n_remove <= 0) {
@@ -374,7 +374,7 @@ select_personnel_to_remove <- function(contract_dt,
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param salary_col Character. Salary column (default: "gross_salary_lcu")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param status_col Character. Status column (default: "status")
 #'
 #' @return List containing:
@@ -400,7 +400,7 @@ update_state_with_adjustment <- function(contract_dt,
                                          start_date_col = "start_date",
                                          end_date_col = "end_date",
                                          salary_col = "gross_salary_lcu",
-                                         contract_type_col = "contract_type_code",
+                                         contract_type_col = "contract_type",
                                          status_col = "status") {
   
   group_cols <- policy_params$group_cols

@@ -48,7 +48,7 @@ NULL
 #' @param ref_date_col Character.  Default \code{"ref_date"}.
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
-#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default \code{"contract_type"}.
 #' @param status_col Character.  Default \code{"status"}.
 #'
 #' @return data.table with \code{group_cols} (if specified) and
@@ -62,7 +62,7 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
                                            ref_date_col      = "ref_date",
                                            start_date_col    = "start_date",
                                            end_date_col      = "end_date",
-                                           contract_type_col = "contract_type_code",
+                                           contract_type_col = "contract_type",
                                            status_col        = "status") {
 
   if (!data.table::is.data.table(panel_contract_dt))
@@ -168,7 +168,7 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
 #'   \code{exit_rate} column), \code{defaults$exit_rate},
 #'   \code{defaults$exit_strategy}, \code{defaults$active_types}.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default \code{"contract_type"}.
 #'
 #' @return data.table with at least \code{personnel_id_col} identifying
 #'   personnel selected to exit this period.  Empty \code{data.table()} when
@@ -178,7 +178,7 @@ compute_status_quo_exits <- function(
     contract_dt,
     policy_params,
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code") {
+    contract_type_col = "contract_type") {
 
   .defaults     <- policy_params$defaults %||% list()
   exit_strategy <- .defaults$exit_strategy %||% "random"
@@ -292,7 +292,7 @@ compute_status_quo_exits <- function(
 #'   Keys consumed: \code{defaults$exit_rate}, \code{defaults$exit_strategy},
 #'   \code{defaults$active_types}.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default \code{"contract_type"}.
 #'
 #' @return data.table with \code{personnel_id_col} identifying personnel
 #'   selected to exit.  Empty \code{data.table()} when there are no active
@@ -302,7 +302,7 @@ compute_fixed_rate_exits <- function(
     contract_dt,
     policy_params,
     personnel_id_col  = "personnel_id",
-    contract_type_col = "contract_type_code") {
+    contract_type_col = "contract_type") {
 
   .defaults     <- policy_params$defaults %||% list()
   exit_rate     <- .defaults$exit_rate

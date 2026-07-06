@@ -39,7 +39,7 @@ NULL
 #' @param ref_date_col Character. Reference date column for panel data (default: "ref_date")
 #' @param start_date_col Character. Contract start date column (default: "start_date")
 #' @param end_date_col Character. Contract end date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #'
 #' @return data.table with columns: personnel_id, time_in_grade (years)
 #' @keywords internal
@@ -50,7 +50,7 @@ compute_time_in_grade <- function(contract_dt,
                                   ref_date_col = "ref_date",
                                   start_date_col = "start_date",
                                   end_date_col = "end_date",
-                                  contract_type_col = "contract_type_code") {
+                                  contract_type_col = "contract_type") {
 
   ref_date <- validate_date_format(ref_date, "ref_date")
 
@@ -244,7 +244,7 @@ compute_time_in_grade <- function(contract_dt,
 #' @param ref_date_col Character. Reference date column (default: "ref_date")
 #' @param start_date_col Character. Contract start date column (default: "start_date")
 #' @param end_date_col Character. Contract end date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #'
 #' @return data.table with columns:
 #'   \describe{
@@ -260,7 +260,7 @@ estimate_movement_baseline <- function(contract_dt,
                                        ref_date_col = "ref_date",
                                        start_date_col = "start_date",
                                        end_date_col = "end_date",
-                                       contract_type_col = "contract_type_code") {
+                                       contract_type_col = "contract_type") {
 
   # Validate inputs
   if (!data.table::is.data.table(contract_dt)) {
@@ -368,7 +368,7 @@ estimate_movement_baseline <- function(contract_dt,
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param status_col Character. Status column (default: "status")
 #'
 #' @return data.table with columns:
@@ -389,7 +389,7 @@ compute_movement_demand <- function(contract_dt,
                                     personnel_id_col = "personnel_id",
                                     start_date_col = "start_date",
                                     end_date_col = "end_date",
-                                    contract_type_col = "contract_type_code",
+                                    contract_type_col = "contract_type",
                                     status_col = "status") {
 
   ref_date <- validate_date_format(ref_date, "ref_date")
@@ -577,7 +577,7 @@ compute_movement_summary <- function(movers_dt,
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
-#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default \code{"contract_type"}.
 #' @param status_col Character.  Default \code{"status"}.
 #'
 #' @return data.table with columns \code{from_group}, \code{to_group},
@@ -593,7 +593,7 @@ compute_fixed_rate_movements <- function(
     personnel_id_col  = "personnel_id",
     start_date_col    = "start_date",
     end_date_col      = "end_date",
-    contract_type_col = "contract_type_code",
+    contract_type_col = "contract_type",
     status_col        = "status") {
 
   ref_date      <- validate_date_format(ref_date, "ref_date")

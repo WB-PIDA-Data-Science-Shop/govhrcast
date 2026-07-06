@@ -15,7 +15,7 @@ estimate_hiring_demand(
   birth_date_col = "birth_date",
   start_date_col = "start_date",
   end_date_col = "end_date",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   status_col = "status"
 )
 }
@@ -42,7 +42,7 @@ estimate_hiring_demand(
 
 \item{end_date_col}{Character. End date column (default: "end_date")}
 
-\item{contract_type_col}{Character. Contract type column (default: "contract_type_code")}
+\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
 
 \item{status_col}{Character. Status column (default: "status")}
 }

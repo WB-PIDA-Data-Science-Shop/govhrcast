@@ -13,7 +13,7 @@ compute_status_quo_hiring(
   personnel_id_col = "personnel_id",
   start_date_col = "start_date",
   end_date_col = "end_date",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   status_col = "status"
 )
 }
@@ -44,7 +44,7 @@ detection.  Default \code{NULL}.}
 
 \item{end_date_col}{Character. Default \code{"end_date"}.}
 
-\item{contract_type_col}{Character. Default \code{"contract_type_code"}.}
+\item{contract_type_col}{Character. Default \code{"contract_type"}.}
 
 \item{status_col}{Character. Default \code{"status"}.}
 }

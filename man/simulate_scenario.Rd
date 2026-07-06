@@ -24,7 +24,7 @@ simulate_scenario(
   start_date_col = "start_date",
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   status_col = "status",
   age_col = "age",
   tenure_col = "tenure_years",
@@ -101,7 +101,7 @@ when a hazard model uses age as a covariate.  Default \code{"birth_date"}.}
 
 \item{salary_col}{Character.  Default \code{"gross_salary_lcu"}.}
 
-\item{contract_type_col}{Character.  Default \code{"contract_type_code"}.}
+\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
 
 \item{status_col}{Character.  Default \code{"status"}.}
 
@@ -156,7 +156,7 @@ state objects.  Operations are applied in this order:
 \details{
 \strong{Wage bill measurement}: \code{wage_bill_start} and \code{wage_bill_end}
 are computed via an internal helper that sums \code{salary_col} over active
-contract rows only -- rows with \code{contract_type_code = "pensioner"} and
+contract rows only -- rows with \code{contract_type = "pensioner"} and
 rows with a missing salary are excluded.  The \code{pensioner_register} is a
 separate audit ledger that tracks \code{pension_amount} (the pension formula
 output) and is never folded into the wage-bill totals.
@@ -171,7 +171,7 @@ s <- list(
     est_id             = "E1",
     start_date         = as.Date("2010-01-01"),
     end_date           = as.Date(NA),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     gross_salary_lcu   = 50000
   ),
   personnel_dt = data.table(

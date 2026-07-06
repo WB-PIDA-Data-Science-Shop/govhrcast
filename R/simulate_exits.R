@@ -80,7 +80,7 @@ utils::globalVariables(c(
 #'   and the hazard model uses tenure as a covariate.  Default
 #'   \code{"start_date"}.
 #' @param contract_id_col Character.  Default \code{"contract_id"}.
-#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default \code{"contract_type"}.
 #' @param status_col Character.  Default \code{"status"}.
 #' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
@@ -147,7 +147,7 @@ simulate_exits <- function(contract_dt,
                            birth_date_col    = "birth_date",
                            start_date_col    = "start_date",
                            contract_id_col   = "contract_id",
-                           contract_type_col = "contract_type_code",
+                           contract_type_col = "contract_type",
                            status_col        = "status",
                            salary_col        = "gross_salary_lcu",
                            end_date_col      = "end_date") {

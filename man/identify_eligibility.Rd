@@ -14,7 +14,7 @@ identify_eligibility(
   birth_date_col = "birth_date",
   start_date_col = "start_date",
   end_date_col = "end_date",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   age_col = "age",
   tenure_col = "tenure_years"
 )
@@ -64,7 +64,7 @@ open-ended contracts.  (default: \code{"end_date"}).}
 
 \item{contract_type_col}{Character.  Contract classification column.  Only
 contracts with type not in \code{c("inactive", "pensioner")} are treated
-as active candidates.  (default: \code{"contract_type_code"}).}
+as active candidates.  (default: \code{"contract_type"}).}
 
 \item{age_col}{Character.  Column in \code{personnel_dt} with pre-computed
 age in years.  When the column is present, \code{\link{compute_age}} is

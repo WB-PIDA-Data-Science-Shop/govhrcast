@@ -7,7 +7,7 @@
 get_salary_bearing_contracts(
   contract_dt,
   salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   pensioner_type = "pensioner"
 )
 }
@@ -18,7 +18,7 @@ get_salary_bearing_contracts(
 Default \code{"gross_salary_lcu"}.}
 
 \item{contract_type_col}{Character.  Name of the contract type column.
-Default \code{"contract_type_code"}.}
+Default \code{"contract_type"}.}
 
 \item{pensioner_type}{Character scalar.  The contract type value that
 identifies pensioner rows.  Default \code{"pensioner"}.}

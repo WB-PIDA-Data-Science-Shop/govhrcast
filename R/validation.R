@@ -430,7 +430,7 @@ validate_policy_table <- function(policy_params) {
 #' @param contract_id_col Character.  Default \code{"contract_id"}.
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
-#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default \code{"contract_type"}.
 #' @param status_col Character.  Default \code{"status"}.
 #'
 #' @return Invisible \code{TRUE}.  Stops with an informative error on the
@@ -476,7 +476,7 @@ check_retirement_inputs <- function(contract_dt,
                                     contract_id_col = "contract_id",
                                     start_date_col = "start_date",
                                     end_date_col = "end_date",
-                                    contract_type_col = "contract_type_code",
+                                    contract_type_col = "contract_type",
                                     status_col = "status") {
   
   # Validate data tables
@@ -597,7 +597,7 @@ check_hiring_inputs <- function(contract_dt,
                                 contract_id_col = "contract_id",
                                 start_date_col = "start_date",
                                 end_date_col = "end_date",
-                                contract_type_col = "contract_type_code",
+                                contract_type_col = "contract_type",
                                 status_col = "status") {
   
   # Validate data tables
@@ -745,7 +745,7 @@ check_movement_inputs <- function(contract_dt,
                                   personnel_id_col  = "personnel_id",
                                   start_date_col    = "start_date",
                                   end_date_col      = "end_date",
-                                  contract_type_col = "contract_type_code",
+                                  contract_type_col = "contract_type",
                                   status_col        = "status") {
 
   # Validate data tables

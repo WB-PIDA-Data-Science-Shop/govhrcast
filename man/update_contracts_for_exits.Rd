@@ -9,7 +9,7 @@ update_contracts_for_exits(
   exits_dt,
   ref_date,
   personnel_id_col = "personnel_id",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   end_date_col = "end_date",
   active_types = "active",
   exited_type = "inactive"

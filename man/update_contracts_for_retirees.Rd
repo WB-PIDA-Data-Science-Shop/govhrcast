@@ -13,7 +13,7 @@ update_contracts_for_retirees(
   start_date_col = "start_date",
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type_code"
+  contract_type_col = "contract_type"
 )
 }
 \arguments{
@@ -49,7 +49,7 @@ double-counting: pension cost is tracked separately via
 \item{contract_type_col}{Character.  Contract classification column.  Set
 to \code{"pensioner"} for closing contracts.  Contracts already in
 \code{c("inactive", "pensioner", "closed_due_to_retirement", "terminated")}
-are skipped.  (default: \code{"contract_type_code"}).}
+are skipped.  (default: \code{"contract_type"}).}
 }
 \value{
 \code{contract_dt} (invisibly; the same object, modified in place).

@@ -17,7 +17,7 @@ create_test_data_for_update <- function() {
     gross_salary_lcu = seq(50000, 95000, by = 5000),
     department = rep(c("HR", "IT"), 5),
     paygrade = rep(c("G5", "G6"), each = 5),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
   
   personnel_dt <- data.table(
@@ -100,10 +100,10 @@ test_that("generate_new_contracts creates correct number of records", {
   expect_s3_class(result, "data.table")
   expect_equal(nrow(result), 5)
   expect_true(all(c("contract_id", "personnel_id", "start_date", 
-                    "end_date", "contract_type_code") %in% names(result)))
+                    "end_date", "contract_type") %in% names(result)))
   expect_true(all(result$start_date == as.Date("2024-06-01")))
   expect_true(all(is.na(result$end_date)))
-  expect_true(all(result$contract_type_code == "permanent"))
+  expect_true(all(result$contract_type == "permanent"))
 })
 
 test_that("generate_new_contracts adds group values", {
@@ -369,7 +369,7 @@ test_that("update_state_with_adjustment handles downsizing (negative net_change)
   expect_equal(final_n_active, initial_n_active - 2)
   
   # Verify contracts were terminated
-  n_terminated <- test_data$contract_dt[contract_type_code == "terminated", .N]
+  n_terminated <- test_data$contract_dt[contract_type == "terminated", .N]
   expect_equal(n_terminated, 2)
 })
 
@@ -576,7 +576,7 @@ make_hire_contracts <- function(est_id = "ORG_A") {
     personnel_id       = "P_NEW_1",
     start_date         = as.Date("2020-01-01"),
     end_date           = as.Date(NA),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     est_id             = est_id
   )
 }
@@ -616,7 +616,7 @@ test_that("update_state_with_adjustment does not error when salary_scale key mat
     personnel_id       = paste0("P", 1:4),
     start_date         = as.Date("2019-01-01"),
     end_date           = as.Date(NA),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     est_id             = rep(c("ORG_A", "ORG_B"), 2L),
     gross_salary_lcu   = c(10000, 12000, 10000, 12000)
   )
@@ -660,7 +660,7 @@ test_that("simulate_scenario hiring errors when salary_scale_dt is finer than gr
     personnel_id       = paste0("P", 1:4),
     start_date         = as.Date("2019-01-01"),
     end_date           = as.Date(NA),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     est_id             = rep(c("ORG_A", "ORG_B"), 2L),
     gross_salary_lcu   = c(10000, 12000, 10000, 12000),
     paygrade           = rep(c("D", "E"), 2L),

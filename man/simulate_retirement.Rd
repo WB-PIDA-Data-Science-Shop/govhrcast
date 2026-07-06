@@ -20,7 +20,7 @@ simulate_retirement(
   start_date_col = "start_date",
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   status_col = "status",
   age_col = "age",
   tenure_col = "tenure_years"
@@ -107,7 +107,7 @@ in \code{policy_params}.  (default: \code{"gross_salary_lcu"}).}
 \code{contract_dt}.  Active contracts are any type not in
 \code{c("inactive", "pensioner")}.  Retired contracts are reclassified
 to \code{"pensioner"} by \code{\link{update_contracts_for_retirees}}.
-(default: \code{"contract_type_code"}).}
+(default: \code{"contract_type"}).}
 
 \item{status_col}{Character. Employment status column in
 \code{personnel_dt}.  Set to \code{"inactive"} for retiring personnel.

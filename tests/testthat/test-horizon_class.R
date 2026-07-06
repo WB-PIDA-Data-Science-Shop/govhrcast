@@ -198,7 +198,7 @@ make_sim_state <- function(n = 4L, ages = rep(40L, 4L)) {
     est_id             = rep(c("E1", "E2"), length.out = n),
     start_date         = ref - 365L * 10L,
     end_date           = as.Date(NA),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     gross_salary_lcu   = 10000
   )
   pt <- data.table::data.table(

@@ -1154,7 +1154,7 @@
     },
     "dplyr": {
       "Package": "dplyr",
-      "Version": "1.1.4",
+      "Version": "1.2.1",
       "Source": "Repository",
       "Type": "Package",
       "Title": "A Grammar of Data Manipulation",
@@ -1164,27 +1164,25 @@
       "URL": "https://dplyr.tidyverse.org, https://github.com/tidyverse/dplyr",
       "BugReports": "https://github.com/tidyverse/dplyr/issues",
       "Depends": [
-        "R (>= 3.5.0)"
+        "R (>= 4.1.0)"
       ],
       "Imports": [
-        "cli (>= 3.4.0)",
+        "cli (>= 3.6.2)",
         "generics",
         "glue (>= 1.3.2)",
-        "lifecycle (>= 1.0.3)",
+        "lifecycle (>= 1.0.5)",
         "magrittr (>= 1.5)",
         "methods",
         "pillar (>= 1.9.0)",
         "R6",
-        "rlang (>= 1.1.0)",
+        "rlang (>= 1.1.7)",
         "tibble (>= 3.2.0)",
         "tidyselect (>= 1.2.0)",
         "utils",
-        "vctrs (>= 0.6.4)"
+        "vctrs (>= 0.7.1)"
       ],
       "Suggests": [
-        "bench",
         "broom",
-        "callr",
         "covr",
         "DBI",
         "dbplyr (>= 2.2.1)",
@@ -1192,12 +1190,9 @@
         "knitr",
         "Lahman",
         "lobstr",
-        "microbenchmark",
         "nycflights13",
         "purrr",
         "rmarkdown",
-        "RMySQL",
-        "RPostgreSQL",
         "RSQLite",
         "stringi (>= 1.7.6)",
         "testthat (>= 3.1.5)",
@@ -1205,15 +1200,16 @@
         "withr"
       ],
       "VignetteBuilder": "knitr",
-      "Config/Needs/website": "tidyverse, shiny, pkgdown, tidyverse/tidytemplate",
+      "Config/build/compilation-database": "true",
+      "Config/Needs/website": "tidyverse/tidytemplate",
       "Config/testthat/edition": "3",
       "Encoding": "UTF-8",
       "LazyData": "true",
-      "RoxygenNote": "7.2.3",
+      "RoxygenNote": "7.3.3",
       "NeedsCompilation": "yes",
-      "Author": "Hadley Wickham [aut, cre] (<https://orcid.org/0000-0003-4757-117X>), Romain François [aut] (<https://orcid.org/0000-0002-2444-4226>), Lionel Henry [aut], Kirill Müller [aut] (<https://orcid.org/0000-0002-1416-3412>), Davis Vaughan [aut] (<https://orcid.org/0000-0003-4777-038X>), Posit Software, PBC [cph, fnd]",
+      "Author": "Hadley Wickham [aut, cre] (ORCID: <https://orcid.org/0000-0003-4757-117X>), Romain François [aut] (ORCID: <https://orcid.org/0000-0002-2444-4226>), Lionel Henry [aut], Kirill Müller [aut] (ORCID: <https://orcid.org/0000-0002-1416-3412>), Davis Vaughan [aut] (ORCID: <https://orcid.org/0000-0003-4777-038X>), Posit Software, PBC [cph, fnd]",
       "Maintainer": "Hadley Wickham <hadley@posit.co>",
-      "Repository": "RSPM"
+      "Repository": "CRAN"
     },
     "dtplyr": {
       "Package": "dtplyr",
@@ -1939,7 +1935,7 @@
     },
     "govhr": {
       "Package": "govhr",
-      "Version": "0.1.3",
+      "Version": "0.3.0",
       "Source": "GitHub",
       "Type": "Package",
       "Title": "Clean and analyze data that informs human resource management",
@@ -1950,39 +1946,41 @@
       "LazyDataCompression": "xz",
       "Imports": [
         "dplyr",
-        "purrr",
         "tibble",
         "rlang",
         "tidyr",
-        "glue",
-        "httr",
-        "janitor",
-        "jsonlite",
         "lubridate",
         "ggplot2",
         "ggrepel",
         "ggthemes",
         "data.table",
-        "dtplyr",
-        "broom",
-        "rmarkdown",
         "stringr",
+        "scales",
+        "validate",
+        "broom",
+        "dtplyr",
+        "glue",
+        "httr",
+        "janitor",
+        "jsonlite",
+        "purrr",
+        "rmarkdown",
         "tidyselect",
-        "scales"
+        "stringdist"
       ],
-      "RoxygenNote": "7.3.3",
       "Suggests": [
         "forcats",
         "readr",
         "testthat (>= 3.0.0)",
         "reactable"
       ],
+      "RoxygenNote": "7.3.3",
       "Config/testthat/edition": "3",
       "Depends": [
         "R (>= 3.5)"
       ],
       "URL": "https://wb-pida-data-science-shop.github.io/govhr/",
-      "Config/Needs/website": "rmarkdown, remotes, polyglotr, AleKoure/labourR, DT, tidyr, here, qs, tibble",
+      "Config/Needs/website": "rmarkdown, remotes, polyglotr, AleKoure/labourR, DT, tidyr, here, tibble, arrow",
       "Authors@R": "c( person(\"Galileu\", \"Kim\", , \"galileukim@worldbank.org\", role = c(\"aut\", \"cre\")), person(\"Ifeanyi\", \"Edochie\", , \"iedochie@worldbank.org\", role = c(\"aut\")) )",
       "Author": "Galileu Kim [aut, cre], Ifeanyi Edochie [aut]",
       "Maintainer": "Galileu Kim <galileukim@worldbank.org>",
@@ -1990,8 +1988,8 @@
       "RemoteHost": "api.github.com",
       "RemoteUsername": "WB-PIDA-Data-Science-Shop",
       "RemoteRepo": "govhr",
-      "RemoteRef": "master",
-      "RemoteSha": "4d679eca086c30dd8767fba8512c614a2c930e5d"
+      "RemoteRef": "6b3386dd929f035d77eb52befb69854f9f05e958",
+      "RemoteSha": "6b3386dd929f035d77eb52befb69854f9f05e958"
     },
     "gtable": {
       "Package": "gtable",
@@ -2646,7 +2644,7 @@
     },
     "lifecycle": {
       "Package": "lifecycle",
-      "Version": "1.0.4",
+      "Version": "1.0.5",
       "Source": "Repository",
       "Title": "Manage the Life Cycle of your Package Functions",
       "Authors@R": "c( person(\"Lionel\", \"Henry\", , \"lionel@posit.co\", role = c(\"aut\", \"cre\")), person(\"Hadley\", \"Wickham\", , \"hadley@posit.co\", role = \"aut\", comment = c(ORCID = \"0000-0003-4757-117X\")), person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\")) )",
@@ -2659,29 +2657,28 @@
       ],
       "Imports": [
         "cli (>= 3.4.0)",
-        "glue",
         "rlang (>= 1.1.0)"
       ],
       "Suggests": [
         "covr",
-        "crayon",
         "knitr",
-        "lintr",
+        "lintr (>= 3.1.0)",
         "rmarkdown",
         "testthat (>= 3.0.1)",
         "tibble",
         "tidyverse",
         "tools",
         "vctrs",
-        "withr"
+        "withr",
+        "xml2"
       ],
       "VignetteBuilder": "knitr",
       "Config/Needs/website": "tidyverse/tidytemplate, usethis",
       "Config/testthat/edition": "3",
       "Encoding": "UTF-8",
-      "RoxygenNote": "7.2.1",
+      "RoxygenNote": "7.3.3",
       "NeedsCompilation": "no",
-      "Author": "Lionel Henry [aut, cre], Hadley Wickham [aut] (<https://orcid.org/0000-0003-4757-117X>), Posit Software, PBC [cph, fnd]",
+      "Author": "Lionel Henry [aut, cre], Hadley Wickham [aut] (ORCID: <https://orcid.org/0000-0003-4757-117X>), Posit Software, PBC [cph, fnd]",
       "Maintainer": "Lionel Henry <lionel@posit.co>",
       "Repository": "CRAN"
     },
@@ -4207,6 +4204,32 @@
       "Author": "Gábor Csárdi [cre], Hadley Wickham [aut], Winston Chang [aut], Robert Flight [aut], Kirill Müller [aut], Jim Hester [aut], R Core team [ctb], Posit Software, PBC [cph, fnd]",
       "Repository": "RSPM"
     },
+    "settings": {
+      "Package": "settings",
+      "Version": "0.2.7",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "Software Option Settings Manager for R",
+      "Author": "Mark van der Loo",
+      "Maintainer": "Mark van der Loo <mark.vanderloo@gmail.com>",
+      "Description": "Provides option settings management that goes beyond R's default 'options' function. With this package, users can define their own option settings manager holding option names, default values and  (if so desired) ranges or sets of allowed option values that will be  automatically checked. Settings can then be retrieved, altered and reset  to defaults with ease. For R programmers and package developers it offers  cloning and merging functionality which allows for conveniently defining  global and local options, possibly in a multilevel options hierarchy. See  the package vignette for some examples concerning functions, S4 classes,  and reference classes. There are convenience functions to reset par()  and options() to their 'factory defaults'.",
+      "URL": "https://github.com/markvanderloo/settings",
+      "BugReports": "https://github.com/markvanderloo/settings/issues",
+      "License": "GPL-3",
+      "VignetteBuilder": "knitr",
+      "Imports": [
+        "grDevices",
+        "graphics"
+      ],
+      "Suggests": [
+        "knitr",
+        "rmarkdown",
+        "tinytest"
+      ],
+      "RoxygenNote": "7.1.1",
+      "NeedsCompilation": "no",
+      "Repository": "CRAN"
+    },
     "shiny": {
       "Package": "shiny",
       "Version": "1.11.1",
@@ -4365,6 +4388,34 @@
       "Encoding": "UTF-8",
       "NeedsCompilation": "yes",
       "Repository": "RSPM"
+    },
+    "stringdist": {
+      "Package": "stringdist",
+      "Version": "0.9.17",
+      "Source": "Repository",
+      "Maintainer": "Mark van der Loo <mark.vanderloo@gmail.com>",
+      "License": "GPL-3",
+      "Title": "Approximate String Matching, Fuzzy Text Search, and String Distance Functions",
+      "Type": "Package",
+      "LazyLoad": "yes",
+      "Authors@R": "c( person(\"Mark\", \"van der Loo\", role=c(\"aut\",\"cre\") , email=\"mark.vanderloo@gmail.com\" , comment= c(ORCID=\"0000-0002-9807-4686\")) , person(\"Jan\", \"van der Laan\", role=\"ctb\") , person(\"R Core Team\",\"\"     , role=\"ctb\") , person(\"Nick\",\"Logan\"       , role=\"ctb\") , person(\"Chris\",\"Muir\"       , role=\"ctb\") , person(\"Johannes\", \"Gruber\" , role=\"ctb\") , person(\"Brian\",\"Ripley\"     , role=\"ctb\"))",
+      "Description": "Implements an approximate string matching version of R's native 'match' function. Also offers fuzzy text search based on various string distance measures. Can calculate various string distances based on edits (Damerau-Levenshtein, Hamming, Levenshtein, optimal sting alignment), qgrams (q- gram, cosine, jaccard distance) or heuristic metrics (Jaro, Jaro-Winkler). An implementation of soundex is provided as well. Distances can be computed between character vectors while taking proper care of encoding or between integer vectors representing generic sequences. This package is built for speed and runs in parallel by using 'openMP'. An API for C or C++ is exposed as well. Reference: MPJ van der Loo (2014) <doi:10.32614/RJ-2014-011>.",
+      "Depends": [
+        "R (>= 2.15.3)"
+      ],
+      "URL": "https://github.com/markvanderloo/stringdist",
+      "BugReports": "https://github.com/markvanderloo/stringdist/issues",
+      "Suggests": [
+        "tinytest"
+      ],
+      "Imports": [
+        "parallel"
+      ],
+      "Encoding": "UTF-8",
+      "RoxygenNote": "7.3.2",
+      "NeedsCompilation": "yes",
+      "Author": "Mark van der Loo [aut, cre] (ORCID: <https://orcid.org/0000-0002-9807-4686>), Jan van der Laan [ctb], R Core Team [ctb], Nick Logan [ctb], Chris Muir [ctb], Johannes Gruber [ctb], Brian Ripley [ctb]",
+      "Repository": "CRAN"
     },
     "stringi": {
       "Package": "stringi",
@@ -5003,6 +5054,47 @@
       "Author": "Patrick O. Perry [aut, cph], Kirill Müller [cre] (ORCID: <https://orcid.org/0000-0002-1416-3412>), Unicode, Inc. [cph, dtc] (Unicode Character Database)",
       "Maintainer": "Kirill Müller <kirill@cynkra.com>",
       "Repository": "RSPM"
+    },
+    "validate": {
+      "Package": "validate",
+      "Version": "1.1.7",
+      "Source": "Repository",
+      "Maintainer": "Mark van der Loo <mark.vanderloo@gmail.com>",
+      "License": "GPL-3",
+      "Title": "Data Validation Infrastructure",
+      "LazyData": "no",
+      "Type": "Package",
+      "LazyLoad": "yes",
+      "Authors@R": "c(person(\"Mark\", \"van der Loo\" , role   = c(\"cre\",\"aut\") , email  = \"mark.vanderloo@gmail.com\" , comment= c(ORCID=\"0000-0002-9807-4686\")) , person(\"Edwin\", \"de Jonge\" , role = \"aut\" , comment=c(ORCID=\"0000-0002-6580-4718\")) , person(\"Paul\",\"Hsieh\" , role = \"ctb\" ))",
+      "Description": "Declare data validation rules and data quality indicators; confront data with them and analyze or visualize the results. The package supports rules that are per-field, in-record, cross-record or cross-dataset. Rules can be automatically analyzed for rule type and connectivity. Supports checks implied by an SDMX DSD file as well. See also Van der Loo and De Jonge (2018) <doi:10.1002/9781118897126>, Chapter 6 and the JSS paper (2021) <doi:10.18637/jss.v097.i10>.",
+      "Depends": [
+        "R (>= 3.5.0)",
+        "methods"
+      ],
+      "URL": "https://github.com/data-cleaning/validate",
+      "BugReports": "https://github.com/data-cleaning/validate/issues",
+      "Imports": [
+        "stats",
+        "graphics",
+        "grid",
+        "settings",
+        "yaml"
+      ],
+      "Suggests": [
+        "rsdmx",
+        "tinytest (>= 0.9.6)",
+        "knitr",
+        "bookdown",
+        "lumberjack",
+        "rmarkdown"
+      ],
+      "VignetteBuilder": "knitr",
+      "Collate": "'rule.R' 'sugar.R' 'validate_pkg.R' 'parse.R' 'expressionset.R' 'indicator.R' 'validator.R' 'confrontation.R' 'compare.R' 'factory.R' 'genericrules.R' 'lumberjack.R' 'plot.R' 'retailers.R' 'run_validation.R' 'sdmx.R' 'syntax.R' 'utils.R' 'yaml.R'",
+      "RoxygenNote": "7.3.2",
+      "Encoding": "UTF-8",
+      "NeedsCompilation": "yes",
+      "Author": "Mark van der Loo [cre, aut] (ORCID: <https://orcid.org/0000-0002-9807-4686>), Edwin de Jonge [aut] (ORCID: <https://orcid.org/0000-0002-6580-4718>), Paul Hsieh [ctb]",
+      "Repository": "CRAN"
     },
     "vctrs": {
       "Package": "vctrs",

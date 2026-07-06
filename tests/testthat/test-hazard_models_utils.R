@@ -36,7 +36,7 @@ make_panel <- function(n_persons = 50L, n_snaps = 3L, seed = 1L) {
       personnel_id       = persons,
       contract_id        = paste0("C", seq_len(n_persons), "_", i),
       ref_date           = d,
-      contract_type_code = type,
+      contract_type = type,
       start_date         = as.Date("2010-01-01"),
       end_date           = as.Date("2030-12-31"),
       paygrade           = sample(c("A", "B", "C"), n_persons, replace = TRUE),
@@ -481,7 +481,7 @@ make_exit_panel <- function(n_persons = 50L, n_snaps = 3L, seed = 42L) {
       personnel_id       = keep,
       contract_id        = paste0("C", seq_along(keep), "_", i),
       ref_date           = d,
-      contract_type_code = type,
+      contract_type = type,
       start_date         = as.Date("2010-01-01"),
       end_date           = as.Date("2030-12-31"),
       paygrade           = sample(c("A", "B", "C"), length(keep), replace = TRUE),
@@ -642,7 +642,7 @@ test_that("predict_hazard returns one row per active person", {
   snap <- make_snapshot(cm$panel)
   # active = non-inactive, non-pensioner
   n_active <- snap$contract_dt[
-    !contract_type_code %in% c("inactive", "pensioner"),
+    !contract_type %in% c("inactive", "pensioner"),
     uniqueN(personnel_id)
   ]
   out <- predict_hazard(cm$hm, snap$contract_dt, snap$personnel_dt,
@@ -682,7 +682,7 @@ test_that("predict_hazard excludes inactive and pensioner contracts", {
   cm   <- make_calibrated_model()
   snap <- make_snapshot(cm$panel)
   # Manually mark one person as inactive
-  snap$contract_dt[1L, contract_type_code := "inactive"]
+  snap$contract_dt[1L, contract_type := "inactive"]
   out  <- predict_hazard(cm$hm, snap$contract_dt, snap$personnel_dt,
                          ref_date = snap$snap_date)
   expect_false(snap$contract_dt$personnel_id[1L] %in% out$personnel_id)
@@ -771,7 +771,7 @@ make_project_panel <- function(n_persons = 80L, n_snaps = 4L, seed = 7L) {
       personnel_id       = keep,
       contract_id        = paste0("C", seq_along(keep), "_", i),
       ref_date           = d,
-      contract_type_code = type,
+      contract_type = type,
       start_date         = as.Date("2010-01-01"),
       end_date           = as.Date("2030-12-31"),
       paygrade           = sample(c("A", "B", "C"), length(keep), replace = TRUE),

@@ -17,7 +17,7 @@ create_complete_test_data <- function() {
     gross_salary_lcu = rep(c(50000, 60000, 70000), 10),
     department = rep(c("HR", "IT", "Finance"), 10),
     paygrade = rep(c("G5", "G6"), 15),
-    contract_type_code = c(rep("permanent", 25), rep("terminated", 5))
+    contract_type = c(rep("permanent", 25), rep("terminated", 5))
   )
   
   personnel_dt <- data.table(

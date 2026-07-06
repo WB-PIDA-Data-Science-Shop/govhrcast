@@ -31,7 +31,7 @@
 #' @param start_date_col Character. Name of start date column (default: "start_date")
 #' @param end_date_col Character. Name of end date column (default: "end_date")
 #' @param salary_col Character. Name of salary column (default: "gross_salary_lcu")
-#' @param contract_type_col Character. Name of contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Name of contract type column (default: "contract_type")
 #' @param status_col Character. Name of status column (default: "status")
 #' @param hire_date_col Character or \code{NULL}.  Name of a person-level column in
 #'   \code{personnel_dt} that holds the true administrative hire date
@@ -143,7 +143,7 @@ simulate_hiring <- function(contract_dt,
                            start_date_col = "start_date",
                            end_date_col = "end_date",
                            salary_col = "gross_salary_lcu",
-                           contract_type_col = "contract_type_code",
+                           contract_type_col = "contract_type",
                            status_col = "status",
                            hire_date_col = NULL) {
   
