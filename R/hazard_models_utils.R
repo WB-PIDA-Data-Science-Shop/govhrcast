@@ -560,6 +560,8 @@ build_retirement_hazard_data <- function(panel_contract_dt,
 #' @param contract_id_col Character.  Default: \code{"contract_id"}.
 #' @param salary_col Character.  Salary column used as a tiebreaker in primary
 #'   contract selection.  Default: \code{"gross_salary_lcu"}.
+#' @param status_col Character.  Column in \code{panel_personnel_dt} that indicates
+#'   the employment status of the personnel.  Default: \code{"employment_status"}.
 #'
 #' @return A \code{data.table} with one row per person per at-risk snapshot.
 #'   Always contains \code{personnel_id_col}, \code{ref_date_col},
@@ -585,7 +587,8 @@ build_exit_hazard_data <- function(panel_contract_dt,
                                    end_date_col       = "end_date",
                                    contract_type_col  = "contract_type",
                                    contract_id_col    = "contract_id",
-                                   salary_col         = "gross_salary_lcu") {
+                                   salary_col         = "gross_salary_lcu",
+                                   status_col         = "employment_status") {
 
   # ------------------------------------------------------------------
   # 1. Coerce and validate
@@ -658,7 +661,8 @@ build_exit_hazard_data <- function(panel_contract_dt,
     event_type = "fire",
     start_date = format(min(panel_dates)),
     end_date   = format(max(panel_dates)),
-    freq       = freq
+    freq       = freq,
+    status_col = status_col
   )
   # fire_events columns: personnel_id_col, ref_date (date the exit was detected)
 

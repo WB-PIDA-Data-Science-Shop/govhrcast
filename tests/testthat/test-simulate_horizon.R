@@ -34,7 +34,7 @@ make_horizon_state <- function(n          = 4L,
   personnel_dt <- data.table::data.table(
     personnel_id = paste0("P", seq_len(n)),
     birth_date   = ref_date - 365L * as.integer(ages),
-    status       = "active",
+    employment_status = "active",
     age          = as.numeric(ages),
     tenure_years = as.numeric(tenures)
   )
@@ -908,7 +908,7 @@ make_panel_state <- function() {
   personnel_panel <- data.table::data.table(
     ref_date     = c(rep(snap1, 4), rep(snap2, 7)),
     personnel_id = c(paste0("P", 1:4), paste0("P", c(1:4, 5:7))),
-    status       = "active",
+    employment_status = "active",
     birth_date   = as.Date("1980-01-01"),
     age          = c(rep(39L, 4), rep(40L, 7)),
     tenure_years = c(rep(5L, 4), rep(5L, 4), 0L, 0L, 0L)
@@ -1022,7 +1022,7 @@ make_phase1b_inputs <- function(ref_date = as.Date("2020-01-01")) {
     personnel_id = c("P1", "P2"),
     # birth_date gives P1 age = 40, P2 age = 30 at ref_date
     birth_date   = c(ref_date - 365L * 40L, ref_date - 365L * 30L),
-    status       = "active",
+    employment_status = "active",
     age          = NA_real_,           # intentionally wrong — should be overwritten
     tenure_years = NA_real_            # intentionally wrong — should be overwritten
   )
@@ -1270,13 +1270,13 @@ make_phase2c_inputs <- function() {
     end_date         = as.Date(c(NA, NA)),
     gross_salary_lcu = c(50000, 40000),
     contract_type = c("permanent", "permanent"),
-    status           = c("active", "active")
+    employment_status = c("active", "active")
   )
 
   personnel_dt <- data.table::data.table(
     personnel_id = c("P1", "P2"),
     birth_date   = as.Date(c("1960-01-01", "1965-01-01")),
-    status       = c("active", "active")
+    employment_status = c("active", "active")
   )
 
   salary_scale_dt <- data.table::data.table(
@@ -1305,14 +1305,14 @@ make_phase2c_inputs_with_existing_pensioners <- function() {
     end_date         = as.Date(c(NA, NA, NA, NA)),
     gross_salary_lcu = c(50000, 40000, 20000, 18000),
     contract_type = c("permanent", "permanent", "pensioner", "pensioner"),
-    status           = c("active", "active", "inactive", "inactive")
+    employment_status = c("active", "active", "inactive", "inactive")
   )
 
   personnel_dt <- data.table::data.table(
     personnel_id = c("P1", "P2", "R1", "R2"),
     birth_date   = as.Date(c("1960-01-01", "1965-01-01",
                               "1950-01-01", "1948-01-01")),
-    status       = c("active", "active", "inactive", "inactive")
+    employment_status = c("active", "active", "inactive", "inactive")
   )
 
   salary_scale_dt <- data.table::data.table(
@@ -1459,11 +1459,11 @@ make_minimal_horizon_inputs <- function() {
     end_date           = as.Date(NA),
     gross_salary_lcu   = 50000,
     contract_type = "permanent",
-    status             = "active"
+    employment_status = "active"
   )
   personnel_dt <- data.table::data.table(
     personnel_id = "P1",
-    status       = "active"
+    employment_status = "active"
   )
   salary_scale_dt <- data.table::data.table(
     grade            = "G1",
@@ -1630,12 +1630,12 @@ make_block_f_inputs <- function() {
     end_date           = as.Date(NA),
     contract_type = "permanent",
     gross_salary_lcu   = c(30000, 30000, 30000, 50000, 50000, 50000),
-    status             = "active"
+    employment_status = "active"
   )
   personnel_dt <- data.table::data.table(
     personnel_id = paste0("P", 1:6),
     birth_date   = ref_date - 365L * c(35L, 38L, 42L, 45L, 50L, 55L),
-    status       = "active",
+    employment_status = "active",
     age          = c(35, 38, 42, 45, 50, 55),
     tenure_years = c(5, 3, 7, 2, 8, 4)
   )
@@ -2079,7 +2079,7 @@ make_hazard_panel_inputs <- function(n_persons = 100L, n_snaps = 4L, seed = 42L)
       start_date         = as.Date("2010-01-01"),
       end_date           = as.Date("2035-12-31"),
       gross_salary_lcu   = round(stats::runif(length(keep), 30000, 80000)),
-      status             = "active"
+      employment_status = "active"
     )
   }
 
@@ -2097,7 +2097,7 @@ make_hazard_panel_inputs <- function(n_persons = 100L, n_snaps = 4L, seed = 42L)
       ref_date     = d,
       birth_date   = as.Date("1958-01-01") +
                        as.integer(stats::runif(length(keep), 0, 10 * 365L)),
-      status       = "active"
+      employment_status = "active"
     )
   }
 

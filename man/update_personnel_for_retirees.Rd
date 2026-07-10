@@ -9,7 +9,7 @@ update_personnel_for_retirees(
   contract_dt,
   personnel_id_col = "personnel_id",
   contract_type_col = "contract_type",
-  status_col = "status"
+  status_col = "employment_status"
 )
 }
 \arguments{

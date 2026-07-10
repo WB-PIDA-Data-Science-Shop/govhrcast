@@ -16,7 +16,7 @@ identify_movers(
   end_date_col = "end_date",
   contract_type_col = "contract_type",
   salary_col = "gross_salary_lcu",
-  status_col = "status",
+  status_col = "employment_status",
   ref_date_col = "ref_date"
 )
 }

@@ -28,7 +28,7 @@ generate_new_personnel <- function(n,
                                    ref_date,
                                    group_vals = NULL,
                                    personnel_id_col = "personnel_id",
-                                   status_col = "status") {
+                                   status_col         = "employment_status") {
   
   if (n <= 0) {
     return(data.table::data.table())
@@ -284,7 +284,7 @@ select_personnel_to_remove <- function(contract_dt,
                                        start_date_col = "start_date",
                                        end_date_col = "end_date",
                                        contract_type_col = "contract_type",
-                                       status_col = "status") {
+                                       status_col         = "employment_status") {
   
   if (n_remove <= 0) {
     return(character(0))
@@ -401,7 +401,7 @@ update_state_with_adjustment <- function(contract_dt,
                                          end_date_col = "end_date",
                                          salary_col = "gross_salary_lcu",
                                          contract_type_col = "contract_type",
-                                         status_col = "status") {
+                                         status_col         = "employment_status") {
   
   group_cols <- policy_params$group_cols
   salary_scale <- policy_params$salary_scale

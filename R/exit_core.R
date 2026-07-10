@@ -63,7 +63,7 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
                                            start_date_col    = "start_date",
                                            end_date_col      = "end_date",
                                            contract_type_col = "contract_type",
-                                           status_col        = "status") {
+                                           status_col         = "employment_status") {
 
   if (!data.table::is.data.table(panel_contract_dt))
     panel_contract_dt <- data.table::as.data.table(panel_contract_dt)
@@ -81,7 +81,8 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
     event_type = "fire",
     start_date = start_str,
     end_date   = end_str,
-    freq       = freq
+    freq       = freq,
+    status_col = status_col
   )
   # fire_events columns: personnel_id_col, ref_date, type_event
 

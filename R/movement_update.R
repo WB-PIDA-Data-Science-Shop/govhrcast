@@ -86,7 +86,7 @@ identify_movers <- function(contract_dt,
                              end_date_col = "end_date",
                              contract_type_col = "contract_type",
                              salary_col = "gross_salary_lcu",
-                             status_col = "status",
+                             status_col         = "employment_status",
                              ref_date_col = "ref_date") {
 
   ref_date <- validate_date_format(ref_date, "ref_date")

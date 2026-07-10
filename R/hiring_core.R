@@ -37,7 +37,7 @@ compute_current_stock <- function(contract_dt,
                                   start_date_col = "start_date",
                                   end_date_col = "end_date",
                                   contract_type_col = "contract_type",
-                                  status_col = "status") {
+                                  status_col         = "employment_status") {
   
   # Get active contracts at ref_date
   active_contracts <- get_active_contracts(
@@ -271,7 +271,7 @@ compute_stock_demand <- function(contract_dt,
                                  start_date_col = "start_date",
                                  end_date_col = "end_date",
                                  contract_type_col = "contract_type",
-                                 status_col = "status") {
+                                 status_col         = "employment_status") {
   
   group_cols <- policy_params$group_cols
   stock_targets <- policy_params$stock_targets
@@ -361,7 +361,7 @@ compute_combined_demand <- function(contract_dt,
                                     start_date_col = "start_date",
                                     end_date_col = "end_date",
                                     contract_type_col = "contract_type",
-                                    status_col = "status") {
+                                    status_col         = "employment_status") {
   
   group_cols <- policy_params$group_cols
   replacement_rate <- policy_params$replacement_rate
@@ -487,7 +487,7 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
                                              start_date_col    = "start_date",
                                              end_date_col      = "end_date",
                                              contract_type_col = "contract_type",
-                                             status_col        = "status") {
+                                             status_col         = "employment_status") {
 
   panel_dates <- sort(unique(panel_personnel_dt[[ref_date_col]]))
   panel_start <- min(panel_dates, na.rm = TRUE)
@@ -620,7 +620,8 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
     event_type = "hire",
     start_date = start_str,
     end_date   = end_str,
-    freq       = freq
+    freq       = freq,
+    status_col = status_col
   )
   # hire_events columns: personnel_id_col, ref_date, type_event
 
@@ -735,7 +736,7 @@ compute_status_quo_hiring <- function(contract_dt,
                                       start_date_col    = "start_date",
                                       end_date_col      = "end_date",
                                       contract_type_col = "contract_type",
-                                      status_col        = "status") {
+                                      status_col         = "employment_status") {
 
   group_cols <- policy_params$group_cols
   rate_mult  <- if (!is.null(policy_params$rate_mult)) policy_params$rate_mult else 1
@@ -822,7 +823,7 @@ estimate_hiring_demand <- function(contract_dt,
                                    start_date_col    = "start_date",
                                    end_date_col      = "end_date",
                                    contract_type_col = "contract_type",
-                                   status_col        = "status") {
+                                   status_col         = "employment_status") {
   
   mode <- policy_params$mode
   

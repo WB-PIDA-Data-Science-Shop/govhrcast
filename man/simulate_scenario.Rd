@@ -25,7 +25,7 @@ simulate_scenario(
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
   contract_type_col = "contract_type",
-  status_col = "status",
+  status_col = "employment_status",
   age_col = "age",
   tenure_col = "tenure_years",
   period_fraction = 1,

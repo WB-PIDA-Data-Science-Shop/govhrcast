@@ -19,7 +19,7 @@ make_panel <- function(n_persons = 50L, n_snaps = 3L, seed = 1L) {
       ref_date     = d,
       birth_date   = as.Date("1965-01-01") +
                        as.integer(stats::runif(n_persons, 0, 5 * 365)),
-      status       = "active"
+      employment_status = "active"
     )
   })
   panel_personnel_dt <- data.table::rbindlist(personnel_rows)
@@ -463,7 +463,7 @@ make_exit_panel <- function(n_persons = 50L, n_snaps = 3L, seed = 42L) {
       ref_date     = d,
       birth_date   = as.Date("1965-01-01") +
                        as.integer(stats::runif(length(keep), 0, 5 * 365)),
-      status       = "active"
+      employment_status = "active"
     )
   })
   panel_personnel_dt <- data.table::rbindlist(personnel_rows)
@@ -794,7 +794,7 @@ make_project_panel <- function(n_persons = 80L, n_snaps = 4L, seed = 7L) {
       ref_date     = d,
       birth_date   = as.Date("1960-01-01") +
                        as.integer(stats::runif(length(keep), 0, 8 * 365)),
-      status       = "active"
+      employment_status = "active"
     )
   }
 

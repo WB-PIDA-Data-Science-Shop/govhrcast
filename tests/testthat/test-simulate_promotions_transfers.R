@@ -33,7 +33,7 @@ make_personnel <- function() {
   data.table::data.table(
     ref_date     = as.Date(c(rep("2015-01-01", 6), rep("2016-01-01", 6))),
     personnel_id = rep(paste0("P", 1:6), 2),
-    status       = "active"
+    employment_status = "active"
   )
 }
 

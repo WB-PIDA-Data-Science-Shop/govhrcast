@@ -15,7 +15,7 @@ make_workforce <- function() {
     ),
     personnel_dt = data.table::data.table(
       personnel_id = c("P1", "P2", "P3", "P4", "P5", "P6"),
-      status       = "active"
+      employment_status = "active"
     ),
     salary_scale = data.table::data.table(
       paygrade         = c("G1", "G2"),
@@ -137,7 +137,7 @@ test_that("identify_movers with promotion_strategy=wage_based selects lowest sal
   )
   pt <- data.table::data.table(
     personnel_id = c("P1", "P2", "P3"),
-    status = "active"
+    employment_status = "active"
   )
   demand <- data.table::data.table(
     from_group = "G1", to_group = "G2",
@@ -410,7 +410,7 @@ test_that("update_state_with_movement handles multi-column group_cols", {
   )
   pt <- data.table::data.table(
     personnel_id = c("P1", "P2"),
-    status = "active"
+    employment_status = "active"
   )
   scale <- data.table::data.table(
     est_id = c("E1", "E2"),

@@ -477,7 +477,7 @@ check_retirement_inputs <- function(contract_dt,
                                     start_date_col = "start_date",
                                     end_date_col = "end_date",
                                     contract_type_col = "contract_type",
-                                    status_col = "status") {
+                                    status_col         = "employment_status") {
   
   # Validate data tables
   validate_datatable(contract_dt, "contract_dt")
@@ -598,7 +598,7 @@ check_hiring_inputs <- function(contract_dt,
                                 start_date_col = "start_date",
                                 end_date_col = "end_date",
                                 contract_type_col = "contract_type",
-                                status_col = "status") {
+                                status_col         = "employment_status") {
   
   # Validate data tables
   validate_datatable(contract_dt, "contract_dt")
@@ -746,7 +746,7 @@ check_movement_inputs <- function(contract_dt,
                                   start_date_col    = "start_date",
                                   end_date_col      = "end_date",
                                   contract_type_col = "contract_type",
-                                  status_col        = "status") {
+                                  status_col         = "employment_status") {
 
   # Validate data tables
   validate_datatable(contract_dt,  "contract_dt")

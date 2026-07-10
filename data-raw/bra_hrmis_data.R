@@ -11,20 +11,20 @@ bra_hrmis_personnel <- as.data.table(govhr::bra_hrmis_personnel)
 bra_hrmis_allowance <- as.data.table(govhr::bra_hrmis_allowance)
 
 
-## fix the personnel data to prevent stop issues with the lazyload
-bra_hrmis_personnel[, educat7 := unclass(educat7)]
+# ## fix the personnel data to prevent stop issues with the lazyload
+# bra_hrmis_personnel[, educat7 := unclass(educat7)]
 
-bra_hrmis_personnel <- 
-  bra_hrmis_personnel |>
-  mutate(educat7 = case_when(educat7 == 1 ~ "No education",
-                             educat7 == 2 ~ "Primary incomplete",
-                             educat7 == 3 ~ "Primary complete",
-                             educat7 == 4 ~ "Secondary incomplete",
-                             educat7 == 5 ~ "Secondary complete",
-                             educat7 == 6 ~ "Post-secondary but not university",
-                             educat7 == 7 ~ "University complete or incomplete",
-                             is.na(educat7) ~ NA,
-                             .unmatched = "error"))
+# bra_hrmis_personnel <- 
+#   bra_hrmis_personnel |>
+#   mutate(educat7 = case_when(educat7 == 1 ~ "No education",
+#                              educat7 == 2 ~ "Primary incomplete",
+#                              educat7 == 3 ~ "Primary complete",
+#                              educat7 == 4 ~ "Secondary incomplete",
+#                              educat7 == 5 ~ "Secondary complete",
+#                              educat7 == 6 ~ "Post-secondary but not university",
+#                              educat7 == 7 ~ "University complete or incomplete",
+#                              is.na(educat7) ~ NA,
+#                              .unmatched = "error"))
 
 
 ### lets compute contract tenure

@@ -24,7 +24,7 @@ create_test_personnel_dt <- function() {
   data.table(
     personnel_id = c("P001", "P002", "P003", "P004"),
     birth_date = as.Date(c("1960-01-01", "1975-01-01", "1980-01-01", "1965-01-01")),
-    status = c("active", "active", "active", "active")
+    employment_status = c("active", "active", "active", "active")
   )
 }
 
@@ -66,7 +66,7 @@ test_that("identify_eligibility respects exact min_age boundary", {
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
     birth_date = as.Date(c("1965-01-01", "1965-01-02")),  # Born Jan 1 vs Jan 2
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   policy_params <- list(
@@ -128,7 +128,7 @@ test_that("identify_eligibility respects exact min_tenure boundary", {
   
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   policy_params <- list(
@@ -191,7 +191,7 @@ test_that("identify_eligibility AND logic works correctly", {
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002", "P003"),
     birth_date = as.Date(c("1960-01-01", "1960-01-01", "1975-01-01")),  # ages 65, 65, 50
-    status = c("active", "active", "active")
+    employment_status = c("active", "active", "active")
   )
   
   policy_params <- list(
@@ -223,7 +223,7 @@ test_that("identify_eligibility handles missing birth_date for tenure_only", {
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002", "P003", "P004"),
     birth_date = as.Date(c(NA, NA, NA, NA)),  # All NA
-    status = c("active", "active", "active", "active")
+    employment_status = c("active", "active", "active", "active")
   )
   
   policy_params <- list(
@@ -253,7 +253,7 @@ test_that("identify_eligibility handles empty personnel list", {
   personnel_dt <- data.table(
     personnel_id = character(),
     birth_date = as.Date(character()),
-    status = character()
+    employment_status = character()
   )
   
   policy_params <- list(
@@ -275,7 +275,7 @@ test_that("identify_eligibility handles NA in computed age", {
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
     birth_date = as.Date(c("1960-01-01", NA)),  # P002 has NA birth_date
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   policy_params <- list(
@@ -306,7 +306,7 @@ test_that("identify_eligibility handles NA in computed tenure", {
   
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   policy_params <- list(
@@ -429,7 +429,7 @@ test_that("prepare_retiree_data enriches eligibility data correctly", {
   
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   eligibility_dt <- data.table(
@@ -483,7 +483,7 @@ test_that("prepare_retiree_data handles multiple contracts per retiree", {
   
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   eligibility_dt <- data.table(
@@ -517,7 +517,7 @@ test_that("prepare_retiree_data filters inactive contracts", {
   
   personnel_dt <- data.table(
     personnel_id = "P001",
-    status = "active"
+    employment_status = "active"
   )
   
   eligibility_dt <- data.table(
@@ -553,7 +553,7 @@ test_that("prepare_retiree_data preserves all contract columns", {
   
   personnel_dt <- data.table(
     personnel_id = "P001",
-    status = "active"
+    employment_status = "active"
   )
   
   eligibility_dt <- data.table(

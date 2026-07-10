@@ -16,7 +16,7 @@ make_status_quo_policies(
   start_date_col = "start_date",
   end_date_col = "end_date",
   contract_type_col = "contract_type",
-  status_col = "status",
+  status_col = "employment_status",
   salary_col = "gross_salary_lcu"
 )
 }

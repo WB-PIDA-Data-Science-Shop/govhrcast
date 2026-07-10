@@ -23,7 +23,7 @@ create_test_data_for_update <- function() {
   personnel_dt <- data.table(
     personnel_id = paste0("P", 1:10),
     birth_date = as.Date("1980-01-01"),
-    status = "active"
+    employment_status = "active"
   )
   
   list(contract_dt = contract_dt, personnel_dt = personnel_dt)
@@ -42,8 +42,8 @@ test_that("generate_new_personnel creates correct number of records", {
   expect_s3_class(result, "data.table")
   expect_equal(nrow(result), 5)
   expect_true("personnel_id" %in% names(result))
-  expect_true("status" %in% names(result))
-  expect_true(all(result$status == "active"))
+  expect_true("employment_status" %in% names(result))
+  expect_true(all(result$employment_status == "active"))
   expect_true(all(grepl("^P_", result$personnel_id)))
 })
 
@@ -350,7 +350,7 @@ test_that("update_state_with_adjustment handles downsizing (negative net_change)
     removal_strategy = "last_hired_first"
   )
   
-  initial_n_active <- test_data$personnel_dt[status == "active", .N]
+  initial_n_active <- test_data$personnel_dt[employment_status == "active", .N]
   
   result <- update_state_with_adjustment(
     contract_dt = test_data$contract_dt,
@@ -365,7 +365,7 @@ test_that("update_state_with_adjustment handles downsizing (negative net_change)
   expect_equal(nrow(result$new_contracts_dt), 0)
   
   # Verify personnel were deactivated
-  final_n_active <- test_data$personnel_dt[status == "active", .N]
+  final_n_active <- test_data$personnel_dt[employment_status == "active", .N]
   expect_equal(final_n_active, initial_n_active - 2)
   
   # Verify contracts were terminated
@@ -406,7 +406,7 @@ test_that("update_state_with_adjustment handles multiple groups", {
   expect_equal(nrow(result$personnel_dt), initial_n_personnel + 2)
   
   # Net active personnel: +2 hires, -1 downsized = +1
-  n_active <- result$personnel_dt[status == "active", .N]
+  n_active <- result$personnel_dt[employment_status == "active", .N]
   expect_equal(n_active, initial_n_personnel + 1)
   
   # Check 2 hires in HR
@@ -623,7 +623,7 @@ test_that("update_state_with_adjustment does not error when salary_scale key mat
   pt <- data.table(
     personnel_id = paste0("P", 1:4),
     birth_date   = as.Date("1990-01-01"),
-    status       = "active"
+    employment_status = "active"
   )
 
   ss_est <- make_coarser_salary_scale()  # one row per est_id — matches group_cols
@@ -670,7 +670,7 @@ test_that("simulate_scenario hiring errors when salary_scale_dt is finer than gr
   pt <- data.table(
     personnel_id = paste0("P", 1:4),
     birth_date   = as.Date("1958-01-01"),
-    status       = "active"
+    employment_status = "active"
   )
 
   ss_fine <- make_finer_salary_scale()  # (est_id x paygrade) — finer than group_cols

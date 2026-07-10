@@ -23,7 +23,7 @@ create_test_contracts_for_update <- function() {
 create_test_personnel_for_update <- function() {
   data.table(
     personnel_id = c("P001", "P002", "P003", "P004"),
-    status = c("active", "active", "active", "active")
+    employment_status = c("active", "active", "active", "active")
   )
 }
 
@@ -273,12 +273,12 @@ test_that("update_personnel_for_retirees updates status correctly", {
   result <- update_personnel_for_retirees(personnel_dt, contract_dt)
   
   # P001 should be inactive (has pensioner contract)
-  expect_equal(result[personnel_id == "P001"]$status, "inactive")
+  expect_equal(result[personnel_id == "P001"]$employment_status, "inactive")
   
   # Others remain active
-  expect_equal(result[personnel_id == "P002"]$status, "active")
-  expect_equal(result[personnel_id == "P003"]$status, "active")
-  expect_equal(result[personnel_id == "P004"]$status, "active")
+  expect_equal(result[personnel_id == "P002"]$employment_status, "active")
+  expect_equal(result[personnel_id == "P003"]$employment_status, "active")
+  expect_equal(result[personnel_id == "P004"]$employment_status, "active")
 })
 
 test_that("update_personnel_for_retirees handles multiple retirees", {
@@ -293,12 +293,12 @@ test_that("update_personnel_for_retirees handles multiple retirees", {
   result <- update_personnel_for_retirees(personnel_dt, contract_dt)
   
   # P001 and P002 should be inactive
-  expect_equal(result[personnel_id == "P001"]$status, "inactive")
-  expect_equal(result[personnel_id == "P002"]$status, "inactive")
+  expect_equal(result[personnel_id == "P001"]$employment_status, "inactive")
+  expect_equal(result[personnel_id == "P002"]$employment_status, "inactive")
   
   # P003 and P004 remain active
-  expect_equal(result[personnel_id == "P003"]$status, "active")
-  expect_equal(result[personnel_id == "P004"]$status, "active")
+  expect_equal(result[personnel_id == "P003"]$employment_status, "active")
+  expect_equal(result[personnel_id == "P004"]$employment_status, "active")
 })
 
 test_that("update_personnel_for_retirees handles no pensioners", {
@@ -313,7 +313,7 @@ test_that("update_personnel_for_retirees handles no pensioners", {
   result <- update_personnel_for_retirees(personnel_dt, contract_dt)
   
   # All should remain active
-  expect_true(all(result$status == "active"))
+  expect_true(all(result$employment_status == "active"))
 })
 
 test_that("update_personnel_for_retirees modifies input data.table in place", {
@@ -333,7 +333,7 @@ test_that("update_personnel_for_retirees modifies input data.table in place", {
   
   # Should have changes compared to original
   expect_false(identical(personnel_dt, original_personnel_dt))
-  expect_equal(personnel_dt[personnel_id == "P001"]$status, "inactive")
+  expect_equal(personnel_dt[personnel_id == "P001"]$employment_status, "inactive")
 })
 
 test_that("update_personnel_for_retirees handles personnel with multiple contracts", {
@@ -349,10 +349,10 @@ test_that("update_personnel_for_retirees handles personnel with multiple contrac
   result <- update_personnel_for_retirees(personnel_dt, contract_dt)
   
   # P001 should be inactive (has at least one pensioner contract)
-  expect_equal(result[personnel_id == "P001"]$status, "inactive")
+  expect_equal(result[personnel_id == "P001"]$employment_status, "inactive")
   
   # P002 remains active
-  expect_equal(result[personnel_id == "P002"]$status, "active")
+  expect_equal(result[personnel_id == "P002"]$employment_status, "active")
 })
 
 test_that("update_personnel_for_retirees handles empty contract table", {
@@ -367,13 +367,13 @@ test_that("update_personnel_for_retirees handles empty contract table", {
   result <- update_personnel_for_retirees(personnel_dt, contract_dt)
   
   # All should remain active
-  expect_true(all(result$status == "active"))
+  expect_true(all(result$employment_status == "active"))
 })
 
 test_that("update_personnel_for_retirees handles pensioner not in personnel table", {
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   contract_dt <- data.table(
@@ -386,5 +386,5 @@ test_that("update_personnel_for_retirees handles pensioner not in personnel tabl
   
   # Should not error, just update existing personnel
   expect_equal(nrow(result), 2)
-  expect_true(all(result$status == "active"))
+  expect_true(all(result$employment_status == "active"))
 })

@@ -24,7 +24,7 @@ create_integration_test_data <- function() {
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002", "P003", "P004"),
     birth_date = as.Date(c("1960-01-01", "1965-01-01", "1970-01-01", "1980-01-01")),
-    status = c("active", "active", "active", "active")
+    employment_status = c("active", "active", "active", "active")
   )
 
   list(contract_dt = contract_dt, personnel_dt = personnel_dt)
@@ -77,10 +77,10 @@ test_that("simulate_retirement works with age_only eligibility", {
   expect_equal(result$contract_dt[contract_id == "C004"]$contract_type, "perm")
 
   # Check personnel updates
-  expect_equal(result$personnel_dt[personnel_id == "P001"]$status, "inactive")
-  expect_equal(result$personnel_dt[personnel_id == "P002"]$status, "inactive")
-  expect_equal(result$personnel_dt[personnel_id == "P003"]$status, "active")
-  expect_equal(result$personnel_dt[personnel_id == "P004"]$status, "active")
+  expect_equal(result$personnel_dt[personnel_id == "P001"]$employment_status, "inactive")
+  expect_equal(result$personnel_dt[personnel_id == "P002"]$employment_status, "inactive")
+  expect_equal(result$personnel_dt[personnel_id == "P003"]$employment_status, "active")
+  expect_equal(result$personnel_dt[personnel_id == "P004"]$employment_status, "active")
 })
 
 # =============================================================================
@@ -299,7 +299,7 @@ test_that("simulate_retirement handles no eligible retirees", {
   expect_true(is.na(result$summary$avg_pension))
   expect_equal(nrow(result$retirees_dt), 0)
   expect_true(all(result$contract_dt$contract_type == "perm"))
-  expect_true(all(result$personnel_dt$status == "active"))
+  expect_true(all(result$personnel_dt$employment_status == "active"))
 })
 
 test_that("simulate_retirement handles retiree with multiple contracts", {
@@ -468,7 +468,7 @@ test_that("simulate_retirement: group-level accrual_rate via policy_table produc
   personnel_dt <- data.table::data.table(
     personnel_id = c("P001", "P002"),
     birth_date   = as.Date(c("1955-01-01", "1955-01-01")),  # both age 70
-    status       = "active"
+    employment_status = "active"
   )
   accrual_tbl <- data.table::data.table(
     grade        = c("A", "B"),

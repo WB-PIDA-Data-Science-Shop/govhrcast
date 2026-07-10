@@ -21,7 +21,7 @@
 #   personnel_dt <- data.table::data.table(
 #     personnel_id = paste0("P", seq_len(n)),
 #     birth_date   = ref_date - 365L * 40L,
-#     status       = "active",
+#     employment_status = "active",
 #     age          = 40,
 #     tenure_years = 10
 #   )

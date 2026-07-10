@@ -148,7 +148,7 @@ simulate_exits <- function(contract_dt,
                            start_date_col    = "start_date",
                            contract_id_col   = "contract_id",
                            contract_type_col = "contract_type",
-                           status_col        = "status",
+                           status_col         = "employment_status",
                            salary_col        = "gross_salary_lcu",
                            end_date_col      = "end_date") {
 

@@ -1935,7 +1935,7 @@
     },
     "govhr": {
       "Package": "govhr",
-      "Version": "0.3.0",
+      "Version": "0.3.1",
       "Source": "GitHub",
       "Type": "Package",
       "Title": "Clean and analyze data that informs human resource management",
@@ -1988,8 +1988,8 @@
       "RemoteHost": "api.github.com",
       "RemoteUsername": "WB-PIDA-Data-Science-Shop",
       "RemoteRepo": "govhr",
-      "RemoteRef": "6b3386dd929f035d77eb52befb69854f9f05e958",
-      "RemoteSha": "6b3386dd929f035d77eb52befb69854f9f05e958"
+      "RemoteRef": "DEV-updatefns",
+      "RemoteSha": "ee417cdda824f3db0b3fdddb030ecc76cd0bae43"
     },
     "gtable": {
       "Package": "gtable",

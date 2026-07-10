@@ -20,7 +20,8 @@ build_exit_hazard_data(
   end_date_col = "end_date",
   contract_type_col = "contract_type",
   contract_id_col = "contract_id",
-  salary_col = "gross_salary_lcu"
+  salary_col = "gross_salary_lcu",
+  status_col = "employment_status"
 )
 }
 \arguments{
@@ -70,6 +71,9 @@ Default: \code{"exited"}.}
 
 \item{salary_col}{Character.  Salary column used as a tiebreaker in primary
 contract selection.  Default: \code{"gross_salary_lcu"}.}
+
+\item{status_col}{Character.  Column in \code{panel_personnel_dt} that indicates
+the employment status of the personnel.  Default: \code{"employment_status"}.}
 }
 \value{
 A \code{data.table} with one row per person per at-risk snapshot.

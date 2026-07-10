@@ -390,7 +390,7 @@ compute_movement_demand <- function(contract_dt,
                                     start_date_col = "start_date",
                                     end_date_col = "end_date",
                                     contract_type_col = "contract_type",
-                                    status_col = "status") {
+                                    status_col         = "employment_status") {
 
   ref_date <- validate_date_format(ref_date, "ref_date")
 
@@ -584,17 +584,16 @@ compute_movement_summary <- function(movers_dt,
 #'   \code{movement_rate}, \code{current_stock}, \code{n_movers}.
 #'   Empty data.table when no active workers or rate produces zero movers.
 #' @keywords internal
-compute_fixed_rate_movements <- function(
-    contract_dt,
-    personnel_dt,
-    salary_scale_dt,
-    policy_params,
-    ref_date,
-    personnel_id_col  = "personnel_id",
-    start_date_col    = "start_date",
-    end_date_col      = "end_date",
-    contract_type_col = "contract_type",
-    status_col        = "status") {
+compute_fixed_rate_movements <- function(contract_dt,
+                                         personnel_dt,
+                                         salary_scale_dt,
+                                         policy_params,
+                                         ref_date,
+                                         personnel_id_col  = "personnel_id",
+                                         start_date_col    = "start_date",
+                                         end_date_col      = "end_date",
+                                         contract_type_col = "contract_type",
+                                         status_col         = "employment_status") {
 
   ref_date      <- validate_date_format(ref_date, "ref_date")
   group_cols    <- policy_params$group_cols

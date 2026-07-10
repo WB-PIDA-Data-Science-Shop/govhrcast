@@ -121,7 +121,7 @@ update_personnel_for_retirees <- function(personnel_dt,
                                           contract_dt,
                                           personnel_id_col = "personnel_id",
                                           contract_type_col = "contract_type",
-                                          status_col = "status") {
+                                          status_col         = "employment_status") {
   
   # Get unique personnel_ids with pensioner contracts
   pensioner_ids <- unique(

@@ -23,7 +23,7 @@ create_complete_test_data <- function() {
   personnel_dt <- data.table(
     personnel_id = paste0("P", 1:30),
     birth_date = as.Date("1965-01-01"),  # Age 59 at ref_date 2024-06-01
-    status = c(rep("active", 25), rep("inactive", 5))
+    employment_status = c(rep("active", 25), rep("inactive", 5))
   )
   
   list(contract_dt = contract_dt, personnel_dt = personnel_dt)

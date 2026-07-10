@@ -16,7 +16,7 @@ estimate_hiring_demand(
   start_date_col = "start_date",
   end_date_col = "end_date",
   contract_type_col = "contract_type",
-  status_col = "status"
+  status_col = "employment_status"
 )
 }
 \arguments{

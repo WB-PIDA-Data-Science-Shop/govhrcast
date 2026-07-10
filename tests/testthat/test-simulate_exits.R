@@ -17,12 +17,12 @@ make_exit_test_data <- function() {
     end_date           = as.Date(c(NA, NA, NA, NA)),
     gross_salary_lcu   = c(60000, 45000, 52000, 38000),
     contract_type = c("permanent", "permanent", "permanent", "permanent"),
-    status             = c("active", "active", "active", "active")
+    employment_status = c("active", "active", "active", "active")
   )
 
   personnel_dt <- data.table::data.table(
     personnel_id = c("P1", "P2", "P3", "P4"),
-    status       = c("active", "active", "active", "active")
+    employment_status = c("active", "active", "active", "active")
   )
 
   list(contract_dt = contract_dt, personnel_dt = personnel_dt)
@@ -37,13 +37,13 @@ make_exit_test_data_grouped <- function() {
     end_date           = as.Date(rep(NA, 6)),
     gross_salary_lcu   = c(60000, 50000, 45000, 70000, 55000, 40000),
     contract_type = rep("permanent", 6),
-    status             = rep("active", 6)
+    employment_status = rep("active", 6)
   )
 
   personnel_dt <- data.table::data.table(
     personnel_id = paste0("P", 1:6),
     est_id       = c("E1", "E1", "E1", "E2", "E2", "E2"),
-    status       = rep("active", 6)
+    employment_status = rep("active", 6)
   )
 
   exit_rates_dt <- data.table::data.table(
@@ -133,7 +133,7 @@ test_that("simulate_exits: exiting personnel contracts are marked inactive", {
   )
 
   expect_true(all(result$contract_dt$contract_type == "inactive"))
-  expect_true(all(result$personnel_dt$status == "inactive"))
+  expect_true(all(result$personnel_dt$employment_status == "inactive"))
 })
 
 test_that("simulate_exits: exit_savings equals sum of exited salaries", {
@@ -268,11 +268,11 @@ test_that("wage_bill_end excludes inactive (exited) workers' salaries", {
     end_date           = as.Date(NA),
     gross_salary_lcu   = as.numeric(rep(sal, n)),
     contract_type = rep("permanent", n),
-    status             = rep("active", n)
+    employment_status = rep("active", n)
   )
   personnel_dt <- data.table::data.table(
     personnel_id = paste0("P", seq_len(n)),
-    status       = rep("active", n)
+    employment_status = rep("active", n)
   )
   salary_scale_dt <- data.table::data.table(
     grade            = "G1",
@@ -317,11 +317,11 @@ test_that("Phase 3c: simulate_horizon with exit_policy reduces n_headcount_end",
     end_date           = as.Date(rep(NA, 10)),
     gross_salary_lcu   = rep(50000, 10),
     contract_type = rep("permanent", 10),
-    status             = rep("active", 10)
+    employment_status = rep("active", 10)
   )
   personnel_dt <- data.table::data.table(
     personnel_id = paste0("P", 1:10),
-    status       = rep("active", 10)
+    employment_status = rep("active", 10)
   )
   salary_scale_dt <- data.table::data.table(
     grade            = "G1",
@@ -365,11 +365,11 @@ test_that("Phase 3c: n_non_ret_exits column present in comparison when exit_poli
     end_date           = as.Date(NA),
     gross_salary_lcu   = 50000,
     contract_type = "permanent",
-    status             = "active"
+    employment_status = "active"
   )
   personnel_dt <- data.table::data.table(
     personnel_id = "P1",
-    status       = "active"
+    employment_status = "active"
   )
   salary_scale_dt <- data.table::data.table(
     grade            = "G1",
@@ -531,7 +531,7 @@ test_that("compute_status_quo_exits: grouped — unknown group in contract_dt ge
     end_date           = as.Date(NA),
     gross_salary_lcu   = 50000,
     contract_type = "permanent",
-    status             = "active"
+    employment_status = "active"
   )
   ct_extended <- data.table::rbindlist(list(d$contract_dt, extra_contract), fill = TRUE)
 
@@ -562,7 +562,7 @@ test_that("compute_status_quo_exits: empty active workforce returns empty data.t
     end_date           = as.Date("2020-01-01"),
     gross_salary_lcu   = 0,
     contract_type = "pensioner",
-    status             = "inactive"
+    employment_status = "inactive"
   )
   rates <- data.table::data.table(est_id = "E1", exit_rate = 1.0)
 

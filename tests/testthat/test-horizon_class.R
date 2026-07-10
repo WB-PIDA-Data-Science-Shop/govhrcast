@@ -204,7 +204,7 @@ make_sim_state <- function(n = 4L, ages = rep(40L, 4L)) {
   pt <- data.table::data.table(
     personnel_id = paste0("P", seq_len(n)),
     birth_date   = ref - 365L * as.integer(ages),
-    status       = "active",
+    employment_status = "active",
     age          = as.numeric(ages),
     tenure_years = 10
   )

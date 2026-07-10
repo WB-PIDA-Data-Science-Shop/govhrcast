@@ -8,7 +8,7 @@ update_personnel_for_exits(
   personnel_dt,
   exits_dt,
   personnel_id_col = "personnel_id",
-  status_col = "status"
+  status_col = "employment_status"
 )
 }
 \arguments{

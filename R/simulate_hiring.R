@@ -144,7 +144,7 @@ simulate_hiring <- function(contract_dt,
                            end_date_col = "end_date",
                            salary_col = "gross_salary_lcu",
                            contract_type_col = "contract_type",
-                           status_col = "status",
+                           status_col         = "employment_status",
                            hire_date_col = NULL) {
   
   # ========================================

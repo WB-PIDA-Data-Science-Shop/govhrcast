@@ -174,7 +174,7 @@ make_snapshot <- function() {
     ),
     personnel_dt = data.table::data.table(
       personnel_id = c("P1", "P2", "P3", "P4"),
-      status       = "active"
+      employment_status = "active"
     ),
     salary_scale = data.table::data.table(
       paygrade         = c("G1", "G2"),
@@ -285,7 +285,7 @@ test_that("compute_movement_demand returns empty dt when no active personnel", {
   )
   pp_dt <- data.table::data.table(
     personnel_id = character(0),
-    status = character(0)
+    employment_status = character(0)
   )
   s <- make_snapshot()
   pp <- list(group_cols   = "paygrade",
@@ -314,7 +314,7 @@ test_that("compute_movement_demand classifies movements correctly", {
   )
   pp_dt <- data.table::data.table(
     personnel_id = c("P1", "P2", "P3", "P4"),
-    status = "active"
+    employment_status = "active"
   )
   scale <- data.table::data.table(
     est_id = c("E1", "E1", "E2", "E2"),
