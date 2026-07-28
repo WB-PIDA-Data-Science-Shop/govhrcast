@@ -16,10 +16,6 @@ simulate_horizon(
   exit_policy = NULL,
   movement_policy = NULL,
   hiring_policy = NULL,
-  retirement_hazard_options = list(use_hazard_model = FALSE, covariates = NULL,
-    custom_model = NULL),
-  exit_hazard_options = list(use_hazard_model = FALSE, covariates = NULL, custom_model =
-    NULL),
   salary_growth_rate = 0,
   pension_cola_rate = salary_growth_rate,
   base_year = as.integer(format(Sys.Date(), "\%Y")),
@@ -106,28 +102,6 @@ For \code{mode = "status_quo"}: also \code{group_cols} and optionally
 (\code{panel_contract_dt} and \code{panel_personnel_dt}) are injected
 automatically -- you do \emph{not} need to supply them.
 Pass \code{NULL} to skip hiring in all periods.}
-
-\item{retirement_hazard_options}{Named list controlling hazard-model
-retirement.  Three recognised slots:
-\describe{
-\item{\code{use_hazard_model}}{Logical.  \code{TRUE} to fit a GLM on
-\code{contract_dt} / \code{personnel_dt} history and use
-\code{\link{predict_hazard}} for take-up.  Default \code{FALSE}.}
-\item{\code{covariates}}{Character vector of covariate column names
-passed to \code{\link{fit_hazard_model}} when
-\code{use_hazard_model = TRUE}.  Default \code{NULL} (uses
-\code{age} and \code{tenure_years}).}
-\item{\code{custom_model}}{A pre-fitted \code{hazard_model} object
-returned by \code{\link{fit_hazard_model}} /
-\code{\link{select_hazard_threshold}}.  When supplied,
-\code{use_hazard_model} is ignored and this model is used directly.}
-}
-Default: \code{list(use_hazard_model = FALSE, covariates = NULL, custom_model = NULL)}.}
-
-\item{exit_hazard_options}{Named list controlling hazard-model voluntary
-exits.  Same three slots as \code{retirement_hazard_options}:
-\code{use_hazard_model}, \code{covariates}, \code{custom_model}.
-Default: \code{list(use_hazard_model = FALSE, covariates = NULL, custom_model = NULL)}.}
 
 \item{salary_growth_rate}{Numeric scalar or vector of length \code{n_periods}.
 Annual COLA / inflation rate applied to salaries and the pay scale.

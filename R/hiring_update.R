@@ -161,9 +161,13 @@ assign_compensation <- function(new_contracts_dt,
     salary_pattern <- "salary|wage|pay|compensation"
     salary_candidates <- grep(salary_pattern, names(salary_scale_dt), 
                               value = TRUE, ignore.case = TRUE)
+    # Only keep numeric candidates to avoid matching non-salary columns (e.g. "paygrade")
+    salary_candidates <- salary_candidates[
+      vapply(salary_scale_dt[, salary_candidates, with = FALSE], is.numeric, logical(1))
+    ]
     
     if (length(salary_candidates) == 0) {
-      stop("Could not auto-detect salary column in salary_scale_dt. ",
+      stop("Could not auto-detect a numeric salary column in salary_scale_dt. ",
            "Please specify salary_col explicitly.", call. = FALSE)
     }
     

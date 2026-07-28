@@ -1,7 +1,6 @@
 # Suppress R CMD check NOTEs for data.table bare column names.
 utils::globalVariables(c(
-  "eligible", # simulate_retirement: injected flag column used bare in [eligible == 1L]
-  "event"     # simulate_retirement: hazard prediction column used bare in [event == 1L]
+  "eligible" # simulate_retirement: injected flag column used bare in [eligible == 1L]
 ))
 
 #' Simulate Retirement Events for One Period
@@ -65,14 +64,6 @@ utils::globalVariables(c(
 #'   contracts.  Note: if \code{contract_dt} is a panel, panel snapshot
 #'   selection uses \code{ref_date} as an upper bound, but age and tenure are
 #'   always computed against this exact date.
-#' @param retirement_hazard_model A calibrated \code{hazard_model} object
-#'   returned by \code{\link{fit_hazard_model}} and
-#'   \code{\link{select_hazard_threshold}}, or \code{NULL} (default).
-#'   When supplied, \code{\link{predict_hazard}} is called on the
-#'   current-period snapshot and its \code{event = 1} predictions are
-#'   intersected with the eligibility pool before any state updates occur.
-#'   Ineligible persons predicted by the model are silently dropped.
-#'   When \code{NULL}, all eligible persons retire (100 percent take-up).
 #' @param ref_date_col Character. Column in \code{contract_dt} (and optionally
 #'   \code{personnel_dt}) identifying the panel snapshot date.
 #'   (default: \code{"ref_date"}).  Ignored if \code{contract_dt} is a
@@ -137,17 +128,8 @@ utils::globalVariables(c(
 #' }
 #'
 #' @section Retirement eligibility vs. retirement choice:
-#' When \code{retirement_hazard_model} is \code{NULL} (default), this function
-#' equates eligibility with retirement (100 percent take-up): every person who meets
-#' the policy thresholds retires.
-#'
-#' When a calibrated \code{hazard_model} object is supplied via
-#' \code{retirement_hazard_model}, \code{\link{predict_hazard}} is called on
-#' the current-period snapshot to obtain a probabilistic retirement prediction
-#' for each active person.  Only persons for whom \code{event = 1} \emph{and}
-#' who are policy-eligible are retired.  The eligibility gate is always
-#' enforced as a post-filter on the hazard predictions: model-predicted
-#' retirements for ineligible persons are silently dropped.
+#' This function equates eligibility with retirement (100 percent take-up):
+#' every person who meets the policy thresholds retires.
 #'
 #' @section Data Integrity:
 #' \code{contract_dt} and \code{personnel_dt} are deep-copied at entry
@@ -249,7 +231,6 @@ simulate_retirement <- function(contract_dt,
                                     replacement_cap  = 0.80
                                   )
                                 ),
-                                retirement_hazard_model = NULL,
                                 ref_date_col = "ref_date",
                                 personnel_id_col = "personnel_id",
                                 birth_date_col = "birth_date",
@@ -323,54 +304,6 @@ simulate_retirement <- function(contract_dt,
     tenure_col = tenure_col
   )
   
-  # ========================================
-  # 3b. Hazard filter (optional)
-  # ========================================
-  # When a calibrated hazard model is supplied, predict event probabilities for
-  # all active persons this period and retain only model-predicted retirees
-  # (event = 1) who are also policy-eligible.  Ineligible predictions are
-  # silently dropped — the eligibility gate is always the binding constraint.
-  if (!is.null(retirement_hazard_model)) {
-    # If `eligible` is a covariate in the fitted model, inject it onto
-    # personnel_dt so predict_hazard() can use it during scoring.
-    # eligible = 1 for persons identified as policy-eligible this period;
-    # 0 for everyone else (including non-active staff excluded by eligibility_dt).
-    .model_covs_ <- all.vars(stats::formula(retirement_hazard_model$model))[-1L]
-    if ("eligible" %in% .model_covs_) {
-      .elig_flag_ <- eligibility_dt[,
-        c(personnel_id_col, "retire"), with = FALSE
-      ]
-      data.table::setnames(.elig_flag_, "retire", "eligible")
-      personnel_dt[, eligible := 0L]
-      personnel_dt[.elig_flag_[eligible == 1L],
-                   eligible := 1L,
-                   on = personnel_id_col]
-    }
-
-    hazard_preds <- predict_hazard(
-      hazard_model      = retirement_hazard_model,
-      contract_dt       = contract_dt,
-      personnel_dt      = personnel_dt,
-      personnel_id_col  = personnel_id_col,
-      birth_date_col    = birth_date_col,
-      start_date_col    = start_date_col,
-      end_date_col      = end_date_col,
-      contract_type_col = contract_type_col,
-      ref_date          = ref_date
-    )
-
-    # Clean up temporary column
-    if ("eligible" %in% .model_covs_ && "eligible" %in% names(personnel_dt))
-      personnel_dt[, eligible := NULL]
-
-    # Persons the model says will retire this period
-    hazard_retirers <- hazard_preds[event == 1L, get(personnel_id_col)]
-    # Intersect with eligible pool — eligibility gate is always the binding constraint
-    eligibility_dt <- eligibility_dt[
-      get(personnel_id_col) %in% hazard_retirers
-    ]
-  }
-
   # ========================================
   # 4. Prepare Retiree Data
   # ========================================

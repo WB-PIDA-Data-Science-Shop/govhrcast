@@ -132,7 +132,8 @@ identify_eligibility <- function(contract_dt,
                                  end_date_col      = "end_date",
                                  contract_type_col = "contract_type",
                                  age_col           = "age",
-                                 tenure_col        = "tenure_years") {
+                                 tenure_col        = "tenure_years",
+                                 status_col        = "employment_status") {
   
   # Determine the effective scalar eligibility_type from defaults.
   # Used to decide which metrics to compute before the per-row resolution.
@@ -153,6 +154,8 @@ identify_eligibility <- function(contract_dt,
   # People with only inactive/pensioner contracts must not be identified as
   # retirement candidates — they are already out of the workforce.
   # Personnel who are filtered out here still appear in the result with retire = 0.
+  # Lets also drop those who have retired
+    
   all_pid    <- unique(personnel_dt[[personnel_id_col]])
   active_pid <- unique(get_active_contracts(
     contract_dt       = contract_dt,
@@ -162,6 +165,9 @@ identify_eligibility <- function(contract_dt,
     contract_type_col = contract_type_col
   )[[personnel_id_col]])
   personnel_dt <- personnel_dt[get(personnel_id_col) %in% active_pid]
+  if (!is.null(status_col) && status_col %in% names(personnel_dt)) {
+    personnel_dt <- personnel_dt[!get(status_col) == "pensioner",]
+  }
 
   # Compute age if needed — prefer pre-computed column on personnel_dt.
   if (.needs_age) {

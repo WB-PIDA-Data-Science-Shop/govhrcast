@@ -392,9 +392,13 @@ update_state_with_movement <- function(contract_dt,
     salary_pattern    <- "salary|wage|pay|compensation|allowance"
     salary_candidates <- grep(salary_pattern, names(salary_scale),
                               value = TRUE, ignore.case = TRUE)
+    # Only keep numeric candidates to avoid matching non-salary columns (e.g. "paygrade")
+    salary_candidates <- salary_candidates[
+      vapply(salary_scale[, salary_candidates, with = FALSE], is.numeric, logical(1))
+    ]
     if (length(salary_candidates) == 0) {
-      stop("Could not detect salary column in salary_scale. ",
-           "Ensure it contains a column matching 'salary|wage|pay|compensation|allowance'.",
+      stop("Could not detect a numeric salary column in salary_scale. ",
+           "Ensure it contains a numeric column matching 'salary|wage|pay|compensation|allowance'.",
            call. = FALSE)
     }
     scale_salary_col <- if ("gross_salary_lcu" %in% salary_candidates) "gross_salary_lcu"

@@ -12,7 +12,6 @@ simulate_retirement(
     list(eligibility_type = "age_and_tenure", pension_type = "db", min_age = 60,
     min_tenure = 10, accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu", max_years =
     35, replacement_cap = 0.8)),
-  retirement_hazard_model = NULL,
   ref_date_col = "ref_date",
   personnel_id_col = "personnel_id",
   birth_date_col = "birth_date",
@@ -64,15 +63,6 @@ with \code{group_cols} plus per-group parameter overrides.
 When omitted, a standard DB \code{age_and_tenure} policy is used
 (\code{min_age = 60}, \code{min_tenure = 10}, \code{accrual_rate = 0.02},
 \code{max_years = 35}, \code{replacement_cap = 0.80}).}
-
-\item{retirement_hazard_model}{A calibrated \code{hazard_model} object
-returned by \code{\link{fit_hazard_model}} and
-\code{\link{select_hazard_threshold}}, or \code{NULL} (default).
-When supplied, \code{\link{predict_hazard}} is called on the
-current-period snapshot and its \code{event = 1} predictions are
-intersected with the eligibility pool before any state updates occur.
-Ineligible persons predicted by the model are silently dropped.
-When \code{NULL}, all eligible persons retire (100 percent take-up).}
 
 \item{ref_date_col}{Character. Column in \code{contract_dt} (and optionally
 \code{personnel_dt}) identifying the panel snapshot date.
@@ -191,17 +181,8 @@ sets \code{status_col} to \code{"inactive"}.
 }
 \section{Retirement eligibility vs. retirement choice}{
 
-When \code{retirement_hazard_model} is \code{NULL} (default), this function
-equates eligibility with retirement (100 percent take-up): every person who meets
-the policy thresholds retires.
-
-When a calibrated \code{hazard_model} object is supplied via
-\code{retirement_hazard_model}, \code{\link{predict_hazard}} is called on
-the current-period snapshot to obtain a probabilistic retirement prediction
-for each active person.  Only persons for whom \code{event = 1} \emph{and}
-who are policy-eligible are retired.  The eligibility gate is always
-enforced as a post-filter on the hazard predictions: model-predicted
-retirements for ineligible persons are silently dropped.
+This function equates eligibility with retirement (100 percent take-up):
+every person who meets the policy thresholds retires.
 }
 
 \section{Data Integrity}{

@@ -1,31 +1,4 @@
-# ===========================================================================
-# Effect-computation helpers
-# ===========================================================================
-
-# Suppress R CMD check NOTEs for data.table column names used in
-# [.data.table j/i expressions throughout this file.
-utils::globalVariables(c(
-  "salary",             # .active_wage_bill: named column in .[, .(salary = ...)]
-  "pension_amount",     # simulate_scenario / simulate_horizon: pensioner register col
-  "age_at_ret",         # simulate_horizon: temp col in age_lookup join
-  "age_at_retirement",  # simulate_horizon / simulate_scenario: pensioner register col
-  "i.age_at_ret",       # simulate_horizon: i-prefix col from data.table join
-  ".already_eligible_"  # simulate_horizon: temp eligibility flag
-))
-
-#' Compute Exit Effect
-#'
-#' @description
-#' Returns the total salary mass removed by retirements (or any other exits)
-#' in one simulation period.  This is a pure function with no side-effects.
-#'
-#' @param retirees_dt data.table or \code{NULL}.  Output of
-#'   \code{simulate_retirement()}.  Must contain the column named by
-#'   \code{salary_col} if non-empty.
-#' @param salary_col Character.  Name of the salary column.  Default:
-#'   \code{"gross_salary_lcu"}.
-#'
-#' @return Numeric scalar \eqn{\ge 0}: sum of \code{salary_col} across all
+#' @param salary_growth_rate Numeric scalar or vector of length \code{n_periods}.\code{salary_col} across all
 #'   rows in \code{retirees_dt}, or \code{0} if \code{retirees_dt} is
 #'   \code{NULL} or has zero rows.
 #'
@@ -255,14 +228,6 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'   Pass \code{NULL} to skip movements.
 #' @param hiring_policy List or \code{NULL}.  Passed to
 #'   \code{simulate_hiring()}.  Pass \code{NULL} to skip.
-#' @param retirement_hazard_model A calibrated \code{hazard_model} object or
-#'   \code{NULL} (default).  Forwarded to \code{\link{simulate_retirement}}.
-#'   When non-\code{NULL}, retirement take-up is governed by
-#'   \code{\link{predict_hazard}} instead of the 100 percent take-up assumption.
-#' @param exit_hazard_model A calibrated \code{hazard_model} object or
-#'   \code{NULL} (default).  Forwarded to \code{\link{simulate_exits}}.
-#'   Activates hazard-mode exit selection when
-#'   \code{exit_policy$defaults$exit_strategy = "hazard"}.
 #' @param salary_growth_rate Numeric scalar.  COLA rate for this period.
 #'   Default \code{0}.
 #' @param pension_cola_rate Numeric scalar.  Annual COLA rate applied to
@@ -270,8 +235,8 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'   \code{salary_growth_rate} when \code{NULL}.  Default \code{0}.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param contract_id_col Character.  Default \code{"contract_id"}.
-#' @param birth_date_col Character.  Column holding date of birth.  Required
-#'   when a hazard model uses age as a covariate.  Default \code{"birth_date"}.
+#' @param birth_date_col Character.  Column holding date of birth.
+#'   Default \code{"birth_date"}.
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
@@ -348,8 +313,6 @@ simulate_scenario <- function(contract_dt,
                                exit_policy             = NULL,
                                movement_policy         = NULL,
                                hiring_policy           = NULL,
-                               retirement_hazard_model = NULL,
-                               exit_hazard_model       = NULL,
                                salary_growth_rate  = 0,
                                pension_cola_rate   = 0,
                                personnel_id_col    = "personnel_id",
@@ -394,8 +357,12 @@ simulate_scenario <- function(contract_dt,
   scale_salary_pat   <- "salary|wage|pay|compensation|allowance"
   scale_salary_cands <- grep(scale_salary_pat, names(salary_scale_dt),
                              value = TRUE, ignore.case = TRUE)
+  # Only keep numeric candidates to avoid matching non-salary columns (e.g. "paygrade")
+  scale_salary_cands <- scale_salary_cands[
+    vapply(salary_scale_dt[, scale_salary_cands, with = FALSE], is.numeric, logical(1))
+  ]
   if (length(scale_salary_cands) == 0L)
-    stop("Could not detect a salary column in salary_scale_dt.", call. = FALSE)
+    stop("Could not detect a numeric salary column in salary_scale_dt.", call. = FALSE)
   scale_salary_col <- if (salary_col %in% scale_salary_cands) salary_col
                       else scale_salary_cands[1L]
 
@@ -425,7 +392,6 @@ simulate_scenario <- function(contract_dt,
       personnel_dt            = personnel_dt,
       policy_params           = retirement_policy,
       ref_date                = period_date,
-      retirement_hazard_model = retirement_hazard_model,
       personnel_id_col        = personnel_id_col,
       contract_id_col         = contract_id_col,
       birth_date_col          = birth_date_col,
@@ -480,7 +446,6 @@ simulate_scenario <- function(contract_dt,
       personnel_dt      = personnel_dt,
       policy_params     = exit_policy,
       ref_date          = period_date,
-      exit_hazard_model = exit_hazard_model,
       personnel_id_col  = personnel_id_col,
       birth_date_col    = birth_date_col,
       start_date_col    = start_date_col,
@@ -766,26 +731,6 @@ simulate_scenario <- function(contract_dt,
 #'   (\code{panel_contract_dt} and \code{panel_personnel_dt}) are injected
 #'   automatically -- you do \emph{not} need to supply them.
 #'   Pass \code{NULL} to skip hiring in all periods.
-#' @param retirement_hazard_options Named list controlling hazard-model
-#'   retirement.  Three recognised slots:
-#'   \describe{
-#'     \item{\code{use_hazard_model}}{Logical.  \code{TRUE} to fit a GLM on
-#'       \code{contract_dt} / \code{personnel_dt} history and use
-#'       \code{\link{predict_hazard}} for take-up.  Default \code{FALSE}.}
-#'     \item{\code{covariates}}{Character vector of covariate column names
-#'       passed to \code{\link{fit_hazard_model}} when
-#'       \code{use_hazard_model = TRUE}.  Default \code{NULL} (uses
-#'       \code{age} and \code{tenure_years}).}
-#'     \item{\code{custom_model}}{A pre-fitted \code{hazard_model} object
-#'       returned by \code{\link{fit_hazard_model}} /
-#'       \code{\link{select_hazard_threshold}}.  When supplied,
-#'       \code{use_hazard_model} is ignored and this model is used directly.}
-#'   }
-#'   Default: \code{list(use_hazard_model = FALSE, covariates = NULL, custom_model = NULL)}.
-#' @param exit_hazard_options Named list controlling hazard-model voluntary
-#'   exits.  Same three slots as \code{retirement_hazard_options}:
-#'   \code{use_hazard_model}, \code{covariates}, \code{custom_model}.
-#'   Default: \code{list(use_hazard_model = FALSE, covariates = NULL, custom_model = NULL)}.
 #' @param salary_growth_rate Numeric scalar or vector of length \code{n_periods}.
 #'   Annual COLA / inflation rate applied to salaries and the pay scale.
 #'   Default \code{0} (no inflation).
@@ -974,16 +919,6 @@ simulate_horizon <- function(contract_dt,
                              exit_policy        = NULL,
                              movement_policy    = NULL,
                              hiring_policy      = NULL,
-                             retirement_hazard_options = list(
-                               use_hazard_model = FALSE,
-                               covariates       = NULL,
-                               custom_model     = NULL
-                             ),
-                             exit_hazard_options = list(
-                               use_hazard_model = FALSE,
-                               covariates       = NULL,
-                               custom_model     = NULL
-                             ),
                              salary_growth_rate = 0,
                              pension_cola_rate  = salary_growth_rate,
                              base_year          = as.integer(format(Sys.Date(), "%Y")),
@@ -1056,17 +991,6 @@ simulate_horizon <- function(contract_dt,
   }
   salary_scale_dt <- data.table::copy(salary_scale_dt)
 
-  # ------------------------------------------------------------------
-  # Unpack hazard option lists into internal scalar variables.
-  # ------------------------------------------------------------------
-  .ret_haz_use_   <- isTRUE(retirement_hazard_options$use_hazard_model)
-  .ret_haz_covs_  <- retirement_hazard_options$covariates
-  retirement_hazard_model <- retirement_hazard_options$custom_model
-
-  .exit_haz_use_  <- isTRUE(exit_hazard_options$use_hazard_model)
-  .exit_haz_covs_ <- exit_hazard_options$covariates
-  exit_hazard_model <- exit_hazard_options$custom_model
-
   ### check if we are status quo modelling
   if (!is.null(hiring_policy) && identical(hiring_policy$mode, "status_quo")) {
     if (is.null(hiring_policy$panel_contract_dt))
@@ -1100,8 +1024,7 @@ simulate_horizon <- function(contract_dt,
 
   # For exit, pre-estimate historical rates from the full panel BEFORE stripping
   # ref_date, so simulate_exits() receives a ready-made policy_table.
-  # Skipped when .exit_haz_use_ = TRUE -- the hazard model replaces rate-based selection.
-  if (!.exit_haz_use_ && !is.null(exit_policy) && is.null(exit_policy$policy_table)) {
+  if (!is.null(exit_policy) && is.null(exit_policy$policy_table)) {
     ref_date_col_name <- "ref_date"
     has_panel <- ref_date_col_name %in% names(contract_dt) &&
                  data.table::uniqueN(contract_dt[[ref_date_col_name]]) >= 2L
@@ -1135,7 +1058,6 @@ simulate_horizon <- function(contract_dt,
 
   # If data contains a ref_date panel column, subset to the starting snapshot
   # before stripping so that sub-modules see a single-period snapshot.
-  # Capture the full panel now for optional hazard model fitting below.
 
   start_ref <- ref_date   # capture before any column could shadow it
   .ref_date_col_name_ <- "ref_date"
@@ -1151,83 +1073,6 @@ simulate_horizon <- function(contract_dt,
   if ("ref_date" %in% names(personnel_dt)) {
     personnel_dt <- personnel_dt[get("ref_date") == start_ref]
     personnel_dt[, ref_date := NULL]
-  }
-
-  # ------------------------------------------------------------------
-  # Auto-fit hazard models from the panel (once, before the loop).
-  # These blocks run only when the user opts in via use_*_hazard = TRUE
-  # and has not already supplied a pre-fitted model object.
-  # The panel is captured above before ref_date stripping so the full
-  # history is available for training.
-  # ------------------------------------------------------------------
-
-  # Retirement hazard: eligibility is always included as a covariate
-  # (via retirement_policy passed to project_retirement_hazard), so the
-  # model learns the jump in retirement probability at the eligibility
-  # threshold.  The hard eligibility gate inside simulate_retirement()
-  # remains as a safety net to prevent policy violations.
-  if (.ret_haz_use_ && is.null(retirement_hazard_model)) {
-    if (!is.null(.full_panel_c_) && !is.null(.full_panel_p_)) {
-      .hz_ret_result_ <- tryCatch(
-        project_retirement_hazard(
-          panel_contract_dt  = .full_panel_c_,
-          panel_personnel_dt = .full_panel_p_,
-          sim_contract_dt    = contract_dt,
-          sim_personnel_dt   = personnel_dt,
-          use_hazard_model   = TRUE,
-          retirement_policy  = retirement_policy,
-          extra_covariates   = .ret_haz_covs_,
-          ref_date           = start_ref
-        ),
-        error = function(e) {
-          warning("simulate_horizon: retirement hazard fitting failed \u2014 ",
-                  conditionMessage(e), ". Falling back to eligibility rule.",
-                  call. = FALSE)
-          NULL
-        }
-      )
-      if (!is.null(.hz_ret_result_))
-        retirement_hazard_model <- attr(.hz_ret_result_, "hazard_model")
-    } else {
-      warning("simulate_horizon: use_retirement_hazard = TRUE but no panel ",
-              "data available for training. Falling back to eligibility rule.",
-              call. = FALSE)
-    }
-  }
-
-  # Exit hazard: fitted from the panel; exit_strategy is set to "hazard" on
-  # exit_policy$defaults so simulate_exits() routes to predict_hazard().
-  if (.exit_haz_use_ && is.null(exit_hazard_model)) {
-    if (!is.null(.full_panel_c_) && !is.null(.full_panel_p_)) {
-      .hz_exit_result_ <- tryCatch(
-        project_exit_hazard(
-          panel_contract_dt  = .full_panel_c_,
-          panel_personnel_dt = .full_panel_p_,
-          sim_contract_dt    = contract_dt,
-          sim_personnel_dt   = personnel_dt,
-          use_hazard_model   = TRUE,
-          active_types       = exit_policy$defaults$active_types,
-          extra_covariates   = .exit_haz_covs_,
-          ref_date           = start_ref
-        ),
-        error = function(e) {
-          warning("simulate_horizon: exit hazard fitting failed \u2014 ",
-                  conditionMessage(e), ". Falling back to rate-based exits.",
-                  call. = FALSE)
-          NULL
-        }
-      )
-      if (!is.null(.hz_exit_result_)) {
-        exit_hazard_model <- attr(.hz_exit_result_, "hazard_model")
-        # Signal simulate_exits() to use the hazard path
-        if (!is.null(exit_policy))
-          exit_policy$defaults$exit_strategy <- "hazard"
-      }
-    } else {
-      warning("simulate_horizon: use_exit_hazard = TRUE but no panel data ",
-              "available for training. Falling back to rate-based exits.",
-              call. = FALSE)
-    }
   }
 
   # Resolve pensioner type label before any filtering uses it.
@@ -1420,8 +1265,6 @@ simulate_horizon <- function(contract_dt,
       exit_policy             = exit_policy,
       movement_policy         = movement_policy,
       hiring_policy           = hiring_policy,
-      retirement_hazard_model = retirement_hazard_model,
-      exit_hazard_model       = exit_hazard_model,
       salary_growth_rate      = growth,
       pension_cola_rate       = cola_rate,
       personnel_id_col        = personnel_id_col,

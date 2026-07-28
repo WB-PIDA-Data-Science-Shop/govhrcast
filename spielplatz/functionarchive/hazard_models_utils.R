@@ -38,8 +38,8 @@ utils::globalVariables(c(
 # @param by_cols         Character vector: grouping key, e.g.
 #                        c("personnel_id", "ref_date") or "personnel_id".
 # @param start_date_col  Character. Tiebreaker 1 (descending).
-# @param salary_col      Character. Tiebreaker 2 (descending).
-# @param contract_id_col Character. Tiebreaker 3 (ascending).
+# @param salary_col       Character. Tiebreaker 2 (descending).
+# @param contract_id_col  Character. Tiebreaker 3 (ascending).
 # -----------------------------------------------------------------------------
 .dedup_to_primary <- function(dt,
                                by_cols,
@@ -237,10 +237,13 @@ utils::globalVariables(c(
 #'
 #' **Retirement policy** \cr
 #' If \code{retirement_policy} is supplied, an \code{eligible} flag (0/1) is
-#' computed at each snapshot using \code{\link{identify_eligibility}} and
-#' included as a covariate.  This captures the sharp discontinuity in
-#' retirement probability at the eligibility threshold and is the most
-#' informative single predictor for most civil service systems.
+#' computed at each snapshot using \code{\link{identify_eligibility}}. The
+#' regression dataset is then restricted to person-snapshots where
+#' \code{eligible == 1} -- ineligible person-snapshots are dropped from the
+#' returned data entirely, so the hazard model is estimated only on persons
+#' who are eligible to retire as of that snapshot. When
+#' \code{retirement_policy} is \code{NULL}, no eligibility filtering occurs
+#' and all active person-snapshots are retained.
 #'
 #' @param panel_contract_dt data.table.  Full historical contract panel — all
 #'   snapshots stacked, with a \code{ref_date_col} column.
@@ -249,8 +252,11 @@ utils::globalVariables(c(
 #'   computation via \code{birth_date_col}.
 #' @param retirement_policy Optional named list.  If supplied, an
 #'   \code{eligible} column (0/1) is added using
-#'   \code{\link{identify_eligibility}} at each snapshot.  Follows the canonical
-#'   3-slot structure: \code{group_cols}, \code{policy_table}, \code{defaults}.
+#'   \code{\link{identify_eligibility}} at each snapshot, and the returned
+#'   data is restricted to rows where \code{eligible == 1} (i.e. only the
+#'   population eligible to retire is included in the risk set).  Follows the
+#'   canonical 3-slot structure: \code{group_cols}, \code{policy_table},
+#'   \code{defaults}.
 #' @param age_col Character scalar or \code{NULL}.  Name of a pre-computed age
 #'   column already present on \code{panel_personnel_dt}.  When the column
 #'   exists, age is obtained via a direct join rather than recomputed with
@@ -288,7 +294,8 @@ utils::globalVariables(c(
 #'     \item{\code{tenure_years}}{Cumulative service years at the snapshot.}
 #'   }
 #'   Plus any requested \code{extra_covariates} and, if
-#'   \code{retirement_policy} is supplied, \code{eligible} (0/1).
+#'   \code{retirement_policy} is supplied, \code{eligible} (always \code{1}
+#'   in the returned data, since ineligible rows have been filtered out).
 #'
 #' @seealso \code{\link{fit_hazard_model}}, \code{\link{identify_eligibility}}
 #'
@@ -367,57 +374,51 @@ build_retirement_hazard_data <- function(panel_contract_dt,
     contract_id_col  = contract_id_col
   )
 
-  # ------------------------------------------------------------------
-  # 3. Flag outcome, sort, truncate spells at first retirement.
+    # ------------------------------------------------------------------
+  # 3. Flag outcome from personnel panel, sort, truncate spells.
   #
-  #    Outcome labelling strategy: pensioners exist ONLY in panel_contract_dt;
-  #    they are absent from panel_personnel_dt (they have left employment).
-  #    Labelling retired = 1 on the pensioner snapshot would produce NA
-  #    covariates (no personnel row) → those rows are dropped in fit_hazard_model().
-  #
-  #    Fix: shift the label BACK one period.  The last snapshot where the
-  #    person is still an active worker (T-1) gets retired = 1.  This encodes
-  #    "will retire next period" — the observation where all covariates are
-  #    available.  The pensioner row itself is then dropped.
+  #    Pensioners appear in panel_personnel_dt with employment_status ==
+  #    "pensioner". Find each person's first pensioner snapshot date,
+  #    shift the label back one period onto their last active row, then
+  #    drop all pensioner rows from the regression dataset.
   # ------------------------------------------------------------------
-  primary_dt[, (outcome_col) := as.integer(
-    get(contract_type_col) == "pensioner"
-  )]
 
-  data.table::setorderv(primary_dt, c(personnel_id_col, ref_date_col))
-
-  # For each person: find the first pensioner snapshot, assign retired = 1 to
-  # the immediately preceding row, then drop all pensioner rows.
-  primary_dt[,
-    .first_retire_date := {
-      ret_dates <- get(ref_date_col)[get(outcome_col) == 1L]
-      if (length(ret_dates)) min(ret_dates) else as.Date(NA)
-    },
+  # Pull first pensioner date per person from personnel panel
+  pensioner_dates <- panel_personnel_dt[
+    get("employment_status") == "pensioner",
+    .(first_retire_date = min(get(ref_date_col), na.rm = TRUE)),
     by = c(personnel_id_col)
   ]
 
-  # Shift label: the row just before the first pensioner snapshot gets retired = 1.
-  # Use shift() (lag) within the person group: if the NEXT row is the retirement
-  # snapshot, this row is the last-active row → outcome = 1.
-  # Guard against NA .first_retire_date (persons who never retire) — comparing
-  # a Date to NA produces NA, which would corrupt the outcome column.
+  data.table::setorderv(primary_dt, c(personnel_id_col, ref_date_col))
+
+  primary_dt <- pensioner_dates[primary_dt, on = personnel_id_col]
+
+  # Shift label: last active snapshot before first pensioner date gets retired = 1
   primary_dt[,
     (outcome_col) := {
-      is_ret <- !is.na(.first_retire_date) &
-                  get(ref_date_col) == .first_retire_date
-      # lead indicator: next row triggers retirement
+      is_ret <- !is.na(first_retire_date) &
+                  get(ref_date_col) == first_retire_date
       data.table::shift(as.integer(is_ret), n = -1L, fill = 0L)
     },
     by = c(personnel_id_col)
   ]
 
-  # Keep only active-worker rows: drop pensioner rows and all rows after
-  # the shifted label (there should be none, but guard for safety).
-  reg_dt <- primary_dt[get(contract_type_col) != "pensioner"]
-  reg_dt <- reg_dt[
-    is.na(.first_retire_date) | get(ref_date_col) < .first_retire_date
+  # Drop pensioner rows (those at or after first_retire_date)
+  # Identify active person-snapshots from personnel panel
+  active_ids_by_snap <- panel_personnel_dt[
+    get("employment_status") != "pensioner",
+    c(personnel_id_col, ref_date_col),
+    with = FALSE
   ]
-  reg_dt[, .first_retire_date := NULL]
+
+  reg_dt <- primary_dt[
+    active_ids_by_snap,
+    on = c(personnel_id_col, ref_date_col),
+    nomatch = 0L
+  ]
+  reg_dt[, first_retire_date := NULL]
+
 
   # ------------------------------------------------------------------
   # 4. Attach age and tenure at each snapshot.
@@ -468,6 +469,12 @@ build_retirement_hazard_data <- function(panel_contract_dt,
     })
     elig_panel <- data.table::rbindlist(elig_list, use.names = TRUE)
     reg_dt <- elig_panel[reg_dt, on = c(personnel_id_col, ref_date_col)]
+
+    # Restrict the risk set to snapshots where the person is eligible to
+    # retire. Downstream label-shifting has already happened (step 3), so
+    # this only removes ineligible person-snapshots from the regression
+    # data -- it does not affect how `outcome_col` was assigned.
+    reg_dt <- reg_dt[eligible == 1L]
   }
 
   # ------------------------------------------------------------------
@@ -1250,6 +1257,25 @@ predict_hazard <- function(hazard_model,
   )
 
   # ------------------------------------------------------------------
+  # 4b. Attach `eligible` from personnel_dt if the model requires it.
+  #     `eligible` is a snapshot-level flag computed by the caller (see
+  #     project_retirement_hazard()) and lives on personnel_dt, not
+  #     contract_dt, so it is never picked up by keep_cols in step 3.
+  # ------------------------------------------------------------------
+  if ("eligible" %in% covariates) {
+    if (!"eligible" %in% names(personnel_dt))
+      stop("predict_hazard: model requires an `eligible` covariate but it ",
+           "is not present in personnel_dt.", call. = FALSE)
+    primary_dt <- merge(
+      primary_dt,
+      personnel_dt[, .SD, .SDcols = c(personnel_id_col, "eligible")],
+      by    = personnel_id_col,
+      all.x = TRUE
+    )
+    primary_dt[is.na(eligible), eligible := 0L]
+  }
+
+  # ------------------------------------------------------------------
   # 5. Select only covariate columns + id for scoring
   # ------------------------------------------------------------------
   missing_covs <- setdiff(covariates, names(primary_dt))
@@ -1306,7 +1332,7 @@ predict_hazard <- function(hazard_model,
 #' @param panel_personnel_dt data.table.  Historical personnel panel (all
 #'   snapshots stacked).
 #' @param sim_contract_dt data.table.  Single-period simulation contract
-#'   snapshot to score.  Must not contain a stacked \code{ref_date_col}.
+#'   snapshot to score.
 #' @param sim_personnel_dt data.table.  Single-period simulation personnel
 #'   snapshot.
 #' @param use_hazard_model Logical.  Default \code{FALSE}.  When \code{TRUE},
@@ -1404,13 +1430,13 @@ project_retirement_hazard <- function(panel_contract_dt,
       personnel_id_col   = personnel_id_col,
       ref_date_col       = ref_date_col,
       birth_date_col     = birth_date_col,
-      start_date_col     = start_date_col,
-      end_date_col       = end_date_col,
+      start_date_col     = "start_date",
+      end_date_col       = "end_date",
       contract_type_col  = contract_type_col,
-      contract_id_col    = contract_id_col,
-      salary_col         = salary_col
+      contract_id_col    = "contract_id",
+      salary_col         = "gross_salary_lcu"
     )
-
+    
     # 2. Auto-detect covariates: age + tenure_years + eligible (if retirement_policy
     #    was supplied) + any extra_covariates that landed in train_dt.
     #    Exclude the id, date, and outcome columns.
@@ -1423,6 +1449,7 @@ project_retirement_hazard <- function(panel_contract_dt,
       stop("No usable covariates found in training data.", call. = FALSE)
 
     # 3. Fit binomial GLM
+        # 3. Fit binomial GLM
     hm <- fit_hazard_model(
       reg_dt      = train_dt,
       outcome_col = "retired",
@@ -1431,6 +1458,46 @@ project_retirement_hazard <- function(panel_contract_dt,
 
     # 4. Calibrate optimal probability threshold on training data
     hm <- select_hazard_threshold(hm, train_dt, method = threshold_method)
+
+    # 4b. If the model was trained with an `eligible` covariate, compute
+    #     eligibility on the sim snapshot and attach it to sim_personnel_dt
+    #     before scoring — predict_hazard() will otherwise fail with a
+    #     missing-covariate error.
+    if ("eligible" %in% covs) {
+      if (is.null(retirement_policy) || is.null(ref_date))
+        stop(paste0("project_retirement_hazard: model was trained with an",
+                    " `eligible` covariate but retirement_policy or ref_date",
+                    " is NULL — cannot compute eligibility for scoring."),
+             call. = FALSE)
+
+      elig_snap <- identify_eligibility(
+        contract_dt       = sim_contract_dt,
+        personnel_dt      = sim_personnel_dt,
+        policy_params         = retirement_policy,
+        ref_date          = ref_date,
+        personnel_id_col  = personnel_id_col,
+        contract_id_col   = contract_id_col,
+        birth_date_col    = birth_date_col,
+        start_date_col    = start_date_col,
+        end_date_col      = end_date_col,
+        contract_type_col = contract_type_col,
+        age_col           = age_col,
+        tenure_col        = tenure_col
+      )
+
+      sim_personnel_dt <- merge(
+        sim_personnel_dt,
+        elig_snap[, .SD, .SDcols = c(personnel_id_col, "retire")],
+        by     = personnel_id_col,
+        all.x  = TRUE
+      )
+      data.table::setnames(sim_personnel_dt, "retire", "eligible")
+      sim_personnel_dt[is.na(eligible), eligible := 0L]
+    }
+
+    
+
+    # hm <- select_hazard_threshold(hm, train_dt, method = threshold_method)
 
     # 5. Score the simulation snapshot
     preds <- predict_hazard(
@@ -1600,11 +1667,11 @@ project_exit_hazard <- function(panel_contract_dt,
       personnel_id_col   = personnel_id_col,
       ref_date_col       = ref_date_col,
       birth_date_col     = birth_date_col,
-      start_date_col     = start_date_col,
-      end_date_col       = end_date_col,
+      start_date_col     = "start_date",
+      end_date_col       = "end_date",
       contract_type_col  = contract_type_col,
-      contract_id_col    = contract_id_col,
-      salary_col         = salary_col
+      contract_id_col    = "contract_id",
+      salary_col         = "gross_salary_lcu"
     )
 
     # 2. Auto-detect covariates
@@ -1615,6 +1682,7 @@ project_exit_hazard <- function(panel_contract_dt,
     )
     if (length(covs) == 0L)
       stop("No usable covariates found in training data.", call. = FALSE)
+
 
     # 3. Fit binomial GLM
     hm <- fit_hazard_model(

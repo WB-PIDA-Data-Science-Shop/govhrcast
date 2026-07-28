@@ -1,8 +1,3 @@
-# Suppress R CMD check NOTEs for data.table bare column names.
-utils::globalVariables(c(
-  "event"  # simulate_exits: hazard prediction column used as bare name in [event == 1L]
-))
-
 #' Simulate Non-Retirement Exit Module
 #'
 #' @description
@@ -12,20 +7,12 @@ utils::globalVariables(c(
 #' Mirrors the structure of \code{simulate_retirement()} and
 #' \code{simulate_hiring()}.
 #'
-#' @section Exit rate modelling — status quo and hazard mode:
+#' @section Exit rate modelling — status quo mode:
 #' The \code{"status_quo"} mode applies historically estimated group-level exit
 #' rates held constant across all projection periods.  This equates the
 #' \emph{composition} of exits — by grade, contract type, and tenure — to
 #' past patterns.  For short-horizon projections (1–5 years) with stable
 #' workforce compositions this is a defensible assumption.
-#'
-#' When \code{exit_hazard_model} is supplied and
-#' \code{policy_params$defaults$exit_strategy = "hazard"}, the function
-#' instead calls \code{\link{predict_hazard}} on the current-period snapshot.
-#' Persons with \code{event = 1} are the exiting set — no rate lookup or
-#' fixed-rate draw is performed.  All state-update and summary steps run
-#' unchanged on the hazard-derived exit set.  The existing
-#' \code{"random"} / \code{"status_quo"} paths are completely unaffected.
 #'
 #' @import data.table
 #'
@@ -62,23 +49,13 @@ utils::globalVariables(c(
 #'       }
 #'     }
 #'   }
-#' @param exit_hazard_model A calibrated \code{hazard_model} object returned
-#'   by \code{\link{fit_hazard_model}} and \code{\link{select_hazard_threshold}},
-#'   or \code{NULL} (default).  Used only when
-#'   \code{policy_params$defaults$exit_strategy = "hazard"}. When supplied,
-#'   \code{\link{predict_hazard}} is called on the current-period snapshot and
-#'   persons with \code{event = 1} become the exit set.  The
-#'   \code{policy_table} / \code{exit_rate} fields of \code{policy_params} are
-#'   ignored in hazard mode.
+#' @param ref_date Date.  Reference date for this simulation period.
 #' @param ref_date Date.  Reference date for this simulation period.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param birth_date_col Character.  Column in \code{personnel_dt} holding
-#'   date of birth.  Required only when \code{exit_strategy = "hazard"} and
-#'   the hazard model uses age as a covariate.  Default \code{"birth_date"}.
+#'   date of birth.  Default \code{"birth_date"}.
 #' @param start_date_col Character.  Column in \code{contract_dt} holding
-#'   contract start date.  Required only when \code{exit_strategy = "hazard"}
-#'   and the hazard model uses tenure as a covariate.  Default
-#'   \code{"start_date"}.
+#'   contract start date.  Default \code{"start_date"}.
 #' @param contract_id_col Character.  Default \code{"contract_id"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
 #' @param status_col Character.  Default \code{"status"}.
@@ -142,7 +119,6 @@ simulate_exits <- function(contract_dt,
                            personnel_dt,
                            policy_params,
                            ref_date,
-                           exit_hazard_model = NULL,
                            personnel_id_col  = "personnel_id",
                            birth_date_col    = "birth_date",
                            start_date_col    = "start_date",
@@ -181,7 +157,7 @@ simulate_exits <- function(contract_dt,
                        is.numeric(policy_params$defaults$exit_rate) &&
                        length(policy_params$defaults$exit_rate) == 1L
 
-  if (has_group_cols && !has_policy_table && exit_strategy != "hazard")
+  if (has_group_cols && !has_policy_table)
     stop(
       "policy_params$group_cols is set but policy_table is NULL. ",
       "Did you forget to pass the output of estimate_historical_exit_rates() ",
@@ -189,7 +165,7 @@ simulate_exits <- function(contract_dt,
       call. = FALSE
     )
 
-  if (!has_policy_table && !has_exit_rate && exit_strategy != "hazard")
+  if (!has_policy_table && !has_exit_rate)
     stop(
       "policy_table is NULL and defaults$exit_rate is not set. ",
       "Supply either a policy_table (for group-level status quo rates) or ",
@@ -200,29 +176,7 @@ simulate_exits <- function(contract_dt,
   # ------------------------------------------------------------------
   # 2. Identify exits
   # ------------------------------------------------------------------
-  exits_dt <- if (exit_strategy == "hazard") {
-    # Hazard mode: predict_hazard() returns event = 1 for persons who exit.
-    # policy_table / exit_rate fields are ignored.
-    if (is.null(exit_hazard_model))
-      stop(
-        "exit_strategy = \"hazard\" but exit_hazard_model is NULL. ",
-        "Supply a calibrated hazard_model object.",
-        call. = FALSE
-      )
-    hazard_preds <- predict_hazard(
-      hazard_model      = exit_hazard_model,
-      contract_dt       = contract_dt,
-      personnel_dt      = personnel_dt,
-      personnel_id_col  = personnel_id_col,
-      birth_date_col    = birth_date_col,
-      start_date_col    = start_date_col,
-      end_date_col      = end_date_col,
-      contract_type_col = contract_type_col,
-      ref_date          = ref_date
-    )
-    # Return a table with just the exiting personnel IDs (event = 1)
-    hazard_preds[event == 1L, .SD, .SDcols = personnel_id_col]
-  } else if (!is.null(policy_params$policy_table)) {
+  exits_dt <- if (!is.null(policy_params$policy_table)) {
     compute_status_quo_exits(
       contract_dt       = contract_dt,
       policy_params     = policy_params,

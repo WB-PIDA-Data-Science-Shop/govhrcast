@@ -16,7 +16,8 @@ identify_eligibility(
   end_date_col = "end_date",
   contract_type_col = "contract_type",
   age_col = "age",
-  tenure_col = "tenure_years"
+  tenure_col = "tenure_years",
+  status_col = "employment_status"
 )
 }
 \arguments{
