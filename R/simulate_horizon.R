@@ -1,6 +1,18 @@
-#' @param salary_growth_rate Numeric scalar or vector of length \code{n_periods}.\code{salary_col} across all
-#'   rows in \code{retirees_dt}, or \code{0} if \code{retirees_dt} is
-#'   \code{NULL} or has zero rows.
+
+#' Compute Exit Effect
+#'
+#' Computes the total salary removed from the wage bill due to employee exits
+#' (e.g., retirements) by summing the values in the specified salary column.
+#'
+#' @param retirees_dt A data frame or \code{data.table} containing the employees
+#'   who exited the workforce. If \code{NULL} or empty, the function returns
+#'   \code{0}.
+#' @param salary_col A character string giving the name of the salary variable
+#'   in \code{retirees_dt}. Defaults to \code{"gross_salary_lcu"}.
+#'
+#' @return A numeric scalar equal to the sum of \code{salary_col} across all
+#'   rows of \code{retirees_dt}. Returns \code{0} if \code{retirees_dt} is
+#'   \code{NULL}, has zero rows, or if \code{salary_col} does not exist.
 #'
 #' @examples
 #' \dontrun{
@@ -11,6 +23,7 @@
 #' }
 #'
 #' @export
+#' 
 compute_exit_effect <- function(retirees_dt,
                                 salary_col = "gross_salary_lcu") {
   if (is.null(retirees_dt) || nrow(retirees_dt) == 0L) return(0)

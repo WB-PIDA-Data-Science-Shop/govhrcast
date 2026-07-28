@@ -69,5 +69,11 @@ utils::globalVariables(c(
   "scenario",
   "scenario_id",
   "scenario_label",
-  "wage_bill_end"
+  "wage_bill_end",
+  "age_at_ret",
+  "age_at_retirement",
+  "i.age_at_ret",
+  "pension_amount",
+  "salary"
+
 ))
