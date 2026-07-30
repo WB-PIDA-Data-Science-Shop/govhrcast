@@ -177,9 +177,9 @@ statusquo_sim <- simulate_horizon(
 )
 #> Scrubbed 8 transition(s) where to_group not found in salary_scale_dt.
 #> Scrubbed 8 transition(s) where to_group not found in salary_scale_dt.
-#> Scrubbed 7 transition(s) where to_group not found in salary_scale_dt.
-#> Scrubbed 7 transition(s) where to_group not found in salary_scale_dt.
+#> Scrubbed 8 transition(s) where to_group not found in salary_scale_dt.
 #> Scrubbed 6 transition(s) where to_group not found in salary_scale_dt.
+#> Scrubbed 7 transition(s) where to_group not found in salary_scale_dt.
 ```
 
 ### Projection output
@@ -338,4 +338,4 @@ and pension liability estimation are in development.
 
 ## License
 
-MIT © The Authors
+MIT © Ifeanyi Edochie, Galileu Kim

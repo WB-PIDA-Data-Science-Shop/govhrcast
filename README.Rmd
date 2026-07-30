@@ -223,4 +223,4 @@ Full function-level documentation is available via ?simulate_horizon, ?simulate_
 Vignettes covering status quo projections, reform scenario comparisons, and pension liability estimation are in development.
 
 ## License
-MIT © The Authors
+MIT © Ifeanyi Edochie, Galileu Kim
