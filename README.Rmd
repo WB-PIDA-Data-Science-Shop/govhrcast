@@ -159,25 +159,21 @@ statusquo_sim$summary_dt
 
 simulate_horizon() chains four options modules (set any to NULL if you prefer) over each projection period in a fixed sequence:
 
-Contract & Personnel data
-        |
-        v
-simulate_retirement()
-        |
-        v
-simulate_exits()
-        |
-        v
-simulate_hiring()
-        |
-        v
-simulate_promotions_transfers()
-        |
-        v
-   [next period] ──> repeat
-        |
-        v
-   horizon object
+```{r workflow-diagram, echo = FALSE, results = "asis"}
+cat("
+\`\`\`mermaid
+flowchart TD
+    A[\"Contract & Personnel data\"] --> B[\"simulate_retirement()\"]
+    B --> C[\"simulate_exits()\"]
+    C --> D[\"simulate_hiring()\"]
+    D --> E[\"simulate_promotions_transfers()\"]
+    E --> F{Next period?}
+    F -- Yes --> B
+    F -- No --> G[\"horizon object\"]
+\`\`\`
+")
+```
+
 
 Each module is independently configurable through a policy list and leaves the others unchanged, so you can reform one dimension of the workforce system while holding everything else at its baseline.
 
