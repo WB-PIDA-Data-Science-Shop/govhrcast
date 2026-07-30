@@ -2,7 +2,7 @@
 % Please edit documentation in R/simulate_exits.R
 \name{simulate_exits}
 \alias{simulate_exits}
-\title{Simulate Non-Retirement Exit Module}
+\title{Simulate Non-Retirement Exits for a Single Projection Period}
 \usage{
 simulate_exits(
   contract_dt,
@@ -20,129 +20,302 @@ simulate_exits(
 )
 }
 \arguments{
-\item{contract_dt}{data.table.  Contract data in govhr harmonised format.}
+\item{contract_dt}{A \code{data.table} (or object coercible to a
+\code{data.table}) containing the active workforce contract register in
+\strong{govhr} harmonized format.
 
-\item{personnel_dt}{data.table.  Personnel data in govhr harmonised format.}
+At a minimum, this table must contain the columns identified by
+\code{personnel_id_col}, \code{contract_id_col}, \code{start_date_col},
+\code{end_date_col}, \code{contract_type_col}, and \code{salary_col}.
 
-\item{policy_params}{List.  Exit policy specification in the canonical
-three-slot format:
-\describe{
-\item{\code{group_cols}}{Character vector or \code{NULL}.  Columns in
-\code{contract_dt} used as the join key for group-level rate lookup
-(e.g. \code{"est_id"}, \code{"paygrade"}).  \code{NULL} for
-scalar-only dispatch.}
-\item{\code{policy_table}}{data.table with \code{group_cols} plus an
-\code{exit_rate} column, and optionally an \code{exit_multiplier}
-column for per-group reform scenarios.  Pass the output of
-\code{\link{estimate_historical_exit_rates}} here for
-\code{mode = "status_quo"}.  \code{NULL} when
-\code{mode = "fixed_rate"}.}
-\item{\code{defaults}}{Named list of scalar fallback values:
-\describe{
-\item{\code{exit_rate}}{Numeric scalar.  Required when
-\code{policy_table = NULL} (flat rate applied to all active
-workers).  Also used as the fallback rate for groups absent from
-\code{policy_table}.}
-\item{\code{exit_strategy}}{Character.  \code{"random"} (default)
-or the name of a numeric column in \code{contract_dt} to rank
-by (ascending — lowest values exit first).}
-\item{\code{active_types}}{Character vector.  Contract type values
-treated as active and eligible for exit.  Default
-\code{"active"}.}
-\item{\code{exited_type}}{Character.  Value written to
-\code{contract_type_col} after exit.  Default
-\code{"inactive"}.}
-}
-}
+This table should be a single-period snapshot. When called through
+\code{\link[=simulate_horizon]{simulate_horizon()}}, retirees have already been removed before this
+function is called.}
+
+\item{personnel_dt}{A \code{data.table} (or object coercible to a
+\code{data.table}) containing the personnel register in \strong{govhr}
+harmonized format.
+
+Must contain at least the columns identified by \code{personnel_id_col}
+and \code{status_col}.}
+
+\item{policy_params}{A named list describing the exit policy.
+
+The list contains three elements:
+
+\strong{group_cols}
+
+Character vector identifying the variables that define policy groups.
+Examples include \code{"est_id"}, \code{"paygrade"}, or \code{c("est_id", "paygrade")}.
+
+Use \code{NULL} when a single scalar exit rate applies to the entire
+workforce.
+
+\strong{policy_table}
+
+A \code{data.table} containing group-specific exit rates, keyed on
+\code{group_cols}. Must contain an \code{exit_rate} column. May optionally
+contain an \code{exit_multiplier} column to scale historical rates for
+reform scenarios without modifying the underlying estimates.
+
+Pass the output of \code{\link[=estimate_historical_exit_rates]{estimate_historical_exit_rates()}} here for
+status quo projections.
+
+Use \code{NULL} to apply a flat scalar rate to the entire workforce.
+
+\strong{defaults}
+
+Named list containing default exit policy parameters. The following
+fields are recognised:\tabular{ll}{
+   Parameter \tab Description \cr
+   \code{exit_rate} \tab Scalar attrition rate applied when \code{policy_table = NULL}, or as the fallback rate for groups absent from \code{policy_table} \cr
+   \code{exit_strategy} \tab \code{"random"} or a numeric column name in \code{contract_dt} to rank employees for exit selection \cr
+   \code{active_types} \tab Contract type values in \code{contract_type_col} treated as eligible for exit. Must match actual \code{contract_type} values (e.g. \code{c("permanent", "short-term", "fixed-term")}), not \code{employment_status} values \cr
+   \code{exited_type} \tab Value written to \code{contract_type_col} after exit. Default \code{"inactive"} \cr
 }}
 
-\item{ref_date}{Date.  Reference date for this simulation period.}
+\item{ref_date}{A \code{Date} giving the simulation date for the current
+projection period. Used to stamp exit dates onto closed contracts.}
 
-\item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
+\item{personnel_id_col}{Character scalar giving the unique personnel
+identifier shared by both \code{contract_dt} and \code{personnel_dt}.
+Default is \code{"personnel_id"}.}
 
-\item{birth_date_col}{Character.  Column in \code{personnel_dt} holding
-date of birth.  Default \code{"birth_date"}.}
+\item{birth_date_col}{Character scalar giving the column containing each
+employee's date of birth. Default is \code{"birth_date"}.}
 
-\item{start_date_col}{Character.  Column in \code{contract_dt} holding
-contract start date.  Default \code{"start_date"}.}
+\item{start_date_col}{Character scalar identifying the contract start
+date column. Default is \code{"start_date"}.}
 
-\item{contract_id_col}{Character.  Default \code{"contract_id"}.}
+\item{contract_id_col}{Character scalar identifying unique contracts.
+Default is \code{"contract_id"}.}
 
-\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
+\item{contract_type_col}{Character scalar identifying the contract type
+variable. Only contract types listed in \code{policy_params$defaults$active_types}
+are eligible for exit selection. Exited contracts are reclassified to the
+value in \code{policy_params$defaults$exited_type} (default \code{"inactive"}).
+Default is \code{"contract_type"}.}
 
-\item{status_col}{Character.  Default \code{"status"}.}
+\item{status_col}{Character scalar identifying the employment status
+variable in \code{personnel_dt}. Personnel records for exiting employees are
+updated to \code{"inactive"}. Default is \code{"employment_status"}.}
 
-\item{salary_col}{Character.  Default \code{"gross_salary_lcu"}.}
+\item{salary_col}{Character scalar identifying the primary salary column.
+Used to compute salary savings attributable to exits.
+Default is \code{"gross_salary_lcu"}.}
 
-\item{end_date_col}{Character.  Default \code{"end_date"}.}
+\item{end_date_col}{Character scalar identifying the contract end date
+column. Active contracts contain \code{NA} here. Exiting employees have this
+value replaced with \code{ref_date}. Default is \code{"end_date"}.}
 }
 \value{
-Named list:
-\describe{
-\item{summary}{One-row data.table with \code{n_exits},
-\code{exit_savings}.}
-\item{contract_dt}{Updated contract data.}
-\item{personnel_dt}{Updated personnel data.}
-\item{exits_dt}{data.table of exited personnel with salary at exit.}
+A named list with four elements:
+\itemize{
+\item \strong{summary}
+
+A one-row \code{data.table} summarizing exit outcomes for the current
+simulation period, containing:\tabular{ll}{
+   Column \tab Description \cr
+   \code{n_exits} \tab Number of employees who exited \cr
+   \code{exit_savings} \tab Total salary savings from exits \cr
+}
+
+\item \strong{contract_dt}
+
+The updated contract register after exits have been processed.
+Exited contracts have \code{contract_type_col} set to \code{exited_type} and
+\code{end_date_col} set to \code{ref_date}.
+\item \strong{personnel_dt}
+
+The updated personnel register. Employees who exit during the current
+simulation period are marked as inactive.
+\item \strong{exits_dt}
+
+A \code{data.table} containing one row for every employee who exits during
+the current simulation period, including their salary at the time of
+exit. Returns an empty \code{data.table} when no exits occur.
 }
 }
 \description{
-Main user-facing function for simulating non-retirement attrition events
-(voluntary resignation, dismissal, contract non-renewal).  Orchestrates the
-exit workflow: rate application, state updates, and summary statistics.
-Mirrors the structure of \code{simulate_retirement()} and
-\code{simulate_hiring()}.
-}
-\section{Exit rate modelling — status quo mode}{
-
-The \code{"status_quo"} mode applies historically estimated group-level exit
-rates held constant across all projection periods.  This equates the
-\emph{composition} of exits — by grade, contract type, and tenure — to
-past patterns.  For short-horizon projections (1–5 years) with stable
-workforce compositions this is a defensible assumption.
+\code{simulate_exits()} is the non-retirement attrition module used throughout
+\strong{govhrcast}. During a single simulation period it:
+\enumerate{
+\item Validates the supplied workforce data and exit policy.
+\item Identifies the active workforce eligible for non-retirement attrition.
+\item Resolves per-group exit rates from the policy specification.
+\item Selects employees to exit using the chosen exit strategy.
+\item Records the salary savings attributable to exits.
+\item Removes exiting employees from the active workforce.
+\item Returns updated workforce tables together with a summary of exit
+outcomes.
 }
 
+This function simulates a \strong{single projection period}. Multi-period
+workforce projections should instead use \code{\link[=simulate_horizon]{simulate_horizon()}}, which
+repeatedly calls \code{simulate_exits()} over successive simulation periods,
+always after \code{\link[=simulate_retirement]{simulate_retirement()}} has already removed retirees from
+the active pool.
+}
+\details{
+Simulates voluntary resignations, dismissals, and contract non-renewals
+for one projection period by applying group-level or scalar attrition
+rates to the active workforce, updating the contract and personnel
+registers, and returning a summary of exit outcomes.
+\subsection{Exit workflow}{
+
+Non-retirement exit simulation proceeds through the following stages:
+\enumerate{
+\item Validate all inputs.
+\item Identify the active workforce by filtering on \code{active_types} within
+\code{contract_type_col}. This filter must match actual values in
+\code{contract_type_col} — passing \code{employment_status} values such as
+\code{"active"} will silently produce zero exits.
+\item Resolve exit rates from \code{policy_params} — either a scalar rate applied
+uniformly or group-specific rates joined from \code{policy_table}.
+\item Compute the number of exits per group as
+\code{round(n_active * exit_rate)}.
+\item Select which employees exit using the chosen \code{exit_strategy}.
+\item Attach pre-exit salaries to compute savings.
+\item Update contract and personnel registers in place.
+\item Return updated data and summary statistics.
+}
+
+Input data are \strong{never modified in place}. Both \code{contract_dt} and
+\code{personnel_dt} are copied internally before any processing occurs.
+}
+
+\subsection{Policy specification}{
+
+Exit behavior is controlled entirely through \code{policy_params}. Two
+dispatch paths are available depending on whether \code{policy_table} is
+supplied:
+\itemize{
+\item \strong{Status quo mode} (\code{policy_table} supplied): group-level exit rates
+estimated from historical panel data are applied to each group. Rates
+can additionally be scaled by an \code{exit_multiplier} column in
+\code{policy_table} to model reform scenarios without altering the
+underlying historical estimates.
+\item \strong{Fixed rate mode} (\code{policy_table = NULL}): a single scalar
+\code{exit_rate} from \code{defaults} is applied uniformly across the entire
+active workforce.
+}
+
+When \code{simulate_horizon()} is called with \code{policy_table = NULL} and
+panel data are supplied, historical exit rates are estimated
+automatically from the panel via \code{\link[=estimate_historical_exit_rates]{estimate_historical_exit_rates()}}
+before the period loop begins.
+}
+
+\subsection{Exit strategy}{
+
+The \code{exit_strategy} parameter in \code{defaults} controls which employees
+are selected to exit once the number of exits per group has been
+determined. Two options are supported:
+\itemize{
+\item \code{"random"} — employees are drawn uniformly at random from the
+eligible pool (default).
+\item Any numeric column name present in \code{contract_dt} — employees are
+ranked in ascending order of that column and the lowest-ranked exit
+first. For example, \code{"gross_salary_lcu"} exits the lowest-paid
+first; \code{"age"} exits the youngest first; \code{"personnel_tenure"} exits
+the least tenured first. An unrecognised column name silently falls
+back to \code{"random"}.
+}
+}
+
+\subsection{Interaction with retirement}{
+
+Within each simulation period, \code{\link[=simulate_retirement]{simulate_retirement()}} runs before
+\code{simulate_exits()}. The contract and personnel tables passed to
+\code{simulate_exits()} therefore reflect a workforce from which retirees
+have already been removed. Exit rates are applied to this post-retirement
+active pool.
+}
+}
 \examples{
 \dontrun{
-library(data.table)
 
-# Fixed rate — 5\% scalar attrition
+library(data.table)
+library(govhrcast)
+
+contract_dt  <- copy(bra_hrmis_contract)
+personnel_dt <- copy(bra_hrmis_personnel)
+ref_date     <- as.Date("2014-01-01")
+
+############################################################
+## Example 1: Flat scalar attrition rate
+############################################################
+
 exit_policy <- list(
   group_cols   = NULL,
   policy_table = NULL,
   defaults = list(
     exit_rate     = 0.05,
     exit_strategy = "random",
-    active_types  = c("perm", "fterm", "temp"),
+    active_types  = c("permanent", "short-term", "fixed-term"),
     exited_type   = "inactive"
   )
 )
 
-# Status quo — historical rates from panel, with reform multiplier by group
-rates_dt <- estimate_historical_exit_rates(
-  panel_contract_dt  = panel_contract_dt,
-  panel_personnel_dt = panel_personnel_dt,
-  group_cols         = "paygrade"
-)
-rates_dt[, exit_multiplier := ifelse(paygrade \%in\% c("A","B"), 0.8, 1.0)]
-
-exit_policy_reform <- list(
-  group_cols   = "paygrade",
-  policy_table = rates_dt,
-  defaults = list(
-    exit_strategy = "random",
-    active_types  = c("perm", "fterm", "temp"),
-    exited_type   = "inactive"
-  )
-)
-
-result <- simulate_exits(
+results <- simulate_exits(
   contract_dt   = contract_dt,
   personnel_dt  = personnel_dt,
-  policy_params = exit_policy_reform,
-  ref_date      = as.Date("2025-01-01")
+  policy_params = exit_policy,
+  ref_date      = ref_date
 )
-result$summary
+
+results$summary
+head(results$exits_dt)
+
+############################################################
+## Example 2: Group-level historical rates with a reform
+##            multiplier and tenure-based exit selection
+############################################################
+
+rates_dt <- estimate_historical_exit_rates(
+  panel_contract_dt  = contract_dt,
+  panel_personnel_dt = personnel_dt,
+  group_cols         = "est_id"
+)
+
+# Reduce exits by 50\% for one establishment
+rates_dt[, exit_multiplier := ifelse(
+  est_id == "SECRETARIA DE ESTADO DA SAUDE", 0.5, 1.0
+)]
+
+exit_policy <- list(
+  group_cols   = "est_id",
+  policy_table = rates_dt,
+  defaults = list(
+    exit_rate     = mean(rates_dt$exit_rate, na.rm = TRUE),
+    exit_strategy = "personnel_tenure",
+    active_types  = c("permanent", "short-term", "fixed-term"),
+    exited_type   = "inactive"
+  )
+)
+
+results <- simulate_exits(
+  contract_dt   = contract_dt,
+  personnel_dt  = personnel_dt,
+  policy_params = exit_policy,
+  ref_date      = ref_date
+)
+
+results$summary
+
 }
 
 }
+\seealso{
+\code{\link[=simulate_horizon]{simulate_horizon()}} for multi-period workforce simulations.
+
+\code{\link[=estimate_historical_exit_rates]{estimate_historical_exit_rates()}} for estimating group-level attrition
+rates from panel data to supply as \code{policy_table}.
+
+\code{\link[=simulate_retirement]{simulate_retirement()}} for the retirement module, which runs before
+this function within each simulation period.
+
+\code{\link[=simulate_hiring]{simulate_hiring()}} for the hiring module, which runs after this
+function within each simulation period.
+}
+\concept{exit simulation}

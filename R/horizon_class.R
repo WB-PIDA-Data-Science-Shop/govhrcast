@@ -13,8 +13,7 @@
 #' @description
 #' Wraps a simulation summary table and its generating metadata into a
 #' lightweight S3 object.  End-users should not call this directly; it is
-#' invoked by \code{\link{simulate_horizon}} and
-#' \code{\link{generate_scenario_matrix}}.
+#' invoked by \code{\link{simulate_horizon}}.
 #'
 #' @param comparison data.table.  One row per (scenario × period).  Must
 #'   contain at least \code{period_date} and \code{wage_bill_end}.

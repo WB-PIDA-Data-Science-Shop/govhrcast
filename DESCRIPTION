@@ -14,11 +14,6 @@ RoxygenNote: 7.3.3
 Imports:
     methods,
     data.table,
-    ggplot2,
-    patchwork,
-    scales,
-    shiny,
-    thematic
 Suggests:
     testthat (>= 3.0.0),
     govhr,

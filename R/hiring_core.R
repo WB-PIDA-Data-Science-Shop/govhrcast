@@ -303,6 +303,7 @@ compute_stock_demand <- function(contract_dt,
     demand_dt <- stock_targets[current_stock_dt, on = group_cols]
     
     # Handle missing matches (groups in targets but not in current data)
+    demand_dt[is.na(target_stock), target_stock := current_stock]
     demand_dt[is.na(current_stock), current_stock := 0L]
   } else {
     # Overall demand (no grouping)
@@ -405,7 +406,10 @@ compute_combined_demand <- function(contract_dt,
     demand_dt <- stock_targets[flow_dt, on = group_cols]
     
     # Handle missing matches
-    demand_dt[is.na(target_stock), target_stock := current_stock]
+    
+    demand_dt[is.na(target_stock),  target_stock  := current_stock]
+    demand_dt[is.na(current_stock), current_stock := 0L]
+    demand_dt[is.na(flow_demand),   flow_demand   := 0]
   } else {
     # Overall demand (no grouping)
     if (nrow(stock_targets) != 1) {

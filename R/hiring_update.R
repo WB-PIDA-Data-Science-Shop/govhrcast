@@ -569,7 +569,7 @@ update_state_with_adjustment <- function(contract_dt,
             new_contracts_dt = new_contracts,
             salary_scale_dt = salary_scale,
             join_cols = join_cols_overall,
-            salary_col = NULL  # Auto-detect
+            salary_col = salary_col  # Auto-detect
           )
         } else {
           # No common columns - apply single salary value

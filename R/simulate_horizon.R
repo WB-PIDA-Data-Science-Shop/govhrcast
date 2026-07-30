@@ -561,6 +561,7 @@ simulate_scenario <- function(contract_dt,
     contract_dt  <- hire_result$contract_dt
     personnel_dt <- hire_result$personnel_dt
 
+
     hiring_effect <- compute_hiring_effect(
       new_hire_contracts_dt = hire_result$new_hire_contracts_dt,
       salary_col            = salary_col

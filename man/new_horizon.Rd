@@ -20,7 +20,6 @@ An object of class \code{horizon}.
 \description{
 Wraps a simulation summary table and its generating metadata into a
 lightweight S3 object.  End-users should not call this directly; it is
-invoked by \code{\link{simulate_horizon}} and
-\code{\link{generate_scenario_matrix}}.
+invoked by \code{\link{simulate_horizon}}.
 }
 \keyword{internal}
