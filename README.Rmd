@@ -16,6 +16,8 @@ knitr::opts_chunk$set(
 # govhrcast
 
 <!-- badges: start -->
+[![Codecov test coverage](https://codecov.io/gh/WB-PIDA-Data-Science-Shop/govhrcast/graph/badge.svg)](https://app.codecov.io/gh/WB-PIDA-Data-Science-Shop/govhrcast)
+[![R-CMD-check](https://github.com/WB-PIDA-Data-Science-Shop/govhrcast/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/WB-PIDA-Data-Science-Shop/govhrcast/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
 Designing a new retirement policy? Planning a hiring freeze? Considering a civil service pay reform? govhrcast is an R package that lets you simulate the workforce and wage bill implications of public sector policy decisions from HRMIS microdata at the contract and personnel level. See [govhr] (https://github.com/WB-PIDA-Data-Science-Shop/govhr) package for the pre-requisite data requirements.

@@ -5,6 +5,9 @@
 
 <!-- badges: start -->
 
+[![Codecov test
+coverage](https://codecov.io/gh/WB-PIDA-Data-Science-Shop/govhrcast/graph/badge.svg)](https://app.codecov.io/gh/WB-PIDA-Data-Science-Shop/govhrcast)
+[![R-CMD-check](https://github.com/WB-PIDA-Data-Science-Shop/govhrcast/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/WB-PIDA-Data-Science-Shop/govhrcast/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
 Designing a new retirement policy? Planning a hiring freeze? Considering
