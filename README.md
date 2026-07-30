@@ -176,10 +176,10 @@ statusquo_sim <- simulate_horizon(
   scenario_name      = "status_quo"
 )
 #> Scrubbed 8 transition(s) where to_group not found in salary_scale_dt.
+#> Scrubbed 8 transition(s) where to_group not found in salary_scale_dt.
 #> Scrubbed 7 transition(s) where to_group not found in salary_scale_dt.
 #> Scrubbed 7 transition(s) where to_group not found in salary_scale_dt.
 #> Scrubbed 6 transition(s) where to_group not found in salary_scale_dt.
-#> Scrubbed 7 transition(s) where to_group not found in salary_scale_dt.
 ```
 
 ### Projection output
@@ -198,10 +198,16 @@ statusquo_sim$summary_dt
 simulate_horizon() chains four options modules (set any to NULL if you
 prefer) over each projection period in a fixed sequence:
 
-Contract & Personnel data \| v simulate_retirement() \| v
-simulate_exits() \| v simulate_hiring() \| v
-simulate_promotions_transfers() \| v \[next period\] ──\> repeat \| v
-horizon object
+``` mermaid
+flowchart TD
+    A["Contract & Personnel data"] --> B["simulate_retirement()"]
+    B --> C["simulate_exits()"]
+    C --> D["simulate_hiring()"]
+    D --> E["simulate_promotions_transfers()"]
+    E --> F{Next period?}
+    F -- Yes --> B
+    F -- No --> G["horizon object"]
+```
 
 Each module is independently configurable through a policy list and
 leaves the others unchanged, so you can reform one dimension of the
