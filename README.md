@@ -177,9 +177,9 @@ statusquo_sim <- simulate_horizon(
 )
 #> Scrubbed 8 transition(s) where to_group not found in salary_scale_dt.
 #> Scrubbed 8 transition(s) where to_group not found in salary_scale_dt.
-#> Scrubbed 7 transition(s) where to_group not found in salary_scale_dt.
-#> Scrubbed 7 transition(s) where to_group not found in salary_scale_dt.
-#> Scrubbed 6 transition(s) where to_group not found in salary_scale_dt.
+#> Scrubbed 8 transition(s) where to_group not found in salary_scale_dt.
+#> Scrubbed 8 transition(s) where to_group not found in salary_scale_dt.
+#> Scrubbed 8 transition(s) where to_group not found in salary_scale_dt.
 ```
 
 ### Projection output
@@ -222,22 +222,24 @@ workforce system while holding everything else at its baseline.
 
 ## What can you model:
 
-govhrcast is designed around the kinds of questions that arise in public
-sector fiscal and workforce reform work:
+`govhrcast` is designed around the kinds of questions that arise in
+public sector fiscal and workforce reform work:
 
-\*\* Fiscal consolidation \*\* — what happens to the wage bill if we
-freeze hiring for three years and rely on natural attrition to reduce
-headcount? \*\* Retirement waves \*\* — how many workers will become
-eligible for retirement over the next decade, and what is the pension
-liability? \*\* Replacement policy \*\* — if we replace only 80% of
-retirees, how long until headcount stabilises, and at what wage bill
-level? \*\* Pay reform \*\* — how does a salary scale restructuring
-interact with planned hiring and expected attrition over five years?
-\*\* Promotion acceleration \*\* — what is the wage bill cost of
-doubling promotion rates into senior grades as part of a civil service
-reform? Scenarios are compared by running simulate_horizon() multiple
-times with different policy lists and inspecting the \$comparison
-element of the returned horizon object.
+- **Fiscal consolidation** — what happens to the wage bill if we freeze
+  hiring for three years and rely on natural attrition to reduce
+  headcount?
+- **Retirement waves** — how many workers will become eligible for
+  retirement over the next decade, and what is the pension liability?
+- **Replacement policy** — if we replace only 80% of retirees, how long
+  until headcount stabilises, and at what wage bill level?
+- **Pay reform** — how does a salary scale restructuring interact with
+  planned hiring and expected attrition over five years?
+- **Promotion acceleration** — what is the wage bill cost of doubling
+  promotion rates into senior grades as part of a civil service reform?
+
+Scenarios are compared by running `simulate_horizon()` multiple times
+with different policy lists and inspecting the `$comparison` element of
+the returned `horizon` object.
 
 ## Policy specification
 
@@ -338,4 +340,4 @@ and pension liability estimation are in development.
 
 ## License
 
-MIT © The Authors
+MIT © Ifeanyi Edochie, Galileu Kim
