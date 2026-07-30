@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{compute_tenure}
 \alias{compute_tenure}
-\title{Calculate Tenure from Contract History}
+\title{Compute employment tenure from contract history}
 \usage{
 compute_tenure(
   contract_dt,
@@ -11,42 +11,65 @@ compute_tenure(
   contract_id_col = "contract_id",
   start_date_col = "start_date",
   end_date_col = "end_date",
-  contract_type_col = "contract_type_code"
+  contract_type_col = "contract_type",
+  group_cols = NULL
 )
 }
 \arguments{
-\item{contract_dt}{data.table. Contract data (may contain panel observations)}
+\item{contract_dt}{data.table containing the contract history. Must include
+personnel identifiers, contract identifiers, contract start and end
+dates, contract types, and any grouping variables supplied in
+\code{group_cols}.}
 
-\item{ref_date}{Date. Reference date for tenure calculation}
+\item{ref_date}{Date. Reference date at which tenure is calculated.}
 
-\item{personnel_id_col}{Character. Name of personnel ID column (default: "personnel_id")}
+\item{personnel_id_col}{Character. Name of the personnel identifier column.
+Default is \code{"personnel_id"}.}
 
-\item{contract_id_col}{Character. Name of contract ID column (default: "contract_id")}
+\item{contract_id_col}{Character. Name of the contract identifier column.
+Default is \code{"contract_id"}.}
 
-\item{start_date_col}{Character. Name of start date column (default: "start_date")}
+\item{start_date_col}{Character. Name of the contract start date column.
+Default is \code{"start_date"}.}
 
-\item{end_date_col}{Character. Name of end date column (default: "end_date")}
+\item{end_date_col}{Character. Name of the contract end date column.
+Default is \code{"end_date"}.}
 
-\item{contract_type_col}{Character. Name of contract type column (default: "contract_type_code")}
+\item{contract_type_col}{Character. Name of the contract type column.
+Default is \code{"contract_type"}.}
+
+\item{group_cols}{Optional character vector of additional variables over
+which tenure should be calculated independently (for example,
+establishment, occupation, or organization). Default is
+\code{NULL}.}
 }
 \value{
-data.table with personnel_id, tenure_days, and tenure_years columns
+A data.table with one row per unique combination of
+\code{personnel_id} and optional \code{group_cols}, containing:
+\describe{
+\item{tenure_days}{Total employment tenure in days.}
+\item{tenure_years}{Total employment tenure in years, calculated as
+tenure days divided by 365.25.}
+}
 }
 \description{
-Computes total years of service for each personnel as of a reference date
-using a vectorised interval-union algorithm based on \code{cummax()}.
-Overlapping and nested contracts are correctly de-duplicated; gaps between
-contracts are excluded from the total.
-
-The algorithm sorts each person's contracts by start date, then propagates
-the "furthest right endpoint seen so far" with \code{cummax()}.  Three
-cases cover all interval relationships:
-\itemize{
-\item \strong{Case 1} (new span): start > lag_cummax → contributes \code{end - start}
-\item \strong{Case 2} (extension): end > lag_cummax ≥ start → contributes \code{end - lag_cummax}
-\item \strong{Case 3} (nested): end ≤ lag_cummax → contributes 0
+Computes cumulative employment tenure for each personnel member as of a
+specified reference date while avoiding double-counting overlapping
+contracts. Contracts with type \code{"inactive"} or
+\code{"pensioner"} are excluded. Open-ended contracts are truncated at
+the reference date before overlapping contract periods are merged to
+calculate total tenure.
 }
-This is O(n log n) for the sort, O(n) for the sweep.
+\details{
+Tenure is calculated independently for each personnel member and,
+optionally, within additional grouping variables supplied through
+\code{group_cols}. Gaps between contracts are excluded from the total
+tenure.
+
+The implementation uses an interval-union algorithm based on
+\code{cummax()} to efficiently merge overlapping contract periods,
+resulting in an \eqn{O(n \log n)} algorithm dominated by the initial
+sorting step.
 }
 \examples{
 \dontrun{

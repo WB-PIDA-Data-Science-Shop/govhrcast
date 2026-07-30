@@ -15,7 +15,7 @@ create_test_contract_dt <- function() {
     personnel_id = c("P001", "P002", "P003", "P004"),
     start_date = as.Date(c("2000-01-01", "2010-01-01", "2015-01-01", "2005-01-01")),
     end_date = as.Date(c(NA, NA, NA, NA)),
-    contract_type_code = c("perm", "perm", "perm", "perm"),
+    contract_type = c("perm", "perm", "perm", "perm"),
     gross_salary_lcu = c(5000, 6000, 4000, 5500)
   )
 }
@@ -24,7 +24,7 @@ create_test_personnel_dt <- function() {
   data.table(
     personnel_id = c("P001", "P002", "P003", "P004"),
     birth_date = as.Date(c("1960-01-01", "1975-01-01", "1980-01-01", "1965-01-01")),
-    status = c("active", "active", "active", "active")
+    employment_status = c("active", "active", "active", "active")
   )
 }
 
@@ -66,7 +66,7 @@ test_that("identify_eligibility respects exact min_age boundary", {
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
     birth_date = as.Date(c("1965-01-01", "1965-01-02")),  # Born Jan 1 vs Jan 2
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   policy_params <- list(
@@ -123,12 +123,12 @@ test_that("identify_eligibility respects exact min_tenure boundary", {
     personnel_id = c("P001", "P002"),
     start_date = as.Date(c("2010-01-01", "2010-01-02")),
     end_date = as.Date(c(NA, NA)),
-    contract_type_code = c("perm", "perm")
+    contract_type = c("perm", "perm")
   )
   
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   policy_params <- list(
@@ -185,13 +185,13 @@ test_that("identify_eligibility AND logic works correctly", {
     personnel_id = c("P001", "P002", "P003"),
     start_date = as.Date(c("2000-01-01", "2015-01-01", "2000-01-01")),
     end_date = as.Date(c(NA, NA, NA)),
-    contract_type_code = c("perm", "perm", "perm")
+    contract_type = c("perm", "perm", "perm")
   )
   
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002", "P003"),
     birth_date = as.Date(c("1960-01-01", "1960-01-01", "1975-01-01")),  # ages 65, 65, 50
-    status = c("active", "active", "active")
+    employment_status = c("active", "active", "active")
   )
   
   policy_params <- list(
@@ -223,7 +223,7 @@ test_that("identify_eligibility handles missing birth_date for tenure_only", {
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002", "P003", "P004"),
     birth_date = as.Date(c(NA, NA, NA, NA)),  # All NA
-    status = c("active", "active", "active", "active")
+    employment_status = c("active", "active", "active", "active")
   )
   
   policy_params <- list(
@@ -247,13 +247,13 @@ test_that("identify_eligibility handles empty personnel list", {
     personnel_id = character(),
     start_date = as.Date(character()),
     end_date = as.Date(character()),
-    contract_type_code = character()
+    contract_type = character()
   )
   
   personnel_dt <- data.table(
     personnel_id = character(),
     birth_date = as.Date(character()),
-    status = character()
+    employment_status = character()
   )
   
   policy_params <- list(
@@ -275,7 +275,7 @@ test_that("identify_eligibility handles NA in computed age", {
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
     birth_date = as.Date(c("1960-01-01", NA)),  # P002 has NA birth_date
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   policy_params <- list(
@@ -301,12 +301,12 @@ test_that("identify_eligibility handles NA in computed tenure", {
     personnel_id = c("P001", "P002"),
     start_date = as.Date(c("2000-01-01", NA)),  # P002 has NA start_date
     end_date = as.Date(c(NA, NA)),
-    contract_type_code = c("perm", "perm")
+    contract_type = c("perm", "perm")
   )
   
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   policy_params <- list(
@@ -422,14 +422,14 @@ test_that("prepare_retiree_data enriches eligibility data correctly", {
     personnel_id = c("P001", "P002"),
     start_date = as.Date(c("2000-01-01", "2010-01-01")),
     end_date = as.Date(c(NA, NA)),
-    contract_type_code = c("perm", "perm"),
+    contract_type = c("perm", "perm"),
     gross_salary_lcu = c(5000, 6000),
     position_id = c("POS1", "POS2")
   )
   
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   eligibility_dt <- data.table(
@@ -477,13 +477,13 @@ test_that("prepare_retiree_data handles multiple contracts per retiree", {
     personnel_id = c("P001", "P001", "P002"),  # P001 has 2 contracts
     start_date = as.Date(c("2000-01-01", "2010-01-01", "2015-01-01")),
     end_date = as.Date(c(NA, NA, NA)),
-    contract_type_code = c("perm", "perm", "perm"),
+    contract_type = c("perm", "perm", "perm"),
     gross_salary_lcu = c(5000, 7000, 6000)  # C002 is primary (highest salary)
   )
   
   personnel_dt <- data.table(
     personnel_id = c("P001", "P002"),
-    status = c("active", "active")
+    employment_status = c("active", "active")
   )
   
   eligibility_dt <- data.table(
@@ -511,13 +511,13 @@ test_that("prepare_retiree_data filters inactive contracts", {
     personnel_id = c("P001", "P001"),
     start_date = as.Date(c("2000-01-01", "2010-01-01")),
     end_date = as.Date(c("2020-01-01", NA)),  # C001 ended
-    contract_type_code = c("inactive", "perm"),
+    contract_type = c("inactive", "perm"),
     gross_salary_lcu = c(9000, 5000)
   )
   
   personnel_dt <- data.table(
     personnel_id = "P001",
-    status = "active"
+    employment_status = "active"
   )
   
   eligibility_dt <- data.table(
@@ -544,7 +544,7 @@ test_that("prepare_retiree_data preserves all contract columns", {
     personnel_id = "P001",
     start_date = as.Date("2000-01-01"),
     end_date = as.Date(NA),
-    contract_type_code = "perm",
+    contract_type = "perm",
     gross_salary_lcu = 5000,
     position_id = "POS1",
     paygrade_code = "G10",
@@ -553,7 +553,7 @@ test_that("prepare_retiree_data preserves all contract columns", {
   
   personnel_dt <- data.table(
     personnel_id = "P001",
-    status = "active"
+    employment_status = "active"
   )
   
   eligibility_dt <- data.table(
@@ -587,7 +587,7 @@ test_that("identify_eligibility: group-level min_age via policy_table dispatches
     contract_id        = c("C001", "C002", "C003"),
     start_date         = as.Date("2000-01-01"),
     end_date           = as.Date(NA),
-    contract_type_code = "perm",
+    contract_type = "perm",
     gross_salary_lcu   = c(5000, 4000, 3000),
     grade              = c("A", "B", "A")
   )
@@ -624,7 +624,7 @@ test_that("identify_eligibility: group-level min_tenure via policy_table dispatc
     contract_id        = c("C001", "C002"),
     start_date         = as.Date(c("1995-01-01", "2010-01-01")),
     end_date           = as.Date(NA),
-    contract_type_code = "perm",
+    contract_type = "perm",
     gross_salary_lcu   = c(5000, 4000),
     grade              = c("A", "B")
   )
@@ -659,7 +659,7 @@ test_that("identify_eligibility: unmatched grade uses default min_age from defau
     contract_id        = c("C001", "C002"),
     start_date         = as.Date("2000-01-01"),
     end_date           = as.Date(NA),
-    contract_type_code = "perm",
+    contract_type = "perm",
     gross_salary_lcu   = c(5000, 4000),
     grade              = c("A", "C")  # grade C not in policy_table
   )

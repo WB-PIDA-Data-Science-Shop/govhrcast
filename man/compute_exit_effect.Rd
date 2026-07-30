@@ -7,21 +7,21 @@
 compute_exit_effect(retirees_dt, salary_col = "gross_salary_lcu")
 }
 \arguments{
-\item{retirees_dt}{data.table or \code{NULL}.  Output of
-\code{simulate_retirement()}.  Must contain the column named by
-\code{salary_col} if non-empty.}
+\item{retirees_dt}{A data frame or \code{data.table} containing the employees
+who exited the workforce. If \code{NULL} or empty, the function returns
+\code{0}.}
 
-\item{salary_col}{Character.  Name of the salary column.  Default:
-\code{"gross_salary_lcu"}.}
+\item{salary_col}{A character string giving the name of the salary variable
+in \code{retirees_dt}. Defaults to \code{"gross_salary_lcu"}.}
 }
 \value{
-Numeric scalar \eqn{\ge 0}: sum of \code{salary_col} across all
-rows in \code{retirees_dt}, or \code{0} if \code{retirees_dt} is
-\code{NULL} or has zero rows.
+A numeric scalar equal to the sum of \code{salary_col} across all
+rows of \code{retirees_dt}. Returns \code{0} if \code{retirees_dt} is
+\code{NULL}, has zero rows, or if \code{salary_col} does not exist.
 }
 \description{
-Returns the total salary mass removed by retirements (or any other exits)
-in one simulation period.  This is a pure function with no side-effects.
+Computes the total salary removed from the wage bill due to employee exits
+(e.g., retirements) by summing the values in the specified salary column.
 }
 \examples{
 \dontrun{

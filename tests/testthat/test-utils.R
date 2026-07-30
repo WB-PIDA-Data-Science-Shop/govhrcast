@@ -210,7 +210,7 @@ test_that("compute_tenure calculates service years correctly", {
     personnel_id = c("P001", "P001", "P002"),
     start_date = as.Date(c("2010-01-01", "2015-01-01", "2018-06-01")),
     end_date = as.Date(c("2015-01-01", NA, NA)),
-    contract_type_code = c("perm", "perm", "perm")
+    contract_type = c("perm", "perm", "perm")
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -238,7 +238,7 @@ test_that("compute_tenure handles panel data correctly", {
     personnel_id = rep(c("P001", "P001"), 3),
     start_date = rep(as.Date(c("2010-01-01", "2015-01-01")), 3),
     end_date = rep(as.Date(c("2015-01-01", NA)), 3),
-    contract_type_code = rep("perm", 6)
+    contract_type = rep("perm", 6)
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -257,7 +257,7 @@ test_that("compute_tenure excludes inactive contracts", {
     personnel_id = c("P001", "P001", "P001"),
     start_date = as.Date(c("2010-01-01", "2015-01-01", "2020-01-01")),
     end_date = as.Date(c("2015-01-01", "2020-01-01", NA)),
-    contract_type_code = c("perm", "inactive", "perm")
+    contract_type = c("perm", "inactive", "perm")
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -273,7 +273,7 @@ test_that("compute_tenure handles contracts starting after ref_date", {
     personnel_id = c("P001", "P001"),
     start_date = as.Date(c("2010-01-01", "2030-01-01")),  # C002 in future
     end_date = as.Date(c(NA, NA)),
-    contract_type_code = c("perm", "perm")
+    contract_type = c("perm", "perm")
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -289,7 +289,7 @@ test_that("compute_tenure handles empty contract data", {
     personnel_id = character(0),
     start_date = as.Date(character(0)),
     end_date = as.Date(character(0)),
-    contract_type_code = character(0)
+    contract_type = character(0)
   )
   
   ref_date <- as.Date("2025-01-01")
@@ -305,7 +305,7 @@ test_that("get_active_contracts filters correctly", {
     personnel_id = c("P001", "P002", "P003", "P004", "P005"),
     start_date = as.Date(c("2010-01-01", "2020-01-01", "2030-01-01", "2015-01-01", "2020-01-01")),
     end_date = as.Date(c("2020-01-01", NA, NA, "2022-01-01", NA)),
-    contract_type_code = c("perm", "perm", "perm", "perm", "inactive")
+    contract_type = c("perm", "perm", "perm", "perm", "inactive")
   )
   
   ref_date <- as.Date("2025-01-01")

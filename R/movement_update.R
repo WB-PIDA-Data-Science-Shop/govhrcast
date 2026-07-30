@@ -62,7 +62,7 @@ stochastic_round <- function(x) {
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
 #' @param start_date_col Character. Contract start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param salary_col Character. Salary column (default: "gross_salary_lcu")
 #' @param status_col Character. Status column (default: "status")
 #' @param ref_date_col Character. Reference date column for panel data (default: "ref_date")
@@ -84,9 +84,9 @@ identify_movers <- function(contract_dt,
                              personnel_id_col = "personnel_id",
                              start_date_col = "start_date",
                              end_date_col = "end_date",
-                             contract_type_col = "contract_type_code",
+                             contract_type_col = "contract_type",
                              salary_col = "gross_salary_lcu",
-                             status_col = "status",
+                             status_col         = "employment_status",
                              ref_date_col = "ref_date") {
 
   ref_date <- validate_date_format(ref_date, "ref_date")
@@ -317,7 +317,7 @@ identify_movers <- function(contract_dt,
 #' @param salary_col Character. Salary column (default: "gross_salary_lcu")
 #' @param start_date_col Character. Contract start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #'
 #' @return List containing:
 #'   \describe{
@@ -340,7 +340,7 @@ update_state_with_movement <- function(contract_dt,
                                        salary_col = "gross_salary_lcu",
                                        start_date_col = "start_date",
                                        end_date_col = "end_date",
-                                       contract_type_col = "contract_type_code") {
+                                       contract_type_col = "contract_type") {
 
   ref_date <- validate_date_format(ref_date, "ref_date")
 
@@ -392,9 +392,13 @@ update_state_with_movement <- function(contract_dt,
     salary_pattern    <- "salary|wage|pay|compensation|allowance"
     salary_candidates <- grep(salary_pattern, names(salary_scale),
                               value = TRUE, ignore.case = TRUE)
+    # Only keep numeric candidates to avoid matching non-salary columns (e.g. "paygrade")
+    salary_candidates <- salary_candidates[
+      vapply(salary_scale[, salary_candidates, with = FALSE], is.numeric, logical(1))
+    ]
     if (length(salary_candidates) == 0) {
-      stop("Could not detect salary column in salary_scale. ",
-           "Ensure it contains a column matching 'salary|wage|pay|compensation|allowance'.",
+      stop("Could not detect a numeric salary column in salary_scale. ",
+           "Ensure it contains a numeric column matching 'salary|wage|pay|compensation|allowance'.",
            call. = FALSE)
     }
     scale_salary_col <- if ("gross_salary_lcu" %in% salary_candidates) "gross_salary_lcu"

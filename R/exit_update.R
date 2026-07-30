@@ -40,7 +40,7 @@ update_contracts_for_exits <- function(contract_dt,
                                        exits_dt,
                                        ref_date,
                                        personnel_id_col  = "personnel_id",
-                                       contract_type_col = "contract_type_code",
+                                       contract_type_col = "contract_type",
                                        end_date_col      = "end_date",
                                        active_types      = "active",
                                        exited_type       = "inactive") {
@@ -82,7 +82,7 @@ update_contracts_for_exits <- function(contract_dt,
 update_personnel_for_exits <- function(personnel_dt,
                                        exits_dt,
                                        personnel_id_col = "personnel_id",
-                                       status_col       = "status") {
+                                       status_col         = "employment_status") {
   if (is.null(exits_dt) || nrow(exits_dt) == 0L) return(invisible(personnel_dt))
 
   exiting_ids <- unique(exits_dt[[personnel_id_col]])

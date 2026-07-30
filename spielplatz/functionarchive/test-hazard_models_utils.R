@@ -5,42 +5,44 @@
 # =============================================================================
 # Helper: synthetic panel datasets for build_retirement_hazard_data()
 # =============================================================================
-
 make_panel <- function(n_persons = 50L, n_snaps = 3L, seed = 1L) {
   set.seed(seed)
 
-  persons    <- paste0("P", seq_len(n_persons))
-  snap_dates <- as.Date("2019-01-01") + (seq_len(n_snaps) - 1L) * 365L
+  persons      <- paste0("P", seq_len(n_persons))
+  snap_dates   <- as.Date("2019-01-01") + (seq_len(n_snaps) - 1L) * 365L
+  retire_idx   <- seq_len(max(1L, round(n_persons * 0.1)))
 
-  # personnel panel: one row per person per snapshot
-  personnel_rows <- lapply(snap_dates, function(d) {
+  # personnel panel: retiring persons get employment_status = "pensioner"
+  # on the final snapshot — this is the signal build_retirement_hazard_data()
+  # now reads to detect transitions.
+  personnel_rows <- lapply(seq_along(snap_dates), function(i) {
+    d      <- snap_dates[[i]]
+    status <- rep("active", n_persons)
+    if (i == n_snaps) status[retire_idx] <- "pensioner"
     data.table::data.table(
-      personnel_id = persons,
-      ref_date     = d,
-      birth_date   = as.Date("1965-01-01") +
-                       as.integer(stats::runif(n_persons, 0, 5 * 365)),
-      status       = "active"
+      personnel_id      = persons,
+      ref_date          = d,
+      birth_date        = as.Date("1965-01-01") +
+                            as.integer(stats::runif(n_persons, 0, 5 * 365)),
+      employment_status = status
     )
   })
   panel_personnel_dt <- data.table::rbindlist(personnel_rows)
 
-  # contract panel: 10% of persons become pensioner at the last snapshot
+  # contract panel: unchanged — same persons also get contract_type = "pensioner"
   contract_rows <- lapply(seq_along(snap_dates), function(i) {
     d    <- snap_dates[[i]]
     type <- rep("permanent", n_persons)
-    if (i == n_snaps) {
-      retire_idx  <- seq_len(max(1L, round(n_persons * 0.1)))
-      type[retire_idx] <- "pensioner"
-    }
+    if (i == n_snaps) type[retire_idx] <- "pensioner"
     data.table::data.table(
-      personnel_id       = persons,
-      contract_id        = paste0("C", seq_len(n_persons), "_", i),
-      ref_date           = d,
-      contract_type_code = type,
-      start_date         = as.Date("2010-01-01"),
-      end_date           = as.Date("2030-12-31"),
-      paygrade           = sample(c("A", "B", "C"), n_persons, replace = TRUE),
-      gross_salary_lcu   = round(stats::runif(n_persons, 30000, 80000))
+      personnel_id     = persons,
+      contract_id      = paste0("C", seq_len(n_persons), "_", i),
+      ref_date         = d,
+      contract_type    = type,
+      start_date       = as.Date("2010-01-01"),
+      end_date         = as.Date("2030-12-31"),
+      paygrade         = sample(c("A", "B", "C"), n_persons, replace = TRUE),
+      gross_salary_lcu = round(stats::runif(n_persons, 30000, 80000))
     )
   })
   panel_contract_dt <- data.table::rbindlist(contract_rows)
@@ -50,6 +52,7 @@ make_panel <- function(n_persons = 50L, n_snaps = 3L, seed = 1L) {
     panel_personnel_dt = panel_personnel_dt
   )
 }
+
 
 # =============================================================================
 # build_retirement_hazard_data — structure tests
@@ -463,7 +466,7 @@ make_exit_panel <- function(n_persons = 50L, n_snaps = 3L, seed = 42L) {
       ref_date     = d,
       birth_date   = as.Date("1965-01-01") +
                        as.integer(stats::runif(length(keep), 0, 5 * 365)),
-      status       = "active"
+      employment_status = "active"
     )
   })
   panel_personnel_dt <- data.table::rbindlist(personnel_rows)
@@ -481,7 +484,7 @@ make_exit_panel <- function(n_persons = 50L, n_snaps = 3L, seed = 42L) {
       personnel_id       = keep,
       contract_id        = paste0("C", seq_along(keep), "_", i),
       ref_date           = d,
-      contract_type_code = type,
+      contract_type = type,
       start_date         = as.Date("2010-01-01"),
       end_date           = as.Date("2030-12-31"),
       paygrade           = sample(c("A", "B", "C"), length(keep), replace = TRUE),
@@ -642,7 +645,7 @@ test_that("predict_hazard returns one row per active person", {
   snap <- make_snapshot(cm$panel)
   # active = non-inactive, non-pensioner
   n_active <- snap$contract_dt[
-    !contract_type_code %in% c("inactive", "pensioner"),
+    !contract_type %in% c("inactive", "pensioner"),
     uniqueN(personnel_id)
   ]
   out <- predict_hazard(cm$hm, snap$contract_dt, snap$personnel_dt,
@@ -682,7 +685,7 @@ test_that("predict_hazard excludes inactive and pensioner contracts", {
   cm   <- make_calibrated_model()
   snap <- make_snapshot(cm$panel)
   # Manually mark one person as inactive
-  snap$contract_dt[1L, contract_type_code := "inactive"]
+  snap$contract_dt[1L, contract_type := "inactive"]
   out  <- predict_hazard(cm$hm, snap$contract_dt, snap$personnel_dt,
                          ref_date = snap$snap_date)
   expect_false(snap$contract_dt$personnel_id[1L] %in% out$personnel_id)
@@ -771,7 +774,7 @@ make_project_panel <- function(n_persons = 80L, n_snaps = 4L, seed = 7L) {
       personnel_id       = keep,
       contract_id        = paste0("C", seq_along(keep), "_", i),
       ref_date           = d,
-      contract_type_code = type,
+      contract_type = type,
       start_date         = as.Date("2010-01-01"),
       end_date           = as.Date("2030-12-31"),
       paygrade           = sample(c("A", "B", "C"), length(keep), replace = TRUE),
@@ -794,7 +797,7 @@ make_project_panel <- function(n_persons = 80L, n_snaps = 4L, seed = 7L) {
       ref_date     = d,
       birth_date   = as.Date("1960-01-01") +
                        as.integer(stats::runif(length(keep), 0, 8 * 365)),
-      status       = "active"
+      employment_status = "active"
     )
   }
 
@@ -823,7 +826,11 @@ make_project_panel <- function(n_persons = 80L, n_snaps = 4L, seed = 7L) {
   )
 }
 
-make_ret_policy <- function(min_age = 55) {
+# Retirement policy fixture shared by build_retirement_hazard_data() and
+# project_retirement_hazard() tests. Default min_age = 50 is deliberately
+# low enough that make_panel()'s synthetic persons (born ~1965, so age
+# ~54-59 as of the 2019 snapshots) are eligible for retirement.
+make_ret_policy <- function(min_age = 50) {
   list(
     group_cols   = NULL,
     policy_table = NULL,

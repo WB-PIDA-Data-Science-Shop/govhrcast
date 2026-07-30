@@ -17,13 +17,13 @@ create_test_data_for_update <- function() {
     gross_salary_lcu = seq(50000, 95000, by = 5000),
     department = rep(c("HR", "IT"), 5),
     paygrade = rep(c("G5", "G6"), each = 5),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
   
   personnel_dt <- data.table(
     personnel_id = paste0("P", 1:10),
     birth_date = as.Date("1980-01-01"),
-    status = "active"
+    employment_status = "active"
   )
   
   list(contract_dt = contract_dt, personnel_dt = personnel_dt)
@@ -42,8 +42,8 @@ test_that("generate_new_personnel creates correct number of records", {
   expect_s3_class(result, "data.table")
   expect_equal(nrow(result), 5)
   expect_true("personnel_id" %in% names(result))
-  expect_true("status" %in% names(result))
-  expect_true(all(result$status == "active"))
+  expect_true("employment_status" %in% names(result))
+  expect_true(all(result$employment_status == "active"))
   expect_true(all(grepl("^P_", result$personnel_id)))
 })
 
@@ -100,10 +100,10 @@ test_that("generate_new_contracts creates correct number of records", {
   expect_s3_class(result, "data.table")
   expect_equal(nrow(result), 5)
   expect_true(all(c("contract_id", "personnel_id", "start_date", 
-                    "end_date", "contract_type_code") %in% names(result)))
+                    "end_date", "contract_type") %in% names(result)))
   expect_true(all(result$start_date == as.Date("2024-06-01")))
   expect_true(all(is.na(result$end_date)))
-  expect_true(all(result$contract_type_code == "permanent"))
+  expect_true(all(result$contract_type == "permanent"))
 })
 
 test_that("generate_new_contracts adds group values", {
@@ -350,7 +350,7 @@ test_that("update_state_with_adjustment handles downsizing (negative net_change)
     removal_strategy = "last_hired_first"
   )
   
-  initial_n_active <- test_data$personnel_dt[status == "active", .N]
+  initial_n_active <- test_data$personnel_dt[employment_status == "active", .N]
   
   result <- update_state_with_adjustment(
     contract_dt = test_data$contract_dt,
@@ -365,11 +365,11 @@ test_that("update_state_with_adjustment handles downsizing (negative net_change)
   expect_equal(nrow(result$new_contracts_dt), 0)
   
   # Verify personnel were deactivated
-  final_n_active <- test_data$personnel_dt[status == "active", .N]
+  final_n_active <- test_data$personnel_dt[employment_status == "active", .N]
   expect_equal(final_n_active, initial_n_active - 2)
   
   # Verify contracts were terminated
-  n_terminated <- test_data$contract_dt[contract_type_code == "terminated", .N]
+  n_terminated <- test_data$contract_dt[contract_type == "terminated", .N]
   expect_equal(n_terminated, 2)
 })
 
@@ -406,7 +406,7 @@ test_that("update_state_with_adjustment handles multiple groups", {
   expect_equal(nrow(result$personnel_dt), initial_n_personnel + 2)
   
   # Net active personnel: +2 hires, -1 downsized = +1
-  n_active <- result$personnel_dt[status == "active", .N]
+  n_active <- result$personnel_dt[employment_status == "active", .N]
   expect_equal(n_active, initial_n_personnel + 1)
   
   # Check 2 hires in HR
@@ -576,7 +576,7 @@ make_hire_contracts <- function(est_id = "ORG_A") {
     personnel_id       = "P_NEW_1",
     start_date         = as.Date("2020-01-01"),
     end_date           = as.Date(NA),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     est_id             = est_id
   )
 }
@@ -616,14 +616,14 @@ test_that("update_state_with_adjustment does not error when salary_scale key mat
     personnel_id       = paste0("P", 1:4),
     start_date         = as.Date("2019-01-01"),
     end_date           = as.Date(NA),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     est_id             = rep(c("ORG_A", "ORG_B"), 2L),
     gross_salary_lcu   = c(10000, 12000, 10000, 12000)
   )
   pt <- data.table(
     personnel_id = paste0("P", 1:4),
     birth_date   = as.Date("1990-01-01"),
-    status       = "active"
+    employment_status = "active"
   )
 
   ss_est <- make_coarser_salary_scale()  # one row per est_id — matches group_cols
@@ -660,7 +660,7 @@ test_that("simulate_scenario hiring errors when salary_scale_dt is finer than gr
     personnel_id       = paste0("P", 1:4),
     start_date         = as.Date("2019-01-01"),
     end_date           = as.Date(NA),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     est_id             = rep(c("ORG_A", "ORG_B"), 2L),
     gross_salary_lcu   = c(10000, 12000, 10000, 12000),
     paygrade           = rep(c("D", "E"), 2L),
@@ -670,7 +670,7 @@ test_that("simulate_scenario hiring errors when salary_scale_dt is finer than gr
   pt <- data.table(
     personnel_id = paste0("P", 1:4),
     birth_date   = as.Date("1958-01-01"),
-    status       = "active"
+    employment_status = "active"
   )
 
   ss_fine <- make_finer_salary_scale()  # (est_id x paygrade) — finer than group_cols

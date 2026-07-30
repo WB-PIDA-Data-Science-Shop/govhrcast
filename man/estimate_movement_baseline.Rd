@@ -11,7 +11,7 @@ estimate_movement_baseline(
   ref_date_col = "ref_date",
   start_date_col = "start_date",
   end_date_col = "end_date",
-  contract_type_col = "contract_type_code"
+  contract_type_col = "contract_type"
 )
 }
 \arguments{
@@ -29,7 +29,7 @@ Must contain ref_date_col for panel identification.}
 
 \item{end_date_col}{Character. Contract end date column (default: "end_date")}
 
-\item{contract_type_col}{Character. Contract type column (default: "contract_type_code")}
+\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
 }
 \value{
 data.table with columns:

@@ -17,8 +17,8 @@ simulate_hiring(
   start_date_col = "start_date",
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type_code",
-  status_col = "status",
+  contract_type_col = "contract_type",
+  status_col = "employment_status",
   hire_date_col = NULL
 )
 }
@@ -58,7 +58,7 @@ simulate_hiring(
 
 \item{salary_col}{Character. Name of salary column (default: "gross_salary_lcu")}
 
-\item{contract_type_col}{Character. Name of contract type column (default: "contract_type_code")}
+\item{contract_type_col}{Character. Name of contract type column (default: "contract_type")}
 
 \item{status_col}{Character. Name of status column (default: "status")}
 

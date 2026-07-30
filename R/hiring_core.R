@@ -24,7 +24,7 @@ NULL
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param status_col Character. Status column (default: "status")
 #'
 #' @return data.table with group_cols (if specified) and current_stock column
@@ -36,8 +36,8 @@ compute_current_stock <- function(contract_dt,
                                   personnel_id_col = "personnel_id",
                                   start_date_col = "start_date",
                                   end_date_col = "end_date",
-                                  contract_type_col = "contract_type_code",
-                                  status_col = "status") {
+                                  contract_type_col = "contract_type",
+                                  status_col         = "employment_status") {
   
   # Get active contracts at ref_date
   active_contracts <- get_active_contracts(
@@ -115,7 +115,7 @@ compute_current_stock <- function(contract_dt,
 #' @param birth_date_col Character. Birth date column (default: "birth_date")
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #'
 #' @return data.table with group_cols (if specified) and total_hires column
 #' @keywords internal
@@ -128,7 +128,7 @@ compute_flow_demand <- function(contract_dt,
                                 birth_date_col = "birth_date",
                                 start_date_col = "start_date",
                                 end_date_col = "end_date",
-                                contract_type_col = "contract_type_code") {
+                                contract_type_col = "contract_type") {
   
   group_cols <- policy_params$group_cols
   replacement_rate <- policy_params$replacement_rate
@@ -258,7 +258,7 @@ compute_flow_demand <- function(contract_dt,
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param status_col Character. Status column (default: "status")
 #'
 #' @return data.table with group_cols (if specified) and total_hires column
@@ -270,8 +270,8 @@ compute_stock_demand <- function(contract_dt,
                                  personnel_id_col = "personnel_id",
                                  start_date_col = "start_date",
                                  end_date_col = "end_date",
-                                 contract_type_col = "contract_type_code",
-                                 status_col = "status") {
+                                 contract_type_col = "contract_type",
+                                 status_col         = "employment_status") {
   
   group_cols <- policy_params$group_cols
   stock_targets <- policy_params$stock_targets
@@ -303,6 +303,7 @@ compute_stock_demand <- function(contract_dt,
     demand_dt <- stock_targets[current_stock_dt, on = group_cols]
     
     # Handle missing matches (groups in targets but not in current data)
+    demand_dt[is.na(target_stock), target_stock := current_stock]
     demand_dt[is.na(current_stock), current_stock := 0L]
   } else {
     # Overall demand (no grouping)
@@ -348,7 +349,7 @@ compute_stock_demand <- function(contract_dt,
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param status_col Character. Status column (default: "status")
 #'
 #' @return data.table with group_cols (if specified) and total_hires column
@@ -360,8 +361,8 @@ compute_combined_demand <- function(contract_dt,
                                     personnel_id_col = "personnel_id",
                                     start_date_col = "start_date",
                                     end_date_col = "end_date",
-                                    contract_type_col = "contract_type_code",
-                                    status_col = "status") {
+                                    contract_type_col = "contract_type",
+                                    status_col         = "employment_status") {
   
   group_cols <- policy_params$group_cols
   replacement_rate <- policy_params$replacement_rate
@@ -405,7 +406,10 @@ compute_combined_demand <- function(contract_dt,
     demand_dt <- stock_targets[flow_dt, on = group_cols]
     
     # Handle missing matches
-    demand_dt[is.na(target_stock), target_stock := current_stock]
+    
+    demand_dt[is.na(target_stock),  target_stock  := current_stock]
+    demand_dt[is.na(current_stock), current_stock := 0L]
+    demand_dt[is.na(flow_demand),   flow_demand   := 0]
   } else {
     # Overall demand (no grouping)
     if (nrow(stock_targets) != 1) {
@@ -472,7 +476,7 @@ compute_combined_demand <- function(contract_dt,
 #'   Default \code{"ref_date"}.
 #' @param start_date_col Character. Contract start-date column. Default \code{"start_date"}.
 #' @param end_date_col Character. Contract end-date column. Default \code{"end_date"}.
-#' @param contract_type_col Character. Contract-type column. Default \code{"contract_type_code"}.
+#' @param contract_type_col Character. Contract-type column. Default \code{"contract_type"}.
 #' @param status_col Character. Personnel status column. Default \code{"status"}.
 #'
 #' @return data.table with \code{group_cols} (if specified) and \code{hiring_rate} column.
@@ -486,8 +490,8 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
                                              ref_date_col      = "ref_date",
                                              start_date_col    = "start_date",
                                              end_date_col      = "end_date",
-                                             contract_type_col = "contract_type_code",
-                                             status_col        = "status") {
+                                             contract_type_col = "contract_type",
+                                             status_col         = "employment_status") {
 
   panel_dates <- sort(unique(panel_personnel_dt[[ref_date_col]]))
   panel_start <- min(panel_dates, na.rm = TRUE)
@@ -620,7 +624,8 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
     event_type = "hire",
     start_date = start_str,
     end_date   = end_str,
-    freq       = freq
+    freq       = freq,
+    status_col = status_col
   )
   # hire_events columns: personnel_id_col, ref_date, type_event
 
@@ -721,7 +726,7 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
 #' @param personnel_id_col Character. Default \code{"personnel_id"}.
 #' @param start_date_col Character. Default \code{"start_date"}.
 #' @param end_date_col Character. Default \code{"end_date"}.
-#' @param contract_type_col Character. Default \code{"contract_type_code"}.
+#' @param contract_type_col Character. Default \code{"contract_type"}.
 #' @param status_col Character. Default \code{"status"}.
 #'
 #' @return data.table with \code{group_cols} (if specified) and \code{total_hires} column.
@@ -734,8 +739,8 @@ compute_status_quo_hiring <- function(contract_dt,
                                       personnel_id_col  = "personnel_id",
                                       start_date_col    = "start_date",
                                       end_date_col      = "end_date",
-                                      contract_type_col = "contract_type_code",
-                                      status_col        = "status") {
+                                      contract_type_col = "contract_type",
+                                      status_col         = "employment_status") {
 
   group_cols <- policy_params$group_cols
   rate_mult  <- if (!is.null(policy_params$rate_mult)) policy_params$rate_mult else 1
@@ -806,7 +811,7 @@ compute_status_quo_hiring <- function(contract_dt,
 #' @param birth_date_col Character. Birth date column (default: "birth_date")
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param status_col Character. Status column (default: "status")
 #'
 #' @return data.table with group_cols (if specified) and total_hires column
@@ -821,8 +826,8 @@ estimate_hiring_demand <- function(contract_dt,
                                    birth_date_col    = "birth_date",
                                    start_date_col    = "start_date",
                                    end_date_col      = "end_date",
-                                   contract_type_col = "contract_type_code",
-                                   status_col        = "status") {
+                                   contract_type_col = "contract_type",
+                                   status_col         = "employment_status") {
   
   mode <- policy_params$mode
   

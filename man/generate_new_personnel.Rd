@@ -9,7 +9,7 @@ generate_new_personnel(
   ref_date,
   group_vals = NULL,
   personnel_id_col = "personnel_id",
-  status_col = "status"
+  status_col = "employment_status"
 )
 }
 \arguments{

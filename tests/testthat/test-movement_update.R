@@ -11,11 +11,11 @@ make_workforce <- function() {
       start_date        = as.Date(c("2010-01-01", "2012-01-01", "2014-01-01",
                                     "2008-01-01", "2011-01-01", "2013-01-01")),
       end_date          = as.Date(NA),
-      contract_type_code = "permanent"
+      contract_type = "permanent"
     ),
     personnel_dt = data.table::data.table(
       personnel_id = c("P1", "P2", "P3", "P4", "P5", "P6"),
-      status       = "active"
+      employment_status = "active"
     ),
     salary_scale = data.table::data.table(
       paygrade         = c("G1", "G2"),
@@ -133,11 +133,11 @@ test_that("identify_movers with promotion_strategy=wage_based selects lowest sal
     gross_salary_lcu  = c(2000, 3500, 5000),
     start_date        = as.Date("2010-01-01"),
     end_date          = as.Date(NA),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
   pt <- data.table::data.table(
     personnel_id = c("P1", "P2", "P3"),
-    status = "active"
+    employment_status = "active"
   )
   demand <- data.table::data.table(
     from_group = "G1", to_group = "G2",
@@ -406,11 +406,11 @@ test_that("update_state_with_movement handles multi-column group_cols", {
     gross_salary_lcu  = c(3000, 5000),
     start_date        = as.Date("2010-01-01"),
     end_date          = as.Date(NA),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
   pt <- data.table::data.table(
     personnel_id = c("P1", "P2"),
-    status = "active"
+    employment_status = "active"
   )
   scale <- data.table::data.table(
     est_id = c("E1", "E2"),

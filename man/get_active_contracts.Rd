@@ -9,7 +9,7 @@ get_active_contracts(
   ref_date,
   start_date_col = "start_date",
   end_date_col = "end_date",
-  contract_type_col = "contract_type_code"
+  contract_type_col = "contract_type"
 )
 }
 \arguments{
@@ -25,7 +25,7 @@ open-ended contracts.  (default: \code{"end_date"}).}
 
 \item{contract_type_col}{Character.  Contract classification column.
 Contracts with type \code{"inactive"} or \code{"pensioner"} are
-excluded.  (default: \code{"contract_type_code"}).}
+excluded.  (default: \code{"contract_type"}).}
 
 \item{start_date}{Date the contract level start date}
 }

@@ -13,7 +13,7 @@ make_full_panel <- function() {
       start_date        = as.Date(c("2010-01-01", "2012-01-01", "2014-01-01",
                                     "2008-01-01", "2011-01-01", "2013-01-01")),
       end_date          = as.Date(NA),
-      contract_type_code = "permanent"
+      contract_type = "permanent"
     ),
     data.table::data.table(
       ref_date          = as.Date("2016-01-01"),
@@ -24,7 +24,7 @@ make_full_panel <- function() {
       start_date        = as.Date(c("2010-01-01", "2012-01-01", "2014-01-01",
                                     "2008-01-01", "2011-01-01", "2013-01-01")),
       end_date          = as.Date(NA),
-      contract_type_code = "permanent"
+      contract_type = "permanent"
     )
   ))
 }
@@ -33,7 +33,7 @@ make_personnel <- function() {
   data.table::data.table(
     ref_date     = as.Date(c(rep("2015-01-01", 6), rep("2016-01-01", 6))),
     personnel_id = rep(paste0("P", 1:6), 2),
-    status       = "active"
+    employment_status = "active"
   )
 }
 

@@ -12,8 +12,8 @@ compute_stock_demand(
   personnel_id_col = "personnel_id",
   start_date_col = "start_date",
   end_date_col = "end_date",
-  contract_type_col = "contract_type_code",
-  status_col = "status"
+  contract_type_col = "contract_type",
+  status_col = "employment_status"
 )
 }
 \arguments{
@@ -35,7 +35,7 @@ compute_stock_demand(
 
 \item{end_date_col}{Character. End date column (default: "end_date")}
 
-\item{contract_type_col}{Character. Contract type column (default: "contract_type_code")}
+\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
 
 \item{status_col}{Character. Status column (default: "status")}
 }

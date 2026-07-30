@@ -14,8 +14,6 @@ simulate_scenario(
   exit_policy = NULL,
   movement_policy = NULL,
   hiring_policy = NULL,
-  retirement_hazard_model = NULL,
-  exit_hazard_model = NULL,
   salary_growth_rate = 0,
   pension_cola_rate = 0,
   personnel_id_col = "personnel_id",
@@ -24,8 +22,8 @@ simulate_scenario(
   start_date_col = "start_date",
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type_code",
-  status_col = "status",
+  contract_type_col = "contract_type",
+  status_col = "employment_status",
   age_col = "age",
   tenure_col = "tenure_years",
   period_fraction = 1,
@@ -71,16 +69,6 @@ Pass \code{NULL} to skip movements.}
 \item{hiring_policy}{List or \code{NULL}.  Passed to
 \code{simulate_hiring()}.  Pass \code{NULL} to skip.}
 
-\item{retirement_hazard_model}{A calibrated \code{hazard_model} object or
-\code{NULL} (default).  Forwarded to \code{\link{simulate_retirement}}.
-When non-\code{NULL}, retirement take-up is governed by
-\code{\link{predict_hazard}} instead of the 100 percent take-up assumption.}
-
-\item{exit_hazard_model}{A calibrated \code{hazard_model} object or
-\code{NULL} (default).  Forwarded to \code{\link{simulate_exits}}.
-Activates hazard-mode exit selection when
-\code{exit_policy$defaults$exit_strategy = "hazard"}.}
-
 \item{salary_growth_rate}{Numeric scalar.  COLA rate for this period.
 Default \code{0}.}
 
@@ -92,8 +80,8 @@ Default \code{0}.}
 
 \item{contract_id_col}{Character.  Default \code{"contract_id"}.}
 
-\item{birth_date_col}{Character.  Column holding date of birth.  Required
-when a hazard model uses age as a covariate.  Default \code{"birth_date"}.}
+\item{birth_date_col}{Character.  Column holding date of birth.
+Default \code{"birth_date"}.}
 
 \item{start_date_col}{Character.  Default \code{"start_date"}.}
 
@@ -101,7 +89,7 @@ when a hazard model uses age as a covariate.  Default \code{"birth_date"}.}
 
 \item{salary_col}{Character.  Default \code{"gross_salary_lcu"}.}
 
-\item{contract_type_col}{Character.  Default \code{"contract_type_code"}.}
+\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
 
 \item{status_col}{Character.  Default \code{"status"}.}
 
@@ -156,7 +144,7 @@ state objects.  Operations are applied in this order:
 \details{
 \strong{Wage bill measurement}: \code{wage_bill_start} and \code{wage_bill_end}
 are computed via an internal helper that sums \code{salary_col} over active
-contract rows only -- rows with \code{contract_type_code = "pensioner"} and
+contract rows only -- rows with \code{contract_type = "pensioner"} and
 rows with a missing salary are excluded.  The \code{pensioner_register} is a
 separate audit ledger that tracks \code{pension_amount} (the pension formula
 output) and is never folded into the wage-bill totals.
@@ -171,7 +159,7 @@ s <- list(
     est_id             = "E1",
     start_date         = as.Date("2010-01-01"),
     end_date           = as.Date(NA),
-    contract_type_code = "permanent",
+    contract_type = "permanent",
     gross_salary_lcu   = 50000
   ),
   personnel_dt = data.table(

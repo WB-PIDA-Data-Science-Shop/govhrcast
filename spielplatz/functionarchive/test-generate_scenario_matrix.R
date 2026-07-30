@@ -15,13 +15,13 @@
 #     est_id             = rep(c("E1", "E2"), length.out = n),
 #     start_date         = ref_date - 365L * 10L,
 #     end_date           = as.Date(NA),
-#     contract_type_code = "permanent",
+#     contract_type = "permanent",
 #     gross_salary_lcu   = as.numeric(rep(salary, n))
 #   )
 #   personnel_dt <- data.table::data.table(
 #     personnel_id = paste0("P", seq_len(n)),
 #     birth_date   = ref_date - 365L * 40L,
-#     status       = "active",
+#     employment_status = "active",
 #     age          = 40,
 #     tenure_years = 10
 #   )

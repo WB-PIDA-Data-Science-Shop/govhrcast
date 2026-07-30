@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{compute_tenure_panel}
 \alias{compute_tenure_panel}
-\title{Compute Tenure from a Stacked Contract Panel (Panel Version)}
+\title{Compute employment tenure from a stacked contract panel}
 \usage{
 compute_tenure_panel(
   contract_dt,
@@ -11,45 +11,59 @@ compute_tenure_panel(
   contract_id_col = "contract_id",
   start_date_col = "start_date",
   end_date_col = "end_date",
-  contract_type_col = "contract_type_code"
+  contract_type_col = "contract_type",
+  group_cols = NULL
 )
 }
 \arguments{
-\item{contract_dt}{data.table.  Full stacked contract panel.  Must contain
-\code{personnel_id_col}, \code{ref_date_col}, \code{contract_id_col},
-\code{start_date_col}, \code{end_date_col}, and \code{contract_type_col}.}
+\item{contract_dt}{data.table containing the stacked contract panel.
+Must include personnel identifiers, contract identifiers, contract
+start and end dates, reference dates, contract types, and any grouping
+variables supplied in \code{group_cols}.}
 
-\item{personnel_id_col}{Character.  Default: \code{"personnel_id"}.}
+\item{personnel_id_col}{Character. Name of the personnel identifier column.
+Default is \code{"personnel_id"}.}
 
-\item{ref_date_col}{Character.  Name of the snapshot date column.
-Default: \code{"ref_date"}.}
+\item{ref_date_col}{Character. Name of the reference date column.
+Default is \code{"ref_date"}.}
 
-\item{contract_id_col}{Character.  Default: \code{"contract_id"}.}
+\item{contract_id_col}{Character. Name of the contract identifier column.
+Default is \code{"contract_id"}.}
 
-\item{start_date_col}{Character.  Default: \code{"start_date"}.}
+\item{start_date_col}{Character. Name of the contract start date column.
+Default is \code{"start_date"}.}
 
-\item{end_date_col}{Character.  Default: \code{"end_date"}.}
+\item{end_date_col}{Character. Name of the contract end date column.
+Default is \code{"end_date"}.}
 
-\item{contract_type_col}{Character.  Default: \code{"contract_type_code"}.}
+\item{contract_type_col}{Character. Name of the contract type column.
+Default is \code{"contract_type"}.}
+
+\item{group_cols}{Optional character vector of additional variables over
+which tenure should be calculated independently (for example,
+establishment, occupation, or organization). Default is \code{NULL}.}
 }
 \value{
-data.table with columns \code{personnel_id_col},
-\code{ref_date_col}, and \code{tenure_years}.  One row per unique
-\code{(personnel_id, ref_date)} combination present in
-\code{contract_dt}.
+A data.table with one row per unique combination of
+\code{personnel_id}, optional \code{group_cols}, and
+\code{ref_date}, containing:
+\describe{
+\item{tenure_days}{Total employment tenure in days.}
+\item{tenure_years}{Total employment tenure in years, calculated as
+tenure days divided by 365.25.}
+}
 }
 \description{
-Vectorised equivalent of \code{\link{compute_tenure}} for a panel dataset
-where \code{ref_date_col} is a column rather than a scalar.  Computes
-cumulative years of service per \emph{person × snapshot} in a single pass
-over the full stacked panel — no per-snapshot loop required.
-
-The union-of-intervals algorithm is identical to \code{compute_tenure}:
-contracts are sorted by start date, a \code{cummax} propagates the furthest
-end seen so far, and each interval's contribution is classified as a new
-span, partial extension, or nested (zero-contribution) segment.  The key
-difference is that \code{ref_date_col} participates in every row-wise
-comparison and in the \code{cummax} grouping key, so each
-\code{(personnel_id, ref_date)} pair is handled independently.
+Computes cumulative employment tenure for each personnel member at each
+reference date while avoiding double-counting overlapping contracts.
+Contracts with type \code{"inactive"} or \code{"pensioner"} are excluded.
+Open-ended contracts are truncated at the corresponding reference date,
+after which overlapping contract periods are merged before calculating
+total tenure.
+}
+\details{
+Tenure is calculated independently within each combination of
+\code{personnel_id}, optional grouping variables supplied through
+\code{group_cols}, and \code{ref_date}.
 }
 \keyword{internal}

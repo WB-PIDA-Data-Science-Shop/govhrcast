@@ -12,3 +12,5 @@
 ^test_results\.txt$
 ^\.Rproj\.user$
 ^.posit$
+^.vscode$
+^README\.Rmd$

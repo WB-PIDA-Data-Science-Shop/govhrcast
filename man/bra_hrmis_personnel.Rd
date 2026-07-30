@@ -3,35 +3,64 @@
 \docType{data}
 \name{bra_hrmis_personnel}
 \alias{bra_hrmis_personnel}
-\title{Brazil HRMIS Personnel Data}
+\title{Brazil (Alagoas) Harmonized HRMIS Personnel Dataset}
 \format{
-A data.table with 8,672 rows and 9 columns:
+A data.table with 15,612 observations and 12 variables:
 \describe{
-\item{ref_date}{Date. Reference date for the observation}
-\item{personnel_id}{Character. Unique personnel identifier}
-\item{birth_date}{Date. Simulated birth date (for testing purposes)}
-\item{gender}{Character. Gender}
-\item{educat7}{Character. Education level (7 categories)}
-\item{tribe}{Character. Tribe/ethnicity}
-\item{race}{Character. Race}
-\item{status}{Character. Employment status (active/inactive)}
-\item{country_code}{Character. Country code}
+\item{personnel_id}{Unique personnel identifier.}
+\item{ref_date}{Reference (snapshot) date of the observation.}
+\item{birth_date}{Date of birth.}
+\item{age}{Age, in years, at the reference date.}
+\item{gender}{Gender recorded in the HRMIS.}
+\item{educat7}{Educational attainment using the World Bank's
+seven-level Global Labor Database (GLD) classification:
+\code{"No education"},
+\code{"Primary incomplete"},
+\code{"Primary complete"},
+\code{"Secondary incomplete"},
+\code{"Secondary complete"},
+\code{"Post-secondary but not university"}, and
+\code{"University complete or incomplete"}.}
+\item{tribe}{Ethnic or tribal affiliation, where available.}
+\item{race}{Race or broad ethnic classification, where available.}
+\item{employment_status}{Employment status. One of
+\code{"active"}, \code{"inactive"}, or \code{"pensioner"}.}
+\item{personnel_tenure}{Total public service tenure, in years, as of the
+reference date.}
+\item{service_type}{Type of public service. One of
+\code{"civilian"} or \code{"military"}.}
+\item{first_employment_date}{Date the personnel member first entered
+public service.}
 }
 }
 \source{
-Derived from \code{govhr::bra_hrmis_personnel} with simulated birth_date
+Government of the State of Alagoas, Brazil. Harmonized for the
+\pkg{govhr} package.
 }
 \usage{
 bra_hrmis_personnel
 }
 \description{
-Example personnel-level HRMIS data from Alagoas state, Brazil.
-This version includes simulated birth_date values to enable testing
-age-based retirement policies.
+A longitudinal personnel-level dataset containing harmonized Human Resource
+Management Information System (HRMIS) records for public sector employees in
+the Brazilian state of Alagoas. Each observation represents a personnel
+member at a given reference date, providing demographic characteristics,
+employment status, education, and public service tenure over time.
 }
-\note{
-The birth_date values are simulated based on contract start dates
-and typical public sector hiring ages (22-45). They are intended for
-testing and demonstration purposes only.
+\details{
+The dataset has been harmonized using the \pkg{govhr} data model to provide
+consistent variable names and coding across HRMIS systems. Multiple
+observations may exist for the same personnel member because personnel are
+observed repeatedly at different reference dates, forming a longitudinal
+panel.
+
+Educational attainment follows the World Bank's Global Labor Database (GLD)
+seven-category education classification to facilitate cross-country
+comparability.
+}
+\examples{
+data(bra_hrmis_personnel)
+
+head(bra_hrmis_personnel)
 }
 \keyword{datasets}

@@ -28,7 +28,7 @@ generate_new_personnel <- function(n,
                                    ref_date,
                                    group_vals = NULL,
                                    personnel_id_col = "personnel_id",
-                                   status_col = "status") {
+                                   status_col         = "employment_status") {
   
   if (n <= 0) {
     return(data.table::data.table())
@@ -77,7 +77,7 @@ generate_new_personnel <- function(n,
 #' @param contract_id_col Character. Contract ID column (default: "contract_id")
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #'
 #' @return data.table with new contract records
 #' @keywords internal
@@ -88,7 +88,7 @@ generate_new_contracts <- function(personnel_ids,
                                    contract_id_col = "contract_id",
                                    start_date_col = "start_date",
                                    end_date_col = "end_date",
-                                   contract_type_col = "contract_type_code") {
+                                   contract_type_col = "contract_type") {
   
   n <- length(personnel_ids)
   
@@ -110,13 +110,13 @@ generate_new_contracts <- function(personnel_ids,
     personnel_id = personnel_ids,
     start_date = ref_date,
     end_date = as.Date(NA),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
   
   # Rename columns to match user's schema
   data.table::setnames(new_contracts,
                        old = c("contract_id", "personnel_id", "start_date", 
-                               "end_date", "contract_type_code"),
+                               "end_date", "contract_type"),
                        new = c(contract_id_col, personnel_id_col, start_date_col,
                                end_date_col, contract_type_col))
   
@@ -161,9 +161,13 @@ assign_compensation <- function(new_contracts_dt,
     salary_pattern <- "salary|wage|pay|compensation"
     salary_candidates <- grep(salary_pattern, names(salary_scale_dt), 
                               value = TRUE, ignore.case = TRUE)
+    # Only keep numeric candidates to avoid matching non-salary columns (e.g. "paygrade")
+    salary_candidates <- salary_candidates[
+      vapply(salary_scale_dt[, salary_candidates, with = FALSE], is.numeric, logical(1))
+    ]
     
     if (length(salary_candidates) == 0) {
-      stop("Could not auto-detect salary column in salary_scale_dt. ",
+      stop("Could not auto-detect a numeric salary column in salary_scale_dt. ",
            "Please specify salary_col explicitly.", call. = FALSE)
     }
     
@@ -269,7 +273,7 @@ assign_compensation <- function(new_contracts_dt,
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param status_col Character. Status column (default: "status")
 #'
 #' @return Character vector of personnel_ids to remove
@@ -283,8 +287,8 @@ select_personnel_to_remove <- function(contract_dt,
                                        personnel_id_col = "personnel_id",
                                        start_date_col = "start_date",
                                        end_date_col = "end_date",
-                                       contract_type_col = "contract_type_code",
-                                       status_col = "status") {
+                                       contract_type_col = "contract_type",
+                                       status_col         = "employment_status") {
   
   if (n_remove <= 0) {
     return(character(0))
@@ -374,7 +378,7 @@ select_personnel_to_remove <- function(contract_dt,
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param salary_col Character. Salary column (default: "gross_salary_lcu")
-#' @param contract_type_col Character. Contract type column (default: "contract_type_code")
+#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param status_col Character. Status column (default: "status")
 #'
 #' @return List containing:
@@ -400,8 +404,8 @@ update_state_with_adjustment <- function(contract_dt,
                                          start_date_col = "start_date",
                                          end_date_col = "end_date",
                                          salary_col = "gross_salary_lcu",
-                                         contract_type_col = "contract_type_code",
-                                         status_col = "status") {
+                                         contract_type_col = "contract_type",
+                                         status_col         = "employment_status") {
   
   group_cols <- policy_params$group_cols
   salary_scale <- policy_params$salary_scale
@@ -565,7 +569,7 @@ update_state_with_adjustment <- function(contract_dt,
             new_contracts_dt = new_contracts,
             salary_scale_dt = salary_scale,
             join_cols = join_cols_overall,
-            salary_col = NULL  # Auto-detect
+            salary_col = salary_col  # Auto-detect
           )
         } else {
           # No common columns - apply single salary value

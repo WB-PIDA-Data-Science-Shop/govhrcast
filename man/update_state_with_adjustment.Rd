@@ -15,8 +15,8 @@ update_state_with_adjustment(
   start_date_col = "start_date",
   end_date_col = "end_date",
   salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type_code",
-  status_col = "status"
+  contract_type_col = "contract_type",
+  status_col = "employment_status"
 )
 }
 \arguments{
@@ -45,7 +45,7 @@ update_state_with_adjustment(
 
 \item{salary_col}{Character. Salary column (default: "gross_salary_lcu")}
 
-\item{contract_type_col}{Character. Contract type column (default: "contract_type_code")}
+\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
 
 \item{status_col}{Character. Status column (default: "status")}
 }

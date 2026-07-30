@@ -18,13 +18,13 @@ create_test_data_for_hiring <- function() {
     gross_salary_lcu = rep(c(50000, 60000, 70000, 80000), 5),
     department = rep(c("HR", "IT"), each = 10),
     paygrade = rep(c("G5", "G6"), 10),
-    contract_type_code = c(rep("permanent", 15), rep("terminated", 5))
+    contract_type = c(rep("permanent", 15), rep("terminated", 5))
   )
   
   personnel_dt <- data.table(
     personnel_id = paste0("P", 1:20),
     birth_date = as.Date("1980-01-01"),
-    status = c(rep("active", 15), rep("inactive", 5))
+    employment_status = c(rep("active", 15), rep("inactive", 5))
   )
   
   list(contract_dt = contract_dt, personnel_dt = personnel_dt)
@@ -426,12 +426,12 @@ test_that("compute_current_stock errors on duplicate personnel_id in personnel_d
     personnel_id      = paste0("P", 1:5),
     start_date        = as.Date("2020-01-01"),
     end_date          = as.Date(NA),
-    contract_type_code = "permanent"
+    contract_type = "permanent"
   )
 
   personnel_dt <- data.table(
     personnel_id = c(paste0("P", 1:5), "P1"),  # P1 duplicated
-    status       = c(rep("active", 5), "active")
+    employment_status = c(rep("active", 5), "active")
   )
 
   expect_error(
@@ -513,7 +513,7 @@ make_hire_date_panel <- function() {
     data.table::data.table(
       personnel_id          = paste0("P", 1:5),
       ref_date              = d,
-      status                = "active",
+      employment_status = "active",
       first_employment_date = as.Date(c(
         "2021-06-01",   # P1: hired before panel — should NOT be counted
         "2022-03-01",   # P2: within window (2022)
@@ -532,7 +532,7 @@ make_hire_date_panel <- function() {
       ref_date           = d,
       start_date         = as.Date("2019-01-01"),
       end_date           = as.Date(NA),
-      contract_type_code = "active",
+      contract_type = "active",
       gross_salary_lcu   = 50000,
       department         = c("HR", "HR", "IT", "IT", "HR")
     )

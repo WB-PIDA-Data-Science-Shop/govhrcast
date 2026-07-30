@@ -14,9 +14,9 @@ identify_movers(
   personnel_id_col = "personnel_id",
   start_date_col = "start_date",
   end_date_col = "end_date",
-  contract_type_col = "contract_type_code",
+  contract_type_col = "contract_type",
   salary_col = "gross_salary_lcu",
-  status_col = "status",
+  status_col = "employment_status",
   ref_date_col = "ref_date"
 )
 }
@@ -52,7 +52,7 @@ max_salary per grade for wage_based strategy). Can be NULL.}
 
 \item{end_date_col}{Character. End date column (default: "end_date")}
 
-\item{contract_type_col}{Character. Contract type column (default: "contract_type_code")}
+\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
 
 \item{salary_col}{Character. Salary column (default: "gross_salary_lcu")}
 

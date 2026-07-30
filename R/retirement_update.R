@@ -41,7 +41,7 @@ NULL
 #' @param contract_type_col Character.  Contract classification column.  Set
 #'   to \code{"pensioner"} for closing contracts.  Contracts already in
 #'   \code{c("inactive", "pensioner", "closed_due_to_retirement", "terminated")}
-#'   are skipped.  (default: \code{"contract_type_code"}).
+#'   are skipped.  (default: \code{"contract_type"}).
 #'
 #' @section Data Integrity:
 #' \code{contract_dt} is modified in place via \code{data.table} \code{:=}.
@@ -59,7 +59,7 @@ update_contracts_for_retirees <- function(contract_dt,
                                           start_date_col = "start_date",
                                           end_date_col = "end_date",
                                           salary_col = "gross_salary_lcu",
-                                          contract_type_col = "contract_type_code") {
+                                          contract_type_col = "contract_type") {
 
   # If no retirees, return unchanged
   if (nrow(retirees_dt) == 0) {
@@ -105,7 +105,7 @@ update_contracts_for_retirees <- function(contract_dt,
 #'   (default: \code{"personnel_id"}).
 #' @param contract_type_col Character.  Contract classification column in
 #'   \code{contract_dt}.  Rows with \code{contract_type_col == "pensioner"}
-#'   identify retiring personnel.  (default: \code{"contract_type_code"}).
+#'   identify retiring personnel.  (default: \code{"contract_type"}).
 #' @param status_col Character.  Employment status column in
 #'   \code{personnel_dt}.  Set to \code{"inactive"} for retirees.
 #'   (default: \code{"status"}).
@@ -120,8 +120,8 @@ update_contracts_for_retirees <- function(contract_dt,
 update_personnel_for_retirees <- function(personnel_dt,
                                           contract_dt,
                                           personnel_id_col = "personnel_id",
-                                          contract_type_col = "contract_type_code",
-                                          status_col = "status") {
+                                          contract_type_col = "contract_type",
+                                          status_col         = "employment_status") {
   
   # Get unique personnel_ids with pensioner contracts
   pensioner_ids <- unique(

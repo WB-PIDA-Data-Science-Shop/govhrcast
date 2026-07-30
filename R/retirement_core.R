@@ -64,7 +64,7 @@ utils::globalVariables(c(
 #'   open-ended contracts.  (default: \code{"end_date"}).
 #' @param contract_type_col Character.  Contract classification column.  Only
 #'   contracts with type not in \code{c("inactive", "pensioner")} are treated
-#'   as active candidates.  (default: \code{"contract_type_code"}).
+#'   as active candidates.  (default: \code{"contract_type"}).
 #' @param age_col Character.  Column in \code{personnel_dt} with pre-computed
 #'   age in years.  When the column is present, \code{\link{compute_age}} is
 #'   skipped entirely.  (default: \code{"age"}).
@@ -130,9 +130,10 @@ identify_eligibility <- function(contract_dt,
                                  birth_date_col    = "birth_date",
                                  start_date_col    = "start_date",
                                  end_date_col      = "end_date",
-                                 contract_type_col = "contract_type_code",
+                                 contract_type_col = "contract_type",
                                  age_col           = "age",
-                                 tenure_col        = "tenure_years") {
+                                 tenure_col        = "tenure_years",
+                                 status_col        = "employment_status") {
   
   # Determine the effective scalar eligibility_type from defaults.
   # Used to decide which metrics to compute before the per-row resolution.
@@ -153,6 +154,8 @@ identify_eligibility <- function(contract_dt,
   # People with only inactive/pensioner contracts must not be identified as
   # retirement candidates — they are already out of the workforce.
   # Personnel who are filtered out here still appear in the result with retire = 0.
+  # Lets also drop those who have retired
+    
   all_pid    <- unique(personnel_dt[[personnel_id_col]])
   active_pid <- unique(get_active_contracts(
     contract_dt       = contract_dt,
@@ -162,6 +165,9 @@ identify_eligibility <- function(contract_dt,
     contract_type_col = contract_type_col
   )[[personnel_id_col]])
   personnel_dt <- personnel_dt[get(personnel_id_col) %in% active_pid]
+  if (!is.null(status_col) && status_col %in% names(personnel_dt)) {
+    personnel_dt <- personnel_dt[!get(status_col) == "pensioner",]
+  }
 
   # Compute age if needed — prefer pre-computed column on personnel_dt.
   if (.needs_age) {
@@ -425,7 +431,7 @@ compute_retirement_summary <- function(retirees_dt, contract_dt = NULL) {
 #'   base unless overridden by \code{policy_params$defaults$ref_wage_col}.
 #'   (default: \code{"gross_salary_lcu"}).
 #' @param contract_type_col Character.  Contract classification column.
-#'   (default: \code{"contract_type_code"}).
+#'   (default: \code{"contract_type"}).
 #'
 #' @details
 #' \strong{Fill logic for missing metrics:}
@@ -454,7 +460,7 @@ prepare_retiree_data <- function(eligibility_dt,
                                  start_date_col = "start_date",
                                  end_date_col = "end_date",
                                  salary_col = "gross_salary_lcu",
-                                 contract_type_col = "contract_type_code") {
+                                 contract_type_col = "contract_type") {
   
   # Filter to eligible retirees only
   retirees_only <- eligibility_dt[retire == 1]

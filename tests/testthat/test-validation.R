@@ -331,12 +331,12 @@ test_that("check_retirement_inputs accepts valid complete inputs", {
     personnel_id = "P001",
     start_date = as.Date("2020-01-01"),
     end_date = as.Date(NA),
-    contract_type_code = "perm"
+    contract_type = "perm"
   )
 
   personnel_dt <- data.table(
     personnel_id = "P001",
-    status = "active",
+    employment_status = "active",
     birth_date = as.Date("1970-01-01")
   )
 
@@ -359,7 +359,7 @@ test_that("check_retirement_inputs accepts valid complete inputs", {
 })
 
 test_that("check_retirement_inputs validates contract_dt", {
-  personnel_dt <- data.table(personnel_id = "P001", status = "active")
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
   policy_params <- list(
     group_cols = NULL, policy_table = NULL,
     defaults = list(eligibility_type = "tenure_only", pension_type = "flat",
@@ -377,7 +377,7 @@ test_that("check_retirement_inputs validates personnel_dt", {
   contract_dt <- data.table(
     contract_id = "C001", personnel_id = "P001",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm"
+    contract_type = "perm"
   )
   policy_params <- list(
     group_cols = NULL, policy_table = NULL,
@@ -396,9 +396,9 @@ test_that("check_retirement_inputs validates ref_date", {
   contract_dt <- data.table(
     contract_id = "C001", personnel_id = "P001",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm"
+    contract_type = "perm"
   )
-  personnel_dt <- data.table(personnel_id = "P001", status = "active")
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
   policy_params <- list(
     group_cols = NULL, policy_table = NULL,
     defaults = list(eligibility_type = "tenure_only", pension_type = "flat",
@@ -421,9 +421,9 @@ test_that("check_retirement_inputs validates policy_params structure", {
   contract_dt <- data.table(
     contract_id = "C001", personnel_id = "P001",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm"
+    contract_type = "perm"
   )
-  personnel_dt <- data.table(personnel_id = "P001", status = "active")
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
   ref_date <- as.Date("2025-01-01")
 
   expect_error(
@@ -436,9 +436,9 @@ test_that("check_retirement_inputs validates required policy params", {
   contract_dt <- data.table(
     contract_id = "C001", personnel_id = "P001",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm"
+    contract_type = "perm"
   )
-  personnel_dt <- data.table(personnel_id = "P001", status = "active")
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
   ref_date <- as.Date("2025-01-01")
 
   # defaults missing pension_type
@@ -456,9 +456,9 @@ test_that("check_retirement_inputs validates eligibility_type value", {
   contract_dt <- data.table(
     contract_id = "C001", personnel_id = "P001",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm"
+    contract_type = "perm"
   )
-  personnel_dt <- data.table(personnel_id = "P001", status = "active")
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
   ref_date <- as.Date("2025-01-01")
 
   policy_params <- list(
@@ -476,9 +476,9 @@ test_that("check_retirement_inputs validates pension_type value", {
   contract_dt <- data.table(
     contract_id = "C001", personnel_id = "P001",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm"
+    contract_type = "perm"
   )
-  personnel_dt <- data.table(personnel_id = "P001", status = "active")
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
   ref_date <- as.Date("2025-01-01")
 
   policy_params <- list(
@@ -497,9 +497,9 @@ test_that("check_retirement_inputs requires min_age for age_only eligibility", {
   contract_dt <- data.table(
     contract_id = "C001", personnel_id = "P001",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm"
+    contract_type = "perm"
   )
-  personnel_dt <- data.table(personnel_id = "P001", status = "active",
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active",
                              birth_date = as.Date("1970-01-01"))
   ref_date <- as.Date("2025-01-01")
 
@@ -519,9 +519,9 @@ test_that("check_retirement_inputs requires min_tenure for tenure_only eligibili
   contract_dt <- data.table(
     contract_id = "C001", personnel_id = "P001",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm"
+    contract_type = "perm"
   )
-  personnel_dt <- data.table(personnel_id = "P001", status = "active")
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
   ref_date <- as.Date("2025-01-01")
 
   policy_params <- list(
@@ -540,10 +540,10 @@ test_that("check_retirement_inputs requires birth_date column for age-based elig
   contract_dt <- data.table(
     contract_id = "C001", personnel_id = "P001",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm"
+    contract_type = "perm"
   )
   # Missing birth_date column
-  personnel_dt <- data.table(personnel_id = "P001", status = "active")
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
   ref_date <- as.Date("2025-01-01")
 
   policy_params <- list(
@@ -559,12 +559,12 @@ test_that("check_retirement_inputs requires birth_date column for age-based elig
 })
 
 test_that("check_retirement_inputs validates required contract columns", {
-  # Missing contract_type_code column
+  # Missing contract_type column
   contract_dt <- data.table(
     contract_id = "C001", personnel_id = "P001",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA)
   )
-  personnel_dt <- data.table(personnel_id = "P001", status = "active")
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
   ref_date <- as.Date("2025-01-01")
 
   policy_params <- list(
@@ -575,7 +575,7 @@ test_that("check_retirement_inputs validates required contract columns", {
 
   expect_error(
     check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "Columns not found in contract_dt: contract_type_code"
+    "Columns not found in contract_dt: contract_type"
   )
 })
 
@@ -583,7 +583,7 @@ test_that("check_retirement_inputs validates required personnel columns", {
   contract_dt <- data.table(
     contract_id = "C001", personnel_id = "P001",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm"
+    contract_type = "perm"
   )
   # Missing status column
   personnel_dt <- data.table(personnel_id = "P001")
@@ -597,7 +597,7 @@ test_that("check_retirement_inputs validates required personnel columns", {
 
   expect_error(
     check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "Columns not found in personnel_dt: status"
+    "Columns not found in personnel_dt: employment_status"
   )
 })
 
@@ -605,9 +605,9 @@ test_that("check_retirement_inputs requires defaults list in policy_params", {
   contract_dt <- data.table(
     contract_id = "C001", personnel_id = "P001",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm"
+    contract_type = "perm"
   )
-  personnel_dt <- data.table(personnel_id = "P001", status = "active")
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
   ref_date <- as.Date("2025-01-01")
 
   policy_params <- list(
@@ -731,10 +731,10 @@ test_that("check_retirement_inputs: group-level policy_table with valid structur
   contract_dt  <- data.table::data.table(
     contract_id = "C1", personnel_id = "P1",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm", gross_salary_lcu = 5000
+    contract_type = "perm", gross_salary_lcu = 5000
   )
   personnel_dt <- data.table::data.table(
-    personnel_id = "P1", status = "active",
+    personnel_id = "P1", employment_status = "active",
     birth_date = as.Date("1960-01-01")
   )
   tbl <- data.table::data.table(grade = c("A", "B"), min_age = c(60, 55))
@@ -758,10 +758,10 @@ test_that("check_retirement_inputs: group_cols without policy_table raises error
   contract_dt  <- data.table::data.table(
     contract_id = "C1", personnel_id = "P1",
     start_date = as.Date("2020-01-01"), end_date = as.Date(NA),
-    contract_type_code = "perm", gross_salary_lcu = 5000
+    contract_type = "perm", gross_salary_lcu = 5000
   )
   personnel_dt <- data.table::data.table(
-    personnel_id = "P1", status = "active",
+    personnel_id = "P1", employment_status = "active",
     birth_date = as.Date("1960-01-01")
   )
   policy_params <- list(
