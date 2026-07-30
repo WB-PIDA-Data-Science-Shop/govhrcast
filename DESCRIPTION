@@ -1,8 +1,10 @@
 Package: govhrcast
 Title: Government Wage Bill Forecasting and Simulation
+Authors@R: c(
+    person("Ifeanyi", "Edochie", , "iedochie@worldbank.org", role = c("aut", "cre")),
+    person("Galileu", "Kim", , "galileukim@worldbank.org", role = c("aut"))
+  )
 Version: 0.0.0.9000
-Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
 Description: Provides a simulation system for public sector workforce analytics.
     Allows World Bank country teams to simulate workforce policies, estimate
     wage bills under baseline or policy scenarios, and model retirement, hiring,
@@ -16,8 +18,8 @@ Imports:
     data.table,
 Suggests:
     testthat (>= 3.0.0),
-    govhr,
     future,
+    govhr,
     future.apply,
     bslib,
     bsicons,
@@ -28,3 +30,5 @@ Depends:
     R (>= 3.5)
 LazyData: true
 Config/testthat/edition: 3
+Remotes:
+    WB-PIDA-Data-Science-Shop/govhr
