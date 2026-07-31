@@ -85,7 +85,8 @@ simulate_horizon(contract_dt = contract_dt,
                  scenario_name = "status-quo-sim",
                  hire_date_col = "first_employment_date",
                  n_periods = 5,
-                 salary_col = "gross_salary_cpi")
+                 salary_col = "gross_salary_cpi",
+                 return_microdata = TRUE)
 
 
 ### ok lets run other simulations now
