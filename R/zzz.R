@@ -74,6 +74,8 @@ utils::globalVariables(c(
   "age_at_retirement",
   "i.age_at_ret",
   "pension_amount",
-  "salary"
+  "salary",
+  "custom_eligible",
+  "eligibility_rule"
 
 ))
