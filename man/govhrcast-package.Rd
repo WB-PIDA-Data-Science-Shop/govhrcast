@@ -9,7 +9,12 @@
 Provides a simulation system for public sector workforce analytics. Allows World Bank country teams to simulate workforce policies, estimate wage bills under baseline or policy scenarios, and model retirement, hiring, promotion, and transfer dynamics using harmonized HRMIS data.
 }
 \author{
-\strong{Maintainer}: First Last \email{first.last@example.com}
+\strong{Maintainer}: Ifeanyi Edochie \email{iedochie@worldbank.org}
+
+Authors:
+\itemize{
+  \item Galileu Kim \email{galileukim@worldbank.org}
+}
 
 }
 \keyword{internal}
