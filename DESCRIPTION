@@ -4,7 +4,7 @@ Authors@R: c(
     person("Ifeanyi", "Edochie", , "iedochie@worldbank.org", role = c("aut", "cre")),
     person("Galileu", "Kim", , "galileukim@worldbank.org", role = c("aut"))
   )
-Version: 0.0.0.9000
+Version: 0.1.0
 Description: Provides a simulation system for public sector workforce analytics.
     Allows World Bank country teams to simulate workforce policies, estimate
     wage bills under baseline or policy scenarios, and model retirement, hiring,

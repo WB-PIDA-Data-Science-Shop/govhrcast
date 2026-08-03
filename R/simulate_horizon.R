@@ -1082,11 +1082,11 @@ simulate_horizon <- function(contract_dt,
 
   if ("ref_date" %in% names(contract_dt)) {
     contract_dt <- contract_dt[get("ref_date") == start_ref]
-    contract_dt[, ref_date := NULL]
+    # contract_dt[, ref_date := NULL]
   }
   if ("ref_date" %in% names(personnel_dt)) {
     personnel_dt <- personnel_dt[get("ref_date") == start_ref]
-    personnel_dt[, ref_date := NULL]
+    # personnel_dt[, ref_date := NULL]
   }
 
   # Resolve pensioner type label before any filtering uses it.
@@ -1263,6 +1263,12 @@ simulate_horizon <- function(contract_dt,
   # ====================================================================
   # PERIOD LOOP
   # =====================================================================
+  # before the loop, pre-allocate lists to hold the contract and personnel snapshots for each period
+  # these will be used to return the final microdata if return_microdata = TRUE
+
+  contract_panel_list <- vector("list", n_periods)
+  personnel_panel_list <- vector("list", n_periods)
+
   for (t in seq_len(n_periods)) {
 
     growth      <- salary_growth_rate[t]
@@ -1300,6 +1306,17 @@ simulate_horizon <- function(contract_dt,
     personnel_dt       <- scenario_result$personnel_dt
     salary_scale_dt    <- scenario_result$salary_scale_dt
     pensioner_register <- scenario_result$pensioner_register
+
+    # Accumulate period snapshots for panel output
+    if (return_microdata) {
+      ct_snap <- data.table::copy(contract_dt)
+      ct_snap[, ref_date := cur_date]
+      contract_panel_list[[t]] <- ct_snap
+
+      pt_snap <- data.table::copy(personnel_dt)
+      pt_snap[, ref_date := cur_date]
+      personnel_panel_list[[t]] <- pt_snap
+    }
 
     period_rows[[t]] <- scenario_result$summary
   }
@@ -1369,9 +1386,13 @@ simulate_horizon <- function(contract_dt,
   out$pensioner_register <- pensioner_register
 
   if (return_microdata) {
-    out$contract_dt  <- contract_dt
-    out$personnel_dt <- personnel_dt
-  }
+  out$contract_dt  <- data.table::rbindlist(
+    contract_panel_list,  use.names = TRUE, fill = TRUE
+  )
+  out$personnel_dt <- data.table::rbindlist(
+    personnel_panel_list, use.names = TRUE, fill = TRUE
+  )
+}
 
   return(out)
 }
