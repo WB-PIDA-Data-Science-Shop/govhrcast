@@ -776,7 +776,8 @@ test_that("simulate_horizon increments age each period", {
   )
   # Age auto-computed from birth_date (difftime/365.25) then incremented by 1
   # each period, so after 2 periods: ~40+2=42 and ~50+2=52 (within rounding).
-  expect_equal(sort(res$personnel_dt$age), c(42, 52), tolerance = 0.1)
+  last_date <- max(res$personnel_dt$ref_date)
+  expect_equal(sort(res$personnel_dt[ref_date == last_date, age]), c(42, 52), tolerance = 0.1)
 })
 
 
@@ -1234,7 +1235,9 @@ test_that("Phase 2a: period_unit='month' increments age by 1/12 per period", {
 
   # After 12 monthly increments of 1/12, total age increment ≈ 1
   # P1 starts at ~40 (from birth_date), ends at ~41
-  final_ages <- res$personnel_dt[order(personnel_id), age]
+  last_date  <- max(res$personnel_dt$ref_date)
+  final_ages <- res$personnel_dt[ref_date == last_date][order(personnel_id), age]  
+  
   expect_equal(final_ages[1], 40 + 1, tolerance = 0.1)  # P1: 40 → ~41
   expect_equal(final_ages[2], 30 + 1, tolerance = 0.1)  # P2: 30 → ~31
 })
