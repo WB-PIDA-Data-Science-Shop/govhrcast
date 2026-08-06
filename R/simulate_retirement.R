@@ -540,7 +540,7 @@ simulate_retirement <- function(contract_dt,
     "pension_type", "accrual_rate", "ref_wage_col",
     "max_years", "replacement_cap",
     "balance_col", "annuity_factor", "notional_rate",
-    "flat_amount", "pension_rate"
+    "flat_amount", "pension_rate", "pension_formula"
   )
 
   .resolved_pension <- resolve_policy_table(

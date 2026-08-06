@@ -4,7 +4,11 @@
 \alias{.determine_required_metrics}
 \title{Determine Which Eligibility Metrics Must Be Computed}
 \usage{
-.determine_required_metrics(policy_params)
+.determine_required_metrics(
+  policy_params,
+  age_col = "age",
+  tenure_col = "tenure_years"
+)
 }
 \arguments{
 \item{policy_params}{List. Unified policy specification containing

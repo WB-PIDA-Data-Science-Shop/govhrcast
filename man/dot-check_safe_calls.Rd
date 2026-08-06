@@ -4,7 +4,7 @@
 \alias{.check_safe_calls}
 \title{Recursively Validate That an Expression Only Uses Safe Calls}
 \usage{
-.check_safe_calls(expr)
+.check_safe_calls(expr, allowed_calls = .ALLOWED_RULE_CALLS)
 }
 \arguments{
 \item{expr}{A parsed R language object (call, name, or atomic value), as

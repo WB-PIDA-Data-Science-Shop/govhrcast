@@ -545,19 +545,18 @@ validate_policy_table <- function(policy_params) {
 #' }
 #'
 #' @keywords internal
-check_retirement_inputs <- function(
-  contract_dt,
-  personnel_dt,
-  policy_params,
-  ref_date,
-  personnel_id_col = "personnel_id",
-  birth_date_col = "birth_date",
-  contract_id_col = "contract_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
-) {
+check_retirement_inputs <- function(contract_dt,
+                                    personnel_dt,
+                                    policy_params,
+                                    ref_date,
+                                    personnel_id_col  = "personnel_id",
+                                    birth_date_col    = "birth_date",
+                                    contract_id_col   = "contract_id",
+                                    start_date_col    = "start_date",
+                                    end_date_col      = "end_date",
+                                    contract_type_col = "contract_type",
+                                    status_col        = "employment_status") {
+  
   # Validate data tables
   validate_datatable(contract_dt, "contract_dt")
   validate_datatable(personnel_dt, "personnel_dt")
@@ -606,7 +605,7 @@ check_retirement_inputs <- function(
   }
 
   # Validate pension_type value(s)
-  valid_pension <- c("db", "dc", "flat", "hybrid", "rate")
+  valid_pension <- c("db", "dc", "flat", "hybrid", "rate", "custom")
   validate_choice(.defaults$pension_type, valid_pension, "pension_type")
   if (
     !is.null(policy_params$policy_table) &&
@@ -760,19 +759,17 @@ check_retirement_inputs <- function(
 #'
 #' @return Invisible TRUE if valid, stops with error otherwise
 #' @keywords internal
-check_hiring_inputs <- function(
-  contract_dt,
-  personnel_dt,
-  policy_params,
-  ref_date,
-  personnel_id_col = "personnel_id",
-  birth_date_col = "birth_date",
-  contract_id_col = "contract_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
-) {
+check_hiring_inputs <- function(contract_dt,
+                                personnel_dt,
+                                policy_params,
+                                ref_date,
+                                personnel_id_col = "personnel_id",
+                                birth_date_col = "birth_date",
+                                contract_id_col = "contract_id",
+                                start_date_col = "start_date",
+                                end_date_col = "end_date",
+                                contract_type_col = "contract_type",
+                                status_col = "employment_status") {
   # Validate data tables
   validate_datatable(contract_dt, "contract_dt")
   validate_datatable(personnel_dt, "personnel_dt")
@@ -1082,6 +1079,22 @@ check_movement_inputs <- function(
   "is.na"
 )
 
+
+.ALLOWED_FORMULA_CALLS <- c(
+  "(",
+  "+",
+  "-",
+  "*",
+  "/",
+  "^",
+  "c",
+  "is.na",
+  "pmin",
+  "pmax",
+  "round",
+  "abs"
+)
+
 #' Recursively Validate That an Expression Only Uses Safe Calls
 #'
 #' @description
@@ -1106,21 +1119,22 @@ check_movement_inputs <- function(
 #'   meaningful for call expressions.
 #'
 #' @keywords internal
-.check_safe_calls <- function(expr) {
+.check_safe_calls <- function(expr, 
+                              allowed_calls = .ALLOWED_RULE_CALLS) {
   if (is.call(expr)) {
     func_name <- as.character(expr[[1]])
-    if (!func_name %in% .ALLOWED_RULE_CALLS) {
+    if (!func_name %in% allowed_calls) {
       stop(
         "eligibility_rule: disallowed function/operator '",
         func_name,
         "'. Allowed: ",
-        paste(.ALLOWED_RULE_CALLS, collapse = ", "),
+        paste(allowed_calls, collapse = ", "),
         call. = FALSE
       )
     }
     # Recursively check each argument of the call.
     for (arg in as.list(expr[-1])) {
-      .check_safe_calls(arg)
+      .check_safe_calls(arg, allowed_calls)
     }
   } else if (is.name(expr) || is.atomic(expr)) {
     # Bare column references and literal values are always safe.
@@ -1177,6 +1191,58 @@ validate_eligibility_rule <- function(rule, available_cols = NULL) {
     if (length(missing_cols) > 0L) {
       stop(
         "eligibility_rule references column(s) not found: ",
+        paste(missing_cols, collapse = ", "),
+        ". Available columns: ",
+        paste(available_cols, collapse = ", "),
+        call. = FALSE
+      )
+    }
+  }
+
+  invisible(expr)
+}
+
+
+#' Validate a User-Supplied Pension Formula String
+#' 
+#' @description
+#' Parses a \code{pension_formula} string (for example, \code{"salary * 0.02 * tenure_years"}), 
+#' checks that it only uses allow-listed operators/functions via \code{\link{.check_safe_calls}}, 
+#' and optionally verifies that every referenced column exists in \code{available_cols}.
+#' 
+#' @param formula Character scalar. Formula expression string.
+#' @param available_cols Character vector or \code{NULL}. If supplied, all
+#'   symbols in \code{formula} must be members of this set.
+#'
+#' @return Invisibly returns the parsed expression.
+#'
+#' @details
+#' This function is primarily called for validation side effects. It errors on
+#' parse failures, disallowed calls, or references to unavailable columns.
+#'
+#' @keywords internal
+validate_pension_formula <- function(formula, available_cols = NULL) {
+  validate_character_string(formula, "pension_formula")
+
+  # Parse the formula string into an expression; report parse failures clearly.
+  expr <- tryCatch(str2lang(formula), error = function(e) {
+    stop(
+      "pension_formula could not be parsed as an R expression: ",
+      conditionMessage(e),
+      call. = FALSE
+    )
+  })
+
+  # Reject any expression that uses functions/operators outside the allow-list.
+  .check_safe_calls(expr, allowed_calls = .ALLOWED_FORMULA_CALLS)
+
+  # Optionally verify that every column referenced in the formula is available.
+  if (!is.null(available_cols)) {
+    used_cols <- all.vars(expr)
+    missing_cols <- setdiff(used_cols, available_cols)
+    if (length(missing_cols) > 0L) {
+      stop(
+        "pension_formula references column(s) not found: ",
         paste(missing_cols, collapse = ", "),
         ". Available columns: ",
         paste(available_cols, collapse = ", "),

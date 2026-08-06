@@ -70,6 +70,7 @@ compute_pension <- function(retirees_dt) {
       "flat"   = compute_flat_pension(dt_sub),
       "hybrid" = compute_hybrid_pension(dt_sub),
       "rate"   = compute_rate_pension(dt_sub),
+      "custom" = compute_custom_pension(dt_sub),
       stop("Unknown pension policy type: ", ptype, call. = FALSE)
     )
   }
@@ -283,4 +284,36 @@ compute_rate_pension <- function(dt) {
          call. = FALSE)
 
   pmax(dt$pension_rate * dt[[wage_col]], 0)
+}
+
+
+#' Compute Custom Pension
+#'
+#' @description
+#' Computes a customized pension policy based on a user-defined formula.
+#' The formula should be provided in the \code{pension_formula} column of \code{dt}.
+#'
+#' @param dt data.table. Retiree subset (\code{pension_type == "custom"}).
+#'   Required column: \code{pension_formula} (character, non-NA).
+#'
+#' @return Numeric vector of pension amounts (length \code{nrow(dt)}).
+#'   Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
+#' @keywords internal
+#' 
+compute_custom_pension <- function(dt) {
+  
+  ## This function is a placeholder for user-defined pension calculations.
+  ## it uses the .eval_per_row_expression() function to evaluate a custom 
+  ## expression provided in the 'custom_expr' column of dt.
+
+  if (nrow(dt) == 0L) return(numeric(0))
+  
+  .eval_per_row_expression(dt, 
+                           mask = rep(TRUE, nrow(dt)),
+                           expr = "pension_formula",
+                           result_col = "pension_amount",
+                           init_value = NA_real_)
+  
+  dt$pension_amount
+
 }
