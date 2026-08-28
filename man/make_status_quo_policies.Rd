@@ -52,7 +52,7 @@ level.}
 
 \item{contract_type_col}{Character.  Default \code{"contract_type"}.}
 
-\item{status_col}{Character.  Default \code{"status"}.}
+\item{status_col}{Character.  Default \code{"employment_status"}.}
 
 \item{salary_col}{Character.  Default \code{"gross_salary_lcu"}.}
 }

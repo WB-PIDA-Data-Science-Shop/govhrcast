@@ -18,7 +18,7 @@ update_personnel_for_exits(
 
 \item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
 
-\item{status_col}{Character.  Default \code{"status"}.}
+\item{status_col}{Character.  Default \code{"employment_status"}.}
 }
 \value{
 \code{personnel_dt} (invisibly; modified by reference in place).

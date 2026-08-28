@@ -369,7 +369,7 @@ estimate_movement_baseline <- function(contract_dt,
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param contract_type_col Character. Contract type column (default: "contract_type")
-#' @param status_col Character. Status column (default: "status")
+#' @param status_col Character. Status column (default: "employment_status")
 #'
 #' @return data.table with columns:
 #'   \describe{
@@ -578,7 +578,7 @@ compute_movement_summary <- function(movers_dt,
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"status"}.
+#' @param status_col Character.  Default \code{"employment_status"}.
 #'
 #' @return data.table with columns \code{from_group}, \code{to_group},
 #'   \code{movement_rate}, \code{current_stock}, \code{n_movers}.

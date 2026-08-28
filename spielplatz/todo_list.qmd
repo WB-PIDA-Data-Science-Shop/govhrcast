@@ -53,14 +53,26 @@ notation). I realize that these are not grouped aggregations but would this be f
 data.table i.e. dt[, sum(...)]. Please do a quick test because we need to make sure when we get
 data from a country like Brazil with a large public service, the code can still be fast. 
 
-- Now imagine, you were a HR Analytics Expert (with R expertise) who is consulted by governments 
-to develop systems like this. Given all the code, we have written, you need to do a review of the 
-codebase and suggest other points (I have not suggested above) that we have overlooked on the 
-simulation i.e. in terms of simulation logic, what statistics we are computing incorrectly, 
-what statistics might be good to estimate in addition to what we have. Lets chat before you start 
+- Now imagine, you were a HR Analytics Expert (with R expertise) who is consulted by governments
+to develop systems like this. Given all the code, we have written, you need to do a review of the
+codebase and suggest other points (I have not suggested above) that we have overlooked on the
+simulation i.e. in terms of simulation logic, what statistics we are computing incorrectly,
+what statistics might be good to estimate in addition to what we have. Lets chat before you start
 coding
 
-
+- [2026-08-27] In simulate_promotions_transfers() / compute_movement_demand() /
+compute_fixed_rate_movements(), salary_scale_dt is doing double duty: it's both the compensation
+table (used to assign a mover's new salary when salary_update_rule = "scale") AND the thing that
+decides which from_group -> to_group destinations are even valid (any to_group missing from
+salary_scale_dt gets silently scrubbed, with only a message(), not a warning()). There's no
+guarantee promotions/transfers should be gated by whether a destination has a listed salary --
+e.g. under salary_update_rule = "keep" the salary table is never consulted for pay but still
+gates which destinations are reachable, and scrubbing happens before the outflow-cap step so
+probability mass for scrubbed destinations is just dropped rather than redistributed, silently
+lowering the effective movement rate below what was empirically estimated. Decided to keep the
+current behavior for now, but worth revisiting: could derive valid destinations from the
+baseline_matrix / contract_dt instead of salary_scale_dt, and/or only apply the salary_scale_dt
+gate when salary_update_rule = "scale".
 
 
 

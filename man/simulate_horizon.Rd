@@ -140,7 +140,7 @@ Used to compute \code{period_date} for each period.}
 \code{"contract_type"}).}
 
 \item{status_col}{Character. Personnel status column (default:
-\code{"status"}).}
+\code{"employment_status"}).}
 
 \item{age_col}{Character or \code{NULL}. Age column to increment each period.
 Default: \code{"age"}.}

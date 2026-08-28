@@ -91,7 +91,7 @@ Default \code{"birth_date"}.}
 
 \item{contract_type_col}{Character.  Default \code{"contract_type"}.}
 
-\item{status_col}{Character.  Default \code{"status"}.}
+\item{status_col}{Character.  Default \code{"employment_status"}.}
 
 \item{age_col}{Character or \code{NULL}.  Age column to increment.
 Default \code{"age"}.}

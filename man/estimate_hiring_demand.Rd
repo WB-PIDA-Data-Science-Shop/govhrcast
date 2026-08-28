@@ -44,7 +44,7 @@ estimate_hiring_demand(
 
 \item{contract_type_col}{Character. Contract type column (default: "contract_type")}
 
-\item{status_col}{Character. Status column (default: "status")}
+\item{status_col}{Character. Status column (default: "employment_status")}
 }
 \value{
 data.table with group_cols (if specified) and total_hires column

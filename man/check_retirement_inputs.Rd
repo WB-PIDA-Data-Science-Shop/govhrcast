@@ -58,7 +58,7 @@ and \code{personnel_dt}.  Default \code{"personnel_id"}.}
 
 \item{contract_type_col}{Character.  Default \code{"contract_type"}.}
 
-\item{status_col}{Character.  Default \code{"status"}.}
+\item{status_col}{Character.  Default \code{"employment_status"}.}
 }
 \value{
 Invisible \code{TRUE}.  Stops with an informative error on the

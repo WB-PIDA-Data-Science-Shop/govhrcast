@@ -70,7 +70,7 @@ fields are recognised:\tabular{ll}{
    Parameter \tab Description \cr
    \code{exit_rate} \tab Scalar attrition rate applied when \code{policy_table = NULL}, or as the fallback rate for groups absent from \code{policy_table} \cr
    \code{exit_strategy} \tab \code{"random"} or a numeric column name in \code{contract_dt} to rank employees for exit selection \cr
-   \code{active_types} \tab Contract type values in \code{contract_type_col} treated as eligible for exit. Must match actual \code{contract_type} values (e.g. \code{c("permanent", "short-term", "fixed-term")}), not \code{employment_status} values \cr
+   \code{active_types} \tab Contract type values in \code{contract_type_col} treated as eligible for exit. Must match actual \code{contract_type} values, not \code{employment_status} values. Default \code{c("permanent", "fixed-term", "short-term")} — the non-terminal \code{contract_type} values per the \code{govhr} harmonized dictionary \cr
    \code{exited_type} \tab Value written to \code{contract_type_col} after exit. Default \code{"inactive"} \cr
 }}
 

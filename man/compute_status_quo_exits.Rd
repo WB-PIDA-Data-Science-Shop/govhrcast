@@ -18,7 +18,9 @@ compute_status_quo_exits(
 See \code{\link{simulate_exits}} for the full three-slot specification.
 Keys consumed here: \code{group_cols}, \code{policy_table} (with
 \code{exit_rate} column), \code{defaults$exit_rate},
-\code{defaults$exit_strategy}, \code{defaults$active_types}.}
+\code{defaults$exit_strategy}, \code{defaults$active_types} (default
+\code{c("permanent", "fixed-term", "short-term")} — the non-terminal
+\code{contract_type} values per the \code{govhr} harmonized dictionary).}
 
 \item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
 

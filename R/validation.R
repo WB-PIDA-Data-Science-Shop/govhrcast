@@ -509,7 +509,7 @@ validate_policy_table <- function(policy_params) {
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"status"}.
+#' @param status_col Character.  Default \code{"employment_status"}.
 #'
 #' @return Invisible \code{TRUE}.  Stops with an informative error on the
 #'   first violation found.

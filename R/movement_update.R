@@ -64,7 +64,7 @@ stochastic_round <- function(x) {
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param salary_col Character. Salary column (default: "gross_salary_lcu")
-#' @param status_col Character. Status column (default: "status")
+#' @param status_col Character. Status column (default: "employment_status")
 #' @param ref_date_col Character. Reference date column for panel data (default: "ref_date")
 #'
 #' @return data.table with columns:

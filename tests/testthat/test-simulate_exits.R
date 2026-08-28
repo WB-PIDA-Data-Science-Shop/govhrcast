@@ -85,6 +85,37 @@ test_that("simulate_exits: fixed_rate mode returns correct structure", {
   expect_equal(result$summary$n_exits, 2L)
 })
 
+test_that("simulate_exits: omitting defaults$active_types uses the dictionary-grounded default, not zero exits", {
+  # Regression test: active_types previously fell back to the literal string
+  # "active" -- an employment_status value, never a valid contract_type value
+  # (per govhr::dictionary: contract_type in c("permanent", "fixed-term",
+  # "short-term", "pensioner", "inactive")) -- which silently matched zero
+  # rows and produced zero exits regardless of exit_rate. make_exit_test_data()
+  # uses contract_type = "permanent" throughout, so with the corrected default
+  # (c("permanent", "fixed-term", "short-term")) and exit_rate = 1.0, every
+  # active person must exit.
+  d <- make_exit_test_data()
+
+  exit_policy <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_rate     = 1.0,
+      exit_strategy = "random"
+      # active_types intentionally omitted
+    )
+  )
+
+  result <- simulate_exits(
+    contract_dt   = d$contract_dt,
+    personnel_dt  = d$personnel_dt,
+    policy_params = exit_policy,
+    ref_date      = as.Date("2025-01-01")
+  )
+
+  expect_equal(result$summary$n_exits, 4L)
+})
+
 test_that("simulate_exits: fixed_rate = 0 → no exits", {
   d <- make_exit_test_data()
 

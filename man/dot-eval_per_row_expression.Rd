@@ -4,7 +4,7 @@
 \alias{.eval_per_row_expression}
 \title{Evaluate Row-Level Expression Strings}
 \usage{
-.eval_per_row_expression(dt, mask, expr_col, result_col)
+.eval_per_row_expression(dt, mask, expr_col, result_col, init_value = NA)
 }
 \arguments{
 \item{dt}{data.table. Input table.}

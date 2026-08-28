@@ -49,7 +49,7 @@ NULL
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"status"}.
+#' @param status_col Character.  Default \code{"employment_status"}.
 #'
 #' @return data.table with \code{group_cols} (if specified) and
 #'   \code{exit_rate} column.
@@ -167,7 +167,9 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
 #'   See \code{\link{simulate_exits}} for the full three-slot specification.
 #'   Keys consumed here: \code{group_cols}, \code{policy_table} (with
 #'   \code{exit_rate} column), \code{defaults$exit_rate},
-#'   \code{defaults$exit_strategy}, \code{defaults$active_types}.
+#'   \code{defaults$exit_strategy}, \code{defaults$active_types} (default
+#'   \code{c("permanent", "fixed-term", "short-term")} — the non-terminal
+#'   \code{contract_type} values per the \code{govhr} harmonized dictionary).
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
 #'
@@ -183,7 +185,8 @@ compute_status_quo_exits <- function(
 
   .defaults     <- policy_params$defaults %||% list()
   exit_strategy <- .defaults$exit_strategy %||% "random"
-  active_types  <- .defaults$active_types  %||% "active"
+  active_types  <- .defaults$active_types  %||%
+    c("permanent", "fixed-term", "short-term")
   group_cols    <- policy_params$group_cols
 
   if (!data.table::is.data.table(contract_dt))
@@ -291,7 +294,9 @@ compute_status_quo_exits <- function(
 #' @param contract_dt data.table.  Current (single-snapshot) contract data.
 #' @param policy_params List.  Canonical three-slot exit policy specification.
 #'   Keys consumed: \code{defaults$exit_rate}, \code{defaults$exit_strategy},
-#'   \code{defaults$active_types}.
+#'   \code{defaults$active_types} (default
+#'   \code{c("permanent", "fixed-term", "short-term")} — the non-terminal
+#'   \code{contract_type} values per the \code{govhr} harmonized dictionary).
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
 #'
@@ -308,7 +313,8 @@ compute_fixed_rate_exits <- function(
   .defaults     <- policy_params$defaults %||% list()
   exit_rate     <- .defaults$exit_rate
   exit_strategy <- .defaults$exit_strategy %||% "random"
-  active_types  <- .defaults$active_types  %||% "active"
+  active_types  <- .defaults$active_types  %||%
+    c("permanent", "fixed-term", "short-term")
 
   if (is.null(exit_rate) || !is.numeric(exit_rate) || length(exit_rate) != 1L)
     stop(
