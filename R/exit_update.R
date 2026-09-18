@@ -27,6 +27,9 @@ NULL
 #' @param contract_type_col Character.  Default \code{"contract_type_code"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param active_types Character vector.  Contract type values to update.
+#'   Default \code{c("permanent", "fixed-term", "short-term")} — the
+#'   non-terminal \code{contract_type} values per the \code{govhr} harmonized
+#'   dictionary.
 #' @param exited_type Character.  Value to write into \code{contract_type_col}.
 #'   Default \code{"inactive"}.
 #'
@@ -42,7 +45,7 @@ update_contracts_for_exits <- function(contract_dt,
                                        personnel_id_col  = "personnel_id",
                                        contract_type_col = "contract_type",
                                        end_date_col      = "end_date",
-                                       active_types      = "active",
+                                       active_types      = c("permanent", "fixed-term", "short-term"),
                                        exited_type       = "inactive") {
   if (is.null(exits_dt) || nrow(exits_dt) == 0L) return(invisible(contract_dt))
 
@@ -71,7 +74,7 @@ update_contracts_for_exits <- function(contract_dt,
 #' @param personnel_dt data.table.  Personnel data (modified by reference).
 #' @param exits_dt data.table.  Table of exiting personnel.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param status_col Character.  Default \code{"status"}.
+#' @param status_col Character.  Default \code{"employment_status"}.
 #'
 #' @return \code{personnel_dt} (invisibly; modified by reference in place).
 #' @section Data Integrity:

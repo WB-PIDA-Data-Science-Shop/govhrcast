@@ -60,7 +60,7 @@ simulate_hiring(
 
 \item{contract_type_col}{Character. Name of contract type column (default: "contract_type")}
 
-\item{status_col}{Character. Name of status column (default: "status")}
+\item{status_col}{Character. Name of status column (default: "employment_status")}
 
 \item{hire_date_col}{Character or \code{NULL}.  Name of a person-level column in
 \code{personnel_dt} that holds the true administrative hire date

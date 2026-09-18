@@ -635,10 +635,11 @@ simulate_promotions_transfers <- function(contract_dt,
   # 3. Extract or estimate baseline matrix
   # ======================================================================
   # policy_table = non-NULL  → use it directly as the transition baseline
-  # policy_table = NULL      → try to estimate from panel (if >= 2 snapshots)
-  #                            and store as informational output; demand is
-  #                            still computed via compute_fixed_rate_movements()
-  #                            (see step 6)
+  # policy_table = NULL      → estimate from panel (if >= 2 snapshots) and
+  #                            USE the estimate to drive demand (step 6).
+  #                            Falls back to compute_fixed_rate_movements()
+  #                            only when estimation fails or yields zero
+  #                            transitions (see step 6).
   n_snapshots <- if (ref_date_col %in% names(contract_dt))
     data.table::uniqueN(contract_dt[[ref_date_col]]) else 1L
 
@@ -660,7 +661,16 @@ simulate_promotions_transfers <- function(contract_dt,
       ),
       error = function(e) NULL
     )
-    baseline_matrix <- NULL   # demand still uses flat-rate
+    if (!is.null(estimated_baseline) && nrow(estimated_baseline) > 0L) {
+      baseline_matrix <- estimated_baseline
+    } else {
+      message(
+        "simulate_promotions_transfers: could not estimate a movement ",
+        "baseline from panel data (estimation failed or found zero ",
+        "transitions); falling back to defaults$movement_rate as a flat rate."
+      )
+      baseline_matrix <- NULL
+    }
   } else {
     estimated_baseline <- NULL
     baseline_matrix    <- NULL
@@ -740,10 +750,12 @@ simulate_promotions_transfers <- function(contract_dt,
   # ======================================================================
   # 6. Compute Movement Demand
   # ======================================================================
-  # When a pre-computed baseline is available use compute_movement_demand()
-  # (matrix × stock = expected movers per transition).
-  # When policy_table = NULL use compute_fixed_rate_movements() which applies
-  # defaults$movement_rate as a flat scalar across the active workforce.
+  # When a baseline is available (user-supplied policy_table, or an
+  # estimate from panel data) use compute_movement_demand() (matrix × stock
+  # = expected movers per transition). Otherwise -- single snapshot, or
+  # estimation failed/found zero transitions -- fall back to
+  # compute_fixed_rate_movements(), which applies defaults$movement_rate as
+  # a flat scalar across the active workforce.
   if (!is.null(baseline_matrix)) {
     demand_dt <- compute_movement_demand(
       contract_dt       = snap_contract_dt,

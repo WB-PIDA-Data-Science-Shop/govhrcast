@@ -25,7 +25,7 @@ NULL
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param contract_type_col Character. Contract type column (default: "contract_type")
-#' @param status_col Character. Status column (default: "status")
+#' @param status_col Character. Status column (default: "employment_status")
 #'
 #' @return data.table with group_cols (if specified) and current_stock column
 #' @keywords internal
@@ -259,7 +259,7 @@ compute_flow_demand <- function(contract_dt,
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param contract_type_col Character. Contract type column (default: "contract_type")
-#' @param status_col Character. Status column (default: "status")
+#' @param status_col Character. Status column (default: "employment_status")
 #'
 #' @return data.table with group_cols (if specified) and total_hires column
 #' @keywords internal
@@ -350,7 +350,7 @@ compute_stock_demand <- function(contract_dt,
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param contract_type_col Character. Contract type column (default: "contract_type")
-#' @param status_col Character. Status column (default: "status")
+#' @param status_col Character. Status column (default: "employment_status")
 #'
 #' @return data.table with group_cols (if specified) and total_hires column
 #' @keywords internal
@@ -477,7 +477,7 @@ compute_combined_demand <- function(contract_dt,
 #' @param start_date_col Character. Contract start-date column. Default \code{"start_date"}.
 #' @param end_date_col Character. Contract end-date column. Default \code{"end_date"}.
 #' @param contract_type_col Character. Contract-type column. Default \code{"contract_type"}.
-#' @param status_col Character. Personnel status column. Default \code{"status"}.
+#' @param status_col Character. Personnel status column. Default \code{"employment_status"}.
 #'
 #' @return data.table with \code{group_cols} (if specified) and \code{hiring_rate} column.
 #' @export
@@ -727,7 +727,7 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
 #' @param start_date_col Character. Default \code{"start_date"}.
 #' @param end_date_col Character. Default \code{"end_date"}.
 #' @param contract_type_col Character. Default \code{"contract_type"}.
-#' @param status_col Character. Default \code{"status"}.
+#' @param status_col Character. Default \code{"employment_status"}.
 #'
 #' @return data.table with \code{group_cols} (if specified) and \code{total_hires} column.
 #' @keywords internal
@@ -812,7 +812,7 @@ compute_status_quo_hiring <- function(contract_dt,
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param contract_type_col Character. Contract type column (default: "contract_type")
-#' @param status_col Character. Status column (default: "status")
+#' @param status_col Character. Status column (default: "employment_status")
 #'
 #' @return data.table with group_cols (if specified) and total_hires column
 #' @keywords internal

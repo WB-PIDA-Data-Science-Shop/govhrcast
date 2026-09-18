@@ -46,7 +46,7 @@ Default \code{"ref_date"}.}
 
 \item{contract_type_col}{Character. Contract-type column. Default \code{"contract_type"}.}
 
-\item{status_col}{Character. Personnel status column. Default \code{"status"}.}
+\item{status_col}{Character. Personnel status column. Default \code{"employment_status"}.}
 }
 \value{
 data.table with \code{group_cols} (if specified) and \code{hiring_rate} column.

@@ -310,7 +310,7 @@ compute_custom_pension <- function(dt) {
   
   .eval_per_row_expression(dt, 
                            mask = rep(TRUE, nrow(dt)),
-                           expr = "pension_formula",
+                           expr_col = "pension_formula",
                            result_col = "pension_amount",
                            init_value = NA_real_)
   

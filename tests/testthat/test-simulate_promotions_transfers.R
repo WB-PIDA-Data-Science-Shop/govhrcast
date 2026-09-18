@@ -157,7 +157,39 @@ test_that("simulate_promotions_transfers accepts Date ref_date", {
   )
 })
 
-test_that("simulate_promotions_transfers: movement_rate = 0 gives 0 movers", {
+test_that("simulate_promotions_transfers: no policy_table, panel with zero observed transitions, movement_rate = 0 gives 0 movers", {
+  # make_full_panel() has real transitions (P1, P6 change grade between
+  # snapshots), so it is not a valid fixture for a "0 movers" expectation
+  # once policy_table = NULL correctly triggers empirical estimation (see
+  # the next test). Use a static panel -- same person/grade in both
+  # snapshots -- so estimation legitimately yields zero transitions and the
+  # function falls back to the flat movement_rate = 0.
+  static_panel <- data.table::rbindlist(list(
+    make_full_panel()[ref_date == as.Date("2015-01-01")],
+    data.table::copy(
+      make_full_panel()[ref_date == as.Date("2015-01-01")]
+    )[, ref_date := as.Date("2016-01-01")]
+  ))
+  set.seed(1)
+  expect_message(
+    result <- simulate_promotions_transfers(
+      contract_dt     = static_panel,
+      personnel_dt    = make_personnel(),
+      salary_scale_dt = make_salary_scale(),
+      policy_params   = make_policy(movement_rate = 0),
+      ref_date        = "2016-01-01"
+    ),
+    "falling back to defaults\\$movement_rate"
+  )
+  expect_equal(result$summary$n_movers, 0L)
+})
+
+test_that("simulate_promotions_transfers: no policy_table + panel with real transitions uses the estimated baseline, not the flat rate", {
+  # Regression test: policy_table = NULL with >= 2 panel snapshots must
+  # drive movement demand from the empirically estimated baseline
+  # (estimate_movement_baseline()), not silently fall back to a flat
+  # defaults$movement_rate. make_full_panel() has two observed transitions
+  # (P1: G1->G2, P6: G2->G1), so movement_rate = 0 should NOT suppress them.
   set.seed(1)
   result <- simulate_promotions_transfers(
     contract_dt     = make_full_panel(),
@@ -166,7 +198,8 @@ test_that("simulate_promotions_transfers: movement_rate = 0 gives 0 movers", {
     policy_params   = make_policy(movement_rate = 0),
     ref_date        = "2016-01-01"
   )
-  expect_equal(result$summary$n_movers, 0L)
+  expect_gt(result$summary$n_movers, 0L)
+  expect_true(all(result$baseline_matrix$movement_rate > 0))
 })
 
 test_that("simulate_promotions_transfers: contract_dt returned is snapshot only", {

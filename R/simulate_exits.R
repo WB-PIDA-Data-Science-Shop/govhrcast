@@ -123,7 +123,7 @@
 #' |:----------|:------------|
 #' | `exit_rate` | Scalar attrition rate applied when `policy_table = NULL`, or as the fallback rate for groups absent from `policy_table` |
 #' | `exit_strategy` | `"random"` or a numeric column name in `contract_dt` to rank employees for exit selection |
-#' | `active_types` | Contract type values in `contract_type_col` treated as eligible for exit. Must match actual `contract_type` values (e.g. `c("permanent", "short-term", "fixed-term")`), not `employment_status` values |
+#' | `active_types` | Contract type values in `contract_type_col` treated as eligible for exit. Must match actual `contract_type` values, not `employment_status` values. Default `c("permanent", "fixed-term", "short-term")` — the non-terminal `contract_type` values per the `govhr` harmonized dictionary |
 #' | `exited_type` | Value written to `contract_type_col` after exit. Default `"inactive"` |
 #'
 #' @param contract_dt A `data.table` (or object coercible to a
@@ -328,7 +328,8 @@ simulate_exits <- function(contract_dt,
     personnel_dt <- data.table::copy(personnel_dt)
 
   exit_strategy <- policy_params$defaults$exit_strategy %||% "random"
-  active_types  <- policy_params$defaults$active_types  %||% "active"
+  active_types  <- policy_params$defaults$active_types  %||%
+    c("permanent", "fixed-term", "short-term")
   exited_type   <- policy_params$defaults$exited_type   %||% "inactive"
 
   # ------------------------------------------------------------------

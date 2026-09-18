@@ -47,7 +47,7 @@ Must have columns: from_group, to_group, avg_prob}
 
 \item{contract_type_col}{Character. Contract type column (default: "contract_type")}
 
-\item{status_col}{Character. Status column (default: "status")}
+\item{status_col}{Character. Status column (default: "employment_status")}
 }
 \value{
 data.table with columns:

@@ -254,7 +254,7 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"status"}.
+#' @param status_col Character.  Default \code{"employment_status"}.
 #' @param age_col Character or \code{NULL}.  Age column to increment.
 #'   Default \code{"age"}.
 #' @param tenure_col Character or \code{NULL}.  Tenure column to increment.
@@ -771,7 +771,7 @@ simulate_scenario <- function(contract_dt,
 #' @param contract_type_col Character. Contract type column (default:
 #'   \code{"contract_type"}).
 #' @param status_col Character. Personnel status column (default:
-#'   \code{"status"}).
+#'   \code{"employment_status"}).
 #' @param age_col Character or \code{NULL}. Age column to increment each period.
 #'   Default: \code{"age"}.
 #' @param tenure_col Character or \code{NULL}. Tenure column to increment each

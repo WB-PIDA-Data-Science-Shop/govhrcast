@@ -38,7 +38,7 @@ Keys consumed: \code{group_cols}, \code{defaults$movement_rate},
 
 \item{contract_type_col}{Character.  Default \code{"contract_type"}.}
 
-\item{status_col}{Character.  Default \code{"status"}.}
+\item{status_col}{Character.  Default \code{"employment_status"}.}
 }
 \value{
 data.table with columns \code{from_group}, \code{to_group},

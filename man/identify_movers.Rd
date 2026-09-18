@@ -56,7 +56,7 @@ max_salary per grade for wage_based strategy). Can be NULL.}
 
 \item{salary_col}{Character. Salary column (default: "gross_salary_lcu")}
 
-\item{status_col}{Character. Status column (default: "status")}
+\item{status_col}{Character. Status column (default: "employment_status")}
 
 \item{ref_date_col}{Character. Reference date column for panel data (default: "ref_date")}
 }

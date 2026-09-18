@@ -47,7 +47,7 @@ update_state_with_adjustment(
 
 \item{contract_type_col}{Character. Contract type column (default: "contract_type")}
 
-\item{status_col}{Character. Status column (default: "status")}
+\item{status_col}{Character. Status column (default: "employment_status")}
 }
 \value{
 List containing:

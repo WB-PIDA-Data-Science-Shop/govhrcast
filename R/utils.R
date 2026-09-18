@@ -1062,7 +1062,7 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"status"}.
+#' @param status_col Character.  Default \code{"employment_status"}.
 #' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
 #'
 #' @return Named list with four elements:
