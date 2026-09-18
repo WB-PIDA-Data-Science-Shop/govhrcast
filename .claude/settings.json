@@ -16,7 +16,8 @@
       "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'devtools::load_all\\(\\)')",
       "Bash(tasklist)",
       "Bash(rm -rf \"/c/Users/wb559885/github/govhrcast/spielplatz/workingissues/.quarto\" *)",
-      "Bash(quarto render *)"
+      "Bash(quarto render *)",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'devtools::load_all\\(quiet = TRUE\\); cat\\(\"LOADED OK\\\\n\"\\)')"
     ],
     "additionalDirectories": [
       "C:\\Users\\wb559885\\.claude",
