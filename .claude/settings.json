@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'renv::status\\(\\)')",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'x<-jsonlite::fromJSON\\(\"C:/Users/wb559885/.claude/settings.json\"\\); str\\(x\\)')",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'cat\\(as.character\\(packageVersion\\(\"pkgload\"\\)\\), as.character\\(packageVersion\\(\"devtools\"\\)\\), as.character\\(packageVersion\\(\"rlang\"\\)\\), \"\\\\n\"\\)')",
+      "Bash(grep -rl \"ns_registry_env\" \"/c/Users/wb559885/AppData/Local/R/win-library/4.6\" 2>/dev/null *)",
+      "Read(//c//**)",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e '.libPaths\\(\\)')",
+      "Bash('/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe' -e ' *)",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'cat\\(available.packages\\(repos=\"https://cran.rstudio.com\"\\)[\"pkgload\",\"Version\"]\\)')",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'renv::record\\(\"pkgload@1.5.3\"\\)')",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'renv::restore\\(packages=\"pkgload\", prompt=FALSE\\)')",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'devtools::load_all\\(\\)')",
+      "Bash(tasklist)",
+      "Bash(rm -rf \"/c/Users/wb559885/github/govhrcast/spielplatz/workingissues/.quarto\" *)",
+      "Bash(quarto render *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\wb559885\\.claude",
+      "C:\\Users\\wb559885\\github\\govhrcast\\spielplatz\\workingissues\\.quarto"
+    ]
+  }
+}
