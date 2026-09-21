@@ -241,11 +241,29 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'   Pass \code{NULL} to skip movements.
 #' @param hiring_policy List or \code{NULL}.  Passed to
 #'   \code{simulate_hiring()}.  Pass \code{NULL} to skip.
+#' @param allowance_policy List or \code{NULL}.  Passed to
+#'   \code{simulate_allowances()} as \code{policy_params} -- see
+#'   \code{\link{resolve_allowance_amounts}} for the expected shape.
+#'   \code{NULL} (default) skips allowance modeling entirely.  Runs after
+#'   hiring/movements finalize group membership for the period and before
+#'   aging/COLA.  \strong{If active, \code{salary_col} should represent base
+#'   compensation only} (e.g. \code{base_salary_lcu}), not a gross figure
+#'   that already folds in old lump-sum allowances -- see
+#'   \code{\link{simulate_allowances}}'s Details for why.
+#' @param allowance_dt data.table or \code{NULL}.  Accumulated allowance
+#'   ledger from prior periods within \emph{this same} \code{simulate_scenario()}
+#'   chain.  \code{NULL} (default) starts a fresh ledger.  Unlike
+#'   \code{pensioner_register}, \code{simulate_horizon()} does not accept this
+#'   as an input -- it is purely internal there.
 #' @param salary_growth_rate Numeric scalar.  COLA rate for this period.
 #'   Default \code{0}.
 #' @param pension_cola_rate Numeric scalar.  Annual COLA rate applied to
 #'   \code{pensioner_register$pension_amount} this period.  Defaults to
 #'   \code{salary_growth_rate} when \code{NULL}.  Default \code{0}.
+#' @param allowance_growth_rate Numeric scalar.  COLA-style growth rate
+#'   applied to \code{allowance_policy$policy_table}'s \code{amount} column
+#'   this period (via \code{apply_salary_scale_adjustment()}), so next
+#'   period's assignment reflects the grown scale.  Default \code{0}.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param contract_id_col Character.  Default \code{"contract_id"}.
 #' @param birth_date_col Character.  Column holding date of birth.
@@ -277,12 +295,20 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'       \code{pension_cost_total}, \code{n_promotions}, \code{n_transfers},
 #'       \code{promotion_effect}, \code{transfer_effect}, \code{n_hires},
 #'       \code{hiring_effect}, \code{inflation_effect},
-#'       \code{n_headcount_end}, \code{wage_bill_end}.}
+#'       \code{n_headcount_end}, \code{wage_bill_end}, \code{allowance_cost_end}
+#'       (\code{0} when \code{allowance_policy} is \code{NULL}).}
 #'     \item{contract_dt}{Updated contract snapshot.}
 #'     \item{personnel_dt}{Updated personnel snapshot.}
 #'     \item{salary_scale_dt}{Updated pay table (post-COLA).}
 #'     \item{pensioner_register}{Accumulated pensioner ledger including new
 #'       retirees from this period.}
+#'     \item{allowance_dt}{Accumulated allowance ledger including this
+#'       period's rows, or unchanged/\code{NULL} when \code{allowance_policy}
+#'       is \code{NULL}.}
+#'     \item{allowance_policy}{\code{allowance_policy} as supplied, with
+#'       \code{policy_table} grown by \code{allowance_growth_rate} -- pass
+#'       this back in as next period's \code{allowance_policy} to carry the
+#'       growth forward (\code{simulate_horizon()} does this automatically).}
 #'   }
 #'
 #' @examples
@@ -326,8 +352,11 @@ simulate_scenario <- function(contract_dt,
                                exit_policy             = NULL,
                                movement_policy         = NULL,
                                hiring_policy           = NULL,
+                               allowance_policy        = NULL,
+                               allowance_dt            = NULL,
                                salary_growth_rate  = 0,
                                pension_cola_rate   = 0,
+                               allowance_growth_rate = 0,
                                personnel_id_col    = "personnel_id",
                                contract_id_col     = "contract_id",
                                birth_date_col      = "birth_date",
@@ -367,7 +396,7 @@ simulate_scenario <- function(contract_dt,
   }
 
   # Detect salary column in salary_scale_dt
-  scale_salary_pat   <- "salary|wage|pay|compensation|allowance"
+  scale_salary_pat   <- "salary|wage|pay|compensation|gross|base"
   scale_salary_cands <- grep(scale_salary_pat, names(salary_scale_dt),
                              value = TRUE, ignore.case = TRUE)
   # Only keep numeric candidates to avoid matching non-salary columns (e.g. "paygrade")
@@ -573,7 +602,32 @@ simulate_scenario <- function(contract_dt,
   }
 
   # ------------------------------------------------------------------
-  # STEP 5: AGING
+  # STEP 5: ALLOWANCES
+  # ------------------------------------------------------------------
+  # Runs after hiring/movements finalise group membership (est_id, paygrade,
+  # etc.) for the period, and before aging/COLA. contract_dt/personnel_dt are
+  # never mutated here -- allowance costs live entirely in the allowance_dt
+  # ledger, the same way pensioner_register tracks pension costs outside the
+  # wage bill.
+  allowance_cost_end <- 0
+
+  if (!is.null(allowance_policy)) {
+    alw_result <- simulate_allowances(
+      contract_dt   = contract_dt,
+      personnel_dt  = personnel_dt,
+      allowance_dt  = allowance_dt,
+      policy_params = allowance_policy,
+      ref_date      = period_date,
+      contract_type_col = contract_type_col,
+      personnel_id_col  = personnel_id_col,
+      contract_id_col   = contract_id_col
+    )
+    allowance_dt       <- alw_result$allowance_dt
+    allowance_cost_end <- alw_result$summary$allowance_cost_total
+  }
+
+  # ------------------------------------------------------------------
+  # STEP 6: AGING
   # ------------------------------------------------------------------
   if (!is.null(age_col) && age_col %in% names(personnel_dt)) {
     personnel_dt[get(status_col) == "active",
@@ -585,7 +639,7 @@ simulate_scenario <- function(contract_dt,
   }
 
   # ------------------------------------------------------------------
-  # STEP 6: COLA
+  # STEP 7: COLA
   # ------------------------------------------------------------------
   growth <- salary_growth_rate
 
@@ -599,6 +653,22 @@ simulate_scenario <- function(contract_dt,
     salary_scale_dt[, (scale_salary_col) := get(scale_salary_col) * (1 + growth)]
     contract_dt[get(contract_type_col) != "pensioner",
                 (salary_col) := get(salary_col) * (1 + growth)]
+  }
+
+  # Grow the allowance scale itself (not individual ledger rows) so that next
+  # period's simulate_allowances() call resolves against the COLA-adjusted
+  # amounts. A contract whose group_cols don't change between periods will
+  # see its allowance grow at exactly this rate -- re-resolving from a scale
+  # grown by (1+g) each period is arithmetically identical to growing a
+  # sticky per-contract value by (1+g), while a mover still correctly picks
+  # up their new group's (already-grown) amount instead of a stale one.
+  if (!is.null(allowance_policy) && !is.null(allowance_policy$policy_table) &&
+      allowance_growth_rate != 0) {
+    allowance_policy$policy_table <- apply_salary_scale_adjustment(
+      allowance_policy$policy_table,
+      adjustment = 1 + allowance_growth_rate,
+      salary_col = "amount"
+    )
   }
 
   # Apply pension COLA to the register (separate rate from active salary COLA)
@@ -638,7 +708,8 @@ simulate_scenario <- function(contract_dt,
     hiring_effect            = hiring_effect,
     inflation_effect         = inflation_effect,
     n_headcount_end          = as.integer(n_headcount_end),
-    wage_bill_end            = wage_bill_end
+    wage_bill_end            = wage_bill_end,
+    allowance_cost_end       = allowance_cost_end
   )
 
   list(
@@ -646,7 +717,9 @@ simulate_scenario <- function(contract_dt,
     contract_dt        = contract_dt,
     personnel_dt       = personnel_dt,
     salary_scale_dt    = salary_scale_dt,
-    pensioner_register = pensioner_register
+    pensioner_register = pensioner_register,
+    allowance_dt       = allowance_dt,
+    allowance_policy   = allowance_policy
   )
 }
 
@@ -727,7 +800,7 @@ simulate_scenario <- function(contract_dt,
 #'     \item{\code{group_cols}}{Character vector or \code{NULL}. State-defining
 #'       columns (e.g. \code{"paygrade"}).}
 #'     \item{\code{policy_table}}{data.table or \code{NULL}. Pre-computed
-#'       transition matrix (output of \code{estimate_movement_baseline()}).}
+#'       transition matrix (output of \code{estimate_historical_movement_rates()}).}
 #'     \item{\code{defaults}}{Named list. Keys: \code{movement_rate} (required
 #'       when \code{policy_table = NULL}), \code{movement_strategy}
 #'       (\code{"random"}, \code{"tenure"}, \code{"reverse_tenure"},
@@ -745,6 +818,21 @@ simulate_scenario <- function(contract_dt,
 #'   (\code{panel_contract_dt} and \code{panel_personnel_dt}) are injected
 #'   automatically -- you do \emph{not} need to supply them.
 #'   Pass \code{NULL} to skip hiring in all periods.
+#' @param allowance_policy List or \code{NULL}. Policy parameters passed to
+#'   \code{simulate_allowances()} each period -- see
+#'   \code{\link{resolve_allowance_amounts}} for the expected shape. Default
+#'   \code{NULL} skips allowance modeling entirely. Unlike
+#'   \code{pensioner_register}, the accumulated allowance ledger is
+#'   \emph{not} accepted as an input here -- it starts fresh each call and is
+#'   returned in \code{$allowance_dt} (gated behind \code{return_microdata}).
+#'   To chain allowance history across separate \code{simulate_horizon()}
+#'   calls, combine the returned ledgers yourself via
+#'   \code{data.table::rbindlist()}, the same way you already do for
+#'   \code{pensioner_register}. \strong{If active, \code{salary_col} should
+#'   represent base compensation only} (e.g. \code{base_salary_lcu}), not a
+#'   gross figure that already folds in old lump-sum allowances -- see
+#'   \code{\link{simulate_allowances}}'s Details for why this matters for
+#'   \code{total_wage_bill_end}.
 #' @param salary_growth_rate Numeric scalar or vector of length \code{n_periods}.
 #'   Annual COLA / inflation rate applied to salaries and the pay scale.
 #'   Default \code{0} (no inflation).
@@ -752,6 +840,13 @@ simulate_scenario <- function(contract_dt,
 #'   Annual COLA rate applied to \code{pensioner_register$pension_amount} each
 #'   period.  Defaults to \code{salary_growth_rate} (same rate for both groups).
 #'   Accepts either a scalar or a length-\code{n_periods} vector.
+#' @param allowance_growth_rate Numeric scalar or vector of length
+#'   \code{n_periods}. COLA-style growth rate applied to
+#'   \code{allowance_policy$policy_table}'s \code{amount} column each period.
+#'   Default \code{0}. A contract whose \code{group_cols} don't change
+#'   between periods sees its allowance grow at exactly this rate; a mover
+#'   picks up their new group's current (already-grown) amount instead of a
+#'   stale one -- see \code{\link{simulate_scenario}}'s allowance step.
 #' @param base_year Integer. Calendar year label for period 0 (default:
 #'   \code{as.integer(format(Sys.Date(), "\%Y"))}).
 #' @param return_microdata Logical. If \code{TRUE}, include the final-period
@@ -824,14 +919,30 @@ simulate_scenario <- function(contract_dt,
 #'       \code{promotion_effect_pct_of_end_bill},
 #'       \code{transfer_effect_pct_of_end_bill},
 #'       \code{hiring_effect_pct_of_end_bill},
-#'       \code{inflation_effect_pct_of_end_bill}.
+#'       \code{inflation_effect_pct_of_end_bill},
+#'       \code{allowance_cost_start}, \code{allowance_cost_end} (both
+#'       \code{0} when \code{allowance_policy} is \code{NULL}),
+#'       \code{total_wage_bill_start} (= \code{wage_bill_start +
+#'       allowance_cost_start}), \code{total_wage_bill_end} (= \code{wage_bill_end
+#'       + allowance_cost_end}).  \code{wage_bill_start}/\code{wage_bill_end}
+#'       and \code{.active_wage_bill()} are unchanged by allowance modeling --
+#'       the wage-bill invariant (pensioner costs excluded) is preserved, and
+#'       \code{total_wage_bill_*} is purely additive on top of it.
+#'       \code{allowance_cost_start} for period 1 is the real baseline
+#'       allowance cost resolved against the original starting population
+#'       (mirroring how \code{wage_bill_start} reflects real pre-existing
+#'       salaries, not zero); for later periods it is the previous period's
+#'       \code{allowance_cost_end} -- what was actually last assigned, not a
+#'       fresh resolution against the already-COLA-grown scale (which would
+#'       double-count next period's own growth before that period's
+#'       assignment step has run).
 #'       When \code{scenario_name} is supplied, also includes
 #'       \code{scenario_id}, \code{scenario_label}, and (when
 #'       \code{is_baseline = TRUE}) \code{is_baseline}.}
 #'     \item{\code{$summary_dt}}{Same as \code{$comparison} (backward-compatible alias).}
 #'     \item{\code{$metadata}}{Named list with \code{policy_args} capturing the
-#'       retirement, movement, and hiring policy parameters used, plus
-#'       \code{scenario_name} and \code{is_baseline} when supplied.}
+#'       retirement, movement, hiring, and allowance policy parameters used,
+#'       plus \code{scenario_name} and \code{is_baseline} when supplied.}
 #'     \item{\code{$pensioner_register}}{data.table. Accumulated ledger of all
 #'       retirees across all simulated periods, with columns \code{personnel_id},
 #'       \code{pension_amount}, and \code{period_date}.  Always present
@@ -840,6 +951,11 @@ simulate_scenario <- function(contract_dt,
 #'       Only present when \code{return_microdata = TRUE}.}
 #'     \item{\code{$personnel_dt}}{data.table. Final-period personnel snapshot.
 #'       Only present when \code{return_microdata = TRUE}.}
+#'     \item{\code{$allowance_dt}}{data.table. Full accumulated allowance
+#'       ledger across all simulated periods (one row per contract x
+#'       allowance_type x period). \code{NULL} when \code{allowance_policy}
+#'       was never used. Only present when \code{return_microdata = TRUE} --
+#'       unlike \code{pensioner_register}, this can get large.}
 #'   }
 #'
 #' @examples
@@ -933,8 +1049,10 @@ simulate_horizon <- function(contract_dt,
                              exit_policy        = NULL,
                              movement_policy    = NULL,
                              hiring_policy      = NULL,
+                             allowance_policy   = NULL,
                              salary_growth_rate = 0,
                              pension_cola_rate  = salary_growth_rate,
+                             allowance_growth_rate = 0,
                              base_year          = as.integer(format(Sys.Date(), "%Y")),
                              return_microdata   = FALSE,
                              ref_date           = Sys.Date(),
@@ -983,13 +1101,15 @@ simulate_horizon <- function(contract_dt,
                             day   = 1 / 365.25)
 
   # Expand scalar/vector rate parameters to per-period vectors
-  salary_growth_rate <- expand_rate_vector(salary_growth_rate, n_periods, "salary_growth_rate")
-  pension_cola_rate  <- expand_rate_vector(pension_cola_rate,  n_periods, "pension_cola_rate")
+  salary_growth_rate    <- expand_rate_vector(salary_growth_rate, n_periods, "salary_growth_rate")
+  pension_cola_rate     <- expand_rate_vector(pension_cola_rate,  n_periods, "pension_cola_rate")
+  allowance_growth_rate <- expand_rate_vector(allowance_growth_rate, n_periods, "allowance_growth_rate")
 
   # Convert annual rates to per-period compound equivalents when period != year
   if (period_unit != "year") {
-    salary_growth_rate <- (1 + salary_growth_rate)^period_fraction - 1
-    pension_cola_rate  <- (1 + pension_cola_rate)^period_fraction  - 1
+    salary_growth_rate    <- (1 + salary_growth_rate)^period_fraction    - 1
+    pension_cola_rate     <- (1 + pension_cola_rate)^period_fraction     - 1
+    allowance_growth_rate <- (1 + allowance_growth_rate)^period_fraction - 1
   }
 
   # Working copies
@@ -1024,7 +1144,7 @@ simulate_horizon <- function(contract_dt,
     ### if we have a panel compute the movement baseline rates for transfers and
     ### promotions
     if (has_panel) {
-      movement_policy$policy_table <- estimate_movement_baseline(
+      movement_policy$policy_table <- estimate_historical_movement_rates(
         contract_dt       = contract_dt,
         group_cols        = movement_policy$group_cols,
         personnel_id_col  = personnel_id_col,
@@ -1112,7 +1232,15 @@ simulate_horizon <- function(contract_dt,
     stop("salary_col '", salary_col, "' not found in contract_dt.", call. = FALSE)
   }
 
-  # Initialise pensioner register with expanded schema 
+  # Initialise the allowance ledger. Unlike pensioner_register, this is never
+  # accepted as a simulate_horizon() input -- it accumulates purely within
+  # this call and is returned in the output, matching the documented
+  # constraint that a register is never accepted back in (chaining across
+  # separate simulate_horizon() calls is the user's responsibility via
+  # rbindlist(), same as for pensioner_register).
+  allowance_dt <- NULL
+
+  # Initialise pensioner register with expanded schema
   pensioner_register <- data.table::data.table(
     personnel_id               = character(0),
     pension_amount             = numeric(0),   # COLA-adjusted each period
@@ -1269,11 +1397,32 @@ simulate_horizon <- function(contract_dt,
   contract_panel_list <- vector("list", n_periods)
   personnel_panel_list <- vector("list", n_periods)
 
+  # Real baseline allowance cost, before period 1 runs -- analogous to how
+  # wage_bill_start reflects the already-existing salaries in the input data,
+  # not zero. Used only as the fill value for period 1's allowance_cost_start
+  # below; the allowance_dt this produces is discarded (period 1's real
+  # ledger entry comes from the period loop's own step 5).
+  period0_allowance_cost <- 0
+  if (!is.null(allowance_policy)) {
+    alw0 <- simulate_allowances(
+      contract_dt   = contract_dt,
+      personnel_dt  = personnel_dt,
+      allowance_dt  = NULL,
+      policy_params = allowance_policy,
+      ref_date      = ref_date,
+      contract_type_col = contract_type_col,
+      personnel_id_col  = personnel_id_col,
+      contract_id_col   = contract_id_col
+    )
+    period0_allowance_cost <- alw0$summary$allowance_cost_total
+  }
+
   for (t in seq_len(n_periods)) {
 
-    growth      <- salary_growth_rate[t]
-    cola_rate   <- pension_cola_rate[t]
-    cur_date    <- .advance_period(ref_date, t - 1L, unit = period_unit)
+    growth        <- salary_growth_rate[t]
+    cola_rate     <- pension_cola_rate[t]
+    allow_growth  <- allowance_growth_rate[t]
+    cur_date      <- .advance_period(ref_date, t - 1L, unit = period_unit)
 
     scenario_result <- simulate_scenario(
       contract_dt             = contract_dt,
@@ -1285,8 +1434,11 @@ simulate_horizon <- function(contract_dt,
       exit_policy             = exit_policy,
       movement_policy         = movement_policy,
       hiring_policy           = hiring_policy,
+      allowance_policy        = allowance_policy,
+      allowance_dt            = allowance_dt,
       salary_growth_rate      = growth,
       pension_cola_rate       = cola_rate,
+      allowance_growth_rate   = allow_growth,
       personnel_id_col        = personnel_id_col,
       contract_id_col         = contract_id_col,
       birth_date_col          = birth_date_col,
@@ -1306,6 +1458,8 @@ simulate_horizon <- function(contract_dt,
     personnel_dt       <- scenario_result$personnel_dt
     salary_scale_dt    <- scenario_result$salary_scale_dt
     pensioner_register <- scenario_result$pensioner_register
+    allowance_dt        <- scenario_result$allowance_dt
+    allowance_policy     <- scenario_result$allowance_policy
 
     # Accumulate period snapshots for panel output
     if (return_microdata) {
@@ -1339,6 +1493,23 @@ simulate_horizon <- function(contract_dt,
     )]
   }
 
+  # Additive allowance/total-wage-bill columns. allowance_cost_start is last
+  # period's allowance_cost_end for periods 2+ (nothing touches allowance_dt
+  # between periods except this same pipeline, so this is exactly what was
+  # actually last assigned -- NOT the same as independently re-resolving
+  # against the already-COLA-grown scale, which would double-count next
+  # period's own growth before its assignment step has even run). Period 1
+  # has no prior simulated period, so it falls back to period0_allowance_cost
+  # -- the real baseline resolved against the original starting population,
+  # mirroring how wage_bill_start reflects real pre-existing salaries rather
+  # than zero. wage_bill_start/end and .active_wage_bill() are untouched, so
+  # total_wage_bill is purely additive on top of them.
+  summary_dt[, allowance_cost_start := data.table::shift(
+    allowance_cost_end, n = 1L, fill = period0_allowance_cost
+  )]
+  summary_dt[, total_wage_bill_start := wage_bill_start + allowance_cost_start]
+  summary_dt[, total_wage_bill_end   := wage_bill_end   + allowance_cost_end]
+
   # ------------------------------------------------------------------
   # Stamp scenario identity columns when scenario_name is supplied.
   # scenario_id and scenario_label carry the same value by default;
@@ -1367,6 +1538,7 @@ simulate_horizon <- function(contract_dt,
     retirement_policy  = retirement_policy,
     movement_policy    = movement_policy,
     hiring_policy      = hiring_policy,
+    allowance_policy   = allowance_policy,
     salary_growth_rate = salary_growth_rate_input,
     n_periods          = n_periods,
     ref_date           = ref_date
@@ -1392,6 +1564,12 @@ simulate_horizon <- function(contract_dt,
   out$personnel_dt <- data.table::rbindlist(
     personnel_panel_list, use.names = TRUE, fill = TRUE
   )
+  # allowance_dt is already the full accumulated ledger (built incrementally
+  # each period by update_allowance_register()), not a list of snapshots --
+  # no rbindlist needed. NULL when allowance_policy was never used. Gated
+  # behind return_microdata (unlike pensioner_register) since it's one row
+  # per contract x allowance_type x period and can get large.
+  out$allowance_dt <- allowance_dt
 }
 
   return(out)

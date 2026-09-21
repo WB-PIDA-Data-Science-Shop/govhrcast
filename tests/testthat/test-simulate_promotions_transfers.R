@@ -187,7 +187,7 @@ test_that("simulate_promotions_transfers: no policy_table, panel with zero obser
 test_that("simulate_promotions_transfers: no policy_table + panel with real transitions uses the estimated baseline, not the flat rate", {
   # Regression test: policy_table = NULL with >= 2 panel snapshots must
   # drive movement demand from the empirically estimated baseline
-  # (estimate_movement_baseline()), not silently fall back to a flat
+  # (estimate_historical_movement_rates()), not silently fall back to a flat
   # defaults$movement_rate. make_full_panel() has two observed transitions
   # (P1: G1->G2, P6: G2->G1), so movement_rate = 0 should NOT suppress them.
   set.seed(1)

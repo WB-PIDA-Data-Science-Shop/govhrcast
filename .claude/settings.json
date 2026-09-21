@@ -17,7 +17,17 @@
       "Bash(tasklist)",
       "Bash(rm -rf \"/c/Users/wb559885/github/govhrcast/spielplatz/workingissues/.quarto\" *)",
       "Bash(quarto render *)",
-      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'devtools::load_all\\(quiet = TRUE\\); cat\\(\"LOADED OK\\\\n\"\\)')"
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'devtools::load_all\\(quiet = TRUE\\); cat\\(\"LOADED OK\\\\n\"\\)')",
+      "Bash(grep -rl 'R\\\\$\\\\|read\\\\.csv\\\\|fread\\\\|readxl\\\\|read_excel' \"/c/Users/wb559885/github/govhrcast/data-raw/\")",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" \"/c/Users/wb559885/AppData/Local/Temp/claude/c--Users-wb559885-github-govhrcast/80e3b4fd-881c-4073-81df-7f30833be8dc/scratchpad/check_currency.R\")",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'cat\\(requireNamespace\\(\"govhr\", quietly = TRUE\\), \"\\\\n\"\\); if \\(requireNamespace\\(\"govhr\", quietly = TRUE\\)\\) cat\\(as.character\\(packageVersion\\(\"govhr\"\\)\\), \"\\\\n\"\\)')",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" data-raw/prep_allowance_module.R)",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" \"/c/Users/wb559885/AppData/Local/Temp/claude/c--Users-wb559885-github-govhrcast/80e3b4fd-881c-4073-81df-7f30833be8dc/scratchpad/verify_clean.R\")",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'devtools::document\\(\\)')",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'devtools::test\\(\\)')",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" -e 'devtools::check\\(quiet = FALSE\\)')",
+      "Bash(awk -F: '$1 > 939 && $1 < 1100')",
+      "Bash(\"/c/Program Files/R/R-4.6.1/bin/x64/Rscript.exe\" \"/c/Users/wb559885/AppData/Local/Temp/claude/c--Users-wb559885-github-govhrcast/80e3b4fd-881c-4073-81df-7f30833be8dc/scratchpad/selfcheck_allowance.R\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\wb559885\\.claude",

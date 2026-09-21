@@ -16,8 +16,10 @@ simulate_horizon(
   exit_policy = NULL,
   movement_policy = NULL,
   hiring_policy = NULL,
+  allowance_policy = NULL,
   salary_growth_rate = 0,
   pension_cola_rate = salary_growth_rate,
+  allowance_growth_rate = 0,
   base_year = as.integer(format(Sys.Date(), "\%Y")),
   return_microdata = FALSE,
   ref_date = Sys.Date(),
@@ -83,7 +85,7 @@ to \code{simulate_promotions_transfers()}:
 \item{\code{group_cols}}{Character vector or \code{NULL}. State-defining
 columns (e.g. \code{"paygrade"}).}
 \item{\code{policy_table}}{data.table or \code{NULL}. Pre-computed
-transition matrix (output of \code{estimate_movement_baseline()}).}
+transition matrix (output of \code{estimate_historical_movement_rates()}).}
 \item{\code{defaults}}{Named list. Keys: \code{movement_rate} (required
 when \code{policy_table = NULL}), \code{movement_strategy}
 (\code{"random"}, \code{"tenure"}, \code{"reverse_tenure"},
@@ -103,6 +105,22 @@ For \code{mode = "status_quo"}: also \code{group_cols} and optionally
 automatically -- you do \emph{not} need to supply them.
 Pass \code{NULL} to skip hiring in all periods.}
 
+\item{allowance_policy}{List or \code{NULL}. Policy parameters passed to
+\code{simulate_allowances()} each period -- see
+\code{\link{resolve_allowance_amounts}} for the expected shape. Default
+\code{NULL} skips allowance modeling entirely. Unlike
+\code{pensioner_register}, the accumulated allowance ledger is
+\emph{not} accepted as an input here -- it starts fresh each call and is
+returned in \code{$allowance_dt} (gated behind \code{return_microdata}).
+To chain allowance history across separate \code{simulate_horizon()}
+calls, combine the returned ledgers yourself via
+\code{data.table::rbindlist()}, the same way you already do for
+\code{pensioner_register}. \strong{If active, \code{salary_col} should
+represent base compensation only} (e.g. \code{base_salary_lcu}), not a
+gross figure that already folds in old lump-sum allowances -- see
+\code{\link{simulate_allowances}}'s Details for why this matters for
+\code{total_wage_bill_end}.}
+
 \item{salary_growth_rate}{Numeric scalar or vector of length \code{n_periods}.
 Annual COLA / inflation rate applied to salaries and the pay scale.
 Default \code{0} (no inflation).}
@@ -111,6 +129,14 @@ Default \code{0} (no inflation).}
 Annual COLA rate applied to \code{pensioner_register$pension_amount} each
 period.  Defaults to \code{salary_growth_rate} (same rate for both groups).
 Accepts either a scalar or a length-\code{n_periods} vector.}
+
+\item{allowance_growth_rate}{Numeric scalar or vector of length
+\code{n_periods}. COLA-style growth rate applied to
+\code{allowance_policy$policy_table}'s \code{amount} column each period.
+Default \code{0}. A contract whose \code{group_cols} don't change
+between periods sees its allowance grow at exactly this rate; a mover
+picks up their new group's current (already-grown) amount instead of a
+stale one -- see \code{\link{simulate_scenario}}'s allowance step.}
 
 \item{base_year}{Integer. Calendar year label for period 0 (default:
 \code{as.integer(format(Sys.Date(), "\%Y"))}).}
@@ -201,14 +227,30 @@ An object of class \code{horizon} with two primary components:
 \code{promotion_effect_pct_of_end_bill},
 \code{transfer_effect_pct_of_end_bill},
 \code{hiring_effect_pct_of_end_bill},
-\code{inflation_effect_pct_of_end_bill}.
+\code{inflation_effect_pct_of_end_bill},
+\code{allowance_cost_start}, \code{allowance_cost_end} (both
+\code{0} when \code{allowance_policy} is \code{NULL}),
+\code{total_wage_bill_start} (= \code{wage_bill_start +
+      allowance_cost_start}), \code{total_wage_bill_end} (= \code{wage_bill_end
+      + allowance_cost_end}).  \code{wage_bill_start}/\code{wage_bill_end}
+and \code{.active_wage_bill()} are unchanged by allowance modeling --
+the wage-bill invariant (pensioner costs excluded) is preserved, and
+\code{total_wage_bill_*} is purely additive on top of it.
+\code{allowance_cost_start} for period 1 is the real baseline
+allowance cost resolved against the original starting population
+(mirroring how \code{wage_bill_start} reflects real pre-existing
+salaries, not zero); for later periods it is the previous period's
+\code{allowance_cost_end} -- what was actually last assigned, not a
+fresh resolution against the already-COLA-grown scale (which would
+double-count next period's own growth before that period's
+assignment step has run).
 When \code{scenario_name} is supplied, also includes
 \code{scenario_id}, \code{scenario_label}, and (when
 \code{is_baseline = TRUE}) \code{is_baseline}.}
 \item{\code{$summary_dt}}{Same as \code{$comparison} (backward-compatible alias).}
 \item{\code{$metadata}}{Named list with \code{policy_args} capturing the
-retirement, movement, and hiring policy parameters used, plus
-\code{scenario_name} and \code{is_baseline} when supplied.}
+retirement, movement, hiring, and allowance policy parameters used,
+plus \code{scenario_name} and \code{is_baseline} when supplied.}
 \item{\code{$pensioner_register}}{data.table. Accumulated ledger of all
 retirees across all simulated periods, with columns \code{personnel_id},
 \code{pension_amount}, and \code{period_date}.  Always present
@@ -217,6 +259,11 @@ retirees across all simulated periods, with columns \code{personnel_id},
 Only present when \code{return_microdata = TRUE}.}
 \item{\code{$personnel_dt}}{data.table. Final-period personnel snapshot.
 Only present when \code{return_microdata = TRUE}.}
+\item{\code{$allowance_dt}}{data.table. Full accumulated allowance
+ledger across all simulated periods (one row per contract x
+allowance_type x period). \code{NULL} when \code{allowance_policy}
+was never used. Only present when \code{return_microdata = TRUE} --
+unlike \code{pensioner_register}, this can get large.}
 }
 }
 \description{

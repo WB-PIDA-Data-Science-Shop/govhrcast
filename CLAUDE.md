@@ -96,6 +96,13 @@ auditing.
 5. **Wiki.** Update the relevant GitHub wiki page(s) last. Check
    `Doc-Impact-Map.md` for which wiki pages a given source file maps to.
 
+For a feature large enough to be split into multiple Propose→Implement→Test→
+Document cycles (e.g. a new module built and tested standalone first, then
+wired into `simulate_scenario()`/`simulate_horizon()` as a separate cycle),
+repeat steps 1–4 for each stage, but hold Wiki until every stage lands. A
+wiki page describing only part of a feature's architecture is worse than no
+page yet, and will likely need rewriting once the rest is in.
+
 ## Architecture
 
 ### The four-module simulation pipeline

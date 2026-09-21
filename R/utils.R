@@ -1009,7 +1009,7 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #'     \code{estimate_historical_exit_rates()}.  Falls back to a 5\%
 #'     annual rate with a warning when fewer than two snapshots are present.}
 #'   \item{\code{movement}}{Grade/group transition probabilities estimated
-#'     from the panel via \code{estimate_movement_baseline()}.  Requires
+#'     from the panel via \code{estimate_historical_movement_rates()}.  Requires
 #'     \code{movement_group_cols} to be specified (see argument).  Falls back
 #'     to a 5\% flat movement rate with a warning when the panel is
 #'     insufficient.}
@@ -1165,7 +1165,7 @@ make_status_quo_policies <- function(contract_dt,
   # ------------------------------------------------------------------
   if (!is.null(movement_group_cols) && has_panel) {
     mov_baseline <- tryCatch(
-      estimate_movement_baseline(
+      estimate_historical_movement_rates(
         contract_dt       = contract_dt,
         group_cols        = movement_group_cols,
         personnel_id_col  = personnel_id_col,

@@ -69,7 +69,7 @@ A \code{data.table} containing the transition baseline. Must have columns
 the \code{||}-concatenated values of \code{group_cols} (e.g.
 \code{"SECRETARIA||Grade A"}).
 
-Pass the output of \code{\link[=estimate_movement_baseline]{estimate_movement_baseline()}} for status quo
+Pass the output of \code{\link[=estimate_historical_movement_rates]{estimate_historical_movement_rates()}} for status quo
 projections, or supply a custom matrix for reform scenarios.
 
 Use \code{NULL} to trigger automatic estimation from panel data (requires
@@ -163,7 +163,7 @@ Returns an empty \code{data.table} when no movements occur.
 \item \strong{baseline_matrix}
 
 The transition baseline used for the simulation — either the estimated
-matrix from \code{\link[=estimate_movement_baseline]{estimate_movement_baseline()}} or the user-supplied
+matrix from \code{\link[=estimate_historical_movement_rates]{estimate_historical_movement_rates()}} or the user-supplied
 \code{policy_table}. Empty \code{data.table} when the flat scalar rate path
 was used.
 \item \strong{demand_dt}
@@ -232,7 +232,7 @@ The transition baseline is a \verb{from_group → to_group} matrix of movement
 rates. Two paths are available:
 
 \strong{Empirical estimation} (\code{policy_table = NULL}, panel data supplied):
-\code{\link[=estimate_movement_baseline]{estimate_movement_baseline()}} processes consecutive snapshot pairs
+\code{\link[=estimate_historical_movement_rates]{estimate_historical_movement_rates()}} processes consecutive snapshot pairs
 (T0→T1, T1→T2, …), counts observed transitions per pair, and averages
 across all pairs to produce \code{avg_prob} per \verb{from_group → to_group} cell.
 Only actual transitions (\verb{from_group ≠ to_group}) are retained. Groups
@@ -395,7 +395,7 @@ head(results$movers_dt)
 ## promotion probabilities for a targeted reform scenario.
 ############################################################
 
-baseline <- estimate_movement_baseline(
+baseline <- estimate_historical_movement_rates(
   contract_dt       = contract_dt,
   group_cols        = c("est_id", "paygrade"),
   personnel_id_col  = "personnel_id",
@@ -586,7 +586,7 @@ all(check$salary_before == check$gross_salary_cpi)  # should be TRUE
 \seealso{
 \code{\link[=simulate_horizon]{simulate_horizon()}} for multi-period workforce simulations.
 
-\code{\link[=estimate_movement_baseline]{estimate_movement_baseline()}} for estimating empirical transition
+\code{\link[=estimate_historical_movement_rates]{estimate_historical_movement_rates()}} for estimating empirical transition
 probabilities from panel data to supply as \code{policy_table}.
 
 \code{\link[=compute_movement_demand]{compute_movement_demand()}} for the demand calculation when a transition

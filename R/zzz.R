@@ -69,13 +69,22 @@ utils::globalVariables(c(
   "scenario",
   "scenario_id",
   "scenario_label",
+  "wage_bill_start",
   "wage_bill_end",
+  "allowance_cost_start",
+  "allowance_cost_end",
+  "total_wage_bill_start",
+  "total_wage_bill_end",
   "age_at_ret",
   "age_at_retirement",
   "i.age_at_ret",
   "pension_amount",
   "salary",
   "custom_eligible",
-  "eligibility_rule"
+  "eligibility_rule",
+  # --- allowances ---
+  "allowance_type",
+  "amount",
+  "total_allowance_multiplier"
 
 ))

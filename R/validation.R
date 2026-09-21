@@ -1059,6 +1059,85 @@ check_movement_inputs <- function(
 }
 
 
+#' Validate Inputs for Allowance Simulation
+#'
+#' @description
+#' Composite validator for \code{\link{simulate_allowances}}, following the
+#' same pattern as \code{\link{check_retirement_inputs}} /
+#' \code{\link{check_hiring_inputs}} / \code{\link{check_movement_inputs}}.
+#' Not called when \code{policy_params} is \code{NULL} -- that short-circuits
+#' to a no-op before validation.
+#'
+#' @param contract_dt data.table. Current-period contract snapshot.
+#' @param personnel_dt data.table. Current-period personnel snapshot.
+#' @param policy_params List. See \code{\link{resolve_allowance_amounts}} for
+#'   the expected shape.
+#' @param ref_date Date. The reference date for this period -- matches
+#'   \code{check_retirement_inputs()}'s own parameter name.
+#' @param contract_type_col Character. Default \code{"contract_type"}.
+#' @param personnel_id_col Character. Default \code{"personnel_id"}.
+#' @param contract_id_col Character. Default \code{"contract_id"}.
+#'
+#' @return Invisible \code{TRUE} if valid; stops with an informative error
+#'   otherwise.
+#' @keywords internal
+check_allowance_inputs <- function(contract_dt,
+                                   personnel_dt,
+                                   policy_params,
+                                   ref_date,
+                                   contract_type_col = "contract_type",
+                                   personnel_id_col  = "personnel_id",
+                                   contract_id_col   = "contract_id") {
+
+  validate_datatable(contract_dt, "contract_dt")
+  validate_datatable(personnel_dt, "personnel_dt")
+  validate_date_format(ref_date, "ref_date")
+  validate_columns_exist(
+    contract_dt, c(contract_id_col, personnel_id_col, contract_type_col), "contract_dt"
+  )
+
+  validate_policy_table(policy_params)
+
+  if (is.null(policy_params$defaults$amount)) {
+    stop("check_allowance_inputs: policy_params$defaults must contain 'amount' ",
+         "(the fallback allowance amount for unmatched groups).", call. = FALSE)
+  }
+
+  if (!is.null(policy_params$group_cols) &&
+      "allowance_type" %in% policy_params$group_cols &&
+      !"allowance_type" %in% names(policy_params$policy_table)) {
+    stop("check_allowance_inputs: policy_params$group_cols includes ",
+         "'allowance_type' but policy_table has no 'allowance_type' column.",
+         call. = FALSE)
+  }
+
+  if (!is.null(policy_params$policy_table) &&
+      !"amount" %in% names(policy_params$policy_table)) {
+    stop("check_allowance_inputs: policy_table must contain an 'amount' column.",
+         call. = FALSE)
+  }
+
+  # Multiplier slot: same NULL/NULL consistency rule as the main 3-slot pattern
+  mgc <- policy_params$multiplier_group_cols
+  mpt <- policy_params$multiplier_policy_table
+  if (!is.null(mgc) && is.null(mpt)) {
+    stop("check_allowance_inputs: multiplier_group_cols supplied but ",
+         "multiplier_policy_table is NULL.", call. = FALSE)
+  }
+  if (!is.null(mgc) && "allowance_type" %in% mgc) {
+    stop("check_allowance_inputs: multiplier_group_cols must not include ",
+         "'allowance_type' -- the multiplier is resolved per contract, ",
+         "not per type.", call. = FALSE)
+  }
+  if (!is.null(mpt) && !"total_allowance_multiplier" %in% names(mpt)) {
+    stop("check_allowance_inputs: multiplier_policy_table must contain a ",
+         "'total_allowance_multiplier' column.", call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
+
 ## custom retirement eligibility validation
 
 .ALLOWED_RULE_CALLS <- c(

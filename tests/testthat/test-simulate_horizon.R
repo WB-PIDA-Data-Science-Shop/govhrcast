@@ -241,7 +241,8 @@ test_that("simulate_scenario: returns a list with required named elements", {
   expect_true(is.list(r))
   expect_setequal(
     names(r),
-    c("summary", "contract_dt", "personnel_dt", "salary_scale_dt", "pensioner_register")
+    c("summary", "contract_dt", "personnel_dt", "salary_scale_dt", "pensioner_register",
+      "allowance_dt", "allowance_policy")
   )
 })
 
@@ -2041,5 +2042,171 @@ test_that("Block F: wage_bill_end accounting identity holds with exits + COLA", 
   rhs <- dt$wage_bill_start - dt$exit_savings + dt$hiring_effect +
          dt$promotion_effect + dt$transfer_effect + dt$inflation_effect
   expect_equal(dt$wage_bill_end, rhs, tolerance = 1)
+})
+
+
+# =============================================================================
+# Block G -- allowance module integration (simulate_scenario()/simulate_horizon())
+# =============================================================================
+
+make_allowance_scale <- function() {
+  data.table::data.table(
+    est_id         = c("E1", "E1", "E2", "E2"),
+    allowance_type = c("hazard", "transport", "hazard", "transport"),
+    amount         = c(100, 20, 5, 5)
+  )
+}
+
+test_that("Block G: allowance_policy = NULL leaves existing wage_bill columns untouched and adds zeroed allowance columns", {
+  s <- make_horizon_state()
+  res <- simulate_horizon(
+    contract_dt        = s$contract_dt,
+    personnel_dt       = s$personnel_dt,
+    salary_scale_dt    = make_salary_scale(),
+    n_periods          = 3L,
+    retirement_policy  = null_retirement_policy,
+    salary_growth_rate = 0.02,
+    ref_date           = as.Date("2020-01-01")
+  )
+  dt <- res$comparison
+  expect_true(all(c("allowance_cost_start", "allowance_cost_end",
+                    "total_wage_bill_start", "total_wage_bill_end") %in% names(dt)))
+  expect_true(all(dt$allowance_cost_start == 0))
+  expect_true(all(dt$allowance_cost_end == 0))
+  expect_equal(dt$total_wage_bill_start, dt$wage_bill_start)
+  expect_equal(dt$total_wage_bill_end, dt$wage_bill_end)
+})
+
+test_that("Block G: existing summary columns are byte-for-byte identical with allowance_policy NULL vs omitted", {
+  s <- make_horizon_state()
+  args <- list(
+    contract_dt = s$contract_dt, personnel_dt = s$personnel_dt,
+    salary_scale_dt = make_salary_scale(), n_periods = 3L,
+    retirement_policy = null_retirement_policy, salary_growth_rate = 0.02,
+    ref_date = as.Date("2020-01-01")
+  )
+  before <- do.call(simulate_horizon, args)
+  after  <- do.call(simulate_horizon, c(args, list(allowance_policy = NULL)))
+  shared_cols <- intersect(names(before$comparison), names(after$comparison))
+  expect_equal(before$comparison[, ..shared_cols], after$comparison[, ..shared_cols])
+})
+
+test_that("Block G: total_wage_bill reconciles against wage_bill + allowance_cost every period", {
+  s <- make_horizon_state()
+  allowance_policy <- list(
+    group_cols = c("est_id", "allowance_type"), policy_table = make_allowance_scale(),
+    defaults = list(amount = 0)
+  )
+  res <- simulate_horizon(
+    contract_dt        = s$contract_dt,
+    personnel_dt       = s$personnel_dt,
+    salary_scale_dt    = make_salary_scale(),
+    n_periods          = 3L,
+    retirement_policy  = null_retirement_policy,
+    salary_growth_rate = 0.02,
+    allowance_policy   = allowance_policy,
+    allowance_growth_rate = 0.03,
+    ref_date           = as.Date("2020-01-01")
+  )
+  dt <- res$comparison
+  expect_equal(dt$total_wage_bill_start, dt$wage_bill_start + dt$allowance_cost_start)
+  expect_equal(dt$total_wage_bill_end, dt$wage_bill_end + dt$allowance_cost_end)
+})
+
+test_that("Block G: allowance_cost_start[1] is the real baseline, not zero; later periods thread from allowance_cost_end", {
+  s <- make_horizon_state()  # 4 contracts: 2 in E1, 2 in E2
+  allowance_policy <- list(
+    group_cols = c("est_id", "allowance_type"), policy_table = make_allowance_scale(),
+    defaults = list(amount = 0)
+  )
+  res <- simulate_horizon(
+    contract_dt        = s$contract_dt,
+    personnel_dt       = s$personnel_dt,
+    salary_scale_dt    = make_salary_scale(),
+    n_periods          = 4L,
+    retirement_policy  = null_retirement_policy,
+    allowance_policy   = allowance_policy,
+    ref_date           = as.Date("2020-01-01")
+  )
+  dt <- res$comparison
+
+  # Hand-calculated baseline: 2 contracts x (E1: hazard 100 + transport 20)
+  # + 2 contracts x (E2: hazard 5 + transport 5) = 260. Must NOT be zero --
+  # this is what people are already receiving before period 1 even runs,
+  # exactly as wage_bill_start reflects real pre-existing salaries.
+  expected_baseline <- 2 * (100 + 20) + 2 * (5 + 5)
+  expect_equal(dt$allowance_cost_start[1], expected_baseline)
+  expect_true(dt$allowance_cost_start[1] > 0)
+
+  # Periods 2+ inherit exactly what was actually last assigned.
+  expect_equal(dt$allowance_cost_start[-1], dt$allowance_cost_end[-nrow(dt)])
+})
+
+test_that("Block G: allowance_cost_start does NOT double-count next period's own COLA growth", {
+  s <- make_horizon_state()
+  allowance_policy <- list(
+    group_cols = c("est_id", "allowance_type"), policy_table = make_allowance_scale(),
+    defaults = list(amount = 0)
+  )
+  res <- simulate_horizon(
+    contract_dt        = s$contract_dt,
+    personnel_dt       = s$personnel_dt,
+    salary_scale_dt    = make_salary_scale(),
+    n_periods          = 3L,
+    retirement_policy  = null_retirement_policy,
+    allowance_policy   = allowance_policy,
+    allowance_growth_rate = 0.05,
+    ref_date           = as.Date("2020-01-01")
+  )
+  dt <- res$comparison
+  # allowance_cost_start[2] must equal allowance_cost_end[1] EXACTLY -- if it
+  # were instead re-resolved against the already-grown scale, it would be
+  # allowance_cost_end[1] * 1.05, which nobody was actually ever paid.
+  expect_equal(dt$allowance_cost_start[2], dt$allowance_cost_end[1])
+  expect_false(isTRUE(all.equal(dt$allowance_cost_start[2], dt$allowance_cost_end[1] * 1.05)))
+})
+
+test_that("Block G: a contract that never changes group grows its allowance at allowance_growth_rate", {
+  s <- make_horizon_state(n = 2L)  # 2 contracts, no movement/hiring/retirement policy supplied
+  allowance_policy <- list(
+    group_cols = c("est_id", "allowance_type"), policy_table = make_allowance_scale(),
+    defaults = list(amount = 0)
+  )
+  res <- simulate_horizon(
+    contract_dt        = s$contract_dt,
+    personnel_dt       = s$personnel_dt,
+    salary_scale_dt    = make_salary_scale(),
+    n_periods          = 3L,
+    retirement_policy  = null_retirement_policy,
+    allowance_policy   = allowance_policy,
+    allowance_growth_rate = 0.10,
+    ref_date           = as.Date("2020-01-01"),
+    return_microdata   = TRUE
+  )
+  led <- res$allowance_dt[contract_id == "C1" & allowance_type == "hazard"][order(period_date)]
+  expect_equal(nrow(led), 3L)
+  expect_equal(led$amount, 100 * 1.10^(0:2))
+})
+
+test_that("Block G: allowance_dt is gated behind return_microdata", {
+  s <- make_horizon_state()
+  allowance_policy <- list(
+    group_cols = c("est_id", "allowance_type"), policy_table = make_allowance_scale(),
+    defaults = list(amount = 0)
+  )
+  res_no_micro <- simulate_horizon(
+    contract_dt = s$contract_dt, personnel_dt = s$personnel_dt,
+    salary_scale_dt = make_salary_scale(), n_periods = 2L,
+    retirement_policy = null_retirement_policy, allowance_policy = allowance_policy,
+    ref_date = as.Date("2020-01-01"), return_microdata = FALSE
+  )
+  res_micro <- simulate_horizon(
+    contract_dt = s$contract_dt, personnel_dt = s$personnel_dt,
+    salary_scale_dt = make_salary_scale(), n_periods = 2L,
+    retirement_policy = null_retirement_policy, allowance_policy = allowance_policy,
+    ref_date = as.Date("2020-01-01"), return_microdata = TRUE
+  )
+  expect_null(res_no_micro$allowance_dt)
+  expect_true(nrow(res_micro$allowance_dt) > 0L)
 })
 

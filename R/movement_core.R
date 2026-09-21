@@ -13,7 +13,7 @@ NULL
 
 # Suppress R CMD check NOTEs for data.table column names.
 utils::globalVariables(c(
-  "t0_date",       # estimate_movement_baseline: grouping column added by := then used in by=
+  "t0_date",       # estimate_historical_movement_rates: grouping column added by := then used in by=
   "movement_rate",  # compute_movement_demand: column used in := and by= expressions
   "n_dest",         # compute_fixed_rate_movements: bare column name in data.table
   "rate_per_dest"   # compute_fixed_rate_movements: bare column name in data.table
@@ -150,12 +150,12 @@ compute_time_in_grade <- function(contract_dt,
 
 # ---------------------------------------------------------------------------
 # Internal: process one consecutive snapshot pair for the movement baseline.
-# Called by roll_snapshot_pairs() inside estimate_movement_baseline().
+# Called by roll_snapshot_pairs() inside estimate_historical_movement_rates().
 #
 # @param snap_t0  data.table subset at time T0 (one snapshot).
 # @param snap_t1  data.table subset at time T1 (next snapshot).
 # @param group_cols,personnel_id_col,start_date_col,end_date_col,
-#        contract_type_col  Same semantics as estimate_movement_baseline().
+#        contract_type_col  Same semantics as estimate_historical_movement_rates().
 #
 # @return data.table with columns from_group, to_group, n_moves, n_pop,
 #         period_prob, t0_date; or NULL when either snapshot is empty.
@@ -254,7 +254,7 @@ compute_time_in_grade <- function(contract_dt,
 #'     \item{n_periods}{Integer. Number of periods used for estimation}
 #'   }
 #' @keywords internal
-estimate_movement_baseline <- function(contract_dt,
+estimate_historical_movement_rates <- function(contract_dt,
                                        group_cols,
                                        personnel_id_col = "personnel_id",
                                        ref_date_col = "ref_date",
@@ -353,7 +353,7 @@ estimate_movement_baseline <- function(contract_dt,
 #'
 #' @param contract_dt data.table. Current (single-snapshot) contract data
 #' @param personnel_dt data.table. Current personnel data
-#' @param baseline_matrix data.table. Output of \code{estimate_movement_baseline()}.
+#' @param baseline_matrix data.table. Output of \code{estimate_historical_movement_rates()}.
 #'   Must have columns: from_group, to_group, avg_prob
 #' @param policy_params List. Must contain:
 #'   \describe{
@@ -521,7 +521,7 @@ compute_movement_demand <- function(contract_dt,
 #'
 #' @param movers_dt data.table. Output of \code{identify_movers()}
 #' @param demand_dt data.table. Output of \code{compute_movement_demand()}
-#' @param baseline_matrix data.table. Output of \code{estimate_movement_baseline()}
+#' @param baseline_matrix data.table. Output of \code{estimate_historical_movement_rates()}
 #' @param stock_before Integer. Total active headcount before movements
 #' @param stock_after Integer. Total active headcount after movements
 #'

@@ -23,7 +23,7 @@ compute_movement_demand(
 
 \item{personnel_dt}{data.table. Current personnel data}
 
-\item{baseline_matrix}{data.table. Output of \code{estimate_movement_baseline()}.
+\item{baseline_matrix}{data.table. Output of \code{estimate_historical_movement_rates()}.
 Must have columns: from_group, to_group, avg_prob}
 
 \item{policy_params}{List. Must contain:

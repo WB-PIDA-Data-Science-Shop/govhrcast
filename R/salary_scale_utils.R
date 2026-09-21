@@ -27,11 +27,14 @@ NULL
 #'
 #' Behaviour:
 #' \itemize{
-#'   \item Scalar \code{adjustment} (e.g. \code{1.05}) -- every entry is
-#'     multiplied by the same factor.
-#'   \item Named numeric vector -- matched against
-#'     \code{salary_scale_dt[[key_col]]}; unmatched entries receive multiplier
-#'     \code{1.0} (unchanged) and a warning is issued.
+#'   \item Scalar \code{adjustment} (e.g. \code{1.05}, \strong{unnamed}) --
+#'     every entry is multiplied by the same factor.
+#'   \item Named numeric vector, \strong{of any length including one}
+#'     (e.g. \code{c(hazard = 1.20)} to adjust a single key) -- matched
+#'     against \code{salary_scale_dt[[key_col]]}; unmatched entries receive
+#'     multiplier \code{1.0} (unchanged) and a warning is issued. Dispatch is
+#'     based on whether \code{adjustment} is named, not its length -- a
+#'     single named value is not treated as a scalar.
 #'   \item Zero or negative multipliers raise an error.
 #'   \item Multipliers outside the range \code{(0.9, 1.2)} trigger a warning
 #'     (likely user error -- the limits are not enforced).
@@ -40,9 +43,10 @@ NULL
 #' @param salary_scale_dt data.table.  The salary scale to adjust.  Must
 #'   contain \code{salary_col}.  Modified \strong{in a copy} -- the caller's
 #'   object is not changed.
-#' @param adjustment Numeric.  Scalar multiplier or named numeric vector where
-#'   \code{names(adjustment)} match values in
-#'   \code{salary_scale_dt[[key_col]]}.
+#' @param adjustment Numeric.  An \strong{unnamed} single value applies to
+#'   every row uniformly.  A \strong{named} vector -- even a single named
+#'   value, e.g. \code{c(hazard = 1.20)} -- is matched by name against
+#'   \code{salary_scale_dt[[key_col]]}; only matching rows are adjusted.
 #' @param salary_col Character.  Name of the salary column to update.
 #'   Default \code{"gross_salary_lcu"}.
 #' @param key_col Character or \code{NULL}.  Column whose values are matched
@@ -103,13 +107,19 @@ apply_salary_scale_adjustment <- function(salary_scale_dt,
   # Work on a copy -- don't modify the caller's object
   out <- data.table::copy(salary_scale_dt)
 
-  if (length(adjustment) == 1L) {
-    # Scalar adjustment: apply uniformly
+  if (is.null(names(adjustment))) {
+    # True scalar (unnamed, any length -- but validated to length 1 below):
+    # apply uniformly. Checking names() rather than length() matters because
+    # a *named* single-element vector (e.g. c(G2 = 1.5)) must still be routed
+    # to the key_col-matching path below, not treated as a uniform scalar.
+    if (length(adjustment) != 1L)
+      stop("adjustment must be a single unnamed scalar, or a named vector.",
+           call. = FALSE)
     out[, (salary_col) := get(salary_col) * adjustment]
     return(out)
   }
 
-  # Named vector adjustment
+  # Named vector adjustment (one or more elements)
   if (is.null(key_col))
     stop(
       "key_col must be specified when adjustment is a named vector.",

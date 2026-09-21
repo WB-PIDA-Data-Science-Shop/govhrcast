@@ -1,11 +1,11 @@
-test_that("estimate_movement_baseline requires data.table", {
+test_that("estimate_historical_movement_rates requires data.table", {
   expect_error(
-    estimate_movement_baseline(list(), group_cols = "paygrade"),
+    estimate_historical_movement_rates(list(), group_cols = "paygrade"),
     "data.table"
   )
 })
 
-test_that("estimate_movement_baseline requires at least 2 snapshots", {
+test_that("estimate_historical_movement_rates requires at least 2 snapshots", {
   ct <- data.table::data.table(
     ref_date          = as.Date("2016-01-01"),
     personnel_id      = c("P1", "P2"),
@@ -15,12 +15,12 @@ test_that("estimate_movement_baseline requires at least 2 snapshots", {
     contract_type = "permanent"
   )
   expect_error(
-    estimate_movement_baseline(ct, group_cols = "paygrade"),
+    estimate_historical_movement_rates(ct, group_cols = "paygrade"),
     "2 panel snapshots"
   )
 })
 
-test_that("estimate_movement_baseline requires group_cols", {
+test_that("estimate_historical_movement_rates requires group_cols", {
   ct <- data.table::data.table(
     ref_date = as.Date(c("2015-01-01", "2016-01-01")),
     personnel_id = c("P1", "P1"),
@@ -29,7 +29,7 @@ test_that("estimate_movement_baseline requires group_cols", {
     contract_type = "permanent"
   )
   expect_error(
-    estimate_movement_baseline(ct, group_cols = NULL),
+    estimate_historical_movement_rates(ct, group_cols = NULL),
     "group_cols"
   )
 })
@@ -53,14 +53,14 @@ make_panel <- function() {
   )
 }
 
-test_that("estimate_movement_baseline returns correct columns", {
-  bm <- estimate_movement_baseline(make_panel(), group_cols = "paygrade")
+test_that("estimate_historical_movement_rates returns correct columns", {
+  bm <- estimate_historical_movement_rates(make_panel(), group_cols = "paygrade")
   expect_true(data.table::is.data.table(bm))
   expect_true(all(c("from_group", "to_group", "movement_rate", "n_periods") %in% names(bm)))
 })
 
-test_that("estimate_movement_baseline computes correct avg_prob", {
-  bm <- estimate_movement_baseline(make_panel(), group_cols = "paygrade")
+test_that("estimate_historical_movement_rates computes correct avg_prob", {
+  bm <- estimate_historical_movement_rates(make_panel(), group_cols = "paygrade")
 
   # P1 (G1->G2): 1 mover out of 2 in G1 = 0.5
   g1_to_g2 <- bm[from_group == "G1" & to_group == "G2", movement_rate]
@@ -71,18 +71,18 @@ test_that("estimate_movement_baseline computes correct avg_prob", {
   expect_equal(g2_to_g1, 0.5, tolerance = 1e-10)
 })
 
-test_that("estimate_movement_baseline probs are in [0, 1]", {
-  bm <- estimate_movement_baseline(make_panel(), group_cols = "paygrade")
+test_that("estimate_historical_movement_rates probs are in [0, 1]", {
+  bm <- estimate_historical_movement_rates(make_panel(), group_cols = "paygrade")
   expect_true(all(bm$movement_rate >= 0 & bm$movement_rate <= 1))
 })
 
-test_that("estimate_movement_baseline only returns movement transitions", {
-  bm <- estimate_movement_baseline(make_panel(), group_cols = "paygrade")
+test_that("estimate_historical_movement_rates only returns movement transitions", {
+  bm <- estimate_historical_movement_rates(make_panel(), group_cols = "paygrade")
   # Should include G1->G2 and G2->G1 cross-transitions AND same-state rows
   expect_true(nrow(bm) > 0)
 })
 
-test_that("estimate_movement_baseline works with multi-column group_cols", {
+test_that("estimate_historical_movement_rates works with multi-column group_cols", {
   ct <- data.table::data.table(
     ref_date = as.Date(c(
       "2015-01-01", "2015-01-01",
@@ -95,12 +95,12 @@ test_that("estimate_movement_baseline works with multi-column group_cols", {
     end_date   = as.Date(NA),
     contract_type = "permanent"
   )
-  bm <- estimate_movement_baseline(ct, group_cols = c("est_id", "paygrade"))
+  bm <- estimate_historical_movement_rates(ct, group_cols = c("est_id", "paygrade"))
   expect_true(data.table::is.data.table(bm))
   expect_true("from_group" %in% names(bm))
 })
 
-test_that("estimate_movement_baseline handles 3+ snapshots", {
+test_that("estimate_historical_movement_rates handles 3+ snapshots", {
   ct <- data.table::rbindlist(list(
     make_panel(),
     data.table::data.table(
@@ -112,7 +112,7 @@ test_that("estimate_movement_baseline handles 3+ snapshots", {
       contract_type = "permanent"
     )
   ))
-  bm <- estimate_movement_baseline(ct, group_cols = "paygrade")
+  bm <- estimate_historical_movement_rates(ct, group_cols = "paygrade")
   expect_true(all(bm$n_periods <= 2L))  # 2 transition periods
   expect_true(all(bm$avg_prob >= 0 & bm$avg_prob <= 1))
 })
@@ -490,11 +490,11 @@ test_that("roll_snapshot_pairs: errors on non-data.table input", {
 })
 
 # =============================================================================
-# estimate_movement_baseline() output-identity check after Block A refactor
+# estimate_historical_movement_rates() output-identity check after Block A refactor
 # =============================================================================
 
-test_that("estimate_movement_baseline: Block A refactor produces identical output to pre-refactor", {
-  bm <- estimate_movement_baseline(make_panel(), group_cols = "paygrade")
+test_that("estimate_historical_movement_rates: Block A refactor produces identical output to pre-refactor", {
+  bm <- estimate_historical_movement_rates(make_panel(), group_cols = "paygrade")
 
   g1_to_g2 <- bm[from_group == "G1" & to_group == "G2", movement_rate]
   g2_to_g1 <- bm[from_group == "G2" & to_group == "G1", movement_rate]
@@ -503,7 +503,7 @@ test_that("estimate_movement_baseline: Block A refactor produces identical outpu
   expect_equal(g2_to_g1, 0.5, tolerance = 1e-10)
 })
 
-test_that("estimate_movement_baseline: 3-period panel averages correctly", {
+test_that("estimate_historical_movement_rates: 3-period panel averages correctly", {
   # Period 1 (2015→2016): P1 G1→G2, P4 G2→G1  (1/2 each direction)
   # Period 2 (2016→2017): P1 G2→G1, P4 G1→G2  (same rate, reversed)
   # Both periods contribute to both cross-transitions → avg_prob = 0.5, n_periods = 2
@@ -519,7 +519,7 @@ test_that("estimate_movement_baseline: 3-period panel averages correctly", {
     )
   ))
 
-  bm3 <- estimate_movement_baseline(panel3, group_cols = "paygrade")
+  bm3 <- estimate_historical_movement_rates(panel3, group_cols = "paygrade")
   # G1→G2 occurred in both periods: period-1 prob = 0.5, period-2 prob = 0.5 → avg = 0.5
   expect_equal(bm3[from_group == "G1" & to_group == "G2", movement_rate], 0.5, tolerance = 1e-10)
   expect_equal(bm3[from_group == "G1" & to_group == "G2", n_periods], 2L)

@@ -89,7 +89,7 @@ observed aggregate rate, estimated via
 \code{estimate_historical_exit_rates()}.  Falls back to a 5\\%
 annual rate with a warning when fewer than two snapshots are present.}
 \item{\code{movement}}{Grade/group transition probabilities estimated
-from the panel via \code{estimate_movement_baseline()}.  Requires
+from the panel via \code{estimate_historical_movement_rates()}.  Requires
 \code{movement_group_cols} to be specified (see argument).  Falls back
 to a 5\\% flat movement rate with a warning when the panel is
 insufficient.}

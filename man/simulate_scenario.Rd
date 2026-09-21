@@ -14,8 +14,11 @@ simulate_scenario(
   exit_policy = NULL,
   movement_policy = NULL,
   hiring_policy = NULL,
+  allowance_policy = NULL,
+  allowance_dt = NULL,
   salary_growth_rate = 0,
   pension_cola_rate = 0,
+  allowance_growth_rate = 0,
   personnel_id_col = "personnel_id",
   contract_id_col = "contract_id",
   birth_date_col = "birth_date",
@@ -69,12 +72,33 @@ Pass \code{NULL} to skip movements.}
 \item{hiring_policy}{List or \code{NULL}.  Passed to
 \code{simulate_hiring()}.  Pass \code{NULL} to skip.}
 
+\item{allowance_policy}{List or \code{NULL}.  Passed to
+\code{simulate_allowances()} as \code{policy_params} -- see
+\code{\link{resolve_allowance_amounts}} for the expected shape.
+\code{NULL} (default) skips allowance modeling entirely.  Runs after
+hiring/movements finalize group membership for the period and before
+aging/COLA.  \strong{If active, \code{salary_col} should represent base
+compensation only} (e.g. \code{base_salary_lcu}), not a gross figure
+that already folds in old lump-sum allowances -- see
+\code{\link{simulate_allowances}}'s Details for why.}
+
+\item{allowance_dt}{data.table or \code{NULL}.  Accumulated allowance
+ledger from prior periods within \emph{this same} \code{simulate_scenario()}
+chain.  \code{NULL} (default) starts a fresh ledger.  Unlike
+\code{pensioner_register}, \code{simulate_horizon()} does not accept this
+as an input -- it is purely internal there.}
+
 \item{salary_growth_rate}{Numeric scalar.  COLA rate for this period.
 Default \code{0}.}
 
 \item{pension_cola_rate}{Numeric scalar.  Annual COLA rate applied to
 \code{pensioner_register$pension_amount} this period.  Defaults to
 \code{salary_growth_rate} when \code{NULL}.  Default \code{0}.}
+
+\item{allowance_growth_rate}{Numeric scalar.  COLA-style growth rate
+applied to \code{allowance_policy$policy_table}'s \code{amount} column
+this period (via \code{apply_salary_scale_adjustment()}), so next
+period's assignment reflects the grown scale.  Default \code{0}.}
 
 \item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
 
@@ -119,12 +143,20 @@ Named list:
 \code{pension_cost_total}, \code{n_promotions}, \code{n_transfers},
 \code{promotion_effect}, \code{transfer_effect}, \code{n_hires},
 \code{hiring_effect}, \code{inflation_effect},
-\code{n_headcount_end}, \code{wage_bill_end}.}
+\code{n_headcount_end}, \code{wage_bill_end}, \code{allowance_cost_end}
+(\code{0} when \code{allowance_policy} is \code{NULL}).}
 \item{contract_dt}{Updated contract snapshot.}
 \item{personnel_dt}{Updated personnel snapshot.}
 \item{salary_scale_dt}{Updated pay table (post-COLA).}
 \item{pensioner_register}{Accumulated pensioner ledger including new
 retirees from this period.}
+\item{allowance_dt}{Accumulated allowance ledger including this
+period's rows, or unchanged/\code{NULL} when \code{allowance_policy}
+is \code{NULL}.}
+\item{allowance_policy}{\code{allowance_policy} as supplied, with
+\code{policy_table} grown by \code{allowance_growth_rate} -- pass
+this back in as next period's \code{allowance_policy} to carry the
+growth forward (\code{simulate_horizon()} does this automatically).}
 }
 }
 \description{

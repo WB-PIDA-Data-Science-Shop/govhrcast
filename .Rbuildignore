@@ -13,6 +13,7 @@
 ^\.Rproj\.user$
 ^.posit$
 ^.vscode$
+^\.claude$
 ^README\.Rmd$
 ^\.github$
 ^CLAUDE.md$
