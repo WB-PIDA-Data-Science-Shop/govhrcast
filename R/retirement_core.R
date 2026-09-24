@@ -17,7 +17,11 @@ utils::globalVariables(c(
   "retire", # eligibility flag computed by fcase
   "age", # age in years
   "tenure_years", # tenure in years
-  "tenure_days" # tenure in days (intermediate)
+  "tenure_days", # tenure in days (intermediate)
+  "age_yr_int", # integer-truncated age used to key hazard_rate group_cols
+  "hazard_rate", # per-group retirement hazard rate resolved onto working tables
+  "n_retire", # per-group retirement count computed in compute_status_quo_retirements
+  "n_active" # per-group active headcount computed in compute_status_quo_retirements
 ))
 
 
@@ -769,4 +773,311 @@ prepare_retiree_data <- function(eligibility_dt,
   ]
 
   return(retirees_dt)
+}
+
+
+# =============================================================================
+# Hazard-rate retirement — estimate_retirement_hazard_rates()
+# =============================================================================
+
+#' Estimate Age-Specific Retirement Hazard Rates from Panel Data
+#'
+#' @description
+#' Thin adapter over \code{govhr::estimate_decrement_rates()} (and, optionally,
+#' \code{govhr::smooth_decrement_rates()}): estimates the empirical,
+#' exposure-weighted probability that an active employee transitions to
+#' \code{retire_status} (default \code{"pensioner"}) between consecutive panel
+#' snapshots, stratified by integer age (\code{age_yr_int}) and any additional
+#' \code{group_cols}. The result is a \code{data.table} directly usable as
+#' \code{policy_table} for \code{\link{simulate_retirement}} when
+#' \code{policy_params$defaults$eligibility_type = "hazard_rate"}.
+#'
+#' @param panel_personnel_dt data.table.  Full panel of personnel data (all
+#'   \code{ref_date_col} snapshots).  Must contain \code{age_col},
+#'   \code{status_col}, \code{personnel_id_col}, \code{ref_date_col}, and any
+#'   columns named in \code{group_cols} other than \code{"age_yr_int"} (which
+#'   this function derives internally).  \code{govhr::estimate_decrement_rates()}
+#'   works from this table alone, so any contract-level grouping column (e.g.
+#'   \code{est_id}) must already be joined onto \code{panel_personnel_dt}
+#'   before calling.
+#' @param group_cols Character vector.  Must include \code{"age_yr_int"} —
+#'   hazard rates are always estimated per integer age.  Additional columns
+#'   (e.g. \code{"est_id"}) further stratify the estimate.  Default \code{NULL}
+#'   is invalid and triggers an error, since \code{"age_yr_int"} is required.
+#' @param age_col Character.  Fractional age column on \code{panel_personnel_dt}.
+#'   Default \code{"age"}.
+#' @param personnel_id_col Character.  Default \code{"personnel_id"}.
+#' @param ref_date_col Character.  Default \code{"ref_date"}.
+#' @param status_col Character.  Employment status column used to detect the
+#'   retirement transition.  Default \code{"employment_status"}.
+#' @param retire_status Character.  The value of \code{status_col} that marks
+#'   retirement.  Default \code{"pensioner"}.
+#' @param smooth Logical.  When \code{TRUE}, pass the full per-age decrement
+#'   table through \code{govhr::smooth_decrement_rates()} (loess graduation,
+#'   falling back to linear interpolation / flat-fill for thin data) before
+#'   extracting the retirement rate.  When \code{FALSE} (default), unmatched
+#'   or thin age/group cells are effectively zero-filled downstream by
+#'   \code{\link{compute_status_quo_retirements}} — meaning "no historical
+#'   retirements observed at this age/group" is taken at face value. This is
+#'   most likely to bite when \code{group_cols} is granular (e.g. per
+#'   establishment): consider \code{smooth = TRUE} whenever a group/age cell
+#'   is likely to have thin exposure in the historical panel.
+#'
+#' @return data.table with \code{group_cols} and \code{hazard_rate}.  One row
+#'   per unique combination of \code{group_cols} observed in the panel.
+#'
+#' @seealso
+#' \code{\link{compute_status_quo_retirements}} for how this table is applied.
+#' \code{\link{simulate_retirement}} for the full policy specification.
+#'
+#' @export
+estimate_retirement_hazard_rates <- function(panel_personnel_dt,
+                                             group_cols       = NULL,
+                                             age_col          = "age",
+                                             personnel_id_col = "personnel_id",
+                                             ref_date_col     = "ref_date",
+                                             status_col       = "employment_status",
+                                             retire_status    = "pensioner",
+                                             smooth           = FALSE) {
+
+  if (!"age_yr_int" %in% group_cols) {
+    stop(
+      "estimate_retirement_hazard_rates: group_cols must include ",
+      "'age_yr_int' (hazard rates are always estimated per integer age).",
+      call. = FALSE
+    )
+  }
+
+  panel_personnel_dt <- if (!data.table::is.data.table(panel_personnel_dt)) {
+    data.table::as.data.table(panel_personnel_dt)
+  } else {
+    data.table::copy(panel_personnel_dt)
+  }
+  panel_personnel_dt[, age_yr_int := as.integer(get(age_col))]
+
+  # govhr::estimate_decrement_rates() already stratifies by age_col
+  # internally (its `by` clause is c(age_col, group_cols, ...)), so passing
+  # our pre-truncated age_yr_int as govhr's age_col -- and only the *other*
+  # caller-supplied group columns as govhr's group_cols -- avoids carrying a
+  # redundant duplicate age column through the join. age_yr_int still ends up
+  # as a returned column (from govhr's own age_col output), matching what
+  # compute_status_quo_retirements() groups personnel by.
+  govhr_group_cols <- setdiff(group_cols, "age_yr_int")
+
+  decrements <- govhr::estimate_decrement_rates(
+    personnel         = panel_personnel_dt,
+    age_col           = "age_yr_int",
+    status_col        = status_col,
+    personnel_id_col  = personnel_id_col,
+    ref_date_col      = ref_date_col,
+    group_cols        = govhr_group_cols
+  )
+
+  if (isTRUE(smooth)) {
+    # Smooth the FULL outcome vocabulary before filtering to retire_status --
+    # smooth_decrement_rates() derives the "active"/stayed rate as the
+    # complement of the smoothed exit rates, so it needs every outcome type
+    # per age to graduate correctly. Mirrors compute_service_table()'s own
+    # call order in govhr.
+    decrements <- govhr::smooth_decrement_rates(
+      decrements = decrements,
+      age_col    = "age_yr_int",
+      status_col = status_col,
+      group_cols = govhr_group_cols
+    )
+  }
+
+  result <- decrements[get(status_col) == retire_status]
+  data.table::setnames(result, "decrement_rate", "hazard_rate")
+  result[, c(group_cols, "hazard_rate"), with = FALSE]
+}
+
+
+#' Select Personnel for Hazard-Rate-Based Retirement
+#'
+#' @description
+#' Group-level hazard-rate analog of \code{\link{compute_status_quo_exits}}:
+#' resolves a mandatory retirement-age ceiling and a per-group
+#' \code{hazard_rate} from \code{policy_params}, force-retires everyone at or
+#' above the ceiling, then selects \code{round(n_active * hazard_rate)}
+#' individuals per remaining group via the shared
+#' \code{\link{.select_personnel_subset}} helper.
+#'
+#' @param contract_dt data.table.  Active workforce contracts in govhr format.
+#' @param personnel_dt data.table.  Personnel register.
+#' @param policy_params List.  Canonical three-slot retirement policy
+#'   specification (see \code{\link{simulate_retirement}}).  Keys consumed:
+#'   \code{group_cols} (must include \code{"age_yr_int"}), \code{policy_table}
+#'   (with a \code{hazard_rate} column keyed by \code{group_cols}),
+#'   \code{defaults$min_age} (optional mandatory-retirement ceiling — everyone
+#'   at or above it retires with certainty, resolved before the hazard-rate
+#'   draw so forced retirees aren't double-counted against a group's budget),
+#'   and \code{defaults$retire_strategy} (\code{"random"} or a rank-by-column
+#'   name, passed to \code{.select_personnel_subset}; default \code{"random"}).
+#'   A rank-by-column strategy may name either a \code{personnel_dt} or a
+#'   \code{contract_dt} column (e.g. a salary column) — the latter is
+#'   enriched onto the working table automatically, the same way
+#'   \code{group_cols} are.
+#' @param ref_date Date.  Reference date for active-contract filtering and age
+#'   computation.
+#' @param personnel_id_col Character.  Default \code{"personnel_id"}.
+#' @param birth_date_col Character.  Default \code{"birth_date"}.
+#' @param start_date_col Character.  Default \code{"start_date"}.
+#' @param end_date_col Character.  Default \code{"end_date"}.
+#' @param contract_type_col Character.  Default \code{"contract_type"}.
+#' @param status_col Character.  Default \code{"employment_status"}.
+#' @param age_col Character.  Column in \code{personnel_dt} with pre-computed
+#'   age in years.  When present and non-missing, used directly instead of
+#'   calling \code{\link{compute_age}} — same precedence
+#'   \code{\link{identify_eligibility}} uses.  Default \code{"age"}.
+#'
+#' @return data.table with \code{personnel_id} and \code{age} columns
+#'   identifying personnel selected to retire this period (forced +
+#'   hazard-rate-selected, deduplicated), with the age already computed
+#'   internally (avoids recomputing from \code{birth_date_col} downstream,
+#'   which matters when age was pre-computed and \code{birth_date_col} isn't
+#'   even available on \code{personnel_dt}).  Empty (0-row) \code{data.table}
+#'   when no one is selected.
+#' @keywords internal
+compute_status_quo_retirements <- function(contract_dt,
+                                           personnel_dt,
+                                           policy_params,
+                                           ref_date,
+                                           personnel_id_col  = "personnel_id",
+                                           birth_date_col    = "birth_date",
+                                           start_date_col    = "start_date",
+                                           end_date_col      = "end_date",
+                                           contract_type_col = "contract_type",
+                                           status_col        = "employment_status",
+                                           age_col           = "age") {
+
+  .defaults       <- policy_params$defaults %||% list()
+  retire_strategy <- .defaults$retire_strategy %||% "random"
+  group_cols      <- policy_params$group_cols
+
+  if (is.null(group_cols) || !("age_yr_int" %in% group_cols)) {
+    stop(
+      "compute_status_quo_retirements: policy_params$group_cols must ",
+      "include 'age_yr_int'.",
+      call. = FALSE
+    )
+  }
+
+  .pool <- .filter_active_candidate_pool(
+    contract_dt = contract_dt,
+    personnel_dt = personnel_dt,
+    ref_date = ref_date,
+    personnel_id_col = personnel_id_col,
+    start_date_col = start_date_col,
+    end_date_col = end_date_col,
+    contract_type_col = contract_type_col,
+    status_col = status_col
+  )
+  working_dt <- .pool$personnel_dt
+  if (nrow(working_dt) == 0L) {
+    return(data.table::data.table(personnel_id = character(0), age = numeric(0)))
+  }
+
+  # Age -- same precedence identify_eligibility() uses: prefer pre-computed
+  # age_col, else compute_age().
+  if (!is.null(age_col) && age_col %in% names(working_dt) &&
+      !all(is.na(working_dt[[age_col]]))) {
+    if (age_col != "age") working_dt[, age := get(age_col)]
+  } else {
+    age_dt <- compute_age(
+      personnel_dt = working_dt,
+      ref_date = ref_date,
+      birth_date_col = birth_date_col,
+      personnel_id_col = personnel_id_col
+    )
+    working_dt[age_dt, age := i.age, on = personnel_id_col]
+  }
+  working_dt[, age_yr_int := as.integer(age)]
+
+  # Enrich both group_cols (for the hazard_rate join) and, when
+  # retire_strategy names a column, that column too -- working_dt originates
+  # from personnel_dt via .filter_active_candidate_pool(), which typically
+  # lacks contract-level columns (e.g. salary). Without this, a
+  # retire_strategy naming a contract-level column would silently find no
+  # matching column in .select_personnel_subset() and fall back to random
+  # selection with no warning.
+  .strategy_col <- if (!identical(retire_strategy, "random")) retire_strategy else character(0)
+  .enrich_working_table(
+    working_dt = working_dt,
+    needed_cols = union(setdiff(group_cols, "age_yr_int"), .strategy_col),
+    contract_dt = contract_dt,
+    personnel_dt = personnel_dt,
+    ref_date = ref_date,
+    personnel_id_col = personnel_id_col,
+    contract_id_col = "contract_id",
+    start_date_col = start_date_col,
+    end_date_col = end_date_col,
+    contract_type_col = contract_type_col
+  )
+
+  # Mandatory-age ceiling, resolved BEFORE grouping so forced retirees aren't
+  # double-counted against a group's n_retire budget.
+  .resolved_ceiling <- resolve_policy_table(policy_params, working_dt, "min_age")
+  working_dt[, min_age := .resolved_ceiling$min_age %||% NA_real_]
+  # !is.na(age) matters here, not just !is.na(min_age): a candidate with NA
+  # age (e.g. a new hire from a prior simulated period whose age was never
+  # populated) makes `age >= min_age` evaluate to NA rather than FALSE, and
+  # indexing working_dt[[personnel_id_col]][forced_mask] with an NA in the
+  # logical mask injects a literal NA personnel_id into forced_ids --
+  # identify_eligibility()'s own fcase() branches guard the same way.
+  forced_mask <- !is.na(working_dt$age) & !is.na(working_dt$min_age) &
+    working_dt$age >= working_dt$min_age
+  forced_ids  <- unique(working_dt[[personnel_id_col]][forced_mask])
+
+  # Age lookup carried through to the return value: working_dt already has
+  # age computed for every candidate (forced or not), so returning it here
+  # lets simulate_retirement()'s dispatch glue avoid recomputing age from
+  # birth_date downstream -- which matters when birth_date_col isn't even
+  # available on personnel_dt (age was pre-computed and passed in directly).
+  .age_lookup <- working_dt[, c(personnel_id_col, "age"), with = FALSE]
+
+  remaining_dt <- working_dt[!forced_mask]
+  if (nrow(remaining_dt) == 0L) {
+    result <- data.table::data.table(personnel_id = forced_ids)
+    result[.age_lookup, age := i.age, on = c(personnel_id = personnel_id_col)]
+    return(result)
+  }
+
+  # Group-count-then-select, mirroring compute_status_quo_exits()'s grouped path.
+  groups_dt <- remaining_dt[, .(
+    n_active = data.table::uniqueN(get(personnel_id_col)),
+    pool_ids = list(unique(get(personnel_id_col)))
+  ), by = group_cols]
+
+  # Force a hazard_rate default of 0 onto the policy before resolving:
+  # resolve_policy_table() only silently NA-fills *partially* unmatched
+  # groups -- when every group in a call is unmatched (e.g. simulating a
+  # young workforce against a hazard table that only covers older ages) it
+  # hard-errors instead of returning NA. Guaranteeing a default here keeps
+  # "unmatched cells retire at rate 0" true regardless of how many groups
+  # are unmatched, without weakening resolve_policy_table()'s error for
+  # every *other* caller that relies on it to catch incomplete policies.
+  .hazard_policy_params <- policy_params
+  .hazard_policy_params$defaults$hazard_rate <- .defaults$hazard_rate %||% 0
+  resolved_g <- resolve_policy_table(.hazard_policy_params, groups_dt, "hazard_rate")
+  groups_dt[, hazard_rate := resolved_g$hazard_rate %||% rep(0, .N)]
+  groups_dt[is.na(hazard_rate), hazard_rate := 0]        # defensive belt-and-braces
+
+  # Plain round(), not stochastic_round() -- matches compute_status_quo_exits().
+  groups_dt[, n_retire := pmin(as.integer(round(n_active * hazard_rate)), n_active)]
+
+  selected_ids <- unlist(
+    mapply(
+      function(pool, n_retire) {
+        if (n_retire <= 0L || length(pool) == 0L) return(character(0))
+        .select_personnel_subset(pool, remaining_dt, n_retire, retire_strategy, personnel_id_col)
+      },
+      groups_dt$pool_ids, groups_dt$n_retire, SIMPLIFY = FALSE
+    ),
+    use.names = FALSE
+  )
+
+  result <- data.table::data.table(personnel_id = unique(c(forced_ids, selected_ids)))
+  result[.age_lookup, age := i.age, on = c(personnel_id = personnel_id_col)]
+  result
 }

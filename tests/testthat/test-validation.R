@@ -625,6 +625,66 @@ test_that("check_retirement_inputs requires min_tenure for tenure_only eligibili
   )
 })
 
+test_that("check_retirement_inputs accepts hazard_rate eligibility without min_age/min_tenure", {
+  contract_dt <- data.table(
+    contract_id = "C001", personnel_id = "P001",
+    start_date = as.Date("2020-01-01"), end_date = as.Date(NA), contract_type = "perm"
+  )
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
+  ref_date <- as.Date("2025-01-01")
+
+  policy_params <- list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table(age_yr_int = 60, hazard_rate = 0.5),
+    defaults = list(eligibility_type = "hazard_rate", pension_type = "flat", flat_amount = 100)
+    # min_age and min_tenure deliberately absent -- optional for hazard_rate
+  )
+
+  expect_invisible(
+    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date)
+  )
+})
+
+test_that("check_retirement_inputs hazard_rate requires group_cols to include age_yr_int", {
+  contract_dt <- data.table(
+    contract_id = "C001", personnel_id = "P001",
+    start_date = as.Date("2020-01-01"), end_date = as.Date(NA), contract_type = "perm"
+  )
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
+  ref_date <- as.Date("2025-01-01")
+
+  policy_params <- list(
+    group_cols   = "grade",
+    policy_table = data.table(grade = "A", hazard_rate = 0.5),
+    defaults = list(eligibility_type = "hazard_rate", pension_type = "flat", flat_amount = 100)
+  )
+
+  expect_error(
+    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
+    "age_yr_int"
+  )
+})
+
+test_that("check_retirement_inputs hazard_rate requires a hazard_rate column in policy_table", {
+  contract_dt <- data.table(
+    contract_id = "C001", personnel_id = "P001",
+    start_date = as.Date("2020-01-01"), end_date = as.Date(NA), contract_type = "perm"
+  )
+  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
+  ref_date <- as.Date("2025-01-01")
+
+  policy_params <- list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table(age_yr_int = 60, exit_rate = 0.5), # wrong column
+    defaults = list(eligibility_type = "hazard_rate", pension_type = "flat", flat_amount = 100)
+  )
+
+  expect_error(
+    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
+    "hazard_rate"
+  )
+})
+
 test_that("check_retirement_inputs requires birth_date column for age-based eligibility", {
   contract_dt <- data.table(
     contract_id = "C001",

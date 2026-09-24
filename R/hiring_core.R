@@ -532,8 +532,8 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
       data.table::setnames(hire_event_dt, hire_date_col, "hire_date")
 
       hire_event_dt <- govhr::add_contract_to_event(
-        event_dt    = hire_event_dt,
-        contract_dt = panel_contract_dt,
+        events      = hire_event_dt,
+        contracts   = panel_contract_dt,
         keep_vars   = group_cols
       )
 
@@ -635,8 +635,8 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
   # duplication for multi-contract individuals.
   if (!is.null(group_cols) && length(group_cols) > 0) {
     hire_events <- govhr::add_contract_to_event(
-      event_dt    = hire_events,
-      contract_dt = panel_contract_dt,
+      events      = hire_events,
+      contracts   = panel_contract_dt,
       keep_vars   = group_cols
     )
 

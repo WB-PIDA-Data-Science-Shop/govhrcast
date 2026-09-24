@@ -95,10 +95,11 @@ Named list containing the default retirement policy.
 
 The following fields are recognized:\tabular{ll}{
    Parameter \tab Description \cr
-   \code{eligibility_type} \tab \code{"age_only"}, \code{"tenure_only"} or \code{"age_and_tenure"} \cr
-   \code{min_age} \tab Minimum retirement age \cr
+   \code{eligibility_type} \tab \code{"age_only"}, \code{"tenure_only"}, \code{"age_and_tenure"}, \code{"custom"} or \code{"hazard_rate"} \cr
+   \code{min_age} \tab Minimum retirement age.  For \code{"hazard_rate"}, a mandatory ceiling instead (everyone at or above it retires with certainty) rather than a threshold that turns the hazard mechanism on \cr
    \code{min_tenure} \tab Minimum years of service \cr
    \code{active_types} \tab Contract types considered active \cr
+   \code{retire_strategy} \tab \code{"hazard_rate"} only: \code{"random"} (default) or a rank-by-column name, used to select which individuals retire within each group once the group's retiree count is determined \cr
    \code{pension_type} \tab \code{"db"}, \code{"dc"}, \code{"rate"}, \code{"flat"} or \code{"hybrid"} \cr
    \code{ref_wage_col} \tab Salary column used as the pension reference wage \cr
    \code{accrual_rate} \tab Annual DB accrual rate \cr
@@ -109,7 +110,17 @@ The following fields are recognized:\tabular{ll}{
    \code{notional_rate} \tab Optional DC interest rate \cr
    \code{flat_amount} \tab Flat pension amount \cr
    \code{pension_rate} \tab Pension as a proportion of the reference wage \cr
-}}
+}
+
+
+When \code{eligibility_type = "hazard_rate"}, retirement is instead driven by a
+group-level rate rather than a fixed threshold: \code{group_cols} must include
+\code{"age_yr_int"}, and \code{policy_table} must supply a \code{hazard_rate} column keyed
+by \code{group_cols} (see \code{\link[=estimate_retirement_hazard_rates]{estimate_retirement_hazard_rates()}} to estimate one
+from historical panel data). Within each group,
+\code{round(n_active * hazard_rate)} individuals are selected to retire via
+\code{retire_strategy}, after anyone at or above \code{min_age} (if set) is
+force-retired first.}
 
 \item{ref_date_col}{Character scalar giving the name of the reference
 date column used in workforce panel datasets.
@@ -421,7 +432,12 @@ head(results$retirees_dt)
 \seealso{
 \code{\link[=simulate_horizon]{simulate_horizon()}} for multi-period workforce simulations.
 
-\code{\link[=identify_eligibility]{identify_eligibility()}} for retirement eligibility determination.
+\code{\link[=identify_eligibility]{identify_eligibility()}} for retirement eligibility determination
+(threshold-based eligibility types).
+
+\code{\link[=estimate_retirement_hazard_rates]{estimate_retirement_hazard_rates()}} and
+\code{\link[=compute_status_quo_retirements]{compute_status_quo_retirements()}} for the \code{"hazard_rate"} eligibility
+type.
 
 \code{\link[=compute_pension]{compute_pension()}} for pension benefit calculations.
 

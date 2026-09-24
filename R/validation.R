@@ -577,7 +577,9 @@ check_retirement_inputs <- function(contract_dt,
   validate_required_params(.defaults, required_top, "retirement policy")
 
   # Validate eligibility_type value(s)
-  valid_eligibility <- c("age_only", "tenure_only", "age_and_tenure", "custom")
+  valid_eligibility <- c(
+    "age_only", "tenure_only", "age_and_tenure", "custom", "hazard_rate"
+  )
   # Check defaults
   validate_choice(
     .defaults$eligibility_type,
@@ -621,6 +623,30 @@ check_retirement_inputs <- function(contract_dt,
         paste(bad, collapse = "', '"),
         "'. Valid options: ",
         paste(valid_pension, collapse = ", "),
+        call. = FALSE
+      )
+    }
+  }
+
+  # Validate hazard_rate-specific requirements. min_age/min_tenure-required
+  # checks below are keyed off eligibility_type %in% c("age_only",
+  # "tenure_only", "age_and_tenure") and so already naturally exclude
+  # "hazard_rate" -- min_age is optional (mandatory-ceiling semantics) and
+  # min_tenure is unused by this type.
+  if (identical(.defaults$eligibility_type, "hazard_rate")) {
+    if (!is.null(policy_params$policy_table) &&
+        !"hazard_rate" %in% names(policy_params$policy_table)) {
+      stop(
+        "policy_table must contain a 'hazard_rate' column when ",
+        "eligibility_type = 'hazard_rate'.",
+        call. = FALSE
+      )
+    }
+    if (is.null(policy_params$group_cols) ||
+        !("age_yr_int" %in% policy_params$group_cols)) {
+      stop(
+        "eligibility_type = 'hazard_rate' requires group_cols to include ",
+        "'age_yr_int'.",
         call. = FALSE
       )
     }
@@ -768,6 +794,7 @@ check_hiring_inputs <- function(contract_dt,
                                 contract_id_col = "contract_id",
                                 start_date_col = "start_date",
                                 end_date_col = "end_date",
+                                salary_col = "gross_salary_lcu",
                                 contract_type_col = "contract_type",
                                 status_col = "employment_status") {
   # Validate data tables
@@ -872,10 +899,13 @@ check_hiring_inputs <- function(contract_dt,
       stop("salary_scale must be a data.table", call. = FALSE)
     }
 
-    # Check for salary column (default name)
-    if (!"gross_salary_lcu" %in% names(policy_params$salary_scale)) {
+    # Check for the configured salary column (not always literally
+    # "gross_salary_lcu" -- e.g. simulate_allowances() explicitly recommends
+    # a base-salary column like "base_salary_lcu" when allowances are also
+    # being modeled, to avoid double-counting).
+    if (!salary_col %in% names(policy_params$salary_scale)) {
       warning(
-        "salary_scale does not contain 'gross_salary_lcu' column. ",
+        "salary_scale does not contain '", salary_col, "' column. ",
         "Ensure it contains the appropriate salary column.",
         call. = FALSE
       )
@@ -1010,6 +1040,18 @@ check_movement_inputs <- function(
       policy_params$defaults$movement_strategy,
       c("random", "tenure", "reverse_tenure", "wage_based"),
       "defaults$movement_strategy"
+    )
+  }
+
+  # Optional: validate movement_type if present -- tells simulate_horizon()
+  # whether to report this policy's mover count under n_promotions or
+  # n_transfers (the movement mechanism itself is generic and has no way to
+  # tell these apart from group_cols alone).
+  if (!is.null(policy_params$defaults$movement_type)) {
+    validate_choice(
+      policy_params$defaults$movement_type,
+      c("promotion", "transfer"),
+      "defaults$movement_type"
     )
   }
 

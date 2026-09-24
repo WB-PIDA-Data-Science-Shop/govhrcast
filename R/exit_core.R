@@ -15,8 +15,7 @@ NULL
 utils::globalVariables(c(
   "n_exits",   # estimate_historical_exit_rates: column created by := and used in ratio
   "exit_rate", # groups_dt: resolved rate column in compute_status_quo_exits grouped path
-  "n_exit",    # groups_dt: exit count column in compute_status_quo_exits grouped path
-  "rank_val"   # .select_exits: ordering column built from dynamic strategy col
+  "n_exit"     # groups_dt: exit count column in compute_status_quo_exits grouped path
 ))
 
 #' @name exit_core
@@ -92,8 +91,8 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
   # duplication for multi-contract individuals.
   if (!is.null(group_cols) && length(group_cols) > 0) {
     fire_events <- govhr::add_contract_to_event(
-      event_dt    = fire_events,
-      contract_dt = panel_contract_dt,
+      events      = fire_events,
+      contracts   = panel_contract_dt,
       keep_vars   = group_cols
     )
 
@@ -216,8 +215,8 @@ compute_status_quo_exits <- function(
     if (n_exit <= 0L) return(data.table::data.table())
 
     pool_ids     <- unique(active_dt[[personnel_id_col]])
-    selected_ids <- .select_exits(pool_ids, active_dt, n_exit,
-                                   exit_strategy, personnel_id_col)
+    selected_ids <- .select_personnel_subset(pool_ids, active_dt, n_exit,
+                                              exit_strategy, personnel_id_col)
     return(data.table::data.table(personnel_id = selected_ids))
   }
 
@@ -261,7 +260,7 @@ compute_status_quo_exits <- function(
     mapply(
       function(pool, n_exit, grp_dt) {
         if (n_exit <= 0L || length(pool) == 0L) return(character(0))
-        .select_exits(pool, active_dt, n_exit, exit_strategy, personnel_id_col)
+        .select_personnel_subset(pool, active_dt, n_exit, exit_strategy, personnel_id_col)
       },
       groups_dt$pool_ids,
       groups_dt$n_exit,
@@ -335,44 +334,10 @@ compute_fixed_rate_exits <- function(
   if (n_exit <= 0L) return(data.table::data.table())
 
   pool_ids     <- unique(active_dt[[personnel_id_col]])
-  selected_ids <- .select_exits(pool_ids, active_dt, n_exit,
-                                 exit_strategy, personnel_id_col)
+  selected_ids <- .select_personnel_subset(pool_ids, active_dt, n_exit,
+                                            exit_strategy, personnel_id_col)
 
   result <- data.table::data.table(personnel_id = selected_ids)
   data.table::setnames(result, "personnel_id", personnel_id_col)
   result
-}
-
-
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# Internal: select exits from a pool using strategy
-# ---------------------------------------------------------------------------
-.select_exits <- function(pool_ids, 
-                          pool_dt, 
-                          n_exit, 
-                          strategy, 
-                          personnel_id_col) {
-  
-  n_exit <- as.integer(min(n_exit, length(pool_ids)))
-  if (n_exit <= 0L) return(character(0))
-
-  if (strategy == "random") {
-    return(sample(pool_ids, size = n_exit, replace = FALSE))
-  }
-
-  # Treat strategy as a column name — rank ascending, lowest exits first
-  if (strategy %in% names(pool_dt)) {
-    primary <- pool_dt[
-      data.table::uniqueN(get(personnel_id_col)) > 0,
-      .(rank_val = max(get(strategy), na.rm = TRUE)),
-      by = c(personnel_id_col)
-    ]
-    primary <- primary[order(rank_val)]
-    return(head(primary[[personnel_id_col]], n_exit))
-  }
-
-  # Fallback to random
-  sample(pool_ids, size = n_exit, replace = FALSE)
 }

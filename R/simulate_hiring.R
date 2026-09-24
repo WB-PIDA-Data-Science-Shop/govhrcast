@@ -160,6 +160,7 @@ simulate_hiring <- function(contract_dt,
     contract_id_col = contract_id_col,
     start_date_col = start_date_col,
     end_date_col = end_date_col,
+    salary_col = salary_col,
     contract_type_col = contract_type_col,
     status_col = status_col
   )

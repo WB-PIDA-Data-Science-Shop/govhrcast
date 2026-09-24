@@ -21,22 +21,10 @@ simulate_horizon(
   pension_cola_rate = salary_growth_rate,
   allowance_growth_rate = 0,
   base_year = as.integer(format(Sys.Date(), "\%Y")),
-  return_microdata = FALSE,
   ref_date = Sys.Date(),
-  personnel_id_col = "personnel_id",
-  contract_id_col = "contract_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type",
-  status_col = "employment_status",
-  age_col = NULL,
-  tenure_col = NULL,
-  period_unit = "year",
-  birth_date_col = "birth_date",
-  scenario_name = NULL,
-  is_baseline = FALSE,
-  hire_date_col = NULL
+  column_spec_args = list(),
+  output_control_args = list(),
+  seed = NULL
 )
 }
 \arguments{
@@ -89,9 +77,20 @@ transition matrix (output of \code{estimate_historical_movement_rates()}).}
 \item{\code{defaults}}{Named list. Keys: \code{movement_rate} (required
 when \code{policy_table = NULL}), \code{movement_strategy}
 (\code{"random"}, \code{"tenure"}, \code{"reverse_tenure"},
-\code{"wage_based"}), \code{active_types}, \code{salary_update_rule}.}
+\code{"wage_based"}), \code{active_types}, \code{salary_update_rule},
+\code{movement_type} (\code{"promotion"} or \code{"transfer"},
+default \code{"promotion"}).}
 }
-Pass \code{NULL} to skip movements.}
+The movement mechanism is generic -- it has no inherent notion of
+"promotion" vs "transfer", it just moves people between whatever states
+\code{group_cols} defines. \code{defaults$movement_type} tells this
+function which one this policy represents, so \code{$comparison} reports
+its count/effect under \code{n_promotions}/\code{promotion_effect} or
+\code{n_transfers}/\code{transfer_effect} accordingly, instead of always
+under promotions. A single \code{movement_policy} models one dimension
+(e.g. \code{group_cols = "est_id"} labeled \code{"transfer"}) -- it
+cannot report a split between two dimensions (e.g. paygrade promotions
+and est_id transfers) in the same run. Pass \code{NULL} to skip movements.}
 
 \item{hiring_policy}{List or \code{NULL}. Policy parameters passed to
 \code{simulate_hiring()}. Must include \code{mode} (one of
@@ -141,75 +140,71 @@ stale one -- see \code{\link{simulate_scenario}}'s allowance step.}
 \item{base_year}{Integer. Calendar year label for period 0 (default:
 \code{as.integer(format(Sys.Date(), "\%Y"))}).}
 
-\item{return_microdata}{Logical. If \code{TRUE}, include the final-period
-\code{contract_dt} and \code{personnel_dt} in the return value. Set
-\code{FALSE} (default) to conserve memory on long horizons.}
-
 \item{ref_date}{Date. Simulation anchor date (default: \code{Sys.Date()}).
-Used to compute \code{period_date} for each period.}
+Used to compute \code{period_date} for each period.  Periods are always
+annual -- \code{ref_date} advances by exactly one year per period.}
 
-\item{personnel_id_col}{Character. Personnel ID column (default:
-\code{"personnel_id"}).}
+\item{column_spec_args}{Named list.  Overrides for the column names used
+throughout the simulation; any key omitted keeps its default (merged via
+\code{utils::modifyList()}), so e.g. \code{list(age_col = "age_yrs")} is
+sufficient to change just that one name.  Recognized keys, with
+defaults:
+\describe{
+\item{\code{personnel_id_col}}{\code{"personnel_id"}}
+\item{\code{contract_id_col}}{\code{"contract_id"}}
+\item{\code{start_date_col}}{\code{"start_date"}}
+\item{\code{end_date_col}}{\code{"end_date"}}
+\item{\code{salary_col}}{\code{"gross_salary_lcu"}}
+\item{\code{contract_type_col}}{\code{"contract_type"}}
+\item{\code{status_col}}{\code{"employment_status"}}
+\item{\code{age_col}}{\code{NULL}. Age column to increment each
+period; \code{NULL} resolves to \code{"age"}.}
+\item{\code{tenure_col}}{\code{NULL}. Tenure column to increment each
+period; \code{NULL} resolves to \code{"tenure_years"}.}
+\item{\code{birth_date_col}}{\code{"birth_date"}. Used to auto-compute
+\code{age_col} at the start of the simulation (before the first
+period) when present in \code{personnel_dt} -- \code{age_col} is
+overwritten with the age in fractional years at \code{ref_date}.
+Pass \code{NULL} to skip (caller must supply a pre-computed
+\code{age_col} column).}
+\item{\code{hire_date_col}}{\code{NULL}. Name of a person-level column
+in \code{personnel_dt} holding the true administrative hire date
+(e.g. \code{"first_employment_date"}). When supplied and
+\code{hiring_policy$mode = "status_quo"}, historical hiring rates
+are estimated from this column instead of panel first-appearance
+detection, avoiding left-censoring bias.  Passed unchanged to every
+call of \code{simulate_scenario()}.}
+}}
 
-\item{contract_id_col}{Character. Contract ID column (default:
-\code{"contract_id"}).}
+\item{output_control_args}{Named list.  Overrides for output shape and
+scenario labeling; any key omitted keeps its default (merged via
+\code{utils::modifyList()}).  Recognized keys, with defaults:
+\describe{
+\item{\code{scenario_name}}{\code{NULL}. Character scalar, a
+human-readable label for this run (e.g. \code{"Baseline"} or
+\code{"High-growth scenario"}). When supplied, stamped into
+\code{$comparison} as both \code{scenario_id} (stable join key) and
+\code{scenario_label} (display). Consumed by the Shiny app's
+\code{generate_scenario_matrix()} layer and by \code{is_baseline}
+toggle logic. \code{NULL} omits these columns from the output.}
+\item{\code{is_baseline}}{\code{FALSE}. Logical scalar; when
+\code{TRUE}, stamps an \code{is_baseline} column (\code{TRUE}) onto
+\code{$comparison} to flag this run as the reference scenario in
+multi-scenario comparisons.  Only meaningful when
+\code{scenario_name} is also supplied.}
+\item{\code{return_microdata}}{\code{FALSE}. Logical scalar; if
+\code{TRUE}, include the final-period \code{contract_dt} and
+\code{personnel_dt} in the return value.  Leave \code{FALSE} to
+conserve memory on long horizons.}
+}}
 
-\item{start_date_col}{Character. Contract start date column (default:
-\code{"start_date"}).}
-
-\item{end_date_col}{Character. Contract end date column (default:
-\code{"end_date"}).}
-
-\item{salary_col}{Character. Salary column (default: \code{"gross_salary_lcu"}).}
-
-\item{contract_type_col}{Character. Contract type column (default:
-\code{"contract_type"}).}
-
-\item{status_col}{Character. Personnel status column (default:
-\code{"employment_status"}).}
-
-\item{age_col}{Character or \code{NULL}. Age column to increment each period.
-Default: \code{"age"}.}
-
-\item{tenure_col}{Character or \code{NULL}. Tenure column to increment each
-period. Default: \code{"tenure_years"}.}
-
-\item{period_unit}{Character. Stepping unit for each simulated period.
-One of \code{"year"} (default), \code{"month"}, or \code{"day"}.
-Controls both the calendar advance and the fraction by which
-\code{age_col} / \code{tenure_col} are incremented.  When
-\code{period_unit != "year"}, \code{salary_growth_rate} (an annual rate)
-is automatically converted to a per-period compound equivalent.}
-
-\item{birth_date_col}{Character or \code{NULL}. Birth date column in
-\code{personnel_dt} used to auto-compute \code{age_col} at the start of
-the simulation (before the first period).  If the column is present,
-\code{age_col} is overwritten with the age in fractional years at
-\code{ref_date}.  Pass \code{NULL} to skip (user must supply a
-pre-computed \code{age_col} column).  Default: \code{"birth_date"}.}
-
-\item{scenario_name}{Character scalar or \code{NULL}.  A human-readable
-label for this simulation run (e.g. \code{"Baseline"} or
-\code{"High-growth scenario"}).  When supplied, it is stamped into
-\code{$comparison} as both \code{scenario_id} (the value itself, used as
-a stable join key) and \code{scenario_label} (for display).  These
-columns are consumed by the Shiny app's \code{generate_scenario_matrix()}
-layer and by \code{is_baseline} toggle logic.  Default \code{NULL}
-(columns are omitted from the output).}
-
-\item{is_baseline}{Logical scalar.  When \code{TRUE}, stamps an
-\code{is_baseline} column (\code{TRUE}) onto \code{$comparison} to flag
-this run as the reference scenario in multi-scenario comparisons.  Only
-meaningful when \code{scenario_name} is also supplied.  Default
-\code{FALSE}.}
-
-\item{hire_date_col}{Character or \code{NULL}.  Name of a person-level column
-in \code{personnel_dt} that holds the true administrative hire date
-(e.g. \code{"first_employment_date"}).  When supplied and
-\code{hiring_policy$mode = "status_quo"}, the function estimates historical
-hiring rates from this column instead of panel first-appearance detection,
-avoiding left-censoring bias.  Passed unchanged to every call of
-\code{simulate_scenario()}.  Default \code{NULL}.}
+\item{seed}{Integer or \code{NULL}.  When supplied, calls
+\code{set.seed(seed)} once before the period loop begins (not once per
+period, so the RNG stream continues naturally across periods rather than
+producing correlated draws), making any random personnel selection this
+run performs (\code{exit_strategy}/\code{retire_strategy} \code{"random"})
+reproducible across repeated calls with the same inputs and seed.
+Default \code{NULL} (no seeding).}
 }
 \value{
 An object of class \code{horizon} with two primary components:
@@ -353,7 +348,7 @@ results <- simulate_horizon(
   ),
   salary_growth_rate = 0.03,
   ref_date           = REF_DATE,
-  return_microdata   = FALSE
+  output_control_args = list(return_microdata = FALSE)
 )
 
 results$summary_dt

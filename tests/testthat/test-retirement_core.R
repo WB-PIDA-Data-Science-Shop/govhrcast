@@ -903,3 +903,210 @@ test_that("identify_eligibility: unmatched grade uses default min_age from defau
   expect_equal(result[personnel_id == "P001"]$retire, 1L) # grade A, min_age 60
   expect_equal(result[personnel_id == "P002"]$retire, 1L) # grade C, default 62
 })
+
+# =============================================================================
+# compute_status_quo_retirements() — hazard-rate retirement selection
+# =============================================================================
+
+create_hazard_contract_dt <- function(n = 10) {
+  data.table(
+    ref_date          = as.Date("2024-01-01"),
+    contract_id       = paste0("c", seq_len(n)),
+    personnel_id      = paste0("p", seq_len(n)),
+    start_date        = as.Date("2010-01-01"),
+    end_date          = as.Date(NA),
+    contract_type     = "permanent",
+    gross_salary_lcu  = 1000
+  )
+}
+
+test_that("compute_status_quo_retirements: mandatory min_age force-retires regardless of hazard_rate", {
+  contract_dt  <- create_hazard_contract_dt(3)
+  personnel_dt <- data.table(
+    personnel_id      = c("p1", "p2", "p3"),
+    ref_date          = as.Date("2024-01-01"),
+    age               = c(58, 70, 71),
+    employment_status = "active"
+  )
+  # hazard_rate = 0 everywhere -- only the min_age ceiling should retire anyone.
+  policy_params <- list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table(age_yr_int = 58:71, hazard_rate = 0),
+    defaults     = list(min_age = 70)
+  )
+
+  result <- compute_status_quo_retirements(
+    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+  )
+
+  expect_setequal(result$personnel_id, c("p2", "p3"))
+})
+
+test_that("compute_status_quo_retirements: group-count rounding selects the exact expected number per age", {
+  contract_dt  <- create_hazard_contract_dt(4)
+  personnel_dt <- data.table(
+    personnel_id      = c("p1", "p2", "p3", "p4"),
+    ref_date          = as.Date("2024-01-01"),
+    age               = c(60, 60, 61, 61),
+    employment_status = "active"
+  )
+  # age 60: hazard_rate = 0.5 -> round(2 * 0.5) = 1 retiree out of {p1, p2}
+  # age 61: hazard_rate = 1.0 -> round(2 * 1.0) = 2 retirees, i.e. both {p3, p4}
+  policy_params <- list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table(age_yr_int = c(60, 61), hazard_rate = c(0.5, 1.0)),
+    defaults     = list()
+  )
+
+  result <- compute_status_quo_retirements(
+    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+  )
+
+  expect_equal(sum(result$personnel_id %in% c("p1", "p2")), 1L)
+  expect_setequal(result$personnel_id[result$personnel_id %in% c("p3", "p4")], c("p3", "p4"))
+  expect_equal(nrow(result), 3L)
+})
+
+test_that("compute_status_quo_retirements: unmatched age groups zero-fill rather than error", {
+  contract_dt  <- create_hazard_contract_dt(2)
+  personnel_dt <- data.table(
+    personnel_id      = c("p1", "p2"),
+    ref_date          = as.Date("2024-01-01"),
+    age               = c(45, 50), # neither age appears in policy_table
+    employment_status = "active"
+  )
+  policy_params <- list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table(age_yr_int = 60:65, hazard_rate = 1),
+    defaults     = list()
+  )
+
+  result <- compute_status_quo_retirements(
+    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+  )
+
+  expect_equal(nrow(result), 0L)
+})
+
+test_that("compute_status_quo_retirements: rank-based strategy selects deterministically", {
+  contract_dt <- create_hazard_contract_dt(4)
+  contract_dt[, gross_salary_lcu := c(500, 100, 300, 200)]
+  personnel_dt <- data.table(
+    personnel_id      = c("p1", "p2", "p3", "p4"),
+    ref_date          = as.Date("2024-01-01"),
+    age               = 60,
+    employment_status = "active"
+  )
+  # n_active = 4, hazard_rate = 0.5 -> n_retire = 2; rank strategy picks the
+  # two lowest gross_salary_lcu: p2 (100), p4 (200).
+  policy_params <- list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table(age_yr_int = 60, hazard_rate = 0.5),
+    defaults     = list(retire_strategy = "gross_salary_lcu")
+  )
+
+  result <- compute_status_quo_retirements(
+    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+  )
+
+  expect_setequal(result$personnel_id, c("p2", "p4"))
+})
+
+test_that("compute_status_quo_retirements: random strategy is reproducible under a fixed seed", {
+  contract_dt  <- create_hazard_contract_dt(10)
+  personnel_dt <- data.table(
+    personnel_id      = paste0("p", 1:10),
+    ref_date          = as.Date("2024-01-01"),
+    age               = 60,
+    employment_status = "active"
+  )
+  policy_params <- list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table(age_yr_int = 60, hazard_rate = 0.5),
+    defaults     = list(retire_strategy = "random")
+  )
+
+  set.seed(42)
+  result1 <- compute_status_quo_retirements(
+    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+  )
+  set.seed(42)
+  result2 <- compute_status_quo_retirements(
+    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+  )
+
+  expect_identical(sort(result1$personnel_id), sort(result2$personnel_id))
+})
+
+test_that("compute_status_quo_retirements: group_cols missing age_yr_int errors", {
+  contract_dt  <- create_hazard_contract_dt(2)
+  personnel_dt <- data.table(
+    personnel_id      = c("p1", "p2"),
+    ref_date          = as.Date("2024-01-01"),
+    age               = c(60, 61),
+    employment_status = "active"
+  )
+  policy_params <- list(
+    group_cols   = "grade",
+    policy_table = data.table(grade = "A", hazard_rate = 1),
+    defaults     = list()
+  )
+
+  expect_error(
+    compute_status_quo_retirements(
+      contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+    ),
+    regexp = "age_yr_int"
+  )
+})
+
+test_that("compute_status_quo_retirements: NA age is excluded, not force-retired", {
+  # A candidate with NA age (e.g. a new hire whose age was never populated)
+  # must not be force-retired via the min_age ceiling and must not corrupt
+  # the result with a phantom NA personnel_id (age >= min_age is NA, not
+  # FALSE, for an NA age -- see forced_mask's !is.na(age) guard).
+  contract_dt  <- create_hazard_contract_dt(3)
+  personnel_dt <- data.table(
+    personnel_id      = c("p1", "p2", "p3"),
+    ref_date          = as.Date("2024-01-01"),
+    age               = c(80, NA, 60),
+    employment_status = "active"
+  )
+  policy_params <- list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table(age_yr_int = c(60, 80), hazard_rate = 0),
+    defaults     = list(min_age = 75)
+  )
+
+  result <- compute_status_quo_retirements(
+    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+  )
+
+  expect_false(anyNA(result$personnel_id))
+  expect_setequal(result$personnel_id, "p1")  # only p1 (age 80) is forced
+})
+
+test_that("compute_status_quo_retirements: computes age from birth_date when age_col absent", {
+  contract_dt  <- create_hazard_contract_dt(2)
+  personnel_dt <- data.table(
+    personnel_id      = c("p1", "p2"),
+    ref_date          = as.Date("2024-01-01"),
+    # Mid-year birth dates -- safely clear of compute_age()'s 365.25-day-year
+    # truncation boundary (an exact-anniversary birth date can compute to
+    # e.g. 69.9986 and truncate to 69, not 70; see plan discussion).
+    birth_date        = as.Date(c("1963-06-15", "1953-06-15")), # ages ~60.5, ~70.5 at ref_date
+    employment_status = "active"
+  )
+  policy_params <- list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table(age_yr_int = c(60, 70), hazard_rate = 1),
+    defaults     = list()
+  )
+
+  result <- compute_status_quo_retirements(
+    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01"),
+    age_col = "age" # not present on personnel_dt -> falls back to compute_age()
+  )
+
+  expect_setequal(result$personnel_id, c("p1", "p2"))
+})

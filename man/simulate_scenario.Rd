@@ -30,7 +30,8 @@ simulate_scenario(
   age_col = "age",
   tenure_col = "tenure_years",
   period_fraction = 1,
-  hire_date_col = NULL
+  hire_date_col = NULL,
+  seed = NULL
 )
 }
 \arguments{
@@ -66,8 +67,20 @@ Pass \code{NULL} to model zero non-retirement attrition.}
 \item{movement_policy}{List or \code{NULL}.  Canonical 3-slot policy passed
 to \code{simulate_promotions_transfers()}: \code{group_cols},
 \code{policy_table}, \code{defaults} (keys: \code{movement_rate},
-\code{movement_strategy}, \code{active_types}, \code{salary_update_rule}).
-Pass \code{NULL} to skip movements.}
+\code{movement_strategy}, \code{active_types}, \code{salary_update_rule},
+\code{movement_type}).  The movement mechanism itself is generic -- it
+moves people between whatever states \code{group_cols} defines (a
+paygrade change, an \code{est_id} change, or both at once) and has no
+inherent notion of "promotion" vs "transfer".  \code{defaults$movement_type}
+(\code{"promotion"} or \code{"transfer"}, default \code{"promotion"})
+tells this function which one \emph{this policy} represents, so its
+mover count and wage-bill effect are reported under \code{n_promotions}/
+\code{promotion_effect} or \code{n_transfers}/\code{transfer_effect} in
+\code{$comparison} accordingly.  To model promotions and transfers with
+different rates in the same run, choose \code{group_cols} that isolate
+the dimension you care about and label it explicitly -- a single
+\code{movement_policy} cannot report a split between two dimensions at
+once. Pass \code{NULL} to skip movements.}
 
 \item{hiring_policy}{List or \code{NULL}.  Passed to
 \code{simulate_hiring()}.  Pass \code{NULL} to skip.}
@@ -132,6 +145,17 @@ Default \code{"tenure_years"}.}
 estimated from this person-level hire-date column rather than from panel
 first-appearance detection.  Only relevant when
 \code{hiring_policy$mode = "status_quo"}.  Default \code{NULL}.}
+
+\item{seed}{Integer or \code{NULL}.  When supplied, calls
+\code{set.seed(seed)} before any random selection this call performs
+(e.g. \code{exit_strategy}/\code{retire_strategy} \code{"random"}
+draws), making a standalone \code{simulate_scenario()} call
+reproducible.  Default \code{NULL} (no seeding).  When calling this
+function repeatedly from \code{\link{simulate_horizon}}'s own period
+loop, leave this \code{NULL} and pass \code{seed} to
+\code{simulate_horizon()} instead -- seeding once per period would
+create correlated draws across periods rather than a continuous RNG
+stream.}
 }
 \value{
 Named list:

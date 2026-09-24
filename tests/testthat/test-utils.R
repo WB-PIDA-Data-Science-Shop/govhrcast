@@ -487,3 +487,80 @@ test_that("dispatch_param: multi-column group_cols join works correctly", {
   )
   expect_equal(result, c(60, 55, 58))
 })
+
+# =============================================================================
+# .select_personnel_subset() -- relocated from exit_core.R's .select_exits(),
+# now shared by both compute_status_quo_exits() and
+# compute_status_quo_retirements().
+# =============================================================================
+
+select_personnel_subset <- getFromNamespace(
+  ".select_personnel_subset",
+  "govhrcast"
+)
+
+test_that(".select_personnel_subset random strategy selects requested count with no duplicates", {
+  pool <- paste0("p", 1:20)
+  dt   <- data.table::data.table(personnel_id = pool)
+
+  selected <- select_personnel_subset(pool, dt, 5L, "random", "personnel_id")
+
+  expect_length(selected, 5L)
+  expect_true(all(selected %in% pool))
+  expect_equal(anyDuplicated(selected), 0L)
+})
+
+test_that(".select_personnel_subset caps n_select at pool length", {
+  pool <- paste0("p", 1:3)
+  dt   <- data.table::data.table(personnel_id = pool)
+
+  selected <- select_personnel_subset(pool, dt, 10L, "random", "personnel_id")
+
+  expect_length(selected, 3L)
+  expect_setequal(selected, pool)
+})
+
+test_that(".select_personnel_subset returns character(0) when n_select <= 0", {
+  pool <- paste0("p", 1:5)
+  dt   <- data.table::data.table(personnel_id = pool)
+
+  expect_identical(select_personnel_subset(pool, dt, 0L, "random", "personnel_id"), character(0))
+  expect_identical(select_personnel_subset(pool, dt, -1L, "random", "personnel_id"), character(0))
+})
+
+test_that(".select_personnel_subset rank strategy selects lowest values first", {
+  pool <- paste0("p", 1:5)
+  dt <- data.table::data.table(
+    personnel_id = pool,
+    salary       = c(500, 100, 300, 200, 400)
+  )
+
+  selected <- select_personnel_subset(pool, dt, 3L, "salary", "personnel_id")
+
+  # p2 (100), p4 (200), p3 (300) are the three lowest -- in that order.
+  expect_identical(selected, c("p2", "p4", "p3"))
+})
+
+test_that(".select_personnel_subset rank strategy takes the max per ID when duplicated", {
+  # Two rows for p1 (multiple contracts) -- ranking should use max(salary).
+  dt <- data.table::data.table(
+    personnel_id = c("p1", "p1", "p2", "p3"),
+    salary       = c(100, 900, 200, 300)
+  )
+  pool <- c("p1", "p2", "p3")
+
+  selected <- select_personnel_subset(pool, dt, 3L, "salary", "personnel_id")
+
+  # p1's max salary is 900 (highest), so it ranks last despite one low row.
+  expect_identical(selected, c("p2", "p3", "p1"))
+})
+
+test_that(".select_personnel_subset falls back to random for an unrecognized strategy", {
+  pool <- paste0("p", 1:5)
+  dt   <- data.table::data.table(personnel_id = pool)
+
+  selected <- select_personnel_subset(pool, dt, 3L, "not_a_real_column", "personnel_id")
+
+  expect_length(selected, 3L)
+  expect_true(all(selected %in% pool))
+})

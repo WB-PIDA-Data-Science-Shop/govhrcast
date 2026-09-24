@@ -19,7 +19,7 @@ Imports:
 Suggests:
     testthat (>= 3.0.0),
     future,
-    govhr,
+    govhr (>= 0.4.0),
     future.apply,
     bslib,
     bsicons,

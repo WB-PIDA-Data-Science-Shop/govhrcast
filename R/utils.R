@@ -16,7 +16,8 @@ utils::globalVariables(c(
   ".s",          # compute_tenure: segment start numeric
   ".e",          # compute_tenure: segment end numeric
   ".lag_max_e",  # compute_tenure: lagged max end for overlap detection
-  ".contrib"     # compute_tenure: per-segment tenure contribution
+  ".contrib",    # compute_tenure: per-segment tenure contribution
+  "rank_val"     # .select_personnel_subset: ordering column built from dynamic strategy col
 ))
 
 #' Calculate Years Between Two Dates
@@ -985,6 +986,66 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 
   # Drop NULLs (params not in defaults and not in policy_table)
   Filter(Negate(is.null), result)
+}
+
+
+#' Select a Subset of Personnel from a Pool
+#'
+#' @description
+#' Shared selection mechanism used by every module that must draw a fixed
+#' number of individuals from a candidate pool: random draw, or rank-by-column
+#' (ascending — lowest values selected first). Originally exit-specific
+#' (\code{.select_exits()} in \code{exit_core.R}); relocated here once
+#' retirement's hazard-rate path needed the identical mechanism, since neither
+#' the pool/rank/random logic nor its inputs were ever exit-specific.
+#'
+#' @param pool_ids Character vector.  Candidate personnel IDs to select from.
+#' @param pool_dt data.table.  Table containing \code{personnel_id_col} and,
+#'   when \code{strategy} names a column, that ranking column.
+#' @param n_select Integer.  Number of IDs to select.  Capped at
+#'   \code{length(pool_ids)}.
+#' @param strategy Character.  Either \code{"random"}, or the name of a
+#'   numeric column in \code{pool_dt} to rank ascending (ties broken by
+#'   \code{max()} per ID, lowest values selected first).  Falls back to random
+#'   selection for any other value.
+#' @param personnel_id_col Character.  Personnel identifier column name in
+#'   \code{pool_dt}.
+#'
+#' @return Character vector of selected personnel IDs, length
+#'   \code{min(n_select, length(pool_ids))}.  Empty \code{character(0)} when
+#'   \code{n_select <= 0}.
+#' @keywords internal
+.select_personnel_subset <- function(pool_ids,
+                                     pool_dt,
+                                     n_select,
+                                     strategy,
+                                     personnel_id_col) {
+
+  n_select <- as.integer(min(n_select, length(pool_ids)))
+  if (n_select <= 0L) return(character(0))
+
+  if (strategy == "random") {
+    return(sample(pool_ids, size = n_select, replace = FALSE))
+  }
+
+  # Treat strategy as a column name -- rank ascending, lowest values first.
+  # Restrict to pool_ids before ranking: pool_dt may be a shared, ungrouped
+  # table (e.g. the full active workforce passed once per group from a
+  # grouped caller), so ranking over pool_dt unfiltered would rank across
+  # every group's candidates together and could return IDs outside pool_ids
+  # entirely.
+  if (strategy %in% names(pool_dt)) {
+    primary <- pool_dt[
+      get(personnel_id_col) %in% pool_ids,
+      .(rank_val = max(get(strategy), na.rm = TRUE)),
+      by = c(personnel_id_col)
+    ]
+    primary <- primary[order(rank_val)]
+    return(head(primary[[personnel_id_col]], n_select))
+  }
+
+  # Fallback to random
+  sample(pool_ids, size = n_select, replace = FALSE)
 }
 
 

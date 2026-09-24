@@ -498,3 +498,143 @@ test_that("simulate_retirement: group-level accrual_rate via policy_table produc
   p_B <- result$retirees_dt[personnel_id == "P002"]$pension
   expect_true(p_B > p_A)
 })
+
+# =============================================================================
+# simulate_retirement() - hazard_rate eligibility
+# =============================================================================
+
+test_that("simulate_retirement works with hazard_rate eligibility end-to-end", {
+  ref_date <- as.Date("2024-01-01")
+  contract_dt <- data.table::data.table(
+    personnel_id      = paste0("p", 1:10),
+    contract_id       = paste0("c", 1:10),
+    ref_date          = ref_date,
+    start_date        = as.Date("2010-01-01"),
+    end_date          = as.Date(NA),
+    contract_type     = "permanent",
+    gross_salary_lcu  = 1000
+  )
+  personnel_dt <- data.table::data.table(
+    personnel_id      = paste0("p", 1:10),
+    ref_date          = ref_date,
+    age               = c(58, 60, 60, 61, 61, 65, 70, 71, 45, 50),
+    employment_status = "active"
+  )
+  policy_params <- list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table::data.table(
+      age_yr_int  = 58:71,
+      hazard_rate = c(0, .5, .5, .5, .5, .2, .1, 0, 0, 0, 0, 0, 0, 1)
+    ),
+    defaults = list(
+      eligibility_type = "hazard_rate",
+      min_age          = 70,
+      retire_strategy  = "random",
+      pension_type     = "rate",
+      pension_rate     = 0.15,
+      ref_wage_col     = "gross_salary_lcu"
+    )
+  )
+
+  result <- simulate_retirement(
+    contract_dt = contract_dt, personnel_dt = personnel_dt,
+    ref_date = ref_date, policy_params = policy_params
+  )
+
+  # p7 (age 70) and p8 (age 71) are forced by min_age; age 60/61 groups each
+  # contribute exactly 1 (round(2 * 0.5) = 1).
+  expect_true(all(c("p7", "p8") %in% result$retirees_dt$personnel_id))
+  expect_equal(sum(result$retirees_dt$personnel_id %in% c("p2", "p3")), 1L)
+  expect_equal(sum(result$retirees_dt$personnel_id %in% c("p4", "p5")), 1L)
+  expect_equal(result$summary$n_retired, 4L)
+
+  # age is carried through from compute_status_quo_retirements() -- not NA.
+  expect_false(anyNA(result$retirees_dt$age))
+  expect_equal(result$retirees_dt[personnel_id == "p7"]$age, 70)
+
+  # Pensions computed correctly: rate * gross_salary_lcu.
+  expect_true(all(result$retirees_dt$pension == 1000 * 0.15))
+
+  # Contracts/personnel updated as usual.
+  expect_true(all(
+    result$contract_dt[personnel_id %in% result$retirees_dt$personnel_id]$contract_type
+    == "pensioner"
+  ))
+  expect_true(all(
+    result$personnel_dt[personnel_id %in% result$retirees_dt$personnel_id]$employment_status
+    == "inactive"
+  ))
+})
+
+test_that("simulate_retirement hazard_rate works when age must be computed from birth_date", {
+  ref_date <- as.Date("2024-01-01")
+  contract_dt <- data.table::data.table(
+    personnel_id      = c("p1", "p2"),
+    contract_id       = c("c1", "c2"),
+    ref_date          = ref_date,
+    start_date        = as.Date("2010-01-01"),
+    end_date          = as.Date(NA),
+    contract_type     = "permanent",
+    gross_salary_lcu  = 1000
+  )
+  personnel_dt <- data.table::data.table(
+    personnel_id      = c("p1", "p2"),
+    ref_date          = ref_date,
+    # Mid-year birth dates -- see test-retirement_core.R for why exact
+    # calendar-anniversary birth dates are fragile under the 365.25-day-year
+    # truncation compute_age()/as.integer(age) uses.
+    birth_date        = as.Date(c("1963-06-15", "1990-06-15")), # ~60.5, ~33.5
+    employment_status = "active"
+  )
+  policy_params <- list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table::data.table(age_yr_int = 60, hazard_rate = 1),
+    defaults = list(
+      eligibility_type = "hazard_rate",
+      pension_type     = "flat",
+      flat_amount      = 500
+    )
+  )
+
+  result <- simulate_retirement(
+    contract_dt = contract_dt, personnel_dt = personnel_dt,
+    ref_date = ref_date, policy_params = policy_params
+  )
+
+  expect_equal(result$retirees_dt$personnel_id, "p1")
+  expect_equal(result$retirees_dt$age, 60, tolerance = 0.1)
+})
+
+test_that("simulate_retirement hazard_rate validates group_cols includes age_yr_int", {
+  test_data <- create_integration_test_data()
+  policy_params <- list(
+    group_cols   = "grade",
+    policy_table = data.table::data.table(grade = "A", hazard_rate = 1),
+    defaults = list(eligibility_type = "hazard_rate", pension_type = "flat", flat_amount = 100)
+  )
+
+  expect_error(
+    simulate_retirement(
+      contract_dt = test_data$contract_dt, personnel_dt = test_data$personnel_dt,
+      ref_date = as.Date("2025-01-01"), policy_params = policy_params
+    ),
+    regexp = "age_yr_int"
+  )
+})
+
+test_that("simulate_retirement hazard_rate validates policy_table has a hazard_rate column", {
+  test_data <- create_integration_test_data()
+  policy_params <- list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table::data.table(age_yr_int = 60, exit_rate = 1), # wrong column name
+    defaults = list(eligibility_type = "hazard_rate", pension_type = "flat", flat_amount = 100)
+  )
+
+  expect_error(
+    simulate_retirement(
+      contract_dt = test_data$contract_dt, personnel_dt = test_data$personnel_dt,
+      ref_date = as.Date("2025-01-01"), policy_params = policy_params
+    ),
+    regexp = "hazard_rate"
+  )
+})

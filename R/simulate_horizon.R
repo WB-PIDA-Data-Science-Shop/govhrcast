@@ -237,8 +237,20 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #' @param movement_policy List or \code{NULL}.  Canonical 3-slot policy passed
 #'   to \code{simulate_promotions_transfers()}: \code{group_cols},
 #'   \code{policy_table}, \code{defaults} (keys: \code{movement_rate},
-#'   \code{movement_strategy}, \code{active_types}, \code{salary_update_rule}).
-#'   Pass \code{NULL} to skip movements.
+#'   \code{movement_strategy}, \code{active_types}, \code{salary_update_rule},
+#'   \code{movement_type}).  The movement mechanism itself is generic -- it
+#'   moves people between whatever states \code{group_cols} defines (a
+#'   paygrade change, an \code{est_id} change, or both at once) and has no
+#'   inherent notion of "promotion" vs "transfer".  \code{defaults$movement_type}
+#'   (\code{"promotion"} or \code{"transfer"}, default \code{"promotion"})
+#'   tells this function which one \emph{this policy} represents, so its
+#'   mover count and wage-bill effect are reported under \code{n_promotions}/
+#'   \code{promotion_effect} or \code{n_transfers}/\code{transfer_effect} in
+#'   \code{$comparison} accordingly.  To model promotions and transfers with
+#'   different rates in the same run, choose \code{group_cols} that isolate
+#'   the dimension you care about and label it explicitly -- a single
+#'   \code{movement_policy} cannot report a split between two dimensions at
+#'   once. Pass \code{NULL} to skip movements.
 #' @param hiring_policy List or \code{NULL}.  Passed to
 #'   \code{simulate_hiring()}.  Pass \code{NULL} to skip.
 #' @param allowance_policy List or \code{NULL}.  Passed to
@@ -285,6 +297,16 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'   estimated from this person-level hire-date column rather than from panel
 #'   first-appearance detection.  Only relevant when
 #'   \code{hiring_policy$mode = "status_quo"}.  Default \code{NULL}.
+#' @param seed Integer or \code{NULL}.  When supplied, calls
+#'   \code{set.seed(seed)} before any random selection this call performs
+#'   (e.g. \code{exit_strategy}/\code{retire_strategy} \code{"random"}
+#'   draws), making a standalone \code{simulate_scenario()} call
+#'   reproducible.  Default \code{NULL} (no seeding).  When calling this
+#'   function repeatedly from \code{\link{simulate_horizon}}'s own period
+#'   loop, leave this \code{NULL} and pass \code{seed} to
+#'   \code{simulate_horizon()} instead -- seeding once per period would
+#'   create correlated draws across periods rather than a continuous RNG
+#'   stream.
 #'
 #' @return Named list:
 #'   \describe{
@@ -368,11 +390,14 @@ simulate_scenario <- function(contract_dt,
                                age_col             = "age",
                                tenure_col          = "tenure_years",
                                period_fraction     = 1,
-                               hire_date_col       = NULL) {
+                               hire_date_col       = NULL,
+                               seed                = NULL) {
 
   # ------------------------------------------------------------------
   # 0. Initialise / validate
   # ------------------------------------------------------------------
+  if (!is.null(seed)) set.seed(seed)
+
   period_date <- validate_date_format(period_date, "period_date")
 
   if (!data.table::is.data.table(contract_dt))
@@ -531,10 +556,24 @@ simulate_scenario <- function(contract_dt,
     contract_dt  <- mov_result$contract_dt
     personnel_dt <- mov_result$personnel_dt
 
+    # simulate_promotions_transfers()'s movement mechanism is generic -- it
+    # has no inherent concept of "promotion" vs "transfer", it just moves
+    # people between whatever states movement_policy$group_cols defines
+    # (paygrade change, est_id change, or both at once). Which real-world
+    # concept that represents is a fact about how THIS policy is configured,
+    # not something derivable from the data, so the caller states it via
+    # movement_policy$defaults$movement_type. Defaults to "promotion" to
+    # match this package's prior (hardcoded) behavior for existing callers.
+    movement_type <- movement_policy$defaults$movement_type %||% "promotion"
+
     if (!is.null(mov_result$summary)) {
       n_movers_val <- mov_result$summary$n_movers
-      n_promotions <- as.integer(if (!is.null(n_movers_val)) n_movers_val else 0L)
-      n_transfers  <- 0L
+      n_movers     <- as.integer(if (!is.null(n_movers_val)) n_movers_val else 0L)
+      if (identical(movement_type, "transfer")) {
+        n_transfers <- n_movers
+      } else {
+        n_promotions <- n_movers
+      }
     }
 
     mov_effects <- compute_movement_effect(
@@ -543,8 +582,11 @@ simulate_scenario <- function(contract_dt,
       personnel_id_col  = personnel_id_col,
       salary_col        = salary_col
     )
-    promotion_effect <- mov_effects$movement
-    transfer_effect  <- 0
+    if (identical(movement_type, "transfer")) {
+      transfer_effect <- mov_effects$movement
+    } else {
+      promotion_effect <- mov_effects$movement
+    }
   }
 
   # ------------------------------------------------------------------
@@ -804,9 +846,20 @@ simulate_scenario <- function(contract_dt,
 #'     \item{\code{defaults}}{Named list. Keys: \code{movement_rate} (required
 #'       when \code{policy_table = NULL}), \code{movement_strategy}
 #'       (\code{"random"}, \code{"tenure"}, \code{"reverse_tenure"},
-#'       \code{"wage_based"}), \code{active_types}, \code{salary_update_rule}.}
+#'       \code{"wage_based"}), \code{active_types}, \code{salary_update_rule},
+#'       \code{movement_type} (\code{"promotion"} or \code{"transfer"},
+#'       default \code{"promotion"}).}
 #'   }
-#'   Pass \code{NULL} to skip movements.
+#'   The movement mechanism is generic -- it has no inherent notion of
+#'   "promotion" vs "transfer", it just moves people between whatever states
+#'   \code{group_cols} defines. \code{defaults$movement_type} tells this
+#'   function which one this policy represents, so \code{$comparison} reports
+#'   its count/effect under \code{n_promotions}/\code{promotion_effect} or
+#'   \code{n_transfers}/\code{transfer_effect} accordingly, instead of always
+#'   under promotions. A single \code{movement_policy} models one dimension
+#'   (e.g. \code{group_cols = "est_id"} labeled \code{"transfer"}) -- it
+#'   cannot report a split between two dimensions (e.g. paygrade promotions
+#'   and est_id transfers) in the same run. Pass \code{NULL} to skip movements.
 #' @param hiring_policy List or \code{NULL}. Policy parameters passed to
 #'   \code{simulate_hiring()}. Must include \code{mode} (one of
 #'   \code{"flow"}, \code{"stock"}, \code{"combined"}, \code{"status_quo"})
@@ -849,60 +902,68 @@ simulate_scenario <- function(contract_dt,
 #'   stale one -- see \code{\link{simulate_scenario}}'s allowance step.
 #' @param base_year Integer. Calendar year label for period 0 (default:
 #'   \code{as.integer(format(Sys.Date(), "\%Y"))}).
-#' @param return_microdata Logical. If \code{TRUE}, include the final-period
-#'   \code{contract_dt} and \code{personnel_dt} in the return value. Set
-#'   \code{FALSE} (default) to conserve memory on long horizons.
 #' @param ref_date Date. Simulation anchor date (default: \code{Sys.Date()}).
-#'   Used to compute \code{period_date} for each period.
-#' @param personnel_id_col Character. Personnel ID column (default:
-#'   \code{"personnel_id"}).
-#' @param contract_id_col Character. Contract ID column (default:
-#'   \code{"contract_id"}).
-#' @param start_date_col Character. Contract start date column (default:
-#'   \code{"start_date"}).
-#' @param end_date_col Character. Contract end date column (default:
-#'   \code{"end_date"}).
-#' @param salary_col Character. Salary column (default: \code{"gross_salary_lcu"}).
-#' @param contract_type_col Character. Contract type column (default:
-#'   \code{"contract_type"}).
-#' @param status_col Character. Personnel status column (default:
-#'   \code{"employment_status"}).
-#' @param age_col Character or \code{NULL}. Age column to increment each period.
-#'   Default: \code{"age"}.
-#' @param tenure_col Character or \code{NULL}. Tenure column to increment each
-#'   period. Default: \code{"tenure_years"}.
-#' @param period_unit Character. Stepping unit for each simulated period.
-#'   One of \code{"year"} (default), \code{"month"}, or \code{"day"}.
-#'   Controls both the calendar advance and the fraction by which
-#'   \code{age_col} / \code{tenure_col} are incremented.  When
-#'   \code{period_unit != "year"}, \code{salary_growth_rate} (an annual rate)
-#'   is automatically converted to a per-period compound equivalent.
-#' @param birth_date_col Character or \code{NULL}. Birth date column in
-#'   \code{personnel_dt} used to auto-compute \code{age_col} at the start of
-#'   the simulation (before the first period).  If the column is present,
-#'   \code{age_col} is overwritten with the age in fractional years at
-#'   \code{ref_date}.  Pass \code{NULL} to skip (user must supply a
-#'   pre-computed \code{age_col} column).  Default: \code{"birth_date"}.
-#' @param hire_date_col Character or \code{NULL}.  Name of a person-level column
-#'   in \code{personnel_dt} that holds the true administrative hire date
-#'   (e.g. \code{"first_employment_date"}).  When supplied and
-#'   \code{hiring_policy$mode = "status_quo"}, the function estimates historical
-#'   hiring rates from this column instead of panel first-appearance detection,
-#'   avoiding left-censoring bias.  Passed unchanged to every call of
-#'   \code{simulate_scenario()}.  Default \code{NULL}.
-#' @param scenario_name Character scalar or \code{NULL}.  A human-readable
-#'   label for this simulation run (e.g. \code{"Baseline"} or
-#'   \code{"High-growth scenario"}).  When supplied, it is stamped into
-#'   \code{$comparison} as both \code{scenario_id} (the value itself, used as
-#'   a stable join key) and \code{scenario_label} (for display).  These
-#'   columns are consumed by the Shiny app's \code{generate_scenario_matrix()}
-#'   layer and by \code{is_baseline} toggle logic.  Default \code{NULL}
-#'   (columns are omitted from the output).
-#' @param is_baseline Logical scalar.  When \code{TRUE}, stamps an
-#'   \code{is_baseline} column (\code{TRUE}) onto \code{$comparison} to flag
-#'   this run as the reference scenario in multi-scenario comparisons.  Only
-#'   meaningful when \code{scenario_name} is also supplied.  Default
-#'   \code{FALSE}.
+#'   Used to compute \code{period_date} for each period.  Periods are always
+#'   annual -- \code{ref_date} advances by exactly one year per period.
+#' @param column_spec_args Named list.  Overrides for the column names used
+#'   throughout the simulation; any key omitted keeps its default (merged via
+#'   \code{utils::modifyList()}), so e.g. \code{list(age_col = "age_yrs")} is
+#'   sufficient to change just that one name.  Recognized keys, with
+#'   defaults:
+#'   \describe{
+#'     \item{\code{personnel_id_col}}{\code{"personnel_id"}}
+#'     \item{\code{contract_id_col}}{\code{"contract_id"}}
+#'     \item{\code{start_date_col}}{\code{"start_date"}}
+#'     \item{\code{end_date_col}}{\code{"end_date"}}
+#'     \item{\code{salary_col}}{\code{"gross_salary_lcu"}}
+#'     \item{\code{contract_type_col}}{\code{"contract_type"}}
+#'     \item{\code{status_col}}{\code{"employment_status"}}
+#'     \item{\code{age_col}}{\code{NULL}. Age column to increment each
+#'       period; \code{NULL} resolves to \code{"age"}.}
+#'     \item{\code{tenure_col}}{\code{NULL}. Tenure column to increment each
+#'       period; \code{NULL} resolves to \code{"tenure_years"}.}
+#'     \item{\code{birth_date_col}}{\code{"birth_date"}. Used to auto-compute
+#'       \code{age_col} at the start of the simulation (before the first
+#'       period) when present in \code{personnel_dt} -- \code{age_col} is
+#'       overwritten with the age in fractional years at \code{ref_date}.
+#'       Pass \code{NULL} to skip (caller must supply a pre-computed
+#'       \code{age_col} column).}
+#'     \item{\code{hire_date_col}}{\code{NULL}. Name of a person-level column
+#'       in \code{personnel_dt} holding the true administrative hire date
+#'       (e.g. \code{"first_employment_date"}). When supplied and
+#'       \code{hiring_policy$mode = "status_quo"}, historical hiring rates
+#'       are estimated from this column instead of panel first-appearance
+#'       detection, avoiding left-censoring bias.  Passed unchanged to every
+#'       call of \code{simulate_scenario()}.}
+#'   }
+#' @param output_control_args Named list.  Overrides for output shape and
+#'   scenario labeling; any key omitted keeps its default (merged via
+#'   \code{utils::modifyList()}).  Recognized keys, with defaults:
+#'   \describe{
+#'     \item{\code{scenario_name}}{\code{NULL}. Character scalar, a
+#'       human-readable label for this run (e.g. \code{"Baseline"} or
+#'       \code{"High-growth scenario"}). When supplied, stamped into
+#'       \code{$comparison} as both \code{scenario_id} (stable join key) and
+#'       \code{scenario_label} (display). Consumed by the Shiny app's
+#'       \code{generate_scenario_matrix()} layer and by \code{is_baseline}
+#'       toggle logic. \code{NULL} omits these columns from the output.}
+#'     \item{\code{is_baseline}}{\code{FALSE}. Logical scalar; when
+#'       \code{TRUE}, stamps an \code{is_baseline} column (\code{TRUE}) onto
+#'       \code{$comparison} to flag this run as the reference scenario in
+#'       multi-scenario comparisons.  Only meaningful when
+#'       \code{scenario_name} is also supplied.}
+#'     \item{\code{return_microdata}}{\code{FALSE}. Logical scalar; if
+#'       \code{TRUE}, include the final-period \code{contract_dt} and
+#'       \code{personnel_dt} in the return value.  Leave \code{FALSE} to
+#'       conserve memory on long horizons.}
+#'   }
+#' @param seed Integer or \code{NULL}.  When supplied, calls
+#'   \code{set.seed(seed)} once before the period loop begins (not once per
+#'   period, so the RNG stream continues naturally across periods rather than
+#'   producing correlated draws), making any random personnel selection this
+#'   run performs (\code{exit_strategy}/\code{retire_strategy} \code{"random"})
+#'   reproducible across repeated calls with the same inputs and seed.
+#'   Default \code{NULL} (no seeding).
 #'
 #' @return An object of class \code{horizon} with two primary components:
 #'   \describe{
@@ -1021,7 +1082,7 @@ simulate_scenario <- function(contract_dt,
 #'   ),
 #'   salary_growth_rate = 0.03,
 #'   ref_date           = REF_DATE,
-#'   return_microdata   = FALSE
+#'   output_control_args = list(return_microdata = FALSE)
 #' )
 #'
 #' results$summary_dt
@@ -1054,26 +1115,55 @@ simulate_horizon <- function(contract_dt,
                              pension_cola_rate  = salary_growth_rate,
                              allowance_growth_rate = 0,
                              base_year          = as.integer(format(Sys.Date(), "%Y")),
-                             return_microdata   = FALSE,
                              ref_date           = Sys.Date(),
-                             personnel_id_col   = "personnel_id",
-                             contract_id_col    = "contract_id",
-                             start_date_col     = "start_date",
-                             end_date_col       = "end_date",
-                             salary_col         = "gross_salary_lcu",
-                             contract_type_col  = "contract_type",
-                             status_col         = "employment_status",
-                             age_col            = NULL,
-                             tenure_col         = NULL,
-                             period_unit        = "year",
-                             birth_date_col     = "birth_date",
-                             scenario_name      = NULL,
-                             is_baseline        = FALSE,
-                             hire_date_col      = NULL) {
+                             column_spec_args   = list(),
+                             output_control_args = list(),
+                             seed               = NULL) {
 
   # ====================================================================
   # 0. Validate and set up
   # ====================================================================
+
+  # column_spec_args / output_control_args: caller supplies only the keys
+  # they want to override (utils::modifyList() layers them onto the full
+  # defaults below), so e.g. column_spec_args = list(age_col = "age_yrs")
+  # is sufficient -- every other column name keeps its default.
+  .default_column_spec <- list(
+    personnel_id_col  = "personnel_id",
+    contract_id_col   = "contract_id",
+    start_date_col    = "start_date",
+    end_date_col      = "end_date",
+    salary_col        = "gross_salary_lcu",
+    contract_type_col = "contract_type",
+    status_col        = "employment_status",
+    age_col           = NULL,
+    tenure_col        = NULL,
+    birth_date_col    = "birth_date",
+    hire_date_col     = NULL
+  )
+  column_spec_args <- utils::modifyList(.default_column_spec, column_spec_args)
+  personnel_id_col  <- column_spec_args$personnel_id_col
+  contract_id_col   <- column_spec_args$contract_id_col
+  start_date_col    <- column_spec_args$start_date_col
+  end_date_col      <- column_spec_args$end_date_col
+  salary_col        <- column_spec_args$salary_col
+  contract_type_col <- column_spec_args$contract_type_col
+  status_col        <- column_spec_args$status_col
+  age_col           <- column_spec_args$age_col
+  tenure_col        <- column_spec_args$tenure_col
+  birth_date_col    <- column_spec_args$birth_date_col
+  hire_date_col     <- column_spec_args$hire_date_col
+
+  .default_output_control <- list(
+    scenario_name    = NULL,
+    is_baseline      = FALSE,
+    return_microdata = FALSE
+  )
+  output_control_args <- utils::modifyList(.default_output_control, output_control_args)
+  scenario_name    <- output_control_args$scenario_name
+  is_baseline      <- output_control_args$is_baseline
+  return_microdata <- output_control_args$return_microdata
+
   n_periods <- as.integer(n_periods)
   if (is.na(n_periods) || n_periods < 1L) {
     stop("n_periods must be a positive integer.", call. = FALSE)
@@ -1090,27 +1180,15 @@ simulate_horizon <- function(contract_dt,
   if (is.null(age_col))    age_col    <- "age"
   if (is.null(tenure_col)) tenure_col <- "tenure_years"
 
-  # Validate period_unit
-  period_unit <- match.arg(period_unit, c("year", "month", "day"))
-
-  # Fraction of a year each period represents; used for aging increment and
-  # for converting annual salary_growth_rate to a per-period compound rate.
-  period_fraction <- switch(period_unit,
-                            year  = 1,
-                            month = 1 / 12,
-                            day   = 1 / 365.25)
+  # Periods are always annual -- period_fraction exists only because
+  # simulate_scenario() takes it as a direct parameter (kept flexible there
+  # for manual chaining); simulate_horizon() always passes 1.
+  period_fraction <- 1
 
   # Expand scalar/vector rate parameters to per-period vectors
   salary_growth_rate    <- expand_rate_vector(salary_growth_rate, n_periods, "salary_growth_rate")
   pension_cola_rate     <- expand_rate_vector(pension_cola_rate,  n_periods, "pension_cola_rate")
   allowance_growth_rate <- expand_rate_vector(allowance_growth_rate, n_periods, "allowance_growth_rate")
-
-  # Convert annual rates to per-period compound equivalents when period != year
-  if (period_unit != "year") {
-    salary_growth_rate    <- (1 + salary_growth_rate)^period_fraction    - 1
-    pension_cola_rate     <- (1 + pension_cola_rate)^period_fraction     - 1
-    allowance_growth_rate <- (1 + allowance_growth_rate)^period_fraction - 1
-  }
 
   # Working copies
   if (!data.table::is.data.table(contract_dt)) {
@@ -1190,6 +1268,40 @@ simulate_horizon <- function(contract_dt,
     }
   }
 
+  # For retirement, pre-estimate hazard rates from the full panel BEFORE
+  # stripping ref_date, mirroring the exit_policy pattern immediately above.
+  # Unlike exit_policy, a single-snapshot panel is a hard error here (not a
+  # warning/fallback): a hazard rate needs multiple periods of exposure to be
+  # stable at the per-age level the way a single-snapshot exit_rate cannot be
+  # estimated at all any other way, so there is no sensible default to fall
+  # back to.
+  if (!is.null(retirement_policy) &&
+      identical(retirement_policy$defaults$eligibility_type, "hazard_rate") &&
+      is.null(retirement_policy$policy_table)) {
+
+    ref_date_col_name <- "ref_date"
+    has_panel <- ref_date_col_name %in% names(contract_dt) &&
+                 data.table::uniqueN(contract_dt[[ref_date_col_name]]) >= 2L
+
+    if (!has_panel) {
+      stop(
+        "simulate_horizon: eligibility_type = 'hazard_rate' requires panel ",
+        "data (>= 2 ref_date snapshots) to estimate hazard rates from -- a ",
+        "single snapshot cannot estimate a stable per-age retirement rate.",
+        call. = FALSE
+      )
+    }
+
+    retirement_policy$policy_table <- estimate_retirement_hazard_rates(
+      panel_personnel_dt = personnel_dt,
+      group_cols          = retirement_policy$group_cols,
+      personnel_id_col    = personnel_id_col,
+      ref_date_col         = ref_date_col_name,
+      status_col           = status_col,
+      retire_status         = retirement_policy$pensioner_type_value %||% "pensioner"
+    )
+  }
+
   # If data contains a ref_date panel column, subset to the starting snapshot
   # before stripping so that sub-modules see a single-period snapshot.
 
@@ -1223,7 +1335,12 @@ simulate_horizon <- function(contract_dt,
   # lingers in panel data with no salary, and must not inflate headcount or
   # the wage bill.
   .has_salary_ <- !is.na(contract_dt[[salary_col]])
-  .is_pensioner_ <- contract_dt[[contract_type_col]] == .pensioner_type_val_
+  # %in%, not == : a real NA contract_type value (which occurs in bundled and
+  # real HRMIS data) makes `== .pensioner_type_val_` evaluate to NA rather
+  # than FALSE, which can make the any() check below NA instead of TRUE/FALSE
+  # depending on the rest of the snapshot -- %in% treats NA as non-matching,
+  # which is the correct "not a pensioner contract" reading.
+  .is_pensioner_ <- contract_dt[[contract_type_col]] %in% .pensioner_type_val_
   if (any(!(.has_salary_ | .is_pensioner_))) {
     contract_dt <- contract_dt[.has_salary_ | .is_pensioner_]
   }
@@ -1417,12 +1534,20 @@ simulate_horizon <- function(contract_dt,
     period0_allowance_cost <- alw0$summary$allowance_cost_total
   }
 
+  # Seed once, here, before the period loop -- not per-period. The RNG
+  # stream should continue naturally across periods so each period draws
+  # fresh values; re-seeding every period would create correlated/repeated
+  # patterns across periods. The per-period simulate_scenario() calls below
+  # deliberately do not pass seed (leaving it at simulate_scenario()'s own
+  # default NULL) so they don't re-seed.
+  if (!is.null(seed)) set.seed(seed)
+
   for (t in seq_len(n_periods)) {
 
     growth        <- salary_growth_rate[t]
     cola_rate     <- pension_cola_rate[t]
     allow_growth  <- allowance_growth_rate[t]
-    cur_date      <- .advance_period(ref_date, t - 1L, unit = period_unit)
+    cur_date      <- .advance_period(ref_date, t - 1L, unit = "year")
 
     scenario_result <- simulate_scenario(
       contract_dt             = contract_dt,
