@@ -23,7 +23,9 @@ Builds the pension half of a retirement policy from a user-defined,
 arithmetic-only formula string, evaluated safely against a restricted set
 of operators -- see \code{\link{validate_pension_formula}} for the full
 allow-list.  The formula may reference any column present on the retiree
-data at simulation time (e.g. \code{"base_salary_lcu"}, \code{"tenure_years"}).
+data at simulation time (e.g. \code{"base_salary_lcu"}).  Years of service
+are always available as \code{tenure_years}, whatever the tenure column in
+your data is called.
 }
 \examples{
 pension_custom("pmin(base_salary_lcu * 0.02 * tenure_years, base_salary_lcu * 0.8)")

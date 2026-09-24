@@ -24,8 +24,11 @@ rule string, evaluated safely against a restricted set of operators
 (comparisons, boolean logic, \code{\%in\%}, \code{is.na}) -- see
 \code{\link{validate_eligibility_rule}} for the full allow-list.  The rule
 may reference any column present on the workforce data at simulation time
-(e.g. \code{"paygrade"}), not just age/tenure.  Combine with a pension
-constructor via \code{\link{design_retirement_policy}}.
+(e.g. \code{"paygrade"}).  \code{age} and \code{tenure_years} (years of
+service) are always available, whatever your age and tenure columns are
+called -- e.g. tenure supplied as \code{personnel_tenure} can be written
+either as \code{tenure_years} or as \code{personnel_tenure}.  Combine with
+a pension constructor via \code{\link{design_retirement_policy}}.
 }
 \examples{
 eligibility_custom("age >= 62 | (tenure_years >= 30 & age >= 55)")

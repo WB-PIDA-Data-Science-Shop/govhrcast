@@ -60,7 +60,7 @@ NULL
 #'
 #' @param replacement_rate Numeric scalar, or data.table with \code{group_cols}
 #'   and a \code{replacement_rate} column for group-varying rates (e.g. IT
-#'   replaces 100\% of leavers, HR replaces 50\%).  \code{1.0} replaces every
+#'   replaces 100% of leavers, HR replaces 50%).  \code{1.0} replaces every
 #'   exit; \code{0} hires no replacements. A data.table here requires
 #'   \code{group_cols} to be set.
 #' @param group_cols Character vector or \code{NULL} (default).  Columns
@@ -215,7 +215,7 @@ design_hiring_policy_stock <- function(stock_targets,
 #' calling \code{simulate_hiring()} standalone.
 #'
 #' @param rate_mult Numeric.  Scales the estimated historical rate (e.g.
-#'   \code{1.5} hires 50\% faster than history). Default \code{1} (no
+#'   \code{1.5} hires 50% faster than history). Default \code{1} (no
 #'   scaling).
 #' @param group_cols Character vector or \code{NULL} (default).  Columns
 #'   defining hiring groups (e.g. \code{"est_id"}) -- also the columns the

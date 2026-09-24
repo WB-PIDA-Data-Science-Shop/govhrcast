@@ -18,7 +18,7 @@ Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 \description{
 Computes a pension as a fixed proportion of the retiree's reference wage.
 Intended for schemes where the periodic pension is a known percentage of
-final salary (e.g. Botswana's 15\\% defined-contribution scheme).
+final salary (e.g. Botswana's 15\% defined-contribution scheme).
 }
 \details{
 \strong{Formula:}

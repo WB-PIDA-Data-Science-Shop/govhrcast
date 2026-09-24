@@ -7,7 +7,7 @@
 pension_db(accrual_rate, ref_wage_col, max_years = NA, replacement_cap = NA)
 }
 \arguments{
-\item{accrual_rate}{Numeric.  Annual accrual rate (e.g. \code{0.02} = 2\\%
+\item{accrual_rate}{Numeric.  Annual accrual rate (e.g. \code{0.02} = 2\%
 of wage per year of service).}
 
 \item{ref_wage_col}{Character.  Name of the salary column to use as the

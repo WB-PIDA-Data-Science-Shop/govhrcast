@@ -52,7 +52,7 @@ Default \code{"ref_date"}.}
 data.table with \code{group_cols} (if specified) and \code{hiring_rate} column.
 }
 \description{
-Estimates per-group hiring rates (hires / active stock) from historical panel
+Estimates per-group hiring rates (hires per head of starting stock, per interval) from historical panel
 data.  Two methods are supported, selected by the \code{hire_date_col}
 argument:
 
@@ -60,7 +60,17 @@ argument:
 \item{Panel first-appearance (default, \code{hire_date_col = NULL})}{
 Uses \code{govhr::detect_personnel_event()} to detect the first time a
 person appears in the panel.  Left-censored at the panel start date —
-pre-existing staff present at the first snapshot are not counted as hires.}
+pre-existing staff present at the first snapshot are not counted as
+hires.  Each pair of consecutive snapshots is one interval; someone
+absent at its start and active at its end is a hire in that interval.
+The rate is \strong{pooled} across intervals:
+\code{hiring_rate = total hires / total active staff at the start of
+    each interval}.  E.g. 5 hires on a starting stock of 10, then 0 hires
+on 15, gives \code{5 / 25}.  Dividing by the \emph{starting} stock
+(not the stock after hiring) matches how the simulation applies the
+rate: rate x the stock at the start of each period.  Hires are counted
+in the group they join; a group with no staff at the start of an
+interval has no base, so its hires in that interval are not counted.}
 \item{Administrative hire date (\code{hire_date_col} supplied)}{
 Uses a person-level hire-date column (e.g. \code{"first_employment_date"})
 read directly from \code{panel_personnel_dt}.  Hire events are counted

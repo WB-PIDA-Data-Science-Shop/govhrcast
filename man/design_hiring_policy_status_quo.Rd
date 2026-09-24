@@ -12,7 +12,7 @@ design_hiring_policy_status_quo(
 }
 \arguments{
 \item{rate_mult}{Numeric.  Scales the estimated historical rate (e.g.
-\code{1.5} hires 50\\% faster than history). Default \code{1} (no
+\code{1.5} hires 50\% faster than history). Default \code{1} (no
 scaling).}
 
 \item{group_cols}{Character vector or \code{NULL} (default).  Columns

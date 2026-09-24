@@ -568,7 +568,18 @@ check_retirement_inputs <- function(contract_dt,
   if (!is.list(policy_params)) {
     stop("policy_params must be a list", call. = FALSE)
   }
-  validate_policy_table(policy_params)
+  # A hazard_rate policy with no rate table (NULL, or 0 rows because the
+  # panel showed no retirements) is valid: every group's rate resolves to 0
+  # in compute_status_quo_retirements(), so only a mandatory age (min_age)
+  # forces anyone out. Validate its structure as a scalar policy instead.
+  .pt <- policy_params$policy_table
+  if (identical(policy_params$defaults$eligibility_type, "hazard_rate") &&
+      (is.null(.pt) || (data.table::is.data.table(.pt) && nrow(.pt) == 0L))) {
+    validate_policy_table(utils::modifyList(policy_params,
+                                            list(group_cols = NULL, policy_table = NULL)))
+  } else {
+    validate_policy_table(policy_params)
+  }
 
   .defaults <- policy_params$defaults
 

@@ -48,6 +48,15 @@ make_salary_scale <- function() {
   )
 }
 
+# The pre-status-quo default of simulate_horizon(): retire at 60 with 10+ years,
+# DB pension. Tests on single-snapshot fixtures pass it explicitly, because the
+# status-quo default needs a multi-snapshot panel to estimate retirement rates.
+rule_retirement_policy <- design_retirement_policy_age_tenure(
+  min_age = 60, min_tenure = 10,
+  pension = pension_db(accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu",
+                       max_years = 35, replacement_cap = 0.80)
+)
+
 null_retirement_policy <- list(
   defaults = list(
     eligibility_type = "age_only", min_age = 999,
@@ -450,6 +459,7 @@ test_that("simulate_horizon: summary_dt has new-API column names", {
     personnel_dt       = s$personnel_dt,
     salary_scale_dt    = make_salary_scale(),
     n_periods          = 1L,
+    retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
     ref_date           = as.Date("2020-01-01")
   )
@@ -468,6 +478,7 @@ test_that("simulate_horizon: does NOT have old-API column names", {
     personnel_dt       = s$personnel_dt,
     salary_scale_dt    = make_salary_scale(),
     n_periods          = 1L,
+    retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
     ref_date           = as.Date("2020-01-01")
   )
@@ -486,6 +497,7 @@ test_that("simulate_horizon: summary_dt has _pct_of_end_bill share columns", {
     personnel_dt       = s$personnel_dt,
     salary_scale_dt    = make_salary_scale(),
     n_periods          = 1L,
+    retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0.05,
     ref_date           = as.Date("2020-01-01")
   )
@@ -504,6 +516,7 @@ test_that("simulate_horizon: period_date sequences annually from ref_date", {
     personnel_dt       = s$personnel_dt,
     salary_scale_dt    = make_salary_scale(),
     n_periods          = 3L,
+    retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
     ref_date           = as.Date("2020-01-01")
   )
@@ -518,6 +531,7 @@ test_that("simulate_horizon: return_microdata = FALSE omits contract/personnel",
     personnel_dt       = s$personnel_dt,
     salary_scale_dt    = make_salary_scale(),
     n_periods          = 1L,
+    retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
     ref_date           = as.Date("2020-01-01"),
     output_control_args = list(return_microdata = FALSE)
@@ -533,6 +547,7 @@ test_that("simulate_horizon: return_microdata = TRUE includes contract/personnel
     personnel_dt       = s$personnel_dt,
     salary_scale_dt    = make_salary_scale(),
     n_periods          = 1L,
+    retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
     ref_date           = as.Date("2020-01-01"),
     output_control_args = list(return_microdata = TRUE)
@@ -580,6 +595,7 @@ test_that("simulate_horizon: accepts vector salary_growth_rate", {
       personnel_dt       = s$personnel_dt,
       salary_scale_dt    = make_salary_scale(),
       n_periods          = 3L,
+      retirement_policy  = rule_retirement_policy,
       salary_growth_rate = c(0.02, 0.03, 0.04),
       ref_date           = as.Date("2020-01-01")
     )
@@ -771,6 +787,7 @@ test_that("simulate_horizon increments age each period", {
     personnel_dt       = s$personnel_dt,
     salary_scale_dt    = make_salary_scale(),
     n_periods          = 2L,
+    retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
     ref_date           = as.Date("2020-01-01"),
     output_control_args = list(return_microdata = TRUE)
@@ -1003,6 +1020,162 @@ test_that("simulate_horizon: status_quo mode produces hires close to historical 
   expect_gt(sum(res$summary_dt$n_hires), 0L)
 })
 
+test_that("simulate_horizon: movement_policy without movement_rate on a panel with no transitions gives 0 movers, not an error", {
+  # make_panel_state(): P1-P4 keep the same est_id across both snapshots, so
+  # the auto-estimated transition matrix has zero rows.
+  p <- make_panel_state()
+  salary_scale <- data.table::data.table(
+    est_id           = c("E1", "E2"),
+    gross_salary_lcu = c(10000, 10000)
+  )
+  mov_policy <- list(
+    group_cols   = "est_id",
+    policy_table = NULL,
+    defaults = list(
+      movement_strategy  = "random",
+      salary_update_rule = "scale",
+      movement_type      = "transfer"
+    )
+  )
+  retire_policy_off <- list(
+    defaults = list(
+      eligibility_type = "age_only", min_age = 999,
+      pension_type = "flat", flat_amount = 500
+    )
+  )
+
+  expect_message(
+    res <- simulate_horizon(
+      contract_dt        = p$contract_panel,
+      personnel_dt       = p$personnel_panel,
+      salary_scale_dt    = salary_scale,
+      n_periods          = 2L,
+      retirement_policy  = retire_policy_off,
+      movement_policy    = mov_policy,
+      hiring_policy      = NULL,
+      salary_growth_rate = 0,
+      ref_date           = as.Date("2020-01-01")
+    ),
+    "no defaults\\$movement_rate"
+  )
+  expect_equal(nrow(res$summary_dt), 2L)
+  expect_equal(sum(res$summary_dt$n_transfers), 0L)
+  expect_equal(sum(res$summary_dt$transfer_effect), 0)
+})
+
+test_that("simulate_horizon: ungrouped status-quo exits use the rate estimated from the panel", {
+  # 10 active at 2019, 3 gone by 2020 (govhr "fire" events). exit_policy has
+  # group_cols = NULL and no defaults$exit_rate: the estimated overall rate
+  # must drive exits. Regression test: it used to be ignored (0 exits).
+  ids1 <- sprintf("P%02d", 1:10); ids2 <- sprintf("P%02d", 1:7)
+  ct <- data.table::data.table(
+    ref_date         = c(rep(as.Date("2019-01-01"), 10), rep(as.Date("2020-01-01"), 7)),
+    personnel_id     = c(ids1, ids2),
+    contract_id      = sub("P", "C", c(ids1, ids2)),
+    contract_type    = "permanent",
+    start_date       = as.Date("2010-01-01"),
+    end_date         = as.Date(NA),
+    gross_salary_lcu = 1000
+  )
+  pt <- ct[, .(ref_date, personnel_id, employment_status = "active",
+               birth_date = as.Date("1980-01-01"))]
+  exit_policy <- list(group_cols = NULL, policy_table = NULL,
+                      defaults = list(exit_strategy = "random"))
+
+  res <- simulate_horizon(
+    contract_dt        = ct,
+    personnel_dt       = pt,
+    salary_scale_dt    = data.table::data.table(gross_salary_lcu = 1000),
+    n_periods          = 1L,
+    exit_policy        = exit_policy,
+    salary_growth_rate = 0,
+    ref_date           = as.Date("2020-01-01"),
+    seed               = 1L
+  )
+  expect_gte(res$summary_dt$n_non_ret_exits, 1L)
+})
+
+# ---------------------------------------------------------------------------
+# Status-quo (hazard-rate) retirement: panel age derivation, zero retirements
+# ---------------------------------------------------------------------------
+# 3 snapshots, 6 staff born 1958-1963, no age column (birth_date only).
+# P1 (oldest) becomes a pensioner at the second snapshot.
+make_hazard_panel <- function(age_name = NULL, with_pensioner = TRUE) {
+  d   <- as.Date(c("2018-01-01", "2019-01-01", "2020-01-01"))
+  ids <- sprintf("P%d", 1:6)
+  pt <- data.table::rbindlist(lapply(d, function(x) data.table::data.table(
+    ref_date = x, personnel_id = ids,
+    employment_status = if (with_pensioner && x > d[1])
+      c("pensioner", rep("active", 5)) else "active",
+    birth_date = as.Date(sprintf("%d-06-01", 1958:1963))
+  )))
+  if (!is.null(age_name))
+    pt[, (age_name) := as.numeric(difftime(ref_date, birth_date, units = "days")) / 365.25]
+  ct <- pt[, .(ref_date, personnel_id, contract_id = sub("P", "C", personnel_id),
+               contract_type = data.table::fifelse(employment_status == "pensioner",
+                                                   "pensioner", "permanent"),
+               start_date = as.Date("1990-01-01"), end_date = as.Date(NA),
+               gross_salary_lcu = 1000)]
+  list(ct = ct, pt = pt)
+}
+
+run_hazard_horizon <- function(p, ...) {
+  simulate_horizon(
+    contract_dt = p$ct, personnel_dt = p$pt,
+    salary_scale_dt = data.table::data.table(gross_salary_lcu = 1000),
+    n_periods = 1L, salary_growth_rate = 0,
+    ref_date = as.Date("2020-01-01"), seed = 1L, ...
+  )
+}
+
+test_that("simulate_horizon: default status-quo retirement works when the panel has birth_date but no age column", {
+  # Regression test: hazard rates were estimated before age was derived from
+  # birth_date, so this errored with "object 'age' not found".
+  res <- run_hazard_horizon(make_hazard_panel())
+  expect_equal(nrow(res$summary_dt), 1L)
+})
+
+test_that("simulate_horizon: status-quo retirement respects column_spec_args$age_col", {
+  pen <- pension_db(accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu")
+  res <- run_hazard_horizon(
+    make_hazard_panel(age_name = "age_years"),
+    retirement_policy = design_retirement_policy_status_quo(pension = pen),
+    column_spec_args  = list(age_col = "age_years", birth_date_col = NULL)
+  )
+  expect_equal(nrow(res$summary_dt), 1L)
+})
+
+test_that("simulate_horizon: a panel with no retirements gives no status-quo retirements, not an error", {
+  expect_message(
+    res <- run_hazard_horizon(make_hazard_panel(with_pensioner = FALSE)),
+    "no retirements observed"
+  )
+  expect_equal(res$summary_dt$n_exits, 0L)
+})
+
+test_that("simulate_horizon: with no observed retirements, a mandatory age still applies", {
+  # At 2020-01-01 the staff are aged 56-61; mandatory age 60 retires the two aged 60+.
+  pen <- pension_db(accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu")
+  expect_message(
+    res <- run_hazard_horizon(
+      make_hazard_panel(with_pensioner = FALSE),
+      retirement_policy = design_retirement_policy_status_quo(pension = pen, mandatory_age = 60)
+    ),
+    "apart from the mandatory age of 60"
+  )
+  expect_equal(res$summary_dt$n_exits, 2L)
+})
+
+test_that("make_status_quo_policies: exit active_types match the harmonized contract_type values", {
+  p <- make_panel_state()
+  pol <- make_status_quo_policies(
+    contract_dt     = p$contract_panel,
+    personnel_dt    = p$personnel_panel,
+    salary_scale_dt = data.table::data.table(est_id = c("E1", "E2"), gross_salary_lcu = 10000)
+  )
+  expect_equal(pol$exit$defaults$active_types, c("permanent", "fixed-term", "short-term"))
+})
+
 # ===========================================================================
 # Phase 1b — auto-compute age/tenure in simulate_horizon() prologue
 # ===========================================================================
@@ -1025,8 +1198,8 @@ make_phase1b_inputs <- function(ref_date = as.Date("2020-01-01")) {
     # birth_date gives P1 age = 40, P2 age = 30 at ref_date
     birth_date   = c(ref_date - 365L * 40L, ref_date - 365L * 30L),
     employment_status = "active",
-    age          = NA_real_,           # intentionally wrong — should be overwritten
-    tenure_years = NA_real_            # intentionally wrong — should be overwritten
+    age              = NA_real_,       # intentionally wrong — should be overwritten
+    personnel_tenure = NA_real_        # intentionally wrong — should be overwritten
   )
   salary_scale_dt <- data.table::data.table(
     est_id           = "E1",
@@ -1092,8 +1265,9 @@ test_that("Phase 1b: simulate_horizon() auto-computes tenure from contract histo
 
   # P1 started 10 years before ref_date → tenure ≈ 10 + 1 period increment
   # P2 started  5 years before ref_date → tenure ≈  5 + 1 period increment
+  # Written into the default tenure_col, personnel_tenure (govhr dictionary name).
   final_pers <- res$personnel_dt
-  tenures <- final_pers[order(personnel_id), tenure_years]
+  tenures <- final_pers[order(personnel_id), personnel_tenure]
   expect_gt(tenures[1], 9.5)   # P1
   expect_gt(tenures[2], 4.5)   # P2
 })
@@ -1294,6 +1468,7 @@ test_that("Phase 2c: pensioner_register has 5-column expanded schema", {
     personnel_dt       = d$personnel_dt,
     salary_scale_dt    = d$salary_scale_dt,
     n_periods          = 1L,
+    retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
     ref_date           = d$ref_date
   )
@@ -1313,6 +1488,7 @@ test_that("Phase 2c: pension_cola_rate as vector of length n_periods is accepted
       personnel_dt       = d$personnel_dt,
       salary_scale_dt    = d$salary_scale_dt,
       n_periods          = 3L,
+      retirement_policy  = rule_retirement_policy,
       salary_growth_rate = 0,
       pension_cola_rate  = c(0.02, 0.03, 0.04),
       ref_date           = d$ref_date

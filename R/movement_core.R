@@ -249,10 +249,16 @@ compute_time_in_grade <- function(contract_dt,
 #' @return data.table with columns:
 #'   \describe{
 #'     \item{from_group}{Character. State at period start (concatenated group_cols)}
-#'     \item{to_group}{Character. State at period end (concatenated group_cols or "NO_MOVEMENT")}
-#'     \item{avg_prob}{Numeric. Average transition probability across all periods}
-#'     \item{n_periods}{Integer. Number of periods used for estimation}
+#'     \item{to_group}{Character. State at period end (concatenated
+#'       group_cols). Always different from \code{from_group} -- stay rows
+#'       are dropped.}
+#'     \item{movement_rate}{Numeric. Average transition probability across
+#'       all snapshot pairs}
+#'     \item{n_periods}{Integer. Number of snapshot pairs in which this
+#'       transition was observed}
 #'   }
+#'   A zero-row table (not \code{NULL}) is returned when no transitions are
+#'   observed.
 #' @keywords internal
 estimate_historical_movement_rates <- function(contract_dt,
                                        group_cols,
@@ -346,23 +352,21 @@ estimate_historical_movement_rates <- function(contract_dt,
 #'
 #' @description
 #' Pure function that joins the current workforce stock with the baseline
-#' transition matrix, applies policy multipliers, scrubs invalid targets
-#' (not present in salary_scale), redistributes scrubbed probability to
-#' "no movement", and calculates integer mover counts per from_group -> to_group
-#' transition using stochastic rounding.
+#' transition matrix, scrubs destinations not present in
+#' \code{salary_scale_dt} (those employees simply stay put), rescales each
+#' origin group's rates so total outflow is at most 1, and calculates
+#' integer mover counts per from_group -> to_group transition using
+#' stochastic rounding. Rates are used as supplied -- there is no multiplier
+#' applied here.
 #'
 #' @param contract_dt data.table. Current (single-snapshot) contract data
 #' @param personnel_dt data.table. Current personnel data
-#' @param baseline_matrix data.table. Output of \code{estimate_historical_movement_rates()}.
-#'   Must have columns: from_group, to_group, avg_prob
-#' @param policy_params List. Must contain:
-#'   \describe{
-#'     \item{group_cols}{Character vector. Columns used to define states}
-#'     \item{promotion_multiplier}{Numeric. Scalar multiplier for promotion probs (default 1)}
-#'     \item{transfer_multiplier}{Numeric. Scalar multiplier for transfer probs (default 1)}
-#'     \item{promotion_strategy}{Character. "tenure" or "wage_based"}
-#'     \item{transfer_strategy}{Character. "random", "tenure", or "reverse_tenure"}
-#'   }
+#' @param baseline_matrix data.table. Output of
+#'   \code{estimate_historical_movement_rates()} or a user-supplied table.
+#'   Must have columns: from_group, to_group, movement_rate
+#' @param policy_params List. Canonical three-slot movement policy. Only
+#'   \code{group_cols} (character vector of columns defining states) is
+#'   read here.
 #' @param salary_scale_dt data.table. Valid destinations. Must contain group_cols columns.
 #' @param ref_date Date or character. Reference date
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
@@ -562,17 +566,17 @@ compute_movement_summary <- function(movers_dt,
 #'
 #' @description
 #' Applies a single scalar \code{movement_rate} from
-#' \code{policy_params$defaults} uniformly across the active workforce.
+#' \code{policy_params$defaults}.
 #' Called by \code{\link{simulate_promotions_transfers}} when
-#' \code{policy_params$policy_table} is \code{NULL}.  Movers are distributed
+#' \code{policy_params$policy_table} is \code{NULL} and estimation from a
+#' multi-snapshot panel fails or finds zero transitions.  Movers are distributed
 #' uniformly across all valid destination groups in \code{salary_scale_dt}.
 #'
 #' @param contract_dt data.table.  Current (single-snapshot) contract data.
 #' @param personnel_dt data.table.  Current personnel data.
 #' @param salary_scale_dt data.table.  Pay table; defines valid destination groups.
 #' @param policy_params List.  Canonical three-slot movement policy specification.
-#'   Keys consumed: \code{group_cols}, \code{defaults$movement_rate},
-#'   \code{defaults$active_types}.
+#'   Keys consumed: \code{group_cols}, \code{defaults$movement_rate}.
 #' @param ref_date Date.  Reference date.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param start_date_col Character.  Default \code{"start_date"}.

@@ -17,7 +17,9 @@ compute_status_quo_exits(
 \item{policy_params}{List.  Canonical three-slot exit policy specification.
 See \code{\link{simulate_exits}} for the full three-slot specification.
 Keys consumed here: \code{group_cols}, \code{policy_table} (with
-\code{exit_rate} column), \code{defaults$exit_rate},
+\code{exit_rate} and optionally \code{exit_multiplier} columns; exactly
+one row when \code{group_cols} is \code{NULL}), \code{defaults$exit_rate},
+\code{defaults$exit_multiplier},
 \code{defaults$exit_strategy}, \code{defaults$active_types} (default
 \code{c("permanent", "fixed-term", "short-term")} — the non-terminal
 \code{contract_type} values per the \code{govhr} harmonized dictionary).}

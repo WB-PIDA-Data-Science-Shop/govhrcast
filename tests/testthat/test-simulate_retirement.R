@@ -638,3 +638,47 @@ test_that("simulate_retirement hazard_rate validates policy_table has a hazard_r
     regexp = "hazard_rate"
   )
 })
+
+# =============================================================================
+# tenure_col default = "personnel_tenure" (govhr dictionary name)
+# =============================================================================
+
+# Contracts all started in 2018 (about 2 years of service by contract history),
+# but the data supply personnel_tenure: P1 = 30, P2 = 20, P3 = 10 years.
+make_tenure_col_data <- function() {
+  ids <- c("P1", "P2", "P3")
+  list(
+    ct = data.table::data.table(
+      personnel_id = ids, contract_id = sub("P", "C", ids),
+      contract_type = "permanent", start_date = as.Date("2018-01-01"),
+      end_date = as.Date(NA), gross_salary_lcu = 1000
+    ),
+    pt = data.table::data.table(
+      personnel_id = ids, employment_status = "active",
+      birth_date = as.Date("1965-01-01"), age = 55,
+      personnel_tenure = c(30, 20, 10)
+    )
+  )
+}
+
+retired_ids <- function(policy) {
+  d <- make_tenure_col_data()
+  r <- simulate_retirement(d$ct, d$pt, policy, ref_date = as.Date("2020-01-01"))
+  sort(r$retirees_dt$personnel_id)
+}
+
+pen_flat <- pension_flat(flat_amount = 100)
+
+test_that("simulate_retirement: the default tenure_col is personnel_tenure, used as supplied", {
+  # Contract history alone gives ~2 years, so nobody would qualify; the
+  # supplied personnel_tenure must be used instead.
+  expect_equal(retired_ids(design_retirement_policy_tenure(min_tenure = 25, pension = pen_flat)), "P1")
+  expect_equal(retired_ids(design_retirement_policy_tenure(min_tenure = 15, pension = pen_flat)), c("P1", "P2"))
+})
+
+test_that("simulate_retirement: custom rules can use tenure_years or the tenure column's own name", {
+  by_internal <- design_retirement_policy(eligibility_custom("tenure_years >= 15"), pen_flat)
+  by_column   <- design_retirement_policy(eligibility_custom("personnel_tenure >= 15"), pen_flat)
+  expect_equal(retired_ids(by_internal), c("P1", "P2"))
+  expect_equal(retired_ids(by_column),   c("P1", "P2"))
+})

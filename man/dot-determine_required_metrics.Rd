@@ -7,7 +7,7 @@
 .determine_required_metrics(
   policy_params,
   age_col = "age",
-  tenure_col = "tenure_years"
+  tenure_col = "personnel_tenure"
 )
 }
 \arguments{

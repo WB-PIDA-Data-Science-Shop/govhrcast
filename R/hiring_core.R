@@ -443,7 +443,7 @@ compute_combined_demand <- function(contract_dt,
 #' Estimate Historical Hiring Rates from Panel Data
 #'
 #' @description
-#' Estimates per-group hiring rates (hires / active stock) from historical panel
+#' Estimates per-group hiring rates (hires per head of starting stock, per interval) from historical panel
 #' data.  Two methods are supported, selected by the \code{hire_date_col}
 #' argument:
 #'
@@ -451,7 +451,17 @@ compute_combined_demand <- function(contract_dt,
 #'   \item{Panel first-appearance (default, \code{hire_date_col = NULL})}{
 #'     Uses \code{govhr::detect_personnel_event()} to detect the first time a
 #'     person appears in the panel.  Left-censored at the panel start date —
-#'     pre-existing staff present at the first snapshot are not counted as hires.}
+#'     pre-existing staff present at the first snapshot are not counted as
+#'     hires.  Each pair of consecutive snapshots is one interval; someone
+#'     absent at its start and active at its end is a hire in that interval.
+#'     The rate is \strong{pooled} across intervals:
+#'     \code{hiring_rate = total hires / total active staff at the start of
+#'     each interval}.  E.g. 5 hires on a starting stock of 10, then 0 hires
+#'     on 15, gives \code{5 / 25}.  Dividing by the \emph{starting} stock
+#'     (not the stock after hiring) matches how the simulation applies the
+#'     rate: rate x the stock at the start of each period.  Hires are counted
+#'     in the group they join; a group with no staff at the start of an
+#'     interval has no base, so its hires in that interval are not counted.}
 #'   \item{Administrative hire date (\code{hire_date_col} supplied)}{
 #'     Uses a person-level hire-date column (e.g. \code{"first_employment_date"})
 #'     read directly from \code{panel_personnel_dt}.  Hire events are counted
@@ -649,8 +659,27 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
     hire_counts <- hire_events[, .(n_hires = .N), by = ref_date_col]
   }
 
-  # Compute active stock per snapshot per group (re-uses compute_current_stock)
-  stock_list <- lapply(panel_dates, function(snap) {
+  # Each hire is dated to the END of the snapshot interval it happens in
+  # (detect_personnel_event() flags a hire at t when the person was absent
+  # at t-1). The exposed base is the active stock at the START of that
+  # interval (t-1) -- matching how compute_status_quo_hiring() applies the
+  # rate (rate x stock at the start of a period) and how exit rates are
+  # estimated. Using the stock at t instead would count the new hires in
+  # their own denominator. The first snapshot ends no interval and can
+  # never have a hire, so it contributes no events -- only its stock, as
+  # the base for the first interval.
+  if (length(panel_dates) >= 2L) {
+    interval_start <- panel_dates[-length(panel_dates)]
+    interval_end   <- panel_dates[-1L]
+  } else {
+    interval_start <- panel_dates
+    interval_end   <- panel_dates
+  }
+
+  # Active stock per group at each interval start, stamped with the
+  # interval's END date so it joins to the hires dated at that end.
+  stock_list <- lapply(seq_along(interval_start), function(i) {
+    snap <- interval_start[i]
     ct_snap <- panel_contract_dt[get(ref_date_col) == snap]
     pt_snap <- panel_personnel_dt[get(ref_date_col) == snap]
     ct_snap <- ct_snap[, !ref_date_col, with = FALSE]
@@ -667,31 +696,34 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
       contract_type_col = contract_type_col,
       status_col        = status_col
     )
-    s[, (ref_date_col) := snap]
+    s[, (ref_date_col) := interval_end[i]]
     s
   })
   stock_dt <- data.table::rbindlist(stock_list, fill = TRUE)
 
-  # Merge hire counts with stock to compute per-snapshot hiring rates
+  # Merge hire counts with start-of-interval stock
   join_keys <- if (!is.null(group_cols) && length(group_cols) > 0) {
     c(ref_date_col, group_cols)
   } else {
     ref_date_col
   }
 
+  # Left join from the stock side: hires into a group that had no staff at
+  # the start of the interval have no base to form a rate from and drop out.
   rate_dt <- hire_counts[stock_dt, on = join_keys]
   rate_dt[is.na(n_hires), n_hires := 0L]
-  rate_dt[, hiring_rate := data.table::fifelse(
-    current_stock > 0,
-    n_hires / current_stock,
-    0
-  )]
 
-  # Average rate across snapshots per group
+  # Pooled rate: total hires / total start-of-interval stock across all
+  # intervals (same pooling as estimate_historical_exit_rates() and
+  # govhr::estimate_decrement_rates()).
+  .pool <- function(n_ev, stock) {
+    tot <- sum(stock, na.rm = TRUE)
+    if (tot > 0) sum(n_ev, na.rm = TRUE) / tot else 0
+  }
   if (!is.null(group_cols) && length(group_cols) > 0) {
-    result <- rate_dt[, .(hiring_rate = mean(hiring_rate, na.rm = TRUE)), by = group_cols]
+    result <- rate_dt[, .(hiring_rate = .pool(n_hires, current_stock)), by = group_cols]
   } else {
-    result <- data.table::data.table(hiring_rate = mean(rate_dt$hiring_rate, na.rm = TRUE))
+    result <- data.table::data.table(hiring_rate = .pool(rate_dt$n_hires, rate_dt$current_stock))
   }
 
   result

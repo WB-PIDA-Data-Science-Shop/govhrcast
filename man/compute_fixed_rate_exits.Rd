@@ -15,7 +15,8 @@ compute_fixed_rate_exits(
 \item{contract_dt}{data.table.  Current (single-snapshot) contract data.}
 
 \item{policy_params}{List.  Canonical three-slot exit policy specification.
-Keys consumed: \code{defaults$exit_rate}, \code{defaults$exit_strategy},
+Keys consumed: \code{defaults$exit_rate}, \code{defaults$exit_multiplier}
+(default \code{1}; multiplies \code{exit_rate}), \code{defaults$exit_strategy},
 \code{defaults$active_types} (default
 \code{c("permanent", "fixed-term", "short-term")} — the non-terminal
 \code{contract_type} values per the \code{govhr} harmonized dictionary).}

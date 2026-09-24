@@ -22,7 +22,7 @@ simulate_retirement(
   contract_type_col = "contract_type",
   status_col = "employment_status",
   age_col = "age",
-  tenure_col = "tenure_years"
+  tenure_col = "personnel_tenure"
 )
 }
 \arguments{
@@ -213,7 +213,10 @@ tenure variable measured in years.
 When available, this variable is used directly instead of reconstructing
 tenure from contract histories.
 
-Default is \code{"tenure_years"}.}
+Default is \code{"personnel_tenure"}, the name in the \code{govhr} harmonized
+dictionary. Whichever column supplies it (or if it is calculated from
+contracts), tenure is available to custom eligibility rules and pension
+formulas as \code{tenure_years}.}
 }
 \value{
 A named list with four elements:

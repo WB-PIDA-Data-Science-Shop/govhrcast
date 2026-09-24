@@ -15,6 +15,5 @@ Integer scalar.
 \description{
 Rounds a fractional number stochastically: always at least floor(x),
 with probability (x - floor(x)) of rounding up by one.
-Exported internally so compute_movement_demand can use it too.
 }
 \keyword{internal}

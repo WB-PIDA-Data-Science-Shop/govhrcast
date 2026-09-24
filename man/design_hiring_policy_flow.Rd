@@ -13,7 +13,7 @@ design_hiring_policy_flow(
 \arguments{
 \item{replacement_rate}{Numeric scalar, or data.table with \code{group_cols}
 and a \code{replacement_rate} column for group-varying rates (e.g. IT
-replaces 100\\% of leavers, HR replaces 50\\%).  \code{1.0} replaces every
+replaces 100\% of leavers, HR replaces 50\%).  \code{1.0} replaces every
 exit; \code{0} hires no replacements. A data.table here requires
 \code{group_cols} to be set.}
 

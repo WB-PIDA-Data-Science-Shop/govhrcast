@@ -184,6 +184,37 @@ test_that("simulate_promotions_transfers: no policy_table, panel with zero obser
   expect_equal(result$summary$n_movers, 0L)
 })
 
+test_that("simulate_promotions_transfers: zero-row baseline and no movement_rate gives 0 movers, not an error", {
+  # Regression test: a zero-row policy_table (what simulate_horizon() passes
+  # when panel estimation finds no transitions) with no defaults$movement_rate
+  # used to fall through to compute_fixed_rate_movements() and error.
+  static_panel <- data.table::rbindlist(list(
+    make_full_panel()[ref_date == as.Date("2015-01-01")],
+    data.table::copy(
+      make_full_panel()[ref_date == as.Date("2015-01-01")]
+    )[, ref_date := as.Date("2016-01-01")]
+  ))
+  policy <- make_policy()
+  policy$defaults$movement_rate <- NULL
+  policy$policy_table <- estimate_historical_movement_rates(static_panel, group_cols = "paygrade")
+  expect_equal(nrow(policy$policy_table), 0L)
+
+  set.seed(1)
+  expect_message(
+    result <- simulate_promotions_transfers(
+      contract_dt     = static_panel,
+      personnel_dt    = make_personnel(),
+      salary_scale_dt = make_salary_scale(),
+      policy_params   = policy,
+      ref_date        = "2016-01-01"
+    ),
+    "no defaults\\$movement_rate"
+  )
+  expect_equal(result$summary$n_movers, 0L)
+  expect_equal(nrow(result$movers_dt), 0L)
+  expect_true(all(c("from_group", "to_group", "n_movers") %in% names(result$demand_dt)))
+})
+
 test_that("simulate_promotions_transfers: no policy_table + panel with real transitions uses the estimated baseline, not the flat rate", {
   # Regression test: policy_table = NULL with >= 2 panel snapshots must
   # drive movement demand from the empirically estimated baseline

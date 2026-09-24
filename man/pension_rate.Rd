@@ -21,7 +21,7 @@ preset).
 \description{
 Builds the pension half of a retirement policy that pays a fixed
 proportion of the retiree's reference wage (e.g. a scheme paying a flat
-15\\% of final salary). See \code{\link{compute_rate_pension}}.
+15\% of final salary). See \code{\link{compute_rate_pension}}.
 }
 \examples{
 pension_rate(pension_rate = 0.15, ref_wage_col = "base_salary_lcu")

@@ -35,10 +35,16 @@ Must contain ref_date_col for panel identification.}
 data.table with columns:
 \describe{
 \item{from_group}{Character. State at period start (concatenated group_cols)}
-\item{to_group}{Character. State at period end (concatenated group_cols or "NO_MOVEMENT")}
-\item{avg_prob}{Numeric. Average transition probability across all periods}
-\item{n_periods}{Integer. Number of periods used for estimation}
+\item{to_group}{Character. State at period end (concatenated
+group_cols). Always different from \code{from_group} -- stay rows
+are dropped.}
+\item{movement_rate}{Numeric. Average transition probability across
+all snapshot pairs}
+\item{n_periods}{Integer. Number of snapshot pairs in which this
+transition was observed}
 }
+A zero-row table (not \code{NULL}) is returned when no transitions are
+observed.
 }
 \description{
 Analyzes longitudinal panel data to compute empirical transition probabilities

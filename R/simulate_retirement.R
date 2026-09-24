@@ -278,7 +278,10 @@ utils::globalVariables(c(
 #' When available, this variable is used directly instead of reconstructing
 #' tenure from contract histories.
 #'
-#' Default is `"tenure_years"`.
+#' Default is `"personnel_tenure"`, the name in the `govhr` harmonized
+#' dictionary. Whichever column supplies it (or if it is calculated from
+#' contracts), tenure is available to custom eligibility rules and pension
+#' formulas as `tenure_years`.
 #' @return
 #' A named list with four elements:
 #'
@@ -448,7 +451,7 @@ simulate_retirement <- function(contract_dt,
                                 contract_type_col = "contract_type",
                                 status_col         = "employment_status",
                                 age_col    = "age",
-                                tenure_col = "tenure_years") {
+                                tenure_col = "personnel_tenure") {
   
   # ========================================
   # 1. Input Validation

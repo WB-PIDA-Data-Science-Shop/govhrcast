@@ -79,16 +79,13 @@ snapshot before computing anything -- the same helper and pattern
 from panel data.
 }
 \examples{
-\dontrun{
-library(data.table)
-
-al <- data.table(
+al <- data.table::data.table(
   contract_id    = c("C1", "C1", "C2", "C2"),
   ref_date       = as.Date("2020-01-01"),
   allowance_type = c("hazard", "transport", "hazard", "transport"),
   allowance_lcu  = c(100, 0, 0, 0)
 )
-ct <- data.table(
+ct <- data.table::data.table(
   contract_id = c("C1", "C2", "C3"),   # C3 has no allowance rows at all
   ref_date    = as.Date("2020-01-01"),
   est_id      = c("E1", "E1", "E1")
@@ -97,7 +94,15 @@ ct <- data.table(
 estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", ref_date = as.Date("2020-01-01"))
 # hazard: (100 + 0 + 0) / 3 = 33.3 -- C3's implicit zero pulls the mean down,
 # exactly as intended for a deterministic per-contract assignment scale.
-}
+
+# With the bundled Alagoas data, as the baseline for simulate_horizon()'s
+# allowance_policy:
+scale_dt <- estimate_baseline_allowance_scale(
+  panel_allowance_dt = bra_hrmis_allowance,
+  panel_contract_dt  = bra_hrmis_contract,
+  group_cols         = "est_id",
+  ref_date           = as.Date("2012-09-01")
+)
+head(scale_dt)
 
 }
-\keyword{internal}

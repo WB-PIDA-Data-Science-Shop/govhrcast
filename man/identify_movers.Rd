@@ -25,20 +25,23 @@ identify_movers(
 
 \item{personnel_dt}{data.table. Current personnel data}
 
-\item{demand_dt}{data.table. Output of \code{compute_movement_demand()}.
-Must have columns: from_group, to_group, movement_type, n_movers}
+\item{demand_dt}{data.table. Output of \code{compute_movement_demand()}
+or \code{compute_fixed_rate_movements()}.
+Must have columns: from_group, to_group, n_movers}
 
-\item{policy_params}{List. Must contain:
+\item{policy_params}{List. Canonical three-slot movement policy. Reads:
 \describe{
 \item{group_cols}{Character vector defining state columns}
-\item{promotion_strategy}{Character. "tenure" or "wage_based"}
-\item{promotion_order_col}{Character or \code{NULL}. Optional.  When
-provided, overrides \code{promotion_strategy} ordering by ranking
-eligible persons on this column (descending — highest value promoted
-first).  Must be a numeric column present in \code{contract_dt} or
-the merged workforce view.  Default \code{NULL} (uses
-\code{promotion_strategy}).}
-\item{transfer_strategy}{Character. "random", "tenure", or "reverse_tenure"}
+\item{defaults$movement_strategy}{Character. \code{"tenure"},
+\code{"wage_based"}, \code{"reverse_tenure"}, or \code{"random"}.
+If absent, a legacy top-level \code{promotion_strategy} is used,
+and failing that \code{"tenure"}.}
+\item{promotion_order_col}{Character or \code{NULL}, top level (not
+in \code{defaults}). Optional.  When provided, overrides
+\code{movement_strategy} ordering by ranking eligible persons on
+this column (descending — highest value moved first).  Must be a
+numeric column present in \code{contract_dt} or the merged
+workforce view.  Default \code{NULL}.}
 }}
 
 \item{ref_date}{Date or character. Reference date}
@@ -66,7 +69,6 @@ data.table with columns:
 \item{personnel_id}{Character. Selected mover ID}
 \item{from_group}{Character. Origin state key}
 \item{to_group}{Character. Destination state key}
-\item{movement_type}{Character. "promotion" or "transfer"}
 }
 }
 \description{

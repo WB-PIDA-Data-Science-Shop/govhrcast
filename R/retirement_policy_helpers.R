@@ -41,7 +41,7 @@ NULL
 #'
 #' @description
 #' Builds the eligibility half of a retirement policy: everyone at or above
-#' \code{min_age} is eligible to retire (100\% take-up, no partial
+#' \code{min_age} is eligible to retire (100% take-up, no partial
 #' probability). Combine with a pension constructor (e.g.
 #' \code{\link{pension_flat}}) via \code{\link{design_retirement_policy}}, or
 #' use \code{\link{design_retirement_policy_age}} to skip this step entirely.
@@ -217,8 +217,11 @@ eligibility_status_quo <- function(hazard_table      = NULL,
 #' (comparisons, boolean logic, \code{\%in\%}, \code{is.na}) -- see
 #' \code{\link{validate_eligibility_rule}} for the full allow-list.  The rule
 #' may reference any column present on the workforce data at simulation time
-#' (e.g. \code{"paygrade"}), not just age/tenure.  Combine with a pension
-#' constructor via \code{\link{design_retirement_policy}}.
+#' (e.g. \code{"paygrade"}).  \code{age} and \code{tenure_years} (years of
+#' service) are always available, whatever your age and tenure columns are
+#' called -- e.g. tenure supplied as \code{personnel_tenure} can be written
+#' either as \code{tenure_years} or as \code{personnel_tenure}.  Combine with
+#' a pension constructor via \code{\link{design_retirement_policy}}.
 #'
 #' @param rule Character scalar.  An R expression string evaluating to
 #'   \code{TRUE}/\code{FALSE} per person, e.g.
@@ -251,7 +254,7 @@ eligibility_custom <- function(rule) {
 #' exact formula (accrual rate x capped service x reference wage, itself
 #' optionally capped as a replacement rate).
 #'
-#' @param accrual_rate Numeric.  Annual accrual rate (e.g. \code{0.02} = 2\%
+#' @param accrual_rate Numeric.  Annual accrual rate (e.g. \code{0.02} = 2%
 #'   of wage per year of service).
 #' @param ref_wage_col Character.  Name of the salary column to use as the
 #'   pension reference wage (e.g. \code{"base_salary_lcu"}) -- this is a
@@ -351,7 +354,7 @@ pension_flat <- function(flat_amount) {
 #' @description
 #' Builds the pension half of a retirement policy that pays a fixed
 #' proportion of the retiree's reference wage (e.g. a scheme paying a flat
-#' 15\% of final salary). See \code{\link{compute_rate_pension}}.
+#' 15% of final salary). See \code{\link{compute_rate_pension}}.
 #'
 #' @param pension_rate Numeric.  Proportion of reference wage paid (e.g.
 #'   \code{0.15}).
@@ -417,7 +420,9 @@ pension_hybrid <- function(db, dc) {
 #' arithmetic-only formula string, evaluated safely against a restricted set
 #' of operators -- see \code{\link{validate_pension_formula}} for the full
 #' allow-list.  The formula may reference any column present on the retiree
-#' data at simulation time (e.g. \code{"base_salary_lcu"}, \code{"tenure_years"}).
+#' data at simulation time (e.g. \code{"base_salary_lcu"}).  Years of service
+#' are always available as \code{tenure_years}, whatever the tenure column in
+#' your data is called.
 #'
 #' @param pension_formula Character scalar.  An arithmetic R expression
 #'   string, e.g. \code{"pmin(base_salary_lcu * 0.02 * tenure_years,

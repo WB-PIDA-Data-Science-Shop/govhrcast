@@ -15,7 +15,7 @@ A list with a single \code{defaults} element -- pass this as the
 }
 \description{
 Builds the eligibility half of a retirement policy: everyone at or above
-\code{min_age} is eligible to retire (100\\% take-up, no partial
+\code{min_age} is eligible to retire (100\% take-up, no partial
 probability). Combine with a pension constructor (e.g.
 \code{\link{pension_flat}}) via \code{\link{design_retirement_policy}}, or
 use \code{\link{design_retirement_policy_age}} to skip this step entirely.

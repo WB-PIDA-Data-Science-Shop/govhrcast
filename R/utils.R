@@ -1067,13 +1067,16 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #'     \code{replacement_cap = 0.80}).  Purely scalar — no panel needed.}
 #'   \item{\code{exit}}{Non-retirement attrition at the historically
 #'     observed aggregate rate, estimated via
-#'     \code{estimate_historical_exit_rates()}.  Falls back to a 5\%
+#'     \code{estimate_historical_exit_rates()}.  Falls back to a 5%
 #'     annual rate with a warning when fewer than two snapshots are present.}
 #'   \item{\code{movement}}{Grade/group transition probabilities estimated
 #'     from the panel via \code{estimate_historical_movement_rates()}.  Requires
-#'     \code{movement_group_cols} to be specified (see argument).  Falls back
-#'     to a 5\% flat movement rate with a warning when the panel is
-#'     insufficient.}
+#'     \code{movement_group_cols} to be specified (see argument).  When the
+#'     panel is insufficient (fewer than 2 snapshots) a warning is raised and
+#'     \code{policy_table} is left \code{NULL} with a 5% \code{movement_rate}
+#'     in \code{defaults} -- but note that
+#'     \code{simulate_promotions_transfers()} currently does not apply that
+#'     flat rate to single-snapshot data, so this yields no movements.}
 #'   \item{\code{hiring}}{Flow-based replacement at 1:1 (\code{replacement_rate
 #'     = 1.0}), using \code{salary_scale_dt} for new-hire pay.}
 #' }
@@ -1216,7 +1219,7 @@ make_status_quo_policies <- function(contract_dt,
     defaults = list(
       exit_rate     = 0.05,      # fallback when policy_table estimation fails
       exit_strategy = "random",
-      active_types  = c("permanent", "fterm", "temp"),
+      active_types  = c("permanent", "fixed-term", "short-term"),
       exited_type   = "inactive"
     )
   )
