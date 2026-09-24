@@ -10,9 +10,7 @@
 
 baseline_date <- as.Date("2017-09-01")
 
-### history = every snapshot up to and including the baseline. The data also
-### has a 2018-09-01 snapshot, but it has no base salaries and lies after the
-### baseline, so it must not feed the status-quo rates.
+### lets load the harmonized modules
 contract_dt  <- bra_hrmis_contract[ref_date <= baseline_date]
 personnel_dt <- bra_hrmis_personnel[ref_date <= baseline_date]
 allowance_dt <- bra_hrmis_allowance[ref_date <= baseline_date]
