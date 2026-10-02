@@ -54,13 +54,19 @@
 #' supplied:
 #'
 #' * **Status quo mode** (`policy_table` supplied): group-level exit rates
-#'   estimated from historical panel data are applied to each group. Rates
-#'   can additionally be scaled by an `exit_multiplier` column in
-#'   `policy_table` to model reform scenarios without altering the
-#'   underlying historical estimates.
+#'   estimated from historical panel data are applied to each group. With
+#'   `group_cols = NULL`, `policy_table` must have exactly one row (an
+#'   overall rate, as [estimate_historical_exit_rates()] returns for
+#'   `group_cols = NULL`), and that rate applies to everyone.
 #' * **Fixed rate mode** (`policy_table = NULL`): a single scalar
 #'   `exit_rate` from `defaults` is applied uniformly across the entire
 #'   active workforce.
+#'
+#' In both modes, rates can be scaled by `exit_multiplier` to model reform
+#' scenarios without altering the underlying rates (e.g. `1.2` means 20%
+#' more exits than the rate implies). Set it once in `defaults` to scale
+#' every group, or as an `exit_multiplier` column in `policy_table` to vary
+#' it by group -- a table value takes precedence over `defaults`.
 #'
 #' When `simulate_horizon()` is called with `policy_table = NULL` and
 #' panel data are supplied, historical exit rates are estimated
@@ -107,7 +113,8 @@
 #' A `data.table` containing group-specific exit rates, keyed on
 #' `group_cols`. Must contain an `exit_rate` column. May optionally
 #' contain an `exit_multiplier` column to scale historical rates for
-#' reform scenarios without modifying the underlying estimates.
+#' reform scenarios without modifying the underlying estimates. When
+#' `group_cols` is `NULL`, it must have exactly one row.
 #'
 #' Pass the output of [estimate_historical_exit_rates()] here for
 #' status quo projections.
@@ -122,8 +129,9 @@
 #' | Parameter | Description |
 #' |:----------|:------------|
 #' | `exit_rate` | Scalar attrition rate applied when `policy_table = NULL`, or as the fallback rate for groups absent from `policy_table` |
+#' | `exit_multiplier` | Scales the resolved exit rate in either mode (default `1`, no change). An `exit_multiplier` column in `policy_table` overrides it per group |
 #' | `exit_strategy` | `"random"` or a numeric column name in `contract_dt` to rank employees for exit selection |
-#' | `active_types` | Contract type values in `contract_type_col` treated as eligible for exit. Must match actual `contract_type` values (e.g. `c("permanent", "short-term", "fixed-term")`), not `employment_status` values |
+#' | `active_types` | Contract type values in `contract_type_col` treated as eligible for exit. Must match actual `contract_type` values, not `employment_status` values. Default `c("permanent", "fixed-term", "short-term")` — the non-terminal `contract_type` values per the `govhr` harmonized dictionary |
 #' | `exited_type` | Value written to `contract_type_col` after exit. Default `"inactive"` |
 #'
 #' @param contract_dt A `data.table` (or object coercible to a
@@ -328,7 +336,8 @@ simulate_exits <- function(contract_dt,
     personnel_dt <- data.table::copy(personnel_dt)
 
   exit_strategy <- policy_params$defaults$exit_strategy %||% "random"
-  active_types  <- policy_params$defaults$active_types  %||% "active"
+  active_types  <- policy_params$defaults$active_types  %||%
+    c("permanent", "fixed-term", "short-term")
   exited_type   <- policy_params$defaults$exited_type   %||% "inactive"
 
   # ------------------------------------------------------------------

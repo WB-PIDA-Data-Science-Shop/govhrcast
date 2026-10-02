@@ -40,7 +40,7 @@ Options: "last_hired_first", "random"}
 
 \item{contract_type_col}{Character. Contract type column (default: "contract_type")}
 
-\item{status_col}{Character. Status column (default: "status")}
+\item{status_col}{Character. Status column (default: "employment_status")}
 }
 \value{
 Character vector of personnel_ids to remove

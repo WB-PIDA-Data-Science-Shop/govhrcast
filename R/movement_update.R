@@ -17,7 +17,6 @@ NULL
 #' @description
 #' Rounds a fractional number stochastically: always at least floor(x),
 #' with probability (x - floor(x)) of rounding up by one.
-#' Exported internally so compute_movement_demand can use it too.
 #'
 #' @param x Numeric scalar.
 #' @return Integer scalar.
@@ -42,19 +41,22 @@ stochastic_round <- function(x) {
 #'
 #' @param contract_dt data.table. Current (single-snapshot) contract data
 #' @param personnel_dt data.table. Current personnel data
-#' @param demand_dt data.table. Output of \code{compute_movement_demand()}.
-#'   Must have columns: from_group, to_group, movement_type, n_movers
-#' @param policy_params List. Must contain:
+#' @param demand_dt data.table. Output of \code{compute_movement_demand()}
+#'   or \code{compute_fixed_rate_movements()}.
+#'   Must have columns: from_group, to_group, n_movers
+#' @param policy_params List. Canonical three-slot movement policy. Reads:
 #'   \describe{
 #'     \item{group_cols}{Character vector defining state columns}
-#'     \item{promotion_strategy}{Character. "tenure" or "wage_based"}
-#'     \item{promotion_order_col}{Character or \code{NULL}. Optional.  When
-#'       provided, overrides \code{promotion_strategy} ordering by ranking
-#'       eligible persons on this column (descending — highest value promoted
-#'       first).  Must be a numeric column present in \code{contract_dt} or
-#'       the merged workforce view.  Default \code{NULL} (uses
-#'       \code{promotion_strategy}).}
-#'     \item{transfer_strategy}{Character. "random", "tenure", or "reverse_tenure"}
+#'     \item{defaults$movement_strategy}{Character. \code{"tenure"},
+#'       \code{"wage_based"}, \code{"reverse_tenure"}, or \code{"random"}.
+#'       If absent, a legacy top-level \code{promotion_strategy} is used,
+#'       and failing that \code{"tenure"}.}
+#'     \item{promotion_order_col}{Character or \code{NULL}, top level (not
+#'       in \code{defaults}). Optional.  When provided, overrides
+#'       \code{movement_strategy} ordering by ranking eligible persons on
+#'       this column (descending — highest value moved first).  Must be a
+#'       numeric column present in \code{contract_dt} or the merged
+#'       workforce view.  Default \code{NULL}.}
 #'   }
 #' @param ref_date Date or character. Reference date
 #' @param baseline_matrix data.table. Full baseline matrix (used to compute
@@ -64,7 +66,7 @@ stochastic_round <- function(x) {
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param contract_type_col Character. Contract type column (default: "contract_type")
 #' @param salary_col Character. Salary column (default: "gross_salary_lcu")
-#' @param status_col Character. Status column (default: "status")
+#' @param status_col Character. Status column (default: "employment_status")
 #' @param ref_date_col Character. Reference date column for panel data (default: "ref_date")
 #'
 #' @return data.table with columns:
@@ -72,7 +74,6 @@ stochastic_round <- function(x) {
 #'     \item{personnel_id}{Character. Selected mover ID}
 #'     \item{from_group}{Character. Origin state key}
 #'     \item{to_group}{Character. Destination state key}
-#'     \item{movement_type}{Character. "promotion" or "transfer"}
 #'   }
 #' @keywords internal
 identify_movers <- function(contract_dt,
@@ -296,25 +297,36 @@ identify_movers <- function(contract_dt,
 #'
 #' @description
 #' The ONLY function that modifies state in the promotions/transfers module.
-#' Updates \code{contract_dt} to reflect new group assignments (org_id and/or
-#' paygrade_id) and re-assigns compensation from the salary scale for all
-#' selected movers. Returns modified copies.
+#' Updates \code{contract_dt} to reflect new group assignments (the
+#' \code{group_cols} columns) and, when \code{salary_update_rule = "scale"},
+#' re-assigns salary from the salary scale for all selected movers.
 #'
-#' @param contract_dt data.table. Current contract data (will be copied)
-#' @param personnel_dt data.table. Current personnel data (will be copied)
+#' @param contract_dt data.table. Current contract data (modified in place,
+#'   see Data Integrity)
+#' @param personnel_dt data.table. Current personnel data (returned unchanged)
 #' @param movers_dt data.table. Output of \code{identify_movers()}.
-#'   Must have columns: personnel_id, from_group, to_group, movement_type
-#' @param policy_params List. Must contain:
+#'   Must have columns: personnel_id, from_group, to_group
+#' @param policy_params List. Canonical three-slot movement policy. Reads:
 #'   \describe{
 #'     \item{group_cols}{Character vector defining state columns}
-#'     \item{salary_scale}{data.table. Salary scale keyed on group_cols}
-#'     \item{salary_update_rule}{Character. How to set salary after a move:
-#'       \code{"scale"} (default) assigns the destination salary from
-#'       \code{salary_scale}; \code{"keep"} retains the mover's current salary.}
+#'     \item{defaults$salary_update_rule}{Character. How to set salary after
+#'       a move: \code{"scale"} (default) assigns the destination salary
+#'       from the salary scale; \code{"keep"} retains the mover's current
+#'       salary. A legacy top-level \code{salary_update_rule} is also
+#'       accepted.}
+#'     \item{salary_scale}{data.table. Legacy fallback, used only when
+#'       \code{salary_scale_dt} is \code{NULL}.}
 #'   }
+#' @param salary_scale_dt data.table or \code{NULL}. Salary scale keyed on
+#'   \code{group_cols}, one row per group. The salary value is read from a
+#'   numeric column whose name matches
+#'   \code{salary|wage|pay|compensation|allowance} -- \code{gross_salary_lcu}
+#'   if present, otherwise the first match (not matched to
+#'   \code{salary_col} by name).
 #' @param ref_date Date or character. Reference date
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
-#' @param salary_col Character. Salary column (default: "gross_salary_lcu")
+#' @param salary_col Character. Salary column in \code{contract_dt} to
+#'   update (default: "gross_salary_lcu")
 #' @param start_date_col Character. Contract start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param contract_type_col Character. Contract type column (default: "contract_type")
@@ -323,7 +335,8 @@ identify_movers <- function(contract_dt,
 #'   \describe{
 #'     \item{contract_dt}{Updated contract data}
 #'     \item{personnel_dt}{Updated personnel data (unchanged in current spec)}
-#'   \item{movers_dt}{The input movers_dt (passed through for reporting)}
+#'   \item{movers_dt}{The input movers_dt with a \code{salary_before} column
+#'     added (pre-move salary summed across the mover's contracts)}
 #'   }
 #' @section Data Integrity:
 #'   Modifies \code{contract_dt} **in place** via data.table reference semantics

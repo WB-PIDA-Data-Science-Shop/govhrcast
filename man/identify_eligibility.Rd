@@ -16,7 +16,7 @@ identify_eligibility(
   end_date_col = "end_date",
   contract_type_col = "contract_type",
   age_col = "age",
-  tenure_col = "tenure_years",
+  tenure_col = "personnel_tenure",
   status_col = "employment_status"
 )
 }
@@ -73,7 +73,10 @@ skipped entirely.  (default: \code{"age"}).}
 
 \item{tenure_col}{Character.  Column in \code{personnel_dt} with
 pre-computed tenure in years.  When present,
-\code{\link{compute_tenure}} is skipped.  (default: \code{"tenure_years"}).}
+\code{\link{compute_tenure}} is skipped.  Whichever column supplies it,
+tenure is copied to the working column \code{tenure_years}, which is
+what eligibility checks, custom rules and pension formulas read.
+(default: \code{"personnel_tenure"}, the \code{govhr} dictionary name).}
 }
 \value{
 data.table (one row per unique \code{personnel_id}) with columns:
@@ -124,13 +127,13 @@ caller explicitly supplied \code{eligibility_type} in
 
 This function equates \emph{eligibility} with \emph{retirement} — all
 personnel who meet the policy thresholds are assumed to retire
-(100\\% take-up).  In practice, not all eligible personnel choose to retire
+(100\% take-up).  In practice, not all eligible personnel choose to retire
 immediately; take-up depends on individual incentives, pension wealth, and
 labour market conditions.  A future extension will add an optional second
 stage where a retirement choice model (e.g. probit on age, tenure, salary
 relative to expected pension) is applied to the eligible pool to produce a
 probabilistic retirement indicator.  This would be passed as an optional
-\code{choice_model} argument and default to \code{NULL} (100\\% take-up).
+\code{choice_model} argument and default to \code{NULL} (100\% take-up).
 }
 
 \keyword{internal}

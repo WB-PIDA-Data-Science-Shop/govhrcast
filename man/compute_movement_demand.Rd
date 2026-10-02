@@ -23,17 +23,13 @@ compute_movement_demand(
 
 \item{personnel_dt}{data.table. Current personnel data}
 
-\item{baseline_matrix}{data.table. Output of \code{estimate_movement_baseline()}.
-Must have columns: from_group, to_group, avg_prob}
+\item{baseline_matrix}{data.table. Output of
+\code{estimate_historical_movement_rates()} or a user-supplied table.
+Must have columns: from_group, to_group, movement_rate}
 
-\item{policy_params}{List. Must contain:
-\describe{
-\item{group_cols}{Character vector. Columns used to define states}
-\item{promotion_multiplier}{Numeric. Scalar multiplier for promotion probs (default 1)}
-\item{transfer_multiplier}{Numeric. Scalar multiplier for transfer probs (default 1)}
-\item{promotion_strategy}{Character. "tenure" or "wage_based"}
-\item{transfer_strategy}{Character. "random", "tenure", or "reverse_tenure"}
-}}
+\item{policy_params}{List. Canonical three-slot movement policy. Only
+\code{group_cols} (character vector of columns defining states) is
+read here.}
 
 \item{salary_scale_dt}{data.table. Valid destinations. Must contain group_cols columns.}
 
@@ -47,7 +43,7 @@ Must have columns: from_group, to_group, avg_prob}
 
 \item{contract_type_col}{Character. Contract type column (default: "contract_type")}
 
-\item{status_col}{Character. Status column (default: "status")}
+\item{status_col}{Character. Status column (default: "employment_status")}
 }
 \value{
 data.table with columns:
@@ -61,9 +57,11 @@ data.table with columns:
 }
 \description{
 Pure function that joins the current workforce stock with the baseline
-transition matrix, applies policy multipliers, scrubs invalid targets
-(not present in salary_scale), redistributes scrubbed probability to
-"no movement", and calculates integer mover counts per from_group -> to_group
-transition using stochastic rounding.
+transition matrix, scrubs destinations not present in
+\code{salary_scale_dt} (those employees simply stay put), rescales each
+origin group's rates so total outflow is at most 1, and calculates
+integer mover counts per from_group -> to_group transition using
+stochastic rounding. Rates are used as supplied -- there is no multiplier
+applied here.
 }
 \keyword{internal}

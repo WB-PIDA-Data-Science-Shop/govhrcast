@@ -27,7 +27,7 @@ pre-resolved by \code{\link{resolve_policy_table}}.
 \deqn{P_i = \min(\alpha_i \cdot \min(s_i, S^{\max}) \cdot w_i,\; c_i \cdot w_i)}
 where:
 \itemize{
-\item \eqn{\alpha_i} = \code{accrual_rate} (e.g. 0.02 = 2\\% per year),
+\item \eqn{\alpha_i} = \code{accrual_rate} (e.g. 0.02 = 2\% per year),
 \item \eqn{s_i} = \code{tenure_years},
 \item \eqn{S^{\max}} = \code{max_years} (\code{NA} = uncapped),
 \item \eqn{w_i} = wage from the column named by \code{ref_wage_col},

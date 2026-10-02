@@ -70,6 +70,7 @@ compute_pension <- function(retirees_dt) {
       "flat"   = compute_flat_pension(dt_sub),
       "hybrid" = compute_hybrid_pension(dt_sub),
       "rate"   = compute_rate_pension(dt_sub),
+      "custom" = compute_custom_pension(dt_sub),
       stop("Unknown pension policy type: ", ptype, call. = FALSE)
     )
   }
@@ -96,7 +97,7 @@ compute_pension <- function(retirees_dt) {
 #' \deqn{P_i = \min(\alpha_i \cdot \min(s_i, S^{\max}) \cdot w_i,\; c_i \cdot w_i)}
 #' where:
 #' \itemize{
-#'   \item \eqn{\alpha_i} = \code{accrual_rate} (e.g. 0.02 = 2\% per year),
+#'   \item \eqn{\alpha_i} = \code{accrual_rate} (e.g. 0.02 = 2% per year),
 #'   \item \eqn{s_i} = \code{tenure_years},
 #'   \item \eqn{S^{\max}} = \code{max_years} (\code{NA} = uncapped),
 #'   \item \eqn{w_i} = wage from the column named by \code{ref_wage_col},
@@ -253,7 +254,7 @@ compute_hybrid_pension <- function(dt) {
 #' @description
 #' Computes a pension as a fixed proportion of the retiree's reference wage.
 #' Intended for schemes where the periodic pension is a known percentage of
-#' final salary (e.g. Botswana's 15\% defined-contribution scheme).
+#' final salary (e.g. Botswana's 15% defined-contribution scheme).
 #'
 #' @param dt data.table. Retiree subset (\code{pension_type == "rate"}).
 #'   Required columns: \code{pension_rate} (numeric, e.g. \code{0.15}),
@@ -283,4 +284,37 @@ compute_rate_pension <- function(dt) {
          call. = FALSE)
 
   pmax(dt$pension_rate * dt[[wage_col]], 0)
+}
+
+
+#' Compute Custom Pension
+#'
+#' @description
+#' Computes a customized pension policy based on a user-defined formula.
+#' The formula should be provided in the \code{pension_formula} column of \code{dt}.
+#'
+#' @param dt data.table. Retiree subset (\code{pension_type == "custom"}).
+#'   Required column: \code{pension_formula} (character, non-NA).
+#'
+#' @return Numeric vector of pension amounts (length \code{nrow(dt)}).
+#'   Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
+#' @keywords internal
+#' 
+compute_custom_pension <- function(dt) {
+  
+  ## This function is a placeholder for user-defined pension calculations.
+  ## it uses the .eval_per_row_expression() function to evaluate a custom 
+  ## expression provided in the 'custom_expr' column of dt.
+
+  if (nrow(dt) == 0L) return(numeric(0))
+  
+  .eval_per_row_expression(dt,
+                           mask = rep(TRUE, nrow(dt)),
+                           expr_col = "pension_formula",
+                           result_col = "pension_amount",
+                           allowed_calls = .ALLOWED_FORMULA_CALLS,
+                           init_value = NA_real_)
+  
+  dt$pension_amount
+
 }

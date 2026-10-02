@@ -85,6 +85,37 @@ test_that("simulate_exits: fixed_rate mode returns correct structure", {
   expect_equal(result$summary$n_exits, 2L)
 })
 
+test_that("simulate_exits: omitting defaults$active_types uses the dictionary-grounded default, not zero exits", {
+  # Regression test: active_types previously fell back to the literal string
+  # "active" -- an employment_status value, never a valid contract_type value
+  # (per govhr::dictionary: contract_type in c("permanent", "fixed-term",
+  # "short-term", "pensioner", "inactive")) -- which silently matched zero
+  # rows and produced zero exits regardless of exit_rate. make_exit_test_data()
+  # uses contract_type = "permanent" throughout, so with the corrected default
+  # (c("permanent", "fixed-term", "short-term")) and exit_rate = 1.0, every
+  # active person must exit.
+  d <- make_exit_test_data()
+
+  exit_policy <- list(
+    group_cols   = NULL,
+    policy_table = NULL,
+    defaults = list(
+      exit_rate     = 1.0,
+      exit_strategy = "random"
+      # active_types intentionally omitted
+    )
+  )
+
+  result <- simulate_exits(
+    contract_dt   = d$contract_dt,
+    personnel_dt  = d$personnel_dt,
+    policy_params = exit_policy,
+    ref_date      = as.Date("2025-01-01")
+  )
+
+  expect_equal(result$summary$n_exits, 4L)
+})
+
 test_that("simulate_exits: fixed_rate = 0 → no exits", {
   d <- make_exit_test_data()
 
@@ -582,4 +613,101 @@ test_that("compute_status_quo_exits: empty active workforce returns empty data.t
 
   expect_s3_class(result, "data.table")
   expect_equal(nrow(result), 0L)
+})
+
+# =============================================================================
+# Ungrouped status-quo table and exit_multiplier in every path
+# =============================================================================
+
+make_exit_test_data_100 <- function() {
+  ids <- sprintf("P%03d", 1:100)
+  list(
+    contract_dt = data.table::data.table(
+      contract_id      = sprintf("C%03d", 1:100),
+      personnel_id     = ids,
+      start_date       = as.Date("2010-01-01"),
+      end_date         = as.Date(NA),
+      gross_salary_lcu = 1000,
+      contract_type    = "permanent"
+    ),
+    personnel_dt = data.table::data.table(personnel_id = ids, employment_status = "active")
+  )
+}
+
+run_exits_100 <- function(policy_table, defaults) {
+  d <- make_exit_test_data_100()
+  simulate_exits(d$contract_dt, d$personnel_dt,
+                 list(group_cols = NULL, policy_table = policy_table, defaults = defaults),
+                 ref_date = as.Date("2020-01-01"))$summary$n_exits
+}
+
+test_that("simulate_exits: an ungrouped 1-row policy_table rate is used (not ignored)", {
+  # Regression test: the 1-row table estimate_historical_exit_rates() returns
+  # for group_cols = NULL used to be ignored, giving 0 exits (or the flat
+  # defaults$exit_rate) instead of the estimated rate.
+  est <- data.table::data.table(exit_rate = 0.30)
+  expect_equal(run_exits_100(est, list()), 30L)
+  expect_equal(run_exits_100(est, list(exit_rate = 0.05)), 30L)
+})
+
+test_that("simulate_exits: exit_multiplier applies to an ungrouped policy_table", {
+  est <- data.table::data.table(exit_rate = 0.30)
+  expect_equal(run_exits_100(est, list(exit_multiplier = 2)), 60L)
+  est_col <- data.table::data.table(exit_rate = 0.30, exit_multiplier = 0.5)
+  expect_equal(run_exits_100(est_col, list(exit_multiplier = 2)), 15L)  # table column wins
+})
+
+test_that("simulate_exits: a multi-row policy_table without group_cols is an error", {
+  est <- data.table::data.table(est_id = c("E1", "E2"), exit_rate = c(0.1, 0.2))
+  expect_error(run_exits_100(est, list()), regexp = "group_cols is NULL")
+})
+
+test_that("simulate_exits: exit_multiplier applies on the flat-rate path", {
+  expect_equal(run_exits_100(NULL, list(exit_rate = 0.10)), 10L)
+  expect_equal(run_exits_100(NULL, list(exit_rate = 0.10, exit_multiplier = 2)), 20L)
+  expect_error(run_exits_100(NULL, list(exit_rate = 0.10, exit_multiplier = "2")),
+               regexp = "exit_multiplier")
+})
+
+# =============================================================================
+# estimate_historical_exit_rates(): pooled, start-of-interval rates
+# =============================================================================
+
+# One row per person per snapshot; ids_by_snap[[i]] = who is active at snapshot i.
+make_rate_panel <- function(ids_by_snap, est_of = function(id) "E1") {
+  d <- seq(as.Date("2019-01-01"), by = "year", length.out = length(ids_by_snap))
+  ct <- data.table::rbindlist(lapply(seq_along(d), function(i) {
+    ids <- ids_by_snap[[i]]
+    data.table::data.table(
+      ref_date = d[i], personnel_id = sprintf("P%02d", ids),
+      contract_id = sprintf("C%02d", ids), est_id = vapply(ids, est_of, ""),
+      contract_type = "permanent", start_date = as.Date("2010-01-01"),
+      end_date = as.Date(NA), gross_salary_lcu = 1000
+    )
+  }))
+  list(ct = ct, pt = ct[, .(ref_date, personnel_id, employment_status = "active")])
+}
+
+test_that("estimate_historical_exit_rates: the last snapshot does not dilute the rate", {
+  # Regression test: 10 active, 3 gone by the next snapshot => 0.30. The last
+  # snapshot used to be averaged in as a structural zero, giving 0.15.
+  p <- make_rate_panel(list(1:10, 1:7))
+  expect_equal(estimate_historical_exit_rates(p$ct, p$pt)$exit_rate, 0.30)
+})
+
+test_that("estimate_historical_exit_rates: rates are pooled across intervals", {
+  # Interval 1: 3 of 10 leave; interval 2: 0 of 7. Pooled = 3 / 17.
+  p <- make_rate_panel(list(1:10, 1:7, 1:7))
+  expect_equal(estimate_historical_exit_rates(p$ct, p$pt)$exit_rate, 3 / 17)
+})
+
+test_that("estimate_historical_exit_rates: grouped rates are pooled per group", {
+  # E1 = P01-P05, E2 = P06-P10. Interval 1: P01, P02 (E1) and P06 (E2) leave.
+  # Interval 2: nobody leaves. E1 = 2 / (5 + 3); E2 = 1 / (5 + 4).
+  est_of <- function(id) if (id <= 5L) "E1" else "E2"
+  keep <- c(3:5, 7:10)
+  p <- make_rate_panel(list(1:10, keep, keep), est_of)
+  r <- estimate_historical_exit_rates(p$ct, p$pt, group_cols = "est_id")
+  data.table::setkey(r, est_id)
+  expect_equal(r$exit_rate, c(2 / 8, 1 / 9))
 })

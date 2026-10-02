@@ -20,7 +20,7 @@ NULL
 #' @param ref_date Date. Reference date for ID generation
 #' @param group_vals Named list. Values for grouping columns (e.g., list(department = "HR", grade = "G5"))
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
-#' @param status_col Character. Status column (default: "status")
+#' @param status_col Character. Status column (default: "employment_status")
 #'
 #' @return data.table with new personnel records
 #' @keywords internal
@@ -274,7 +274,7 @@ assign_compensation <- function(new_contracts_dt,
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param contract_type_col Character. Contract type column (default: "contract_type")
-#' @param status_col Character. Status column (default: "status")
+#' @param status_col Character. Status column (default: "employment_status")
 #'
 #' @return Character vector of personnel_ids to remove
 #' @keywords internal
@@ -379,7 +379,7 @@ select_personnel_to_remove <- function(contract_dt,
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param salary_col Character. Salary column (default: "gross_salary_lcu")
 #' @param contract_type_col Character. Contract type column (default: "contract_type")
-#' @param status_col Character. Status column (default: "status")
+#' @param status_col Character. Status column (default: "employment_status")
 #'
 #' @return List containing:
 #'   \itemize{

@@ -130,7 +130,8 @@ summary.horizon <- function(object, ...) {
 
   keep_cols <- intersect(
     c("scenario", "period_date", "n_headcount_end",
-      "wage_bill_end", "pension_cost_total", "n_exits", "n_hires"),
+      "wage_bill_end", "total_wage_bill_end", "allowance_cost_end",
+      "pension_cost_total", "n_exits", "n_hires"),
     names(dt)
   )
 

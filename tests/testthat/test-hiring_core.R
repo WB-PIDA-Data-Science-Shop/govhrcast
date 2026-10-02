@@ -648,3 +648,45 @@ test_that("hire_date_col produces lower rate than panel-appearance when pre-pane
   expect_true(is.numeric(rate_panel))
 })
 
+
+# =============================================================================
+# estimate_historical_hiring_rates() panel path: pooled, start-of-interval base
+# =============================================================================
+
+make_hire_rate_panel <- function(ids_by_snap, est_of = function(id) "E1") {
+  d <- seq(as.Date("2019-01-01"), by = "year", length.out = length(ids_by_snap))
+  ct <- data.table::rbindlist(lapply(seq_along(d), function(i) {
+    ids <- ids_by_snap[[i]]
+    data.table::data.table(
+      ref_date = d[i], personnel_id = sprintf("P%02d", ids),
+      contract_id = sprintf("C%02d", ids), est_id = vapply(ids, est_of, ""),
+      contract_type = "permanent", start_date = as.Date("2010-01-01"),
+      end_date = as.Date(NA), gross_salary_lcu = 1000
+    )
+  }))
+  list(ct = ct, pt = ct[, .(ref_date, personnel_id, employment_status = "active")])
+}
+
+test_that("estimate_historical_hiring_rates: hires are divided by the start-of-interval stock", {
+  # Regression test: 10 active, 5 join by the next snapshot => 5 / 10 = 0.5.
+  # It used to divide by the end stock (5 / 15) and average in the first
+  # snapshot as a structural zero, giving 1/6.
+  p <- make_hire_rate_panel(list(1:10, 1:15))
+  expect_equal(estimate_historical_hiring_rates(p$ct, p$pt, group_cols = NULL)$hiring_rate, 0.5)
+})
+
+test_that("estimate_historical_hiring_rates: rates are pooled across intervals", {
+  # Interval 1: 5 hires on a base of 10; interval 2: 0 on 15. Pooled = 5 / 25.
+  p <- make_hire_rate_panel(list(1:10, 1:15, 1:15))
+  expect_equal(estimate_historical_hiring_rates(p$ct, p$pt, group_cols = NULL)$hiring_rate, 0.2)
+})
+
+test_that("estimate_historical_hiring_rates: grouped rates are pooled per group", {
+  # E1 = P01-P05 + hires P11, P12; E2 = P06-P10 + hire P13 (in interval 2).
+  # E1: 2 / (5 + 7) ; E2: 1 / (5 + 5).
+  est_of <- function(id) if (id <= 5L || id %in% 11:12) "E1" else "E2"
+  p <- make_hire_rate_panel(list(1:10, c(1:10, 11:12), c(1:10, 11:13)), est_of)
+  r <- estimate_historical_hiring_rates(p$ct, p$pt, group_cols = "est_id")
+  data.table::setkey(r, est_id)
+  expect_equal(r$hiring_rate, c(2 / 12, 1 / 10))
+})

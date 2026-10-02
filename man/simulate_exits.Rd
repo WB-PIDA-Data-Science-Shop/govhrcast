@@ -56,7 +56,8 @@ workforce.
 A \code{data.table} containing group-specific exit rates, keyed on
 \code{group_cols}. Must contain an \code{exit_rate} column. May optionally
 contain an \code{exit_multiplier} column to scale historical rates for
-reform scenarios without modifying the underlying estimates.
+reform scenarios without modifying the underlying estimates. When
+\code{group_cols} is \code{NULL}, it must have exactly one row.
 
 Pass the output of \code{\link[=estimate_historical_exit_rates]{estimate_historical_exit_rates()}} here for
 status quo projections.
@@ -69,8 +70,9 @@ Named list containing default exit policy parameters. The following
 fields are recognised:\tabular{ll}{
    Parameter \tab Description \cr
    \code{exit_rate} \tab Scalar attrition rate applied when \code{policy_table = NULL}, or as the fallback rate for groups absent from \code{policy_table} \cr
+   \code{exit_multiplier} \tab Scales the resolved exit rate in either mode (default \code{1}, no change). An \code{exit_multiplier} column in \code{policy_table} overrides it per group \cr
    \code{exit_strategy} \tab \code{"random"} or a numeric column name in \code{contract_dt} to rank employees for exit selection \cr
-   \code{active_types} \tab Contract type values in \code{contract_type_col} treated as eligible for exit. Must match actual \code{contract_type} values (e.g. \code{c("permanent", "short-term", "fixed-term")}), not \code{employment_status} values \cr
+   \code{active_types} \tab Contract type values in \code{contract_type_col} treated as eligible for exit. Must match actual \code{contract_type} values, not \code{employment_status} values. Default \code{c("permanent", "fixed-term", "short-term")} — the non-terminal \code{contract_type} values per the \code{govhr} harmonized dictionary \cr
    \code{exited_type} \tab Value written to \code{contract_type_col} after exit. Default \code{"inactive"} \cr
 }}
 
@@ -191,14 +193,20 @@ dispatch paths are available depending on whether \code{policy_table} is
 supplied:
 \itemize{
 \item \strong{Status quo mode} (\code{policy_table} supplied): group-level exit rates
-estimated from historical panel data are applied to each group. Rates
-can additionally be scaled by an \code{exit_multiplier} column in
-\code{policy_table} to model reform scenarios without altering the
-underlying historical estimates.
+estimated from historical panel data are applied to each group. With
+\code{group_cols = NULL}, \code{policy_table} must have exactly one row (an
+overall rate, as \code{\link[=estimate_historical_exit_rates]{estimate_historical_exit_rates()}} returns for
+\code{group_cols = NULL}), and that rate applies to everyone.
 \item \strong{Fixed rate mode} (\code{policy_table = NULL}): a single scalar
 \code{exit_rate} from \code{defaults} is applied uniformly across the entire
 active workforce.
 }
+
+In both modes, rates can be scaled by \code{exit_multiplier} to model reform
+scenarios without altering the underlying rates (e.g. \code{1.2} means 20\%
+more exits than the rate implies). Set it once in \code{defaults} to scale
+every group, or as an \code{exit_multiplier} column in \code{policy_table} to vary
+it by group -- a table value takes precedence over \code{defaults}.
 
 When \code{simulate_horizon()} is called with \code{policy_table = NULL} and
 panel data are supplied, historical exit rates are estimated

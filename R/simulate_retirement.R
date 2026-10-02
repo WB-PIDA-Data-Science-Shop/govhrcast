@@ -125,10 +125,11 @@ utils::globalVariables(c(
 #'
 #' | Parameter | Description |
 #' |:----------|:------------|
-#' | `eligibility_type` | `"age_only"`, `"tenure_only"` or `"age_and_tenure"` |
-#' | `min_age` | Minimum retirement age |
+#' | `eligibility_type` | `"age_only"`, `"tenure_only"`, `"age_and_tenure"`, `"custom"` or `"hazard_rate"` |
+#' | `min_age` | Minimum retirement age.  For `"hazard_rate"`, a mandatory ceiling instead (everyone at or above it retires with certainty) rather than a threshold that turns the hazard mechanism on |
 #' | `min_tenure` | Minimum years of service |
 #' | `active_types` | Contract types considered active |
+#' | `retire_strategy` | `"hazard_rate"` only: `"random"` (default) or a rank-by-column name, used to select which individuals retire within each group once the group's retiree count is determined |
 #' | `pension_type` | `"db"`, `"dc"`, `"rate"`, `"flat"` or `"hybrid"` |
 #' | `ref_wage_col` | Salary column used as the pension reference wage |
 #' | `accrual_rate` | Annual DB accrual rate |
@@ -139,7 +140,16 @@ utils::globalVariables(c(
 #' | `notional_rate` | Optional DC interest rate |
 #' | `flat_amount` | Flat pension amount |
 #' | `pension_rate` | Pension as a proportion of the reference wage |
-#' 
+#'
+#' When `eligibility_type = "hazard_rate"`, retirement is instead driven by a
+#' group-level rate rather than a fixed threshold: `group_cols` must include
+#' `"age_yr_int"`, and `policy_table` must supply a `hazard_rate` column keyed
+#' by `group_cols` (see [estimate_retirement_hazard_rates()] to estimate one
+#' from historical panel data). Within each group,
+#' `round(n_active * hazard_rate)` individuals are selected to retire via
+#' `retire_strategy`, after anyone at or above `min_age` (if set) is
+#' force-retired first.
+#'
 #' @param contract_dt A `data.table` (or object coercible to a
 #' `data.table`) containing the active workforce contract register in
 #' **govhr** harmonized format.
@@ -268,7 +278,10 @@ utils::globalVariables(c(
 #' When available, this variable is used directly instead of reconstructing
 #' tenure from contract histories.
 #'
-#' Default is `"tenure_years"`.
+#' Default is `"personnel_tenure"`, the name in the `govhr` harmonized
+#' dictionary. Whichever column supplies it (or if it is calculated from
+#' contracts), tenure is available to custom eligibility rules and pension
+#' formulas as `tenure_years`.
 #' @return
 #' A named list with four elements:
 #'
@@ -394,7 +407,12 @@ utils::globalVariables(c(
 #'
 #' [simulate_horizon()] for multi-period workforce simulations.
 #'
-#' [identify_eligibility()] for retirement eligibility determination.
+#' [identify_eligibility()] for retirement eligibility determination
+#' (threshold-based eligibility types).
+#'
+#' [estimate_retirement_hazard_rates()] and
+#' [compute_status_quo_retirements()] for the `"hazard_rate"` eligibility
+#' type.
 #'
 #' [compute_pension()] for pension benefit calculations.
 #'
@@ -433,7 +451,7 @@ simulate_retirement <- function(contract_dt,
                                 contract_type_col = "contract_type",
                                 status_col         = "employment_status",
                                 age_col    = "age",
-                                tenure_col = "tenure_years") {
+                                tenure_col = "personnel_tenure") {
   
   # ========================================
   # 1. Input Validation
@@ -482,19 +500,53 @@ simulate_retirement <- function(contract_dt,
   # ========================================
   # 3. Identify eligible retirees
   # ========================================
-  eligibility_dt <- identify_eligibility(
-    contract_dt = contract_dt,
-    personnel_dt = personnel_dt,
-    policy_params = policy_params,
-    ref_date = ref_date,  # Use user's ref_date for age/tenure calculation
-    personnel_id_col = personnel_id_col,
-    birth_date_col = birth_date_col,
-    start_date_col = start_date_col,
-    end_date_col = end_date_col,
-    contract_type_col = contract_type_col,
-    age_col    = age_col,
-    tenure_col = tenure_col
-  )
+  .etype <- policy_params$defaults$eligibility_type %||% "age_only"
+
+  if (identical(.etype, "hazard_rate")) {
+    # Hazard-rate path: compute_status_quo_retirements() returns personnel_id
+    # + the age it already computed internally, so adapt it to the
+    # eligibility_dt shape prepare_retiree_data() expects below (personnel_id
+    # / retire / age / tenure_years) without discarding that age -- discarding
+    # it and leaving NA would force prepare_retiree_data() to recompute age
+    # from birth_date_col downstream, which fails when age was pre-computed
+    # and birth_date_col isn't even available on personnel_dt.
+    # tenure_years is left NA regardless -- compute_status_quo_retirements()
+    # never computes it, and prepare_retiree_data()'s tenure fallback (via
+    # compute_tenure() on contract_dt) doesn't share that fragility.
+    .selected <- compute_status_quo_retirements(
+      contract_dt = contract_dt,
+      personnel_dt = personnel_dt,
+      policy_params = policy_params,
+      ref_date = ref_date,  # Use user's ref_date for age calculation
+      personnel_id_col = personnel_id_col,
+      birth_date_col = birth_date_col,
+      start_date_col = start_date_col,
+      end_date_col = end_date_col,
+      contract_type_col = contract_type_col,
+      status_col = status_col,
+      age_col = age_col
+    )
+    eligibility_dt <- data.table::data.table(
+      personnel_id = .selected$personnel_id,
+      retire       = 1L,
+      age          = .selected$age,
+      tenure_years = NA_real_
+    )
+  } else {
+    eligibility_dt <- identify_eligibility(
+      contract_dt = contract_dt,
+      personnel_dt = personnel_dt,
+      policy_params = policy_params,
+      ref_date = ref_date,  # Use user's ref_date for age/tenure calculation
+      personnel_id_col = personnel_id_col,
+      birth_date_col = birth_date_col,
+      start_date_col = start_date_col,
+      end_date_col = end_date_col,
+      contract_type_col = contract_type_col,
+      age_col    = age_col,
+      tenure_col = tenure_col
+    )
+  }
   
   # ========================================
   # 4. Prepare Retiree Data
@@ -531,6 +583,19 @@ simulate_retirement <- function(contract_dt,
     ))
   }
   
+  # Stamp age_yr_int onto retirees_dt for the hazard_rate path: step 5 below
+  # resolves pension params via the SAME policy_params object used for
+  # selection above (group_cols = "age_yr_int"), but age_yr_int is a
+  # selection-only synthetic column that prepare_retiree_data() never
+  # attaches -- unlike other eligibility types' group_cols (e.g. "paygrade",
+  # "est_id"), which are real contract/personnel columns already carried
+  # through. Without this, resolve_policy_table()'s group_cols presence
+  # check would error here even when the pension policy doesn't actually
+  # vary by age_yr_int.
+  if (identical(.etype, "hazard_rate")) {
+    retirees_dt[, age_yr_int := as.integer(age)]
+  }
+
   # ========================================
   # 5. Compute Pensions
   # ========================================
@@ -540,7 +605,7 @@ simulate_retirement <- function(contract_dt,
     "pension_type", "accrual_rate", "ref_wage_col",
     "max_years", "replacement_cap",
     "balance_col", "annuity_factor", "notional_rate",
-    "flat_amount", "pension_rate"
+    "flat_amount", "pension_rate", "pension_formula"
   )
 
   .resolved_pension <- resolve_policy_table(

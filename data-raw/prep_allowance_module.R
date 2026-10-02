@@ -1,85 +1,39 @@
 #######################################################################
-###### PREPARE A SUPPLEMENTARY ALLOWANCE FOR SIMULATION MODELLING #####
+###### PREPARE THE ALLOWANCE PANEL FOR SIMULATION MODELLING ###########
 #######################################################################
+#
+# Source: govhr::bra_hrmis_allowance -- a long-format panel keyed by
+# personnel_id/contract_id/ref_date/allowance_type. govhr's own dictionary
+# documents allowance_lcu as numeric, but the raw extract currently ships it
+# as unparsed Brazilian currency text (e.g. "R$402,65", "R$3.156,85", and
+# "R$-" for zero). That's a bug upstream in govhr's extraction, not a
+# governhrcast concern -- but govhrcast should only ever simulate on data
+# that already meets the clean schema, so fix it here for the bundled
+# example data to the same standard we expect of any user's data.
 
-### prepare the allowance categories
 library(data.table)
 
-set.seed(123)
+bra_hrmis_allowance <- as.data.table(govhr::bra_hrmis_allowance)
 
-allowance_types <- c(
-  "transport",
-  "meal",
-  "management",
-  "hazard",
-  "performance",
-  "overtime",
-  "child"
-)
+# Parse Brazilian currency strings: "R$1.234,56" -> 1234.56 (strip the "R$"
+# prefix, drop "." thousands separators, convert the "," decimal separator
+# to "."); "R$-" is the extract's zero marker -> 0. Values that are already
+# plain numeric strings (e.g. "275", "140.73") pass through as.numeric()
+# unchanged -- only "R$"-prefixed values need parsing.
+.parse_brl_currency <- function(x) {
+  is_brl <- grepl("^R\\$", x)
 
-# Keep only records with positive allowances
-dt <- bra_hrmis_contract[
-  !is.na(allowance_lcu) &
-    allowance_lcu > 0,
-  .(contract_id, ref_date, allowance_lcu)
-]
+  out <- x
+  out[is_brl] <- sub("^R\\$", "", out[is_brl])
+  out[is_brl & out == "-"] <- "0"
+  out[is_brl] <- gsub("\\.", "", out[is_brl])   # drop thousands separators
+  out[is_brl] <- gsub(",", ".", out[is_brl])    # decimal comma -> decimal point
 
-# Number of allowance categories per contract
-dt[, n_allowances := sample(1:5, .N, replace = TRUE)]
+  as.numeric(out)
+}
 
-# Expand rows
-dt <- dt[rep(seq_len(.N), n_allowances)]
+bra_hrmis_allowance[, allowance_lcu := .parse_brl_currency(allowance_lcu)]
 
-# Random weights
-dt[,
-  weight := rgamma(.N, shape = 1)
-]
+stopifnot(!anyNA(bra_hrmis_allowance$allowance_lcu))
 
-# Normalize weights within contract
-dt[,  weight := weight / sum(weight), by = .(contract_id, ref_date)]
-
-# Allocate allowance
-dt[, allowance_lcu := allowance_lcu * weight]
-
-# Allocate allowance_type
-type_dt <- data.table(allowance_type = allowance_types, 
-                      allowance_num = 1:length(allowance_types))
-
-dt[, allowance_num := sample(1:length(allowance_types), .N, replace = FALSE), by = c("contract_id", "ref_date")]
-
-dt <- type_dt[dt, on = c("allowance_num")][, c("contract_id", "ref_date", "allowance_type", "allowance_lcu")]
-
-bra_hrmis_allowances <- dt
-
-dt <- NULL 
-
-usethis::use_data(bra_hrmis_allowances, overwrite = TRUE)
-
-
-
-# ## quick check sum allowances in the new table by contract_id and ref_date match
-# # Sum allowances in the new table by contract_id and ref_date
-# allowance_check <- bra_hrmis_allowances[, 
-#   .(allowance_lcu_sim = sum(allowance_lcu)), 
-#   by = .(contract_id, ref_date)
-# ]
-
-# # Pull the original allowances from the source table
-# original <- bra_hrmis_contract[
-#   !is.na(allowance_lcu) & allowance_lcu > 0,
-#   .(contract_id, ref_date, allowance_lcu_orig = allowance_lcu)
-# ]
-
-# # Join and compare
-# check <- original[allowance_check, on = .(contract_id, ref_date)]
-
-# # Flag mismatches (using a tolerance for floating point)
-# check[, match := abs(allowance_lcu_orig - allowance_lcu_sim) < 1e-9]
-
-# # Summary
-# cat("Total contracts checked:", nrow(check), "\n")
-# cat("Matching:", sum(check$match), "\n")
-# cat("Mismatching:", sum(!check$match), "\n")
-
-# # Inspect any mismatches
-# check[match == FALSE]
+usethis::use_data(bra_hrmis_allowance, overwrite = TRUE)

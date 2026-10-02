@@ -13,7 +13,7 @@ NULL
 
 # Suppress R CMD check NOTEs for data.table column names.
 utils::globalVariables(c(
-  "t0_date",       # estimate_movement_baseline: grouping column added by := then used in by=
+  "t0_date",       # estimate_historical_movement_rates: grouping column added by := then used in by=
   "movement_rate",  # compute_movement_demand: column used in := and by= expressions
   "n_dest",         # compute_fixed_rate_movements: bare column name in data.table
   "rate_per_dest"   # compute_fixed_rate_movements: bare column name in data.table
@@ -150,12 +150,12 @@ compute_time_in_grade <- function(contract_dt,
 
 # ---------------------------------------------------------------------------
 # Internal: process one consecutive snapshot pair for the movement baseline.
-# Called by roll_snapshot_pairs() inside estimate_movement_baseline().
+# Called by roll_snapshot_pairs() inside estimate_historical_movement_rates().
 #
 # @param snap_t0  data.table subset at time T0 (one snapshot).
 # @param snap_t1  data.table subset at time T1 (next snapshot).
 # @param group_cols,personnel_id_col,start_date_col,end_date_col,
-#        contract_type_col  Same semantics as estimate_movement_baseline().
+#        contract_type_col  Same semantics as estimate_historical_movement_rates().
 #
 # @return data.table with columns from_group, to_group, n_moves, n_pop,
 #         period_prob, t0_date; or NULL when either snapshot is empty.
@@ -249,18 +249,24 @@ compute_time_in_grade <- function(contract_dt,
 #' @return data.table with columns:
 #'   \describe{
 #'     \item{from_group}{Character. State at period start (concatenated group_cols)}
-#'     \item{to_group}{Character. State at period end (concatenated group_cols or "NO_MOVEMENT")}
-#'     \item{avg_prob}{Numeric. Average transition probability across all periods}
-#'     \item{n_periods}{Integer. Number of periods used for estimation}
+#'     \item{to_group}{Character. State at period end (concatenated
+#'       group_cols). Always different from \code{from_group} -- stay rows
+#'       are dropped.}
+#'     \item{movement_rate}{Numeric. Average transition probability across
+#'       all snapshot pairs}
+#'     \item{n_periods}{Integer. Number of snapshot pairs in which this
+#'       transition was observed}
 #'   }
+#'   A zero-row table (not \code{NULL}) is returned when no transitions are
+#'   observed.
 #' @keywords internal
-estimate_movement_baseline <- function(contract_dt,
-                                       group_cols,
-                                       personnel_id_col = "personnel_id",
-                                       ref_date_col = "ref_date",
-                                       start_date_col = "start_date",
-                                       end_date_col = "end_date",
-                                       contract_type_col = "contract_type") {
+estimate_historical_movement_rates <- function(contract_dt,
+                                               group_cols,
+                                               personnel_id_col = "personnel_id",
+                                               ref_date_col = "ref_date",
+                                               start_date_col = "start_date",
+                                               end_date_col = "end_date",
+                                               contract_type_col = "contract_type") {
 
   # Validate inputs
   if (!data.table::is.data.table(contract_dt)) {
@@ -286,6 +292,12 @@ estimate_movement_baseline <- function(contract_dt,
     stop("At least 2 panel snapshots required to estimate movement baseline. ",
          "Found ", length(all_dates), " snapshot(s).", call. = FALSE)
   }
+
+  # Keep only the columns the estimate needs. This makes a new table, so the
+  # keying below never re-sorts the caller's panel (and keys less data).
+  contract_dt <- contract_dt[, unique(c(ref_date_col, personnel_id_col, group_cols,
+                                        start_date_col, end_date_col,
+                                        contract_type_col)), with = FALSE]
 
   # For each consecutive pair of snapshots, compute transition counts.
   # roll_snapshot_pairs() sets setkeyv(contract_dt, ref_date_col) before
@@ -346,30 +358,28 @@ estimate_movement_baseline <- function(contract_dt,
 #'
 #' @description
 #' Pure function that joins the current workforce stock with the baseline
-#' transition matrix, applies policy multipliers, scrubs invalid targets
-#' (not present in salary_scale), redistributes scrubbed probability to
-#' "no movement", and calculates integer mover counts per from_group -> to_group
-#' transition using stochastic rounding.
+#' transition matrix, scrubs destinations not present in
+#' \code{salary_scale_dt} (those employees simply stay put), rescales each
+#' origin group's rates so total outflow is at most 1, and calculates
+#' integer mover counts per from_group -> to_group transition using
+#' stochastic rounding. Rates are used as supplied -- there is no multiplier
+#' applied here.
 #'
 #' @param contract_dt data.table. Current (single-snapshot) contract data
 #' @param personnel_dt data.table. Current personnel data
-#' @param baseline_matrix data.table. Output of \code{estimate_movement_baseline()}.
-#'   Must have columns: from_group, to_group, avg_prob
-#' @param policy_params List. Must contain:
-#'   \describe{
-#'     \item{group_cols}{Character vector. Columns used to define states}
-#'     \item{promotion_multiplier}{Numeric. Scalar multiplier for promotion probs (default 1)}
-#'     \item{transfer_multiplier}{Numeric. Scalar multiplier for transfer probs (default 1)}
-#'     \item{promotion_strategy}{Character. "tenure" or "wage_based"}
-#'     \item{transfer_strategy}{Character. "random", "tenure", or "reverse_tenure"}
-#'   }
+#' @param baseline_matrix data.table. Output of
+#'   \code{estimate_historical_movement_rates()} or a user-supplied table.
+#'   Must have columns: from_group, to_group, movement_rate
+#' @param policy_params List. Canonical three-slot movement policy. Only
+#'   \code{group_cols} (character vector of columns defining states) is
+#'   read here.
 #' @param salary_scale_dt data.table. Valid destinations. Must contain group_cols columns.
 #' @param ref_date Date or character. Reference date
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
 #' @param start_date_col Character. Start date column (default: "start_date")
 #' @param end_date_col Character. End date column (default: "end_date")
 #' @param contract_type_col Character. Contract type column (default: "contract_type")
-#' @param status_col Character. Status column (default: "status")
+#' @param status_col Character. Status column (default: "employment_status")
 #'
 #' @return data.table with columns:
 #'   \describe{
@@ -521,7 +531,7 @@ compute_movement_demand <- function(contract_dt,
 #'
 #' @param movers_dt data.table. Output of \code{identify_movers()}
 #' @param demand_dt data.table. Output of \code{compute_movement_demand()}
-#' @param baseline_matrix data.table. Output of \code{estimate_movement_baseline()}
+#' @param baseline_matrix data.table. Output of \code{estimate_historical_movement_rates()}
 #' @param stock_before Integer. Total active headcount before movements
 #' @param stock_after Integer. Total active headcount after movements
 #'
@@ -562,23 +572,23 @@ compute_movement_summary <- function(movers_dt,
 #'
 #' @description
 #' Applies a single scalar \code{movement_rate} from
-#' \code{policy_params$defaults} uniformly across the active workforce.
+#' \code{policy_params$defaults}.
 #' Called by \code{\link{simulate_promotions_transfers}} when
-#' \code{policy_params$policy_table} is \code{NULL}.  Movers are distributed
+#' \code{policy_params$policy_table} is \code{NULL} and estimation from a
+#' multi-snapshot panel fails or finds zero transitions.  Movers are distributed
 #' uniformly across all valid destination groups in \code{salary_scale_dt}.
 #'
 #' @param contract_dt data.table.  Current (single-snapshot) contract data.
 #' @param personnel_dt data.table.  Current personnel data.
 #' @param salary_scale_dt data.table.  Pay table; defines valid destination groups.
 #' @param policy_params List.  Canonical three-slot movement policy specification.
-#'   Keys consumed: \code{group_cols}, \code{defaults$movement_rate},
-#'   \code{defaults$active_types}.
+#'   Keys consumed: \code{group_cols}, \code{defaults$movement_rate}.
 #' @param ref_date Date.  Reference date.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"status"}.
+#' @param status_col Character.  Default \code{"employment_status"}.
 #'
 #' @return data.table with columns \code{from_group}, \code{to_group},
 #'   \code{movement_rate}, \code{current_stock}, \code{n_movers}.

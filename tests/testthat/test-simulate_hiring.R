@@ -434,3 +434,44 @@ test_that("simulate_hiring requires replacement_rate for flow mode", {
     "replacement_rate is required"
   )
 })
+
+# =============================================================================
+# Status-quo hiring: rate_mult scales the historical rate once
+# =============================================================================
+
+# 100 active staff on one-row pay; a pre-estimated historical hiring rate of
+# 10% and rate_mult = 0.5 (hire at half the historical pace).
+make_status_quo_hiring_fixture <- function() {
+  ids <- sprintf("P%03d", 1:100)
+  list(
+    contract_dt = data.table(
+      contract_id = sub("P", "C", ids), personnel_id = ids,
+      start_date = as.Date("2010-01-01"), end_date = as.Date(NA),
+      contract_type = "permanent", gross_salary_lcu = 1000
+    ),
+    personnel_dt = data.table(personnel_id = ids, employment_status = "active"),
+    policy = list(
+      mode = "status_quo", group_cols = NULL, rate_mult = 0.5,
+      squorate_dt  = data.table(hiring_rate = 0.10),
+      salary_scale = data.table(gross_salary_lcu = 1000)
+    ),
+    ref_date = as.Date("2025-01-01")
+  )
+}
+
+test_that("status-quo hiring applies rate_mult once, however many periods reuse the policy", {
+  d <- make_status_quo_hiring_fixture()
+  hires <- vapply(1:3, function(i) {
+    simulate_hiring(d$contract_dt, d$personnel_dt, policy_params = d$policy,
+                    ref_date = d$ref_date)$summary$n_new_hires
+  }, integer(1))
+  # 100 staff x 0.10 historical rate x 0.5 = 5 hires in every period
+  expect_identical(hires, c(5L, 5L, 5L))
+})
+
+test_that("status-quo hiring leaves the policy's historical rates unchanged", {
+  d <- make_status_quo_hiring_fixture()
+  simulate_hiring(d$contract_dt, d$personnel_dt, policy_params = d$policy,
+                  ref_date = d$ref_date)
+  expect_identical(d$policy$squorate_dt$hiring_rate, 0.10)
+})

@@ -16,7 +16,8 @@ utils::globalVariables(c(
   ".s",          # compute_tenure: segment start numeric
   ".e",          # compute_tenure: segment end numeric
   ".lag_max_e",  # compute_tenure: lagged max end for overlap detection
-  ".contrib"     # compute_tenure: per-segment tenure contribution
+  ".contrib",    # compute_tenure: per-segment tenure contribution
+  "rank_val"     # .select_personnel_subset: ordering column built from dynamic strategy col
 ))
 
 #' Calculate Years Between Two Dates
@@ -637,6 +638,31 @@ expand_rate_vector <- function(x, n_periods, param_name) {
 }
 
 
+# Save and restore the caller's random-number state.
+#
+# A run with a `seed` calls set.seed(), which overwrites the session's random
+# stream (.Random.seed in the global environment). simulate_horizon() and
+# simulate_scenario() save the state on entry and restore it with on.exit(),
+# so seeding a run never changes the draws in the user's own code afterwards.
+# .save_rng_state() returns NULL when the session has not drawn a random
+# number yet; .restore_rng_state(NULL) then removes the seed the run created.
+# Base R only -- withr::local_seed() would do the same but is not a
+# dependency of this package.
+.save_rng_state <- function() {
+  if (exists(".Random.seed", envir = globalenv(), inherits = FALSE))
+    get(".Random.seed", envir = globalenv()) else NULL
+}
+
+.restore_rng_state <- function(state) {
+  if (is.null(state)) {
+    if (exists(".Random.seed", envir = globalenv(), inherits = FALSE))
+      rm(".Random.seed", envir = globalenv())
+  } else {
+    assign(".Random.seed", state, envir = globalenv())
+  }
+}
+
+
 #' Iterate Consecutive Snapshot Pairs in a Panel data.table
 #'
 #' @description
@@ -988,6 +1014,66 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 }
 
 
+#' Select a Subset of Personnel from a Pool
+#'
+#' @description
+#' Shared selection mechanism used by every module that must draw a fixed
+#' number of individuals from a candidate pool: random draw, or rank-by-column
+#' (ascending — lowest values selected first). Originally exit-specific
+#' (\code{.select_exits()} in \code{exit_core.R}); relocated here once
+#' retirement's hazard-rate path needed the identical mechanism, since neither
+#' the pool/rank/random logic nor its inputs were ever exit-specific.
+#'
+#' @param pool_ids Character vector.  Candidate personnel IDs to select from.
+#' @param pool_dt data.table.  Table containing \code{personnel_id_col} and,
+#'   when \code{strategy} names a column, that ranking column.
+#' @param n_select Integer.  Number of IDs to select.  Capped at
+#'   \code{length(pool_ids)}.
+#' @param strategy Character.  Either \code{"random"}, or the name of a
+#'   numeric column in \code{pool_dt} to rank ascending (ties broken by
+#'   \code{max()} per ID, lowest values selected first).  Falls back to random
+#'   selection for any other value.
+#' @param personnel_id_col Character.  Personnel identifier column name in
+#'   \code{pool_dt}.
+#'
+#' @return Character vector of selected personnel IDs, length
+#'   \code{min(n_select, length(pool_ids))}.  Empty \code{character(0)} when
+#'   \code{n_select <= 0}.
+#' @keywords internal
+.select_personnel_subset <- function(pool_ids,
+                                     pool_dt,
+                                     n_select,
+                                     strategy,
+                                     personnel_id_col) {
+
+  n_select <- as.integer(min(n_select, length(pool_ids)))
+  if (n_select <= 0L) return(character(0))
+
+  if (strategy == "random") {
+    return(sample(pool_ids, size = n_select, replace = FALSE))
+  }
+
+  # Treat strategy as a column name -- rank ascending, lowest values first.
+  # Restrict to pool_ids before ranking: pool_dt may be a shared, ungrouped
+  # table (e.g. the full active workforce passed once per group from a
+  # grouped caller), so ranking over pool_dt unfiltered would rank across
+  # every group's candidates together and could return IDs outside pool_ids
+  # entirely.
+  if (strategy %in% names(pool_dt)) {
+    primary <- pool_dt[
+      get(personnel_id_col) %in% pool_ids,
+      .(rank_val = max(get(strategy), na.rm = TRUE)),
+      by = c(personnel_id_col)
+    ]
+    primary <- primary[order(rank_val)]
+    return(head(primary[[personnel_id_col]], n_select))
+  }
+
+  # Fallback to random
+  sample(pool_ids, size = n_select, replace = FALSE)
+}
+
+
 #' Build Status Quo Policy Parameters from Panel Data
 #'
 #' @description
@@ -1006,13 +1092,16 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #'     \code{replacement_cap = 0.80}).  Purely scalar — no panel needed.}
 #'   \item{\code{exit}}{Non-retirement attrition at the historically
 #'     observed aggregate rate, estimated via
-#'     \code{estimate_historical_exit_rates()}.  Falls back to a 5\%
+#'     \code{estimate_historical_exit_rates()}.  Falls back to a 5%
 #'     annual rate with a warning when fewer than two snapshots are present.}
 #'   \item{\code{movement}}{Grade/group transition probabilities estimated
-#'     from the panel via \code{estimate_movement_baseline()}.  Requires
-#'     \code{movement_group_cols} to be specified (see argument).  Falls back
-#'     to a 5\% flat movement rate with a warning when the panel is
-#'     insufficient.}
+#'     from the panel via \code{estimate_historical_movement_rates()}.  Requires
+#'     \code{movement_group_cols} to be specified (see argument).  When the
+#'     panel is insufficient (fewer than 2 snapshots) a warning is raised and
+#'     \code{policy_table} is left \code{NULL} with a 5% \code{movement_rate}
+#'     in \code{defaults} -- but note that
+#'     \code{simulate_promotions_transfers()} currently does not apply that
+#'     flat rate to single-snapshot data, so this yields no movements.}
 #'   \item{\code{hiring}}{Flow-based replacement at 1:1 (\code{replacement_rate
 #'     = 1.0}), using \code{salary_scale_dt} for new-hire pay.}
 #' }
@@ -1062,7 +1151,7 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #' @param start_date_col Character.  Default \code{"start_date"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"status"}.
+#' @param status_col Character.  Default \code{"employment_status"}.
 #' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
 #'
 #' @return Named list with four elements:
@@ -1155,7 +1244,7 @@ make_status_quo_policies <- function(contract_dt,
     defaults = list(
       exit_rate     = 0.05,      # fallback when policy_table estimation fails
       exit_strategy = "random",
-      active_types  = c("permanent", "fterm", "temp"),
+      active_types  = c("permanent", "fixed-term", "short-term"),
       exited_type   = "inactive"
     )
   )
@@ -1165,7 +1254,7 @@ make_status_quo_policies <- function(contract_dt,
   # ------------------------------------------------------------------
   if (!is.null(movement_group_cols) && has_panel) {
     mov_baseline <- tryCatch(
-      estimate_movement_baseline(
+      estimate_historical_movement_rates(
         contract_dt       = contract_dt,
         group_cols        = movement_group_cols,
         personnel_id_col  = personnel_id_col,
