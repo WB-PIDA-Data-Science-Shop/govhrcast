@@ -261,12 +261,12 @@ compute_time_in_grade <- function(contract_dt,
 #'   observed.
 #' @keywords internal
 estimate_historical_movement_rates <- function(contract_dt,
-                                       group_cols,
-                                       personnel_id_col = "personnel_id",
-                                       ref_date_col = "ref_date",
-                                       start_date_col = "start_date",
-                                       end_date_col = "end_date",
-                                       contract_type_col = "contract_type") {
+                                               group_cols,
+                                               personnel_id_col = "personnel_id",
+                                               ref_date_col = "ref_date",
+                                               start_date_col = "start_date",
+                                               end_date_col = "end_date",
+                                               contract_type_col = "contract_type") {
 
   # Validate inputs
   if (!data.table::is.data.table(contract_dt)) {
@@ -292,6 +292,12 @@ estimate_historical_movement_rates <- function(contract_dt,
     stop("At least 2 panel snapshots required to estimate movement baseline. ",
          "Found ", length(all_dates), " snapshot(s).", call. = FALSE)
   }
+
+  # Keep only the columns the estimate needs. This makes a new table, so the
+  # keying below never re-sorts the caller's panel (and keys less data).
+  contract_dt <- contract_dt[, unique(c(ref_date_col, personnel_id_col, group_cols,
+                                        start_date_col, end_date_col,
+                                        contract_type_col)), with = FALSE]
 
   # For each consecutive pair of snapshots, compute transition counts.
   # roll_snapshot_pairs() sets setkeyv(contract_dt, ref_date_col) before

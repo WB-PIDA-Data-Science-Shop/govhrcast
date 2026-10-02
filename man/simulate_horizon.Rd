@@ -181,7 +181,9 @@ allowance ledger.  These can be large.}
 
 \item{seed}{Integer or \code{NULL}.  Makes random selections (e.g. who
 leaves when a strategy is \code{"random"}) reproducible.  Use the same
-seed across scenarios you want to compare.  Default \code{NULL}.}
+seed across scenarios you want to compare.  Your own random-number
+state is restored when the function returns, so seeding a run does not
+change the random draws in code you run afterwards.  Default \code{NULL}.}
 }
 \value{
 An object of class \code{horizon} with these components:

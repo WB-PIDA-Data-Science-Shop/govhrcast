@@ -129,3 +129,67 @@ test_that("make_status_quo_policies() leaves the caller's panel unchanged", {
   suppressWarnings(make_status_quo_policies(cc, pp, scale, movement_group_cols = "est_id"))
   expect_identical(cc, cc_before)   # same rows, same order, no key added
 })
+
+# ---------------------------------------------------------------------------
+# A seeded run never disturbs the caller's random-number stream
+# ---------------------------------------------------------------------------
+
+test_that("a seeded simulate_horizon() run leaves the global random-number state unchanged", {
+  d <- small_state()
+  set.seed(42); invisible(runif(1))
+  state_before <- .Random.seed
+  simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = as.Date("2025-01-01"),
+                   retirement_policy = NULL, seed = 1L)
+  expect_identical(.Random.seed, state_before)
+})
+
+test_that("a seeded simulate_scenario() run leaves the global random-number state unchanged", {
+  d <- small_state()
+  set.seed(42); invisible(runif(1))
+  state_before <- .Random.seed
+  simulate_scenario(d$c, d$p, d$s, period_date = as.Date("2025-01-01"), seed = 1L)
+  expect_identical(.Random.seed, state_before)
+})
+
+test_that("a seeded run in a session with no random state leaves none behind", {
+  # Start from a session that has never drawn a random number, and put the
+  # test session's own state back afterwards whatever happens.
+  saved <- if (exists(".Random.seed", envir = globalenv(), inherits = FALSE))
+    get(".Random.seed", envir = globalenv()) else NULL
+  tryCatch({
+    if (!is.null(saved)) rm(".Random.seed", envir = globalenv())
+    d <- small_state()
+    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = as.Date("2025-01-01"),
+                     retirement_policy = NULL, seed = 1L)
+    expect_false(exists(".Random.seed", envir = globalenv(), inherits = FALSE))
+  }, finally = {
+    if (!is.null(saved)) assign(".Random.seed", saved, envir = globalenv())
+  })
+})
+
+# ---------------------------------------------------------------------------
+# The result's metadata carries no person-level data
+# ---------------------------------------------------------------------------
+
+# Paths of every table inside a nested list that has a personnel_id column.
+person_level_tables <- function(x, path = "metadata") {
+  if (is.data.frame(x)) return(if ("personnel_id" %in% names(x)) path else character(0))
+  if (!is.list(x) || length(x) == 0L) return(character(0))
+  nms <- names(x)
+  if (is.null(nms)) nms <- as.character(seq_along(x))
+  unlist(Map(person_level_tables, x, paste0(path, "$", nms)), use.names = FALSE)
+}
+
+test_that("the result's metadata contains no person-level tables", {
+  res <- run_alagoas()
+  expect_identical(person_level_tables(res$metadata), character(0))
+})
+
+test_that("status-quo hiring rates are the historical estimate from the input panel", {
+  start <- as.Date("2012-09-01")
+  res <- run_alagoas()
+  fresh <- estimate_historical_hiring_rates(bra_hrmis_contract[ref_date <= start],
+                                            bra_hrmis_personnel[ref_date <= start],
+                                            group_cols = "est_id")
+  expect_equal(res$metadata$policy_args$hiring_policy$squorate_dt, fresh)
+})

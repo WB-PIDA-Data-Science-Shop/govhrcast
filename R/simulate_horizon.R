@@ -220,7 +220,11 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #' @param contract_dt data.table.  Single-snapshot contract microdata.
 #' @param personnel_dt data.table.  Single-snapshot personnel microdata.
 #' @param salary_scale_dt data.table.  Pay table used for movement and hiring
-#'   salary assignment.  Updated in-place each period by \code{salary_growth_rate}.
+#'   salary assignment.  Not modified: the pay table grown by
+#'   \code{salary_growth_rate} is returned as \code{$salary_scale_dt}.  None of
+#'   the tables passed in (\code{contract_dt}, \code{personnel_dt},
+#'   \code{salary_scale_dt}, \code{pensioner_register}) is changed; the updated
+#'   versions are returned.
 #' @param period_date Date.  The reference date for this simulation period.
 #'   Stored in \code{pensioner_register} for cohort auditing and used as the
 #'   \code{period_date} column in the returned summary row.
@@ -294,7 +298,9 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'   loop, leave this \code{NULL} and pass \code{seed} to
 #'   \code{simulate_horizon()} instead -- seeding once per period would
 #'   create correlated draws across periods rather than a continuous RNG
-#'   stream.
+#'   stream.  Your own random-number state is restored when the function
+#'   returns, so seeding a run does not change the random draws in code you
+#'   run afterwards.
 #'
 #' @return Named list:
 #'   \describe{
@@ -384,14 +390,24 @@ simulate_scenario <- function(contract_dt,
   # ------------------------------------------------------------------
   # 0. Initialise / validate
   # ------------------------------------------------------------------
-  if (!is.null(seed)) set.seed(seed)
+  # Seed this run only; the caller's random stream is restored on exit
+  if (!is.null(seed)) {
+    rng_state <- .save_rng_state()
+    on.exit(.restore_rng_state(rng_state), add = TRUE)
+    set.seed(seed)
+  }
 
   period_date <- validate_date_format(period_date, "period_date")
 
-  if (!data.table::is.data.table(contract_dt))
-    contract_dt <- data.table::as.data.table(contract_dt)
-  if (!data.table::is.data.table(personnel_dt))
-    personnel_dt <- data.table::as.data.table(personnel_dt)
+  # Work on copies: aging, COLA and the pension COLA below update these tables
+  # in place (data.table's :=), and the caller's own tables must come back
+  # unchanged. setDT(copy(x)) gives a data.table copy of a data.table or a
+  # data.frame alike.
+  contract_dt     <- data.table::setDT(data.table::copy(contract_dt))
+  personnel_dt    <- data.table::setDT(data.table::copy(personnel_dt))
+  salary_scale_dt <- data.table::setDT(data.table::copy(salary_scale_dt))
+  if (!is.null(pensioner_register))
+    pensioner_register <- data.table::setDT(data.table::copy(pensioner_register))
 
   if (!salary_col %in% names(contract_dt))
     stop("salary_col '", salary_col, "' not found in contract_dt.", call. = FALSE)
@@ -1016,7 +1032,9 @@ simulate_scenario <- function(contract_dt,
 #'   }
 #' @param seed Integer or \code{NULL}.  Makes random selections (e.g. who
 #'   leaves when a strategy is \code{"random"}) reproducible.  Use the same
-#'   seed across scenarios you want to compare.  Default \code{NULL}.
+#'   seed across scenarios you want to compare.  Your own random-number
+#'   state is restored when the function returns, so seeding a run does not
+#'   change the random draws in code you run afterwards.  Default \code{NULL}.
 #'
 #' @return An object of class \code{horizon} with these components:
 #'   \describe{
@@ -1597,8 +1615,13 @@ simulate_horizon <- function(contract_dt,
   # fresh values; re-seeding every period would create correlated/repeated
   # patterns across periods. The per-period simulate_scenario() calls below
   # deliberately do not pass seed (leaving it at simulate_scenario()'s own
-  # default NULL) so they don't re-seed.
-  if (!is.null(seed)) set.seed(seed)
+  # default NULL) so they don't re-seed. The caller's own random stream is
+  # restored when simulate_horizon() exits.
+  if (!is.null(seed)) {
+    rng_state <- .save_rng_state()
+    on.exit(.restore_rng_state(rng_state), add = TRUE)
+    set.seed(seed)
+  }
 
   for (t in seq_len(n_periods)) {
 

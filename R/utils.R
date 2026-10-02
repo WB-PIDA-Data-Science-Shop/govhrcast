@@ -638,6 +638,31 @@ expand_rate_vector <- function(x, n_periods, param_name) {
 }
 
 
+# Save and restore the caller's random-number state.
+#
+# A run with a `seed` calls set.seed(), which overwrites the session's random
+# stream (.Random.seed in the global environment). simulate_horizon() and
+# simulate_scenario() save the state on entry and restore it with on.exit(),
+# so seeding a run never changes the draws in the user's own code afterwards.
+# .save_rng_state() returns NULL when the session has not drawn a random
+# number yet; .restore_rng_state(NULL) then removes the seed the run created.
+# Base R only -- withr::local_seed() would do the same but is not a
+# dependency of this package.
+.save_rng_state <- function() {
+  if (exists(".Random.seed", envir = globalenv(), inherits = FALSE))
+    get(".Random.seed", envir = globalenv()) else NULL
+}
+
+.restore_rng_state <- function(state) {
+  if (is.null(state)) {
+    if (exists(".Random.seed", envir = globalenv(), inherits = FALSE))
+      rm(".Random.seed", envir = globalenv())
+  } else {
+    assign(".Random.seed", state, envir = globalenv())
+  }
+}
+
+
 #' Iterate Consecutive Snapshot Pairs in a Panel data.table
 #'
 #' @description

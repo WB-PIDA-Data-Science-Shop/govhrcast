@@ -40,7 +40,11 @@ simulate_scenario(
 \item{personnel_dt}{data.table.  Single-snapshot personnel microdata.}
 
 \item{salary_scale_dt}{data.table.  Pay table used for movement and hiring
-salary assignment.  Updated in-place each period by \code{salary_growth_rate}.}
+salary assignment.  Not modified: the pay table grown by
+\code{salary_growth_rate} is returned as \code{$salary_scale_dt}.  None of
+the tables passed in (\code{contract_dt}, \code{personnel_dt},
+\code{salary_scale_dt}, \code{pensioner_register}) is changed; the updated
+versions are returned.}
 
 \item{period_date}{Date.  The reference date for this simulation period.
 Stored in \code{pensioner_register} for cohort auditing and used as the
@@ -133,7 +137,9 @@ function repeatedly from \code{\link{simulate_horizon}}'s own period
 loop, leave this \code{NULL} and pass \code{seed} to
 \code{simulate_horizon()} instead -- seeding once per period would
 create correlated draws across periods rather than a continuous RNG
-stream.}
+stream.  Your own random-number state is restored when the function
+returns, so seeding a run does not change the random draws in code you
+run afterwards.}
 }
 \value{
 Named list:
