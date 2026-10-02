@@ -214,9 +214,13 @@ for backward compatibility).}
 year: \code{personnel_id}, \code{pension_amount},
 \code{period_date} and details at retirement.  Always present
 (zero rows when nobody retired).  To chain several runs, combine
-their registers with \code{data.table::rbindlist()}.}
-\item{\code{$contract_dt}, \code{$personnel_dt}}{The final year's
-microdata.  Only when \code{return_microdata = TRUE}.}
+their registers with \code{data.table::rbindlist()}.  This is
+person-level data: handle it like the input microdata before
+saving or sharing the result.}
+\item{\code{$contract_dt}, \code{$personnel_dt}}{Every projected
+year's microdata, stacked (one snapshot per year, stamped in
+\code{ref_date}).  Only when \code{return_microdata = TRUE}.  Also
+person-level data.}
 \item{\code{$allowance_dt}}{Allowance ledger: one row per contract x
 allowance type x year.  Only when \code{return_microdata = TRUE}
 and allowances are modelled.}

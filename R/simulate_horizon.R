@@ -1064,9 +1064,13 @@ simulate_scenario <- function(contract_dt,
 #'       year: \code{personnel_id}, \code{pension_amount},
 #'       \code{period_date} and details at retirement.  Always present
 #'       (zero rows when nobody retired).  To chain several runs, combine
-#'       their registers with \code{data.table::rbindlist()}.}
-#'     \item{\code{$contract_dt}, \code{$personnel_dt}}{The final year's
-#'       microdata.  Only when \code{return_microdata = TRUE}.}
+#'       their registers with \code{data.table::rbindlist()}.  This is
+#'       person-level data: handle it like the input microdata before
+#'       saving or sharing the result.}
+#'     \item{\code{$contract_dt}, \code{$personnel_dt}}{Every projected
+#'       year's microdata, stacked (one snapshot per year, stamped in
+#'       \code{ref_date}).  Only when \code{return_microdata = TRUE}.  Also
+#'       person-level data.}
 #'     \item{\code{$allowance_dt}}{Allowance ledger: one row per contract x
 #'       allowance type x year.  Only when \code{return_microdata = TRUE}
 #'       and allowances are modelled.}
@@ -1253,14 +1257,6 @@ simulate_horizon <- function(contract_dt,
   }
   salary_scale_dt <- data.table::copy(salary_scale_dt)
 
-  ### check if we are status quo modelling
-  if (!is.null(hiring_policy) && identical(hiring_policy$mode, "status_quo")) {
-    if (is.null(hiring_policy$panel_contract_dt))
-      hiring_policy$panel_contract_dt  <- data.table::copy(contract_dt)
-    if (is.null(hiring_policy$panel_personnel_dt))
-      hiring_policy$panel_personnel_dt <- data.table::copy(personnel_dt)
-  }
-
   # For movement, pre-compute the baseline from the full panel BEFORE stripping
   # ref_date.  simulate_horizon works on single-snapshot data in each period, so
   # without this cache simulate_promotions_transfers would never see a panel.
@@ -1387,6 +1383,38 @@ simulate_horizon <- function(contract_dt,
                  data.table::uniqueN(contract_dt[[.ref_date_col_name_]]) >= 2L
   .full_panel_c_ <- if (.has_panel_) data.table::copy(contract_dt)  else NULL
   .full_panel_p_ <- if (.has_panel_) data.table::copy(personnel_dt) else NULL
+
+  # Status-quo hiring: estimate the historical hiring rates from the full
+  # panel now, before it is cut to the starting snapshot below. A panel the
+  # user put in the policy (panel_contract_dt / panel_personnel_dt) takes
+  # precedence. Either way the panels are then dropped from the policy, so
+  # the policy -- which is returned in $metadata -- holds only the small rate
+  # table, never person-level data.
+  if (!is.null(hiring_policy) && identical(hiring_policy$mode, "status_quo")) {
+    if (.has_panel_) {
+      hiring_policy$squorate_dt <- tryCatch(
+        estimate_historical_hiring_rates(
+          panel_contract_dt  = hiring_policy$panel_contract_dt  %||% contract_dt,
+          panel_personnel_dt = hiring_policy$panel_personnel_dt %||% personnel_dt,
+          group_cols         = hiring_policy$group_cols,
+          hire_date_col      = hire_date_col,
+          personnel_id_col   = personnel_id_col,
+          start_date_col     = start_date_col,
+          end_date_col       = end_date_col,
+          contract_type_col  = contract_type_col,
+          status_col         = status_col
+        ),
+        error = function(e) {
+          warning("simulate_horizon: historical rate estimation failed ",
+                  conditionMessage(e), ". No hiring will be simulated",
+                  call. = FALSE)
+          hiring_policy <- NULL
+        }
+      )
+    }
+    hiring_policy$panel_contract_dt  <- NULL
+    hiring_policy$panel_personnel_dt <- NULL
+  }
 
   if ("ref_date" %in% names(contract_dt)) {
     contract_dt <- contract_dt[get("ref_date") == start_ref]
@@ -1549,37 +1577,6 @@ simulate_horizon <- function(contract_dt,
   }
 
   period_rows <- vector("list", n_periods)
-
-  # compute historical hiring rates if status quo hiring is selected
-  # so that simulate_hiring() under status quo mode recieves a 
-  # pre-computed hiring rate
-  if (!is.null(hiring_policy) && identical(hiring_policy$mode, "status_quo")){
-
-    if (.has_panel_){
-
-      hiring_policy$squorate_dt <- tryCatch(
-        estimate_historical_hiring_rates(
-          panel_contract_dt  = hiring_policy$panel_contract_dt,
-          panel_personnel_dt = hiring_policy$panel_personnel_dt,
-          group_cols         = hiring_policy$group_cols,
-          hire_date_col      = hire_date_col,
-          personnel_id_col   = personnel_id_col,
-          start_date_col     = start_date_col,
-          end_date_col       = end_date_col,
-          contract_type_col  = contract_type_col,
-          status_col         = status_col
-        ),
-        error = function(e) {
-          warning("simulate_horizon: historical rate estimation failed ",
-                  conditionMessage(e), ". No hiring will be simulated",
-                  call. = FALSE)
-          hiring_policy <- NULL
-        }
-      )
-    }
-
-
-  }
 
   # ====================================================================
   # PERIOD LOOP

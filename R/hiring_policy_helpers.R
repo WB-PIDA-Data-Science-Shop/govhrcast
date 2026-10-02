@@ -206,8 +206,8 @@ design_hiring_policy_stock <- function(stock_targets,
 #' and \code{\link{compute_status_quo_hiring}}.
 #'
 #' \strong{Auto-estimation only happens inside \code{\link{simulate_horizon}}},
-#' which injects the panel data and the pre-computed rate table
-#' automatically -- neither is something you supply here. If the resulting
+#' which estimates the rate table from the panel you pass it and stores it in
+#' the policy as \code{squorate_dt} -- not something you supply here. If the resulting
 #' policy is instead passed to \code{\link{simulate_hiring}} directly (a
 #' single snapshot, no panel), there is no automatic fallback: you must
 #' pre-populate \code{policy_params$squorate_dt} yourself (e.g. by calling

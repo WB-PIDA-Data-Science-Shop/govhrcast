@@ -24,8 +24,9 @@ compute_status_quo_hiring(
 
 \item{policy_params}{List. Must contain:
 \itemize{
-\item panel_contract_dt: Full historical contract panel (injected by simulate_horizon).
-\item panel_personnel_dt: Full historical personnel panel (injected by simulate_horizon).
+\item squorate_dt: data.table of historical hiring rates
+(\code{group_cols} plus \code{hiring_rate}), from
+\code{estimate_historical_hiring_rates()}.
 \item group_cols: Character vector or NULL.
 \item rate_mult: Numeric scalar (default 1). Scales the estimated historical rate.
 \item salary_scale: data.table used for salary assignment of new hires.
@@ -53,10 +54,10 @@ data.table with \code{group_cols} (if specified) and \code{total_hires} column.
 }
 \description{
 Replicates the historical hiring rate observed in the panel to generate
-period-specific hiring demand.  The rate is estimated once via
-\code{estimate_historical_hiring_rates()} (using panel data injected into
-\code{policy_params} by \code{simulate_horizon()}), then scaled by
-\code{policy_params$rate_mult} (default 1), and applied to the current
-active stock.
+period-specific hiring demand.  The rate table is estimated once by
+\code{estimate_historical_hiring_rates()} (\code{simulate_horizon()} does
+this before the period loop and stores it as \code{policy_params$squorate_dt}),
+then scaled by \code{policy_params$rate_mult} (default 1), and applied to
+the current active stock.
 }
 \keyword{internal}
