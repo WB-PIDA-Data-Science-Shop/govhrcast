@@ -8,22 +8,24 @@ test_that("compute_years calculates time differences correctly", {
   start <- as.Date("2000-01-01")
   end <- as.Date("2025-01-01")
   result <- compute_years(start, end)
-  expect_equal(result, 25, tolerance = 0.01)
-  
+  # Years use a 365.25-day year: 9,132 days elapse between these dates
+  expect_equal(result, 9132 / 365.25)
+
   # Vectorized operation
   starts <- as.Date(c("2000-01-01", "2010-06-15", "2015-12-31"))
   ends <- as.Date(c("2020-01-01", "2020-06-15", "2025-12-31"))
   results <- compute_years(starts, ends)
   expect_length(results, 3)
-  expect_equal(results[1], 20, tolerance = 0.01)
-  expect_equal(results[2], 10, tolerance = 0.01)
-  expect_equal(results[3], 10, tolerance = 0.01)
-  
-  # Leap year handling
+  # 7,305 / 3,653 / 3,653 days respectively
+  expect_equal(results[1], 7305 / 365.25)
+  expect_equal(results[2], 3653 / 365.25)
+  expect_equal(results[3], 3653 / 365.25)
+
+  # Leap year handling: four calendar years from Feb 29 are exactly 1,461 days
   start_leap <- as.Date("2020-02-29")
   end_leap <- as.Date("2024-02-29")
   result_leap <- compute_years(start_leap, end_leap)
-  expect_equal(result_leap, 4, tolerance = 0.01)
+  expect_equal(result_leap, 4)
   
   # Same date should be 0
   same_date <- as.Date("2020-01-01")
@@ -168,10 +170,10 @@ test_that("compute_age calculates ages correctly", {
   expect_true("age" %in% names(result))
   expect_true("personnel_id" %in% names(result))
   
-  # Check age calculations
-  expect_equal(result[personnel_id == "P001"]$age, 55, tolerance = 0.1)
-  expect_equal(result[personnel_id == "P002"]$age, 39.5, tolerance = 0.1)
-  expect_equal(result[personnel_id == "P003"]$age, 34, tolerance = 0.1)
+  # Age = days from birth to ref_date / 365.25 (20,089 / 14,445 / 12,420 days)
+  expect_equal(result[personnel_id == "P001"]$age, 20089 / 365.25)
+  expect_equal(result[personnel_id == "P002"]$age, 14445 / 365.25)
+  expect_equal(result[personnel_id == "P003"]$age, 12420 / 365.25)
 })
 
 test_that("compute_age handles missing birth_dates", {
@@ -221,13 +223,13 @@ test_that("compute_tenure calculates service years correctly", {
   expect_true("tenure_days" %in% names(result))
   expect_true("personnel_id" %in% names(result))
   
-  # P001 has two contracts: 5 years + 10 years = 15 years
+  # P001 has two back-to-back contracts: 1,826 + 3,653 = 5,479 days
   p001_tenure <- result[personnel_id == "P001"]$tenure_years
-  expect_equal(p001_tenure, 15, tolerance = 0.1)
-  
-  # P002 has one ongoing contract: ~6.5 years
+  expect_equal(p001_tenure, 5479 / 365.25)
+
+  # P002 has one ongoing contract, capped at ref_date: 2,406 days
   p002_tenure <- result[personnel_id == "P002"]$tenure_years
-  expect_equal(p002_tenure, 6.5, tolerance = 0.1)
+  expect_equal(p002_tenure, 2406 / 365.25)
 })
 
 test_that("compute_tenure handles panel data correctly", {
@@ -248,7 +250,7 @@ test_that("compute_tenure handles panel data correctly", {
   # (C001: 2010-01-01 to 2015-01-01 = 5 yrs; C002: 2015-01-01 to open → capped at ref_date
   #  = 10 yrs; no overlap → sum = 15 yrs)
   expect_equal(nrow(result), 1)  # Only one personnel
-  expect_equal(result$tenure_years, 15, tolerance = 0.1)
+  expect_equal(result$tenure_years, 5479 / 365.25)  # 1,826 + 3,653 days
 })
 
 test_that("compute_tenure excludes inactive contracts", {
@@ -263,8 +265,8 @@ test_that("compute_tenure excludes inactive contracts", {
   ref_date <- as.Date("2025-01-01")
   result <- compute_tenure(contract_dt, ref_date)
   
-  # Should exclude C002 (inactive): 5 years (C001) + 5 years (C003) = 10 years
-  expect_equal(result$tenure_years, 10, tolerance = 0.1)
+  # Should exclude C002 (inactive): C001 1,826 days + C003 1,827 days
+  expect_equal(result$tenure_years, 3653 / 365.25)
 })
 
 test_that("compute_tenure handles contracts starting after ref_date", {
@@ -279,8 +281,8 @@ test_that("compute_tenure handles contracts starting after ref_date", {
   ref_date <- as.Date("2025-01-01")
   result <- compute_tenure(contract_dt, ref_date)
   
-  # Should only count C001: 15 years
-  expect_equal(result$tenure_years, 15, tolerance = 0.1)
+  # Should only count C001: 2010-01-01 to 2025-01-01 = 5,479 days
+  expect_equal(result$tenure_years, 5479 / 365.25)
 })
 
 test_that("compute_tenure handles empty contract data", {

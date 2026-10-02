@@ -308,10 +308,11 @@ compute_custom_pension <- function(dt) {
 
   if (nrow(dt) == 0L) return(numeric(0))
   
-  .eval_per_row_expression(dt, 
+  .eval_per_row_expression(dt,
                            mask = rep(TRUE, nrow(dt)),
                            expr_col = "pension_formula",
                            result_col = "pension_amount",
+                           allowed_calls = .ALLOWED_FORMULA_CALLS,
                            init_value = NA_real_)
   
   dt$pension_amount

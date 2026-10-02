@@ -222,13 +222,22 @@ utils::globalVariables(c(
 #'
 #' @param dt data.table. Input table.
 #' @param mask Logical vector. Rows where evaluation should occur.
-#' @param expr_col Character. Column holding expression strings.
+#' @param expr_col Character. Column holding expression strings
+#'   (\code{"eligibility_rule"} or \code{"pension_formula"}); also used to
+#'   label errors.
 #' @param result_col Character. Destination column for evaluated results.
+#' @param allowed_calls Character vector. The allow-list every expression is
+#'   checked against (via \code{.check_safe_calls()}) immediately before it is
+#'   evaluated: \code{.ALLOWED_RULE_CALLS} (the default) for eligibility
+#'   rules, \code{.ALLOWED_FORMULA_CALLS} for pension formulas. Checking here,
+#'   at the single point of evaluation, means no caller can skip the sandbox.
 #'
 #' @return Invisibly returns the modified \code{dt}.
 #'
 #' @keywords internal
-.eval_per_row_expression <- function(dt, mask, expr_col, result_col, init_value = NA) {
+.eval_per_row_expression <- function(dt, mask, expr_col, result_col,
+                                     allowed_calls = .ALLOWED_RULE_CALLS,
+                                     init_value = NA) {
   # Initialize output; rows outside mask stay NA.
   dt[, (result_col) := init_value]
   if (!any(mask)) {
@@ -236,9 +245,14 @@ utils::globalVariables(c(
   }
 
   unique_exprs <- unique(dt[[expr_col]][mask]) ## set the unique user input expressions
-  ## parse each unique expression 
+  ## parse each unique expression
   for (e in unique_exprs) {
-    parsed <- str2lang(e) 
+    parsed <- str2lang(e)
+
+    # Sandbox: refuse to evaluate anything outside the allow-list, whichever
+    # path the expression arrived by.
+    .check_safe_calls(parsed, allowed_calls, label = expr_col)
+
     cols <- all.vars(parsed) ## get the column names within the expression
     subrows <- mask & dt[[expr_col]] == e ## get the set of row each expression applies to
 
@@ -541,6 +555,7 @@ identify_eligibility <- function(contract_dt,
     dt = eligibility_dt,
     mask = eligibility_dt$eligibility_type == "custom",
     expr_col = "eligibility_rule",
+    allowed_calls = .ALLOWED_RULE_CALLS,
     result_col = "custom_eligible"
   )
 

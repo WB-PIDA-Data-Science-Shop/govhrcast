@@ -4,16 +4,31 @@
 \alias{.eval_per_row_expression}
 \title{Evaluate Row-Level Expression Strings}
 \usage{
-.eval_per_row_expression(dt, mask, expr_col, result_col, init_value = NA)
+.eval_per_row_expression(
+  dt,
+  mask,
+  expr_col,
+  result_col,
+  allowed_calls = .ALLOWED_RULE_CALLS,
+  init_value = NA
+)
 }
 \arguments{
 \item{dt}{data.table. Input table.}
 
 \item{mask}{Logical vector. Rows where evaluation should occur.}
 
-\item{expr_col}{Character. Column holding expression strings.}
+\item{expr_col}{Character. Column holding expression strings
+(\code{"eligibility_rule"} or \code{"pension_formula"}); also used to
+label errors.}
 
 \item{result_col}{Character. Destination column for evaluated results.}
+
+\item{allowed_calls}{Character vector. The allow-list every expression is
+checked against (via \code{.check_safe_calls()}) immediately before it is
+evaluated: \code{.ALLOWED_RULE_CALLS} (the default) for eligibility
+rules, \code{.ALLOWED_FORMULA_CALLS} for pension formulas. Checking here,
+at the single point of evaluation, means no caller can skip the sandbox.}
 }
 \value{
 Invisibly returns the modified \code{dt}.

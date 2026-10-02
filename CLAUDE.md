@@ -78,30 +78,18 @@ wrong. Summarize findings — architecture, domain logic, inconsistencies,
 likely bugs — before proposing any fix. Don't fix opportunistically while
 auditing.
 
-## Development workflow (required order — do not skip or reorder)
-1. **Propose.** Before modifying or writing a function's real implementation,
-   show the exact call(s) you'd use to exercise it (e.g.
-   `debugonce(fn); fn(test_args)`, or a short script with realistic inputs).
-   Wait for explicit approval before proceeding.
-2. **Implement** the change.
-3. **Test.** Run `devtools::test()`. Bar: 0 errors, 0 warnings, 0 skipped.
-   Do not move to the next step until this is clean. If a test failure
-   reveals a design problem rather than a simple bug, stop — do not patch
-   around it. Propose a fix and wait for approval before implementing it.
-4. **Document.** Write/update roxygen only after step 3 is clean — roxygen
-   should never describe untested behavior. Write roxygen so it's usable by
-   both R developers and non-advanced R users with an analytics background
-   (the package's actual user base) — explain what an argument does and why
-   it matters, not just its type.
-5. **Wiki.** Update the relevant GitHub wiki page(s) last. Check
-   `Doc-Impact-Map.md` for which wiki pages a given source file maps to.
-
-For a feature large enough to be split into multiple Propose→Implement→Test→
-Document cycles (e.g. a new module built and tested standalone first, then
-wired into `simulate_scenario()`/`simulate_horizon()` as a separate cycle),
-repeat steps 1–4 for each stage, but hold Wiki until every stage lands. A
-wiki page describing only part of a feature's architecture is worse than no
-page yet, and will likely need rewriting once the rest is in.
+## Development workflow
+Follow the `r-project-workflow` skill (Propose → Red/Green → Review →
+Document → Wiki). Where this file and the skill conflict, this file wins.
+Project specifics:
+- Run the suite with `devtools::test()`; bar is 0 errors, 0 warnings, 0 skipped.
+- Roxygen audience: R developers and non-advanced R users with an analytics
+  background — explain what an argument does and why it matters, not just
+  its type.
+- Wiki: check `Doc-Impact-Map.md` for which pages a source file maps to.
+- Multi-stage features (e.g. a module built standalone, then wired into
+  `simulate_scenario()`/`simulate_horizon()`): repeat the cycle per stage,
+  but hold the Wiki update until every stage lands.
 
 ## Architecture
 

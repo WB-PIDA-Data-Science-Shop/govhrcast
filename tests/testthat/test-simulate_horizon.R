@@ -724,7 +724,7 @@ test_that("inflation_effect equals payroll * growth when no other changes", {
     ref_date           = as.Date("2020-01-01")
   )
   # null policies → no exits / moves / net hiring changes → pre-COLA bill = n*sal
-  expect_equal(res$summary_dt$inflation_effect, n * sal * growth, tolerance = 1e-2)
+  expect_equal(res$summary_dt$inflation_effect, n * sal * growth)
 })
 
 test_that("wage_bill_end compounds over periods with pure inflation", {
@@ -743,8 +743,9 @@ test_that("wage_bill_end compounds over periods with pure inflation", {
     ref_date           = as.Date("2020-01-01")
   )
   dt <- res$summary_dt
+  # 40,000 grown by 10% once per period: 44,000, 48,400, 53,240
   expected <- n * sal * (1.10 ^ seq_len(3))
-  expect_equal(dt$wage_bill_end, expected, tolerance = 1)
+  expect_equal(dt$wage_bill_end, expected)
 })
 
 
@@ -792,10 +793,11 @@ test_that("simulate_horizon increments age each period", {
     ref_date           = as.Date("2020-01-01"),
     output_control_args = list(return_microdata = TRUE)
   )
-  # Age auto-computed from birth_date (difftime/365.25) then incremented by 1
-  # each period, so after 2 periods: ~40+2=42 and ~50+2=52 (within rounding).
+  # The fixture supplies an age column (40, 50), which the package uses as
+  # given (it derives age from birth_date only when the column is missing or
+  # empty); age then grows by exactly 1 per period: 42 and 52 after 2 periods.
   last_date <- max(res$personnel_dt$ref_date)
-  expect_equal(sort(res$personnel_dt[ref_date == last_date, age]), c(42, 52), tolerance = 0.1)
+  expect_equal(sort(res$personnel_dt[ref_date == last_date, age]), c(42, 52))
 })
 
 
@@ -2178,7 +2180,7 @@ test_that("Block F: all 3 canonical policies active simultaneously — no error"
   )
 })
 
-test_that("Block F: wage_bill_end accounting identity holds with exits + COLA", {
+test_that("Block F: non-retirement exits remove the leavers' salaries before COLA", {
   d <- make_block_f_inputs()
 
   no_retire <- list(
@@ -2187,13 +2189,15 @@ test_that("Block F: wage_bill_end accounting identity holds with exits + COLA", 
     defaults     = list(eligibility_type = "age_only", pension_type = "flat",
                         flat_amount = 0, min_age = 999)
   )
+  # Deterministic selection: exit_strategy names a column, so the lowest
+  # salaries leave first. round(6 * 0.5) = 3 leavers: the three G1 staff
+  # (P1-P3, 30,000 each).
   exit_policy <- list(
     group_cols   = NULL,
     policy_table = NULL,
-    defaults = list(exit_rate = 0.5, exit_strategy = "random",
+    defaults = list(exit_rate = 0.5, exit_strategy = "gross_salary_lcu",
                     active_types = "permanent", exited_type = "inactive")
   )
-  set.seed(1)
   res <- simulate_horizon(
     contract_dt        = d$contract_dt,
     personnel_dt       = d$personnel_dt,
@@ -2207,10 +2211,17 @@ test_that("Block F: wage_bill_end accounting identity holds with exits + COLA", 
     ref_date           = d$ref_date
   )
   dt <- res$summary_dt
-  # Identity: wage_bill_end ≈ wage_bill_start - exit_savings + hiring_effect + inflation_effect
-  rhs <- dt$wage_bill_start - dt$exit_savings + dt$hiring_effect +
-         dt$promotion_effect + dt$transfer_effect + dt$inflation_effect
-  expect_equal(dt$wage_bill_end, rhs, tolerance = 1)
+
+  # Payroll before the year: 3 x 30,000 + 3 x 50,000 = 240,000
+  expect_equal(dt$wage_bill_start, 240000)
+  # Each component, hand-worked from the fixture
+  expect_equal(dt$n_exits, 0L)                      # no retirements
+  expect_equal(dt$exit_savings, 0)
+  expect_equal(dt$n_non_ret_exits, 3L)
+  expect_equal(dt$non_ret_exit_savings, 3 * 30000)  # the leavers' salaries
+  expect_equal(dt$inflation_effect, (240000 - 90000) * 0.05)
+  # Remaining payroll grown by COLA: 150,000 x 1.05
+  expect_equal(dt$wage_bill_end, 150000 * 1.05)
 })
 
 

@@ -639,6 +639,20 @@ check_retirement_inputs <- function(contract_dt,
     }
   }
 
+  # Validate every pension_formula the policy supplies -- in defaults and/or
+  # a policy_table column -- against the formula allow-list, fail-fast,
+  # before any computation starts.
+  .formulas <- .defaults$pension_formula
+  if (
+    !is.null(policy_params$policy_table) &&
+      "pension_formula" %in% names(policy_params$policy_table)
+  ) {
+    .formulas <- c(.formulas, policy_params$policy_table$pension_formula)
+  }
+  for (.formula in unique(.formulas[!is.na(.formulas)])) {
+    validate_pension_formula(.formula)
+  }
+
   # Validate hazard_rate-specific requirements. min_age/min_tenure-required
   # checks below are keyed off eligibility_type %in% c("age_only",
   # "tenure_only", "age_and_tenure") and so already naturally exclude
@@ -1232,50 +1246,70 @@ check_allowance_inputs <- function(contract_dt,
 #' @description
 #' Walks a parsed R expression (as produced by \code{\link{str2lang}}) and
 #' throws an error if it contains any function/operator call not present in
-#' the \code{.ALLOWED_RULE_CALLS} allow-list. This guards
-#' \code{\link{validate_eligibility_rule}} against user-supplied rule strings
-#' that could otherwise call arbitrary R code (e.g. \code{system()}) when
-#' evaluated later via \code{eval()}.
+#' \code{allowed_calls}. This guards user-supplied eligibility rules and
+#' pension formulas, which would otherwise be able to call arbitrary R code
+#' (e.g. \code{system()}) when evaluated later via \code{eval()}. It is run
+#' both when a policy is validated and immediately before evaluation.
 #'
 #' @param expr A parsed R language object (call, name, or atomic value), as
 #'   returned by \code{str2lang()}.
+#' @param allowed_calls Character vector of function/operator names that may
+#'   be called (\code{.ALLOWED_RULE_CALLS} or \code{.ALLOWED_FORMULA_CALLS}).
+#' @param label Character scalar naming the user input being checked
+#'   (\code{"eligibility_rule"} or \code{"pension_formula"}); used as the
+#'   prefix of every error message.
 #'
 #' @details
 #' The check is recursive: for a call, it validates the call's own
 #' function/operator name and then recurses into each argument. Names (bare
 #' column references) and atomic values (numbers, strings, logicals) are
-#' always considered safe and terminate the recursion.
+#' always considered safe and terminate the recursion. A call whose head is
+#' not a plain name -- \code{pkg::fn(...)}, \code{(function() ...)()} -- is
+#' rejected outright.
 #'
 #' @return \code{TRUE} if \code{expr} is a safe name/atomic value. Otherwise
 #'   called for its side effect of throwing an error; the return value is not
 #'   meaningful for call expressions.
 #'
 #' @keywords internal
-.check_safe_calls <- function(expr, 
-                              allowed_calls = .ALLOWED_RULE_CALLS) {
+.check_safe_calls <- function(expr,
+                              allowed_calls = .ALLOWED_RULE_CALLS,
+                              label = "eligibility_rule") {
   if (is.call(expr)) {
+    # Only a plain function name can be called: pkg::fn() and anonymous
+    # functions have a call as their head and are rejected here.
+    if (!is.name(expr[[1]])) {
+      stop(
+        label, ": only plain function names can be called; '",
+        paste(deparse(expr[[1]]), collapse = " "), "' is not allowed.",
+        call. = FALSE
+      )
+    }
+
+    # The function itself must be on the allow-list.
     func_name <- as.character(expr[[1]])
     if (!func_name %in% allowed_calls) {
       stop(
-        "eligibility_rule: disallowed function/operator '",
+        label, ": disallowed function/operator '",
         func_name,
         "'. Allowed: ",
         paste(allowed_calls, collapse = ", "),
         call. = FALSE
       )
     }
+
     # Recursively check each argument of the call.
     for (arg in as.list(expr[-1])) {
-      .check_safe_calls(arg, allowed_calls)
+      .check_safe_calls(arg, allowed_calls, label)
     }
   } else if (is.name(expr) || is.atomic(expr)) {
     # Bare column references and literal values are always safe.
     return(TRUE)
   } else {
     stop(
-      "Invalid expression in eligibility_rule: ",
+      "Invalid expression in ", label, ": ",
       deparse(expr),
-      ". Only basic logical and comparison operators are allowed.",
+      ". Only the allowed operators and functions can be used.",
       call. = FALSE
     )
   }
@@ -1366,7 +1400,8 @@ validate_pension_formula <- function(formula, available_cols = NULL) {
   })
 
   # Reject any expression that uses functions/operators outside the allow-list.
-  .check_safe_calls(expr, allowed_calls = .ALLOWED_FORMULA_CALLS)
+  .check_safe_calls(expr, allowed_calls = .ALLOWED_FORMULA_CALLS,
+                    label = "pension_formula")
 
   # Optionally verify that every column referenced in the formula is available.
   if (!is.null(available_cols)) {

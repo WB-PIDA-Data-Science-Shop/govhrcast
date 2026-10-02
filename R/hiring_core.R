@@ -790,7 +790,6 @@ compute_status_quo_hiring <- function(contract_dt,
   #   status_col         = status_col
   # )
   rates <- policy_params$squorate_dt
-  rates[, hiring_rate := hiring_rate * rate_mult]
 
   # Current active stock in this period
   stock <- compute_current_stock(
@@ -813,7 +812,11 @@ compute_status_quo_hiring <- function(contract_dt,
   }
 
   demand[is.na(hiring_rate), hiring_rate := 0]
-  demand[, total_hires := pmax(0L, as.integer(round(current_stock * hiring_rate)))]
+
+  # Hires this period: current stock x historical rate x rate_mult. The
+  # policy's rate table is only read, never changed, so every period applies
+  # rate_mult to the same historical rates.
+  demand[, total_hires := pmax(0L, as.integer(round(current_stock * hiring_rate * rate_mult)))]
 
   if (!is.null(group_cols) && length(group_cols) > 0) {
     demand[, c(group_cols, "total_hires"), with = FALSE]

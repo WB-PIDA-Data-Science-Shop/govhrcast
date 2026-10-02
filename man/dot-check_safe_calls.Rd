@@ -4,11 +4,22 @@
 \alias{.check_safe_calls}
 \title{Recursively Validate That an Expression Only Uses Safe Calls}
 \usage{
-.check_safe_calls(expr, allowed_calls = .ALLOWED_RULE_CALLS)
+.check_safe_calls(
+  expr,
+  allowed_calls = .ALLOWED_RULE_CALLS,
+  label = "eligibility_rule"
+)
 }
 \arguments{
 \item{expr}{A parsed R language object (call, name, or atomic value), as
 returned by \code{str2lang()}.}
+
+\item{allowed_calls}{Character vector of function/operator names that may
+be called (\code{.ALLOWED_RULE_CALLS} or \code{.ALLOWED_FORMULA_CALLS}).}
+
+\item{label}{Character scalar naming the user input being checked
+(\code{"eligibility_rule"} or \code{"pension_formula"}); used as the
+prefix of every error message.}
 }
 \value{
 \code{TRUE} if \code{expr} is a safe name/atomic value. Otherwise
@@ -18,15 +29,17 @@ meaningful for call expressions.
 \description{
 Walks a parsed R expression (as produced by \code{\link{str2lang}}) and
 throws an error if it contains any function/operator call not present in
-the \code{.ALLOWED_RULE_CALLS} allow-list. This guards
-\code{\link{validate_eligibility_rule}} against user-supplied rule strings
-that could otherwise call arbitrary R code (e.g. \code{system()}) when
-evaluated later via \code{eval()}.
+\code{allowed_calls}. This guards user-supplied eligibility rules and
+pension formulas, which would otherwise be able to call arbitrary R code
+(e.g. \code{system()}) when evaluated later via \code{eval()}. It is run
+both when a policy is validated and immediately before evaluation.
 }
 \details{
 The check is recursive: for a call, it validates the call's own
 function/operator name and then recurses into each argument. Names (bare
 column references) and atomic values (numbers, strings, logicals) are
-always considered safe and terminate the recursion.
+always considered safe and terminate the recursion. A call whose head is
+not a plain name -- \code{pkg::fn(...)}, \code{(function() ...)()} -- is
+rejected outright.
 }
 \keyword{internal}

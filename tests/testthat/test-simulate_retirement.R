@@ -181,11 +181,13 @@ test_that("simulate_retirement works with DB pension", {
   # P001, P002, P003 should retire (all >= 20 years tenure)
   expect_equal(result$summary$n_retired, 3)
 
-  # P001: min(0.02 * min(~30, 30) * 12000, 0.70 * 12000) ≈ 7200
-  expect_equal(result$retirees_dt[personnel_id == "P001"]$pension, 7200, tolerance = 5)
+  # P001: 10,958 days of service = 30.0014 years, capped at max_years = 30:
+  # 0.02 * 30 * 12000 = 7200 (below the 0.70 * 12000 replacement cap)
+  expect_equal(result$retirees_dt[personnel_id == "P001"]$pension, 7200)
 
-  # P002: min(0.02 * min(25.002, 30) * 10000, 0.70 * 10000) ≈ 5000.4
-  expect_equal(result$retirees_dt[personnel_id == "P002"]$pension, 5000, tolerance = 1)
+  # P002: 9,132 days = 25.0021 years (under the cap): 0.02 * 25.0021 * 10000
+  expect_equal(result$retirees_dt[personnel_id == "P002"]$pension,
+               0.02 * (9132 / 365.25) * 10000)
 })
 
 # =============================================================================
@@ -260,11 +262,13 @@ test_that("simulate_retirement works with hybrid pension", {
 
   expect_equal(result$summary$n_retired, 2)
 
-  # P001: DB = 0.01 * 30.001 * 12000 ≈ 3600.16, DC = 400000 / 25 = 16000, Total ≈ 19600
-  expect_equal(result$retirees_dt[personnel_id == "P001"]$pension, 19600, tolerance = 1)
+  # P001: DB = 0.01 * (10958 / 365.25) * 12000 (no cap), DC = 400000 / 25 = 16000
+  expect_equal(result$retirees_dt[personnel_id == "P001"]$pension,
+               0.01 * (10958 / 365.25) * 12000 + 400000 / 25)
 
-  # P002: DB = 0.01 * 25.002 * 10000 ≈ 2500.21, DC = 350000 / 25 = 14000, Total ≈ 16500
-  expect_equal(result$retirees_dt[personnel_id == "P002"]$pension, 16500, tolerance = 1)
+  # P002: DB = 0.01 * (9132 / 365.25) * 10000, DC = 350000 / 25 = 14000
+  expect_equal(result$retirees_dt[personnel_id == "P002"]$pension,
+               0.01 * (9132 / 365.25) * 10000 + 350000 / 25)
 })
 
 # =============================================================================
@@ -602,7 +606,8 @@ test_that("simulate_retirement hazard_rate works when age must be computed from 
   )
 
   expect_equal(result$retirees_dt$personnel_id, "p1")
-  expect_equal(result$retirees_dt$age, 60, tolerance = 0.1)
+  # Age at ref_date: 1963-06-15 to 2024-01-01 = 22,115 days
+  expect_equal(result$retirees_dt$age, 22115 / 365.25)
 })
 
 test_that("simulate_retirement hazard_rate validates group_cols includes age_yr_int", {
