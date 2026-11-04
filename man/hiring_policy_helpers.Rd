@@ -18,7 +18,7 @@ there is one constructor per mode, each returning the complete policy list
 directly -- closer to \code{\link{design_retirement_policy_age}} and its
 siblings than to \code{eligibility_age()}/\code{pension_flat()}.
 
-Three modes, three constructors:
+The constructors:
 \itemize{
 \item \code{\link{design_hiring_policy_flow}} -- replace a fraction of
 exits (e.g. \code{replacement_rate = 1} rehires everyone who left).
@@ -26,6 +26,9 @@ exits (e.g. \code{replacement_rate = 1} rehires everyone who left).
 toward a target headcount.
 \item \code{\link{design_hiring_policy_status_quo}} -- reproduce
 recently observed hiring rates, calibrated from historical panel data.
+\item \code{\link{design_hiring_policy_adjustment}} -- your own hiring
+rates, usually the historical rates with some groups edited: status
+quo for most groups and a reform for others.
 }
 \code{"combined"} mode (flow + stock simultaneously) has no constructor
 here -- it has no clean policy interpretation of its own and is expected

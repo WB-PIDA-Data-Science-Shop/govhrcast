@@ -153,20 +153,22 @@ compute_time_in_grade <- function(contract_dt,
 #
 # @param snap_t0  data.table subset at time T0 (one snapshot).
 # @param snap_t1  data.table subset at time T1 (next snapshot).
-# @param group_cols,personnel_id_col,start_date_col,end_date_col,
-#        contract_type_col  Same semantics as estimate_historical_movement_rates().
+# @param group_cols,column_spec_args  Same semantics as
+#        estimate_historical_movement_rates().
 #
 # @return data.table with columns from_group, to_group, n_moves, n_pop,
 #         period_prob, t0_date; or NULL when either snapshot is empty.
 # @keywords internal
 .compute_transition_pair <- function(snap_t0,
                                      snap_t1,
-                                     ref_date_col,
                                      group_cols,
-                                     personnel_id_col,
-                                     start_date_col,
-                                     end_date_col,
-                                     contract_type_col) {
+                                     column_spec_args = .column_spec()) {
+
+  ref_date_col      <- column_spec_args$ref_date_col
+  personnel_id_col  <- column_spec_args$personnel_id_col
+  start_date_col    <- column_spec_args$start_date_col
+  end_date_col      <- column_spec_args$end_date_col
+  contract_type_col <- column_spec_args$contract_type_col
 
   # Read snapshot dates from the known date column (passed explicitly so we
   # are robust to panels that contain multiple Date-class columns).
@@ -239,11 +241,11 @@ compute_time_in_grade <- function(contract_dt,
 #'   Must contain ref_date_col for panel identification.
 #' @param group_cols Character vector. Columns defining movement states
 #'   (e.g., c("est_id", "paygrade") or c("paygrade"))
-#' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
-#' @param ref_date_col Character. Reference date column (default: "ref_date")
-#' @param start_date_col Character. Contract start date column (default: "start_date")
-#' @param end_date_col Character. Contract end date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type")
+#' @param column_spec_args Named list.  Column names, if your data use
+#'   different names from the \code{govhr} defaults: give only the ones you
+#'   need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+#'   here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
+#'   \code{end_date_col}, \code{contract_type_col}.
 #'
 #' @return data.table with columns:
 #'   \describe{
@@ -261,11 +263,7 @@ compute_time_in_grade <- function(contract_dt,
 #' @keywords internal
 estimate_historical_movement_rates <- function(contract_dt,
                                                group_cols,
-                                               personnel_id_col = "personnel_id",
-                                               ref_date_col = "ref_date",
-                                               start_date_col = "start_date",
-                                               end_date_col = "end_date",
-                                               contract_type_col = "contract_type") {
+                                               column_spec_args = list()) {
 
   # Validate inputs
   if (!data.table::is.data.table(contract_dt)) {
@@ -275,9 +273,12 @@ estimate_historical_movement_rates <- function(contract_dt,
     stop("group_cols must be specified for movement baseline estimation", call. = FALSE)
   }
 
-  missing_cols <- setdiff(c(ref_date_col, personnel_id_col, group_cols,
-                             start_date_col, end_date_col, contract_type_col),
-                          names(contract_dt))
+  cols <- .column_spec(column_spec_args)
+  ref_date_col <- cols$ref_date_col
+  needed_cols <- c(ref_date_col, cols$personnel_id_col, group_cols,
+                   cols$start_date_col, cols$end_date_col, cols$contract_type_col)
+
+  missing_cols <- setdiff(needed_cols, names(contract_dt))
   if (length(missing_cols) > 0) {
     stop("Columns not found in contract_dt: ", paste(missing_cols, collapse = ", "),
          call. = FALSE)
@@ -294,9 +295,7 @@ estimate_historical_movement_rates <- function(contract_dt,
 
   # Keep only the columns the estimate needs. This makes a new table, so the
   # keying below never re-sorts the caller's panel (and keys less data).
-  contract_dt <- contract_dt[, unique(c(ref_date_col, personnel_id_col, group_cols,
-                                        start_date_col, end_date_col,
-                                        contract_type_col)), with = FALSE]
+  contract_dt <- contract_dt[, unique(needed_cols), with = FALSE]
 
   # For each consecutive pair of snapshots, compute transition counts.
   # roll_snapshot_pairs() sets setkeyv(contract_dt, ref_date_col) before
@@ -307,12 +306,8 @@ estimate_historical_movement_rates <- function(contract_dt,
     date_col = ref_date_col,
     f        = .compute_transition_pair,
     # extra args forwarded to .compute_transition_pair:
-    ref_date_col      = ref_date_col,
     group_cols        = group_cols,
-    personnel_id_col  = personnel_id_col,
-    start_date_col    = start_date_col,
-    end_date_col      = end_date_col,
-    contract_type_col = contract_type_col
+    column_spec_args  = cols
   )
   # Attach a period index so we can count distinct periods later.
   if (nrow(all_periods) > 0L)

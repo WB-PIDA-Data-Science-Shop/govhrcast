@@ -187,6 +187,20 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
   ][, sum(salary, na.rm = TRUE)]
 }
 
+# Internal helper: the pensioner register before anyone is on it, keyed by the
+# caller's person ID column.
+.empty_pensioner_register <- function(personnel_id_col) {
+  register <- data.table::data.table(
+    .id                        = character(0),
+    pension_amount             = numeric(0),   # COLA-adjusted each period
+    final_salary               = numeric(0),   # salary at moment of retirement
+    tenure_years_at_retirement = numeric(0),
+    age_at_retirement          = numeric(0),
+    period_date                = as.Date(character(0))
+  )
+  data.table::setnames(register, ".id", personnel_id_col)
+}
+
 #' Single-Period Simulation
 #'
 #' @description
@@ -229,9 +243,10 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'   Stored in \code{pensioner_register} for cohort auditing and used as the
 #'   \code{period_date} column in the returned summary row.
 #' @param pensioner_register data.table or \code{NULL}.  Accumulated pensioner
-#'   ledger from prior periods.  Must contain columns \code{personnel_id},
-#'   \code{pension_amount}, \code{period_date}.  Pass \code{NULL} (default)
-#'   for the first period -- an empty register is initialised internally.
+#'   ledger from prior periods.  Must contain the person ID column (under the
+#'   name \code{personnel_id_col} gives), \code{pension_amount} and
+#'   \code{period_date}.  Pass \code{NULL} (default) for the first period --
+#'   an empty register is initialised internally.
 #' @param retirement_policy,exit_policy,movement_policy,hiring_policy,allowance_policy
 #'   Lists, or \code{NULL} to switch that module off (the default here for
 #'   all five).  Build them with the same helper functions as
@@ -267,28 +282,15 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'   applied to \code{allowance_policy$policy_table}'s \code{amount} column
 #'   this period (via \code{apply_salary_scale_adjustment()}), so next
 #'   period's assignment reflects the grown scale.  Default \code{0}.
-#' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param contract_id_col Character.  Default \code{"contract_id"}.
-#' @param birth_date_col Character.  Column holding date of birth.
-#'   Default \code{"birth_date"}.
-#' @param start_date_col Character.  Default \code{"start_date"}.
-#' @param end_date_col Character.  Default \code{"end_date"}.
-#' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
-#' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"employment_status"}.
-#' @param age_col Character or \code{NULL}.  Age column to increment.
-#'   Default \code{"age"}.
-#' @param tenure_col Character or \code{NULL}.  Tenure (years of service)
-#'   column to increment.  Default \code{"personnel_tenure"}, the \code{govhr}
-#'   dictionary name.
+#' @param column_spec_args Named list.  Column names, if your data use
+#'   different names from the \code{govhr} defaults: give only the ones you
+#'   need to change, e.g. \code{list(salary_col = "base_salary_lcu")}.  See
+#'   \code{\link{simulate_horizon}} for the keys and defaults.  Here,
+#'   \code{age_col} and \code{tenure_col} are the columns aged each period;
+#'   \code{NULL} leaves that column as it is.
 #' @param period_fraction Numeric.  Fraction of a year each period represents
 #'   (1 for annual, 1/12 for monthly, 1/365.25 for daily).  Used to increment
-#'   \code{age_col} and \code{tenure_col} by the correct amount.  Default 1.
-#' @param hire_date_col Character or \code{NULL}.  Forwarded to
-#'   \code{simulate_hiring()}.  When supplied, historical hiring rates are
-#'   estimated from this person-level hire-date column rather than from panel
-#'   first-appearance detection.  Only relevant when
-#'   \code{hiring_policy$mode = "status_quo"}.  Default \code{NULL}.
+#'   the age and tenure columns by the correct amount.  Default 1.
 #' @param seed Integer or \code{NULL}.  When supplied, calls
 #'   \code{set.seed(seed)} before any random selection this call performs
 #'   (e.g. \code{exit_strategy}/\code{retire_strategy} \code{"random"}
@@ -373,18 +375,8 @@ simulate_scenario <- function(contract_dt,
                                salary_growth_rate  = 0,
                                pension_cola_rate   = 0,
                                allowance_growth_rate = 0,
-                               personnel_id_col    = "personnel_id",
-                               contract_id_col     = "contract_id",
-                               birth_date_col      = "birth_date",
-                               start_date_col      = "start_date",
-                               end_date_col        = "end_date",
-                               salary_col          = "gross_salary_lcu",
-                               contract_type_col   = "contract_type",
-                               status_col         = "employment_status",
-                               age_col             = "age",
-                               tenure_col          = "personnel_tenure",
+                               column_spec_args    = list(),
                                period_fraction     = 1,
-                               hire_date_col       = NULL,
                                seed                = NULL) {
 
   # ------------------------------------------------------------------
@@ -399,6 +391,17 @@ simulate_scenario <- function(contract_dt,
 
   period_date <- validate_date_format(period_date, "period_date")
 
+  column_spec_args <- .column_spec(column_spec_args)
+  .check_spec_columns(contract_dt, personnel_dt, column_spec_args, required = list(
+    contract_dt = c("personnel_id_col", "contract_type_col", "salary_col")
+  ))
+  personnel_id_col  <- column_spec_args$personnel_id_col
+  salary_col        <- column_spec_args$salary_col
+  contract_type_col <- column_spec_args$contract_type_col
+  status_col        <- column_spec_args$status_col
+  age_col           <- column_spec_args$age_col
+  tenure_col        <- column_spec_args$tenure_col
+
   # Work on copies: aging, COLA and the pension COLA below update these tables
   # in place (data.table's :=), and the caller's own tables must come back
   # unchanged. setDT(copy(x)) gives a data.table copy of a data.table or a
@@ -409,19 +412,9 @@ simulate_scenario <- function(contract_dt,
   if (!is.null(pensioner_register))
     pensioner_register <- data.table::setDT(data.table::copy(pensioner_register))
 
-  if (!salary_col %in% names(contract_dt))
-    stop("salary_col '", salary_col, "' not found in contract_dt.", call. = FALSE)
-
   # Initialise empty pensioner register on first call
   if (is.null(pensioner_register)) {
-    pensioner_register <- data.table::data.table(
-      personnel_id               = character(0),
-      pension_amount             = numeric(0),
-      final_salary               = numeric(0),
-      tenure_years_at_retirement = numeric(0),
-      age_at_retirement          = numeric(0),
-      period_date                = as.Date(character(0))
-    )
+    pensioner_register <- .empty_pensioner_register(personnel_id_col)
   }
 
   # Detect salary column in salary_scale_dt
@@ -456,23 +449,7 @@ simulate_scenario <- function(contract_dt,
   pension_cost_new <- 0
   retirees_dt      <- NULL
 
-
-  # Transition (ADR 0012): the column names travel as one spec; this
-  # function's own *_col arguments go when it is converted
-  column_spec_args <- list(
-    personnel_id_col  = personnel_id_col,
-    contract_id_col   = contract_id_col,
-    birth_date_col    = birth_date_col,
-    start_date_col    = start_date_col,
-    end_date_col      = end_date_col,
-    salary_col        = salary_col,
-    contract_type_col = contract_type_col,
-    status_col        = status_col,
-    age_col           = age_col,
-    tenure_col        = tenure_col
-  )
-
- if (!is.null(retirement_policy)) {
+  if (!is.null(retirement_policy)) {
     ret_result <- simulate_retirement(
       contract_dt             = contract_dt,
       personnel_dt            = personnel_dt,
@@ -493,7 +470,7 @@ simulate_scenario <- function(contract_dt,
 
       # Append to pensioner register with period_date stamp
       new_reg <- data.table::data.table(
-        personnel_id               = retirees_dt[[personnel_id_col]],
+        .id                        = retirees_dt[[personnel_id_col]],
         pension_amount             = retirees_dt$pension,
         final_salary               = retirees_dt[[salary_col]],
         tenure_years_at_retirement = if ("tenure_years" %in% names(retirees_dt))
@@ -502,6 +479,7 @@ simulate_scenario <- function(contract_dt,
                                        retirees_dt$age else NA_real_,
         period_date                = period_date
       )
+      data.table::setnames(new_reg, ".id", personnel_id_col)
       pensioner_register <- data.table::rbindlist(
         list(pensioner_register, new_reg),
         use.names = TRUE, fill = TRUE
@@ -802,7 +780,7 @@ simulate_scenario <- function(contract_dt,
 #' | Retirement | \code{retirement_policy} | \code{\link{design_retirement_policy_status_quo}} (default) | \code{\link{design_retirement_policy_age}}, \code{\link{design_retirement_policy_tenure}}, \code{\link{design_retirement_policy_age_tenure}}, or \code{\link{design_retirement_policy}} for any \code{eligibility_*()} + \code{pension_*()} combination |
 #' | Other exits | \code{exit_policy} | \code{\link{design_exit_policy_status_quo}} | \code{\link{design_exit_policy_flat}}, \code{\link{design_exit_policy_adjustment}} |
 #' | Promotions / transfers | \code{movement_policy} | \code{\link{design_movement_policy_status_quo}} | \code{\link{design_movement_policy_adjustment}} (start from \code{\link{movement_policy_template}}) |
-#' | Hiring | \code{hiring_policy} | \code{\link{design_hiring_policy_status_quo}} | \code{\link{design_hiring_policy_flow}}, \code{\link{design_hiring_policy_stock}} |
+#' | Hiring | \code{hiring_policy} | \code{\link{design_hiring_policy_status_quo}} | \code{\link{design_hiring_policy_adjustment}}, \code{\link{design_hiring_policy_flow}}, \code{\link{design_hiring_policy_stock}} |
 #' | Allowances | \code{allowance_policy} | \code{\link{design_allowance_policy_status_quo}} | \code{\link{design_allowance_policy_adjustment}} |
 #'
 #' Each helper returns a plain list, so you can inspect it or edit it before
@@ -813,8 +791,9 @@ simulate_scenario <- function(contract_dt,
 #'
 #' \code{contract_dt} and \code{personnel_dt} should be \strong{panels}:
 #' several yearly snapshots stacked together, each row stamped with its
-#' snapshot date in a \code{ref_date} column (the \code{govhr} harmonized
-#' format, as in \code{\link{bra_hrmis_contract}}).  The projection starts
+#' snapshot date in a \code{ref_date} column, or the column named by
+#' \code{ref_date_col} (the \code{govhr} harmonized format, as in
+#' \code{\link{bra_hrmis_contract}}).  The projection starts
 #' from the snapshot whose date equals \code{ref_date}.  The earlier
 #' snapshots are the history that status-quo policies are estimated from.
 #' At least two snapshots are needed for any status-quo policy, including
@@ -931,6 +910,9 @@ simulate_scenario <- function(contract_dt,
 #' @param hiring_policy List or \code{NULL}.  How many people are hired each
 #'   year, and into which groups.  Build it with
 #'   \code{\link{design_hiring_policy_status_quo}} (historical hiring rates),
+#'   \code{\link{design_hiring_policy_adjustment}} (your own rates, e.g. edited
+#'   \code{\link{estimate_historical_hiring_rates}} output, to treat groups
+#'   differently),
 #'   \code{\link{design_hiring_policy_flow}} (replace a share of those who
 #'   left) or \code{\link{design_hiring_policy_stock}} (hire or downsize
 #'   towards target headcounts).  See \code{\link{hiring_policy_helpers}}.
@@ -976,6 +958,8 @@ simulate_scenario <- function(contract_dt,
 #'   \describe{
 #'     \item{\code{personnel_id_col}}{\code{"personnel_id"}}
 #'     \item{\code{contract_id_col}}{\code{"contract_id"}}
+#'     \item{\code{ref_date_col}}{\code{"ref_date"}.  The snapshot date.  Also
+#'       the column that stamps each year in the returned microdata.}
 #'     \item{\code{start_date_col}}{\code{"start_date"}}
 #'     \item{\code{end_date_col}}{\code{"end_date"}}
 #'     \item{\code{salary_col}}{\code{"gross_salary_lcu"}.  The salary the
@@ -1045,15 +1029,15 @@ simulate_scenario <- function(contract_dt,
 #'     \item{\code{$metadata}}{List recording the policies used, plus
 #'       \code{scenario_name} and \code{is_baseline} when given.}
 #'     \item{\code{$pensioner_register}}{data.table, one row per retiree per
-#'       year: \code{personnel_id}, \code{pension_amount},
-#'       \code{period_date} and details at retirement.  Always present
+#'       year: the person ID (under your name for that column),
+#'       \code{pension_amount}, \code{period_date} and details at retirement.  Always present
 #'       (zero rows when nobody retired).  To chain several runs, combine
 #'       their registers with \code{data.table::rbindlist()}.  This is
 #'       person-level data: handle it like the input microdata before
 #'       saving or sharing the result.}
 #'     \item{\code{$contract_dt}, \code{$personnel_dt}}{Every projected
 #'       year's microdata, stacked (one snapshot per year, stamped in
-#'       \code{ref_date}).  Only when \code{return_microdata = TRUE}.  Also
+#'       \code{ref_date_col}).  Only when \code{return_microdata = TRUE}.  Also
 #'       person-level data.}
 #'     \item{\code{$allowance_dt}}{Allowance ledger: one row per contract x
 #'       allowance type x year.  Only when \code{return_microdata = TRUE}
@@ -1169,17 +1153,21 @@ simulate_horizon <- function(contract_dt,
   # stop the run here, before any work starts.
   column_spec_args <- .column_spec(column_spec_args)
   .check_spec_columns(contract_dt, personnel_dt, column_spec_args)
+
+  # Resolve NULL age_col / tenure_col to standard column names.
+  # NULL means: "compute from source data and store in the default column".
+  # Everything below receives a character scalar.
+  if (is.null(column_spec_args$age_col))    column_spec_args$age_col    <- "age"
+  if (is.null(column_spec_args$tenure_col)) column_spec_args$tenure_col <- "personnel_tenure"
+
+  # The columns this function reads itself; the modules take the whole spec
   personnel_id_col  <- column_spec_args$personnel_id_col
-  contract_id_col   <- column_spec_args$contract_id_col
-  start_date_col    <- column_spec_args$start_date_col
-  end_date_col      <- column_spec_args$end_date_col
+  ref_date_col      <- column_spec_args$ref_date_col
   salary_col        <- column_spec_args$salary_col
   contract_type_col <- column_spec_args$contract_type_col
-  status_col        <- column_spec_args$status_col
   age_col           <- column_spec_args$age_col
   tenure_col        <- column_spec_args$tenure_col
   birth_date_col    <- column_spec_args$birth_date_col
-  hire_date_col     <- column_spec_args$hire_date_col
 
   output_control_args <- .output_control(output_control_args)
   scenario_name    <- output_control_args$scenario_name
@@ -1195,12 +1183,6 @@ simulate_horizon <- function(contract_dt,
 
   # Capture original value for metadata before expanding to per-period vector
   salary_growth_rate_input <- salary_growth_rate
-
-  # Resolve NULL age_col / tenure_col to standard column names.
-  # NULL means: "compute from source data and store in the default column".
-  # The rest of the function always receives a character scalar.
-  if (is.null(age_col))    age_col    <- "age"
-  if (is.null(tenure_col)) tenure_col <- "personnel_tenure"
 
   # Periods are always annual -- period_fraction exists only because
   # simulate_scenario() takes it as a direct parameter (kept flexible there
@@ -1225,25 +1207,21 @@ simulate_horizon <- function(contract_dt,
   }
   salary_scale_dt <- data.table::copy(salary_scale_dt)
 
+  # A panel has at least two snapshots; status-quo policies are estimated from it
+  has_panel <- ref_date_col %in% names(contract_dt) &&
+               data.table::uniqueN(contract_dt[[ref_date_col]]) >= 2L
+
   # For movement, pre-compute the baseline from the full panel BEFORE stripping
   # ref_date.  simulate_horizon works on single-snapshot data in each period, so
   # without this cache simulate_promotions_transfers would never see a panel.
   if (!is.null(movement_policy) && is.null(movement_policy$policy_table)) {
-    ref_date_col_name <- "ref_date"   # standard column name used throughout
-    ## check if we have a panel dataset based on reference date
-    has_panel <- ref_date_col_name %in% names(contract_dt) &&
-                 data.table::uniqueN(contract_dt[[ref_date_col_name]]) >= 2L
     ### if we have a panel compute the movement baseline rates for transfers and
     ### promotions
     if (has_panel) {
       movement_policy$policy_table <- estimate_historical_movement_rates(
         contract_dt       = contract_dt,
         group_cols        = movement_policy$group_cols,
-        personnel_id_col  = personnel_id_col,
-        ref_date_col      = ref_date_col_name,
-        start_date_col    = start_date_col,
-        end_date_col      = end_date_col,
-        contract_type_col = contract_type_col
+        column_spec_args  = column_spec_args
       )
     }
   }
@@ -1251,21 +1229,13 @@ simulate_horizon <- function(contract_dt,
   # For exit, pre-estimate historical rates from the full panel BEFORE stripping
   # ref_date, so simulate_exits() receives a ready-made policy_table.
   if (!is.null(exit_policy) && is.null(exit_policy$policy_table)) {
-    ref_date_col_name <- "ref_date"
-    has_panel <- ref_date_col_name %in% names(contract_dt) &&
-                 data.table::uniqueN(contract_dt[[ref_date_col_name]]) >= 2L
     if (has_panel) {
       exit_policy$policy_table <- tryCatch(
         estimate_historical_exit_rates(
           panel_contract_dt  = contract_dt,
           panel_personnel_dt = personnel_dt,
           group_cols         = exit_policy$group_cols,
-          personnel_id_col   = personnel_id_col,
-          ref_date_col       = ref_date_col_name,
-          start_date_col     = start_date_col,
-          end_date_col       = end_date_col,
-          contract_type_col  = contract_type_col,
-          status_col         = status_col
+          column_spec_args   = column_spec_args
         ),
         error = function(e) {
           warning("simulate_horizon: exit rate estimation failed \u2014 ",
@@ -1293,10 +1263,6 @@ simulate_horizon <- function(contract_dt,
       identical(retirement_policy$defaults$eligibility_type, "hazard_rate") &&
       is.null(retirement_policy$policy_table)) {
 
-    ref_date_col_name <- "ref_date"
-    has_panel <- ref_date_col_name %in% names(contract_dt) &&
-                 data.table::uniqueN(contract_dt[[ref_date_col_name]]) >= 2L
-
     if (!has_panel) {
       stop(
         "simulate_horizon: eligibility_type = 'hazard_rate' requires panel ",
@@ -1318,18 +1284,15 @@ simulate_horizon <- function(contract_dt,
         birth_date_col %in% names(personnel_dt)) {
       .hazard_panel_ <- data.table::copy(personnel_dt)
       .hazard_panel_[, (age_col) := as.numeric(
-        difftime(get(ref_date_col_name), get(birth_date_col), units = "days")
+        difftime(get(ref_date_col), get(birth_date_col), units = "days")
       ) / 365.25]
     }
 
     retirement_policy$policy_table <- estimate_retirement_hazard_rates(
       panel_personnel_dt = .hazard_panel_,
       group_cols          = retirement_policy$group_cols,
-      age_col             = age_col,
-      personnel_id_col    = personnel_id_col,
-      ref_date_col         = ref_date_col_name,
-      status_col           = status_col,
-      retire_status         = retirement_policy$pensioner_type_value %||% "pensioner"
+      retire_status       = retirement_policy$pensioner_type_value %||% "pensioner",
+      column_spec_args    = column_spec_args
     )
     if (nrow(retirement_policy$policy_table) == 0L) {
       message(
@@ -1346,61 +1309,51 @@ simulate_horizon <- function(contract_dt,
   # before stripping so that sub-modules see a single-period snapshot.
 
   start_ref <- ref_date   # capture before any column could shadow it
-  .ref_date_col_name_ <- "ref_date"
-  .has_panel_ <- .ref_date_col_name_ %in% names(contract_dt) &&
-                 data.table::uniqueN(contract_dt[[.ref_date_col_name_]]) >= 2L
-  .full_panel_c_ <- if (.has_panel_) data.table::copy(contract_dt)  else NULL
-  .full_panel_p_ <- if (.has_panel_) data.table::copy(personnel_dt) else NULL
 
-  # Status-quo hiring: estimate the historical hiring rates from the full
-  # panel now, before it is cut to the starting snapshot below. A panel the
-  # user put in the policy (panel_contract_dt / panel_personnel_dt) takes
-  # precedence. Either way the panels are then dropped from the policy, so
-  # the policy -- which is returned in $metadata -- holds only the small rate
-  # table, never person-level data.
+  # Status-quo hiring: unless the policy already holds a rate table (the
+  # user's own, from design_hiring_policy_adjustment()), estimate the historical
+  # hiring rates from the full panel now, before it is cut to the starting
+  # snapshot below. A panel the user put in the policy (panel_contract_dt /
+  # panel_personnel_dt) takes precedence. Either way the panels are then dropped
+  # from the policy, so the policy -- which is returned in $metadata -- holds
+  # only the small rate table, never person-level data.
   # Without rates there is no status quo to reproduce, so a failed estimate
   # or a missing panel stops the run with a clear error rather than
   # projecting zero hiring (pass hiring_policy = NULL to run without hiring).
   if (!is.null(hiring_policy) && identical(hiring_policy$mode, "status_quo")) {
-    if (.has_panel_) {
+    if (is.null(hiring_policy$squorate_dt)) {
+      if (!has_panel) {
+        stop(
+          "simulate_horizon: status-quo hiring needs a panel with at least two ",
+          "ref_date snapshots to estimate hiring rates from, or your own rates ",
+          "from design_hiring_policy_adjustment().",
+          call. = FALSE
+        )
+      }
       hiring_policy$squorate_dt <- tryCatch(
         estimate_historical_hiring_rates(
           panel_contract_dt  = hiring_policy$panel_contract_dt  %||% contract_dt,
           panel_personnel_dt = hiring_policy$panel_personnel_dt %||% personnel_dt,
           group_cols         = hiring_policy$group_cols,
-          hire_date_col      = hire_date_col,
-          personnel_id_col   = personnel_id_col,
-          start_date_col     = start_date_col,
-          end_date_col       = end_date_col,
-          contract_type_col  = contract_type_col,
-          status_col         = status_col
+          column_spec_args   = column_spec_args
         ),
         error = function(e) stop(
           "simulate_horizon: could not estimate status-quo hiring rates from the ",
           "panel: ", conditionMessage(e), ". Check hiring_policy$group_cols, or ",
-          "supply the rates yourself in hiring_policy$squorate_dt.",
+          "set the rates yourself with design_hiring_policy_adjustment().",
           call. = FALSE
         )
-      )
-    } else if (is.null(hiring_policy$squorate_dt)) {
-      stop(
-        "simulate_horizon: status-quo hiring needs a panel with at least two ",
-        "ref_date snapshots to estimate hiring rates from, or a squorate_dt you ",
-        "supply in hiring_policy (e.g. from estimate_historical_hiring_rates()).",
-        call. = FALSE
       )
     }
     hiring_policy$panel_contract_dt  <- NULL
     hiring_policy$panel_personnel_dt <- NULL
   }
 
-  if ("ref_date" %in% names(contract_dt)) {
-    contract_dt <- contract_dt[get("ref_date") == start_ref]
-    # contract_dt[, ref_date := NULL]
+  if (ref_date_col %in% names(contract_dt)) {
+    contract_dt <- contract_dt[get(ref_date_col) == start_ref]
   }
-  if ("ref_date" %in% names(personnel_dt)) {
-    personnel_dt <- personnel_dt[get("ref_date") == start_ref]
-    # personnel_dt[, ref_date := NULL]
+  if (ref_date_col %in% names(personnel_dt)) {
+    personnel_dt <- personnel_dt[get(ref_date_col) == start_ref]
   }
 
   # Resolve pensioner type label before any filtering uses it.
@@ -1427,10 +1380,6 @@ simulate_horizon <- function(contract_dt,
     contract_dt <- contract_dt[.has_salary_ | .is_pensioner_]
   }
 
-  if (!salary_col %in% names(contract_dt)) {
-    stop("salary_col '", salary_col, "' not found in contract_dt.", call. = FALSE)
-  }
-
   # Initialise the allowance ledger. Unlike pensioner_register, this is never
   # accepted as a simulate_horizon() input -- it accumulates purely within
   # this call and is returned in the output, matching the documented
@@ -1440,14 +1389,7 @@ simulate_horizon <- function(contract_dt,
   allowance_dt <- NULL
 
   # Initialise pensioner register with expanded schema
-  pensioner_register <- data.table::data.table(
-    personnel_id               = character(0),
-    pension_amount             = numeric(0),   # COLA-adjusted each period
-    final_salary               = numeric(0),   # salary at moment of retirement
-    tenure_years_at_retirement = numeric(0),
-    age_at_retirement          = numeric(0),
-    period_date                = as.Date(character(0))
-  )
+  pensioner_register <- .empty_pensioner_register(personnel_id_col)
 
   # Seed register from pre-existing retirees in the starting snapshot (Phase 2c Part A).
   # People with contract_type_col == pensioner_type_value were already retired at ref_date;
@@ -1468,23 +1410,21 @@ simulate_horizon <- function(contract_dt,
         period_date                = .ref_date_seed_
       )
     }, by = c(personnel_id_col)]
-    data.table::setnames(seed_reg, personnel_id_col, "personnel_id")
 
     # Enrich seed with age at retirement from birth_date in personnel_dt.
     # Tenure is not reliably available for pre-existing pensioners (their
     # contracts are already closed), so leave tenure_years_at_retirement as NA.
     if (!is.null(birth_date_col) && birth_date_col %in% names(personnel_dt)) {
       age_lookup <- personnel_dt[
-        get(personnel_id_col) %in% seed_reg$personnel_id,
+        get(personnel_id_col) %in% seed_reg[[personnel_id_col]],
         c(personnel_id_col, birth_date_col), with = FALSE
       ]
-      data.table::setnames(age_lookup, personnel_id_col, "personnel_id")
       .ref_seed_age_ <- ref_date
       age_lookup[, age_at_ret := as.numeric(
         difftime(.ref_seed_age_, get(birth_date_col), units = "days")
       ) / 365.25]
       seed_reg[age_lookup, age_at_retirement := i.age_at_ret,
-               on = "personnel_id"]
+               on = personnel_id_col]
     }
 
     pensioner_register <- data.table::rbindlist(
@@ -1538,9 +1478,9 @@ simulate_horizon <- function(contract_dt,
       contract_dt       = contract_dt,
       ref_date          = ref_date,
       personnel_id_col  = personnel_id_col,
-      contract_id_col   = contract_id_col,
-      start_date_col    = start_date_col,
-      end_date_col      = end_date_col,
+      contract_id_col   = column_spec_args$contract_id_col,
+      start_date_col    = column_spec_args$start_date_col,
+      end_date_col      = column_spec_args$end_date_col,
       contract_type_col = contract_type_col
     )
     if (nrow(tenure_init) > 0L) {
@@ -1618,18 +1558,8 @@ simulate_horizon <- function(contract_dt,
       salary_growth_rate      = growth,
       pension_cola_rate       = cola_rate,
       allowance_growth_rate   = allow_growth,
-      personnel_id_col        = personnel_id_col,
-      contract_id_col         = contract_id_col,
-      birth_date_col          = birth_date_col,
-      start_date_col     = start_date_col,
-      end_date_col       = end_date_col,
-      salary_col         = salary_col,
-      contract_type_col  = contract_type_col,
-      status_col         = status_col,
-      age_col            = age_col,
-      tenure_col         = tenure_col,
-      period_fraction    = period_fraction,
-      hire_date_col      = hire_date_col
+      column_spec_args        = column_spec_args,
+      period_fraction         = period_fraction
     )
 
     # Thread state forward
@@ -1643,11 +1573,11 @@ simulate_horizon <- function(contract_dt,
     # Accumulate period snapshots for panel output
     if (return_microdata) {
       ct_snap <- data.table::copy(contract_dt)
-      ct_snap[, ref_date := cur_date]
+      ct_snap[, (ref_date_col) := cur_date]
       contract_panel_list[[t]] <- ct_snap
 
       pt_snap <- data.table::copy(personnel_dt)
-      pt_snap[, ref_date := cur_date]
+      pt_snap[, (ref_date_col) := cur_date]
       personnel_panel_list[[t]] <- pt_snap
     }
 

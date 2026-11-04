@@ -75,7 +75,7 @@ NULL
 #' whatever share of a group does not move simply stays.
 #'
 #' @param contract_dt data.table.  Contract data with at least two
-#'   \code{ref_date_col} snapshots (a panel).  Only contracts whose type is
+#'   snapshots (a panel).  Only contracts whose type is
 #'   not \code{"inactive"} are counted.
 #' @param group_cols Character vector.  The columns that define a "group" a
 #'   person can move between -- this decides what kind of movement you are
@@ -83,9 +83,12 @@ NULL
 #'   transfers, \code{c("est_id", "paygrade")} for both at once.  Must be the
 #'   same \code{group_cols} you later pass to
 #'   \code{\link{design_movement_policy_adjustment}}.
-#' @param personnel_id_col,ref_date_col,start_date_col,end_date_col,contract_type_col
-#'   Character.  Column names in \code{contract_dt}, if they differ from the
-#'   package defaults.
+#' @param column_spec_args Named list.  Column names, if your data use
+#'   different names from the \code{govhr} defaults: give only the ones you
+#'   need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+#'   here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
+#'   \code{end_date_col}, \code{contract_type_col}.  See
+#'   \code{\link{simulate_horizon}} for the defaults.
 #'
 #' @return A data.table with one row per observed move and columns:
 #'   \describe{
@@ -122,11 +125,8 @@ NULL
 #' @export
 movement_policy_template <- function(contract_dt,
                                      group_cols,
-                                     personnel_id_col  = "personnel_id",
-                                     ref_date_col      = "ref_date",
-                                     start_date_col    = "start_date",
-                                     end_date_col      = "end_date",
-                                     contract_type_col = "contract_type") {
+                                     column_spec_args = list()) {
+  cols <- .column_spec(column_spec_args)
   if (is.null(group_cols) || !is.character(group_cols) || length(group_cols) == 0L) {
     stop("movement_policy_template: group_cols must be a non-empty character vector.",
          call. = FALSE)
@@ -147,8 +147,8 @@ movement_policy_template <- function(contract_dt,
   # Pass a column subset (a new table), not contract_dt itself:
   # roll_snapshot_pairs() re-keys its input by reference, which would silently
   # re-sort the caller's panel.
-  .needed  <- c(ref_date_col, personnel_id_col, group_cols,
-                start_date_col, end_date_col, contract_type_col)
+  .needed  <- c(cols$ref_date_col, cols$personnel_id_col, group_cols,
+                cols$start_date_col, cols$end_date_col, cols$contract_type_col)
   .missing <- setdiff(.needed, names(contract_dt))
   if (length(.missing) > 0L) {
     stop("movement_policy_template: contract_dt is missing column(s): ",
@@ -158,11 +158,7 @@ movement_policy_template <- function(contract_dt,
   est <- estimate_historical_movement_rates(
     contract_dt       = contract_dt[, .needed, with = FALSE],
     group_cols        = group_cols,
-    personnel_id_col  = personnel_id_col,
-    ref_date_col      = ref_date_col,
-    start_date_col    = start_date_col,
-    end_date_col      = end_date_col,
-    contract_type_col = contract_type_col
+    column_spec_args  = cols
   )
 
   out <- data.table::data.table(

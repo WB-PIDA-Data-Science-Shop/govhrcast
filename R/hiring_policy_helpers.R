@@ -15,7 +15,7 @@
 #' directly -- closer to \code{\link{design_retirement_policy_age}} and its
 #' siblings than to \code{eligibility_age()}/\code{pension_flat()}.
 #'
-#' Three modes, three constructors:
+#' The constructors:
 #' \itemize{
 #'   \item \code{\link{design_hiring_policy_flow}} -- replace a fraction of
 #'     exits (e.g. \code{replacement_rate = 1} rehires everyone who left).
@@ -23,6 +23,9 @@
 #'     toward a target headcount.
 #'   \item \code{\link{design_hiring_policy_status_quo}} -- reproduce
 #'     recently observed hiring rates, calibrated from historical panel data.
+#'   \item \code{\link{design_hiring_policy_adjustment}} -- your own hiring
+#'     rates, usually the historical rates with some groups edited: status
+#'     quo for most groups and a reform for others.
 #' }
 #' \code{"combined"} mode (flow + stock simultaneously) has no constructor
 #' here -- it has no clean policy interpretation of its own and is expected
@@ -72,6 +75,9 @@ NULL
 #'   automatically derived from its \code{salary_scale_dt} argument -- this
 #'   only happens inside \code{simulate_horizon()}; standalone
 #'   \code{\link{simulate_hiring}} calls need it supplied directly.
+#' @param unmatched_rate Number, 0 or more.  Replacement rate for groups that
+#'   have leavers but no row in a \code{replacement_rate} table.  Default
+#'   \code{0}: nobody is hired to replace them.
 #'
 #' @return A list with \code{mode = "flow"} plus the fields above -- directly
 #'   usable as \code{simulate_hiring()}'s or \code{simulate_horizon()}'s
@@ -84,7 +90,9 @@ NULL
 #'   group_cols = "est_id"
 #' )
 #' @export
-design_hiring_policy_flow <- function(replacement_rate, group_cols = NULL, salary_scale = NULL) {
+design_hiring_policy_flow <- function(replacement_rate, group_cols = NULL, salary_scale = NULL,
+                                      unmatched_rate = 0) {
+  validate_positive_number(unmatched_rate, "unmatched_rate", allow_zero = TRUE)
   if (!is.null(group_cols) && !is.character(group_cols)) {
     stop("design_hiring_policy_flow: group_cols must be a character vector or NULL.", call. = FALSE)
   }
@@ -120,6 +128,7 @@ design_hiring_policy_flow <- function(replacement_rate, group_cols = NULL, salar
     mode             = "flow",
     group_cols       = group_cols,
     replacement_rate = replacement_rate,
+    unmatched_rate   = unmatched_rate,
     salary_scale     = salary_scale
   )
 }
@@ -207,7 +216,8 @@ design_hiring_policy_stock <- function(stock_targets,
 #'
 #' \strong{Auto-estimation only happens inside \code{\link{simulate_horizon}}},
 #' which estimates the rate table from the panel you pass it and stores it in
-#' the policy as \code{squorate_dt} -- not something you supply here.  Without
+#' the policy as \code{squorate_dt}.  To set some groups' rates yourself, use
+#' \code{\link{design_hiring_policy_adjustment}} instead.  Without
 #' rates there is no status quo to reproduce, so \code{simulate_horizon()}
 #' stops with an error if the estimate fails (e.g. a \code{group_cols} column
 #' the panel does not have) or if the data are a single snapshot and you have
@@ -218,6 +228,15 @@ design_hiring_policy_stock <- function(stock_targets,
 #' pre-populate \code{policy_params$squorate_dt} yourself (e.g. by calling
 #' \code{\link{estimate_historical_hiring_rates}} ahead of time) before
 #' calling \code{simulate_hiring()} standalone.
+#'
+#' \strong{Each group keeps its historical rate for the whole projection}, and
+#' the rate applies to the group's current staff, including people hired
+#' earlier in the projection.  A group that hired heavily in the past therefore
+#' keeps growing at that pace: a group with a rate of 100\% doubles every year.
+#' This is the meaning of "status quo", and it matters more the longer you
+#' project, so check the rates from
+#' \code{\link{estimate_historical_hiring_rates}} if you project beyond a few
+#' years.
 #'
 #' @param rate_mult Numeric.  Scales the estimated historical rate (e.g.
 #'   \code{1.5} hires 50% faster than history). Default \code{1} (no
@@ -252,5 +271,102 @@ design_hiring_policy_status_quo <- function(rate_mult    = 1,
     group_cols   = group_cols,
     rate_mult    = rate_mult,
     salary_scale = salary_scale
+  )
+}
+
+
+#' Hiring Policy from Your Own Rate Table
+#'
+#' @description
+#' Builds a hiring policy from hiring rates you control, so that groups can be
+#' treated differently: usually the historical rates from
+#' \code{\link{estimate_historical_hiring_rates}} with some groups edited.
+#' Groups you leave alone stay at their status-quo rate; others can hire
+#' faster, slower or not at all.  Each year a group hires
+#' \code{hiring_rate x its current staff}, exactly as under
+#' \code{\link{design_hiring_policy_status_quo}}.
+#'
+#' Works with \code{\link{simulate_horizon}} and with
+#' \code{\link{simulate_hiring}} on a single snapshot, since nothing needs
+#' estimating.
+#'
+#' The table is checked immediately.  It stops with an error if:
+#' \itemize{
+#'   \item the \code{hiring_rate} column is missing, or the table is empty;
+#'   \item a rate is missing (NA) or negative;
+#'   \item a \code{group_cols} column is missing, or a group is listed twice;
+#'   \item \code{group_cols = NULL} but the table has more than one row.
+#' }
+#'
+#' @param policy_table data.table with a \code{hiring_rate} column (new hires
+#'   per head of current staff, per year: \code{0.05} is 5\%, \code{0} is a
+#'   hiring freeze) plus the \code{group_cols} columns.  Rates above 1 are
+#'   allowed.  With \code{group_cols = NULL}, exactly one row: an overall rate.
+#'   Other columns are ignored, and a copy is stored, so later edits to your
+#'   table don't change the policy.
+#' @param group_cols Character vector or \code{NULL} (default).  The columns
+#'   that identify a group in \code{policy_table} (e.g. \code{"est_id"}).
+#' @param unmatched_rate Number, 0 or more.  Hiring rate for groups in the data
+#'   that have no row in \code{policy_table}.  Default \code{0}: they hire
+#'   nobody.  So to change one group and keep the others at status quo, start
+#'   from the full table of historical rates rather than a table of just the
+#'   groups you are changing.
+#' @param salary_scale data.table or \code{NULL} (default).  See
+#'   \code{\link{design_hiring_policy_flow}} for the auto-derivation caveat.
+#'
+#' @return A list with \code{mode = "status_quo"} plus the rate table --
+#'   directly usable as \code{simulate_hiring()}'s or
+#'   \code{simulate_horizon()}'s \code{hiring_policy} argument.
+#' @seealso \code{\link{estimate_historical_hiring_rates}},
+#'   \code{\link{design_hiring_policy_status_quo}}
+#' @examples
+#' # Per-establishment rates you set yourself; any other establishment hires 2%
+#' rates <- data.table::data.table(est_id = c("E1", "E2"), hiring_rate = c(0.05, 0))
+#' design_hiring_policy_adjustment(rates, group_cols = "est_id", unmatched_rate = 0.02)
+#'
+#' \donttest{
+#' # Typical reform workflow: estimate, edit, adjust
+#' panel_c <- bra_hrmis_contract[ref_date <= as.Date("2012-09-01")]
+#' panel_p <- bra_hrmis_personnel[ref_date <= as.Date("2012-09-01")]
+#' rates <- estimate_historical_hiring_rates(panel_c, panel_p, group_cols = "est_id")
+#' some_est <- rates$est_id[1]
+#' rates[est_id == some_est, hiring_rate := 0]   # freeze hiring in one establishment
+#' design_hiring_policy_adjustment(rates, group_cols = "est_id")
+#' }
+#' @export
+design_hiring_policy_adjustment <- function(policy_table,
+                                            group_cols     = NULL,
+                                            unmatched_rate = 0,
+                                            salary_scale   = NULL) {
+  fn <- "design_hiring_policy_adjustment"
+  validate_positive_number(unmatched_rate, "unmatched_rate", allow_zero = TRUE)
+  .validate_hiring_salary_scale(salary_scale)
+
+  if (!data.table::is.data.table(policy_table)) {
+    stop(fn, ": policy_table must be a data.table (e.g. from ",
+         "estimate_historical_hiring_rates()).", call. = FALSE)
+  }
+  if (!"hiring_rate" %in% names(policy_table)) {
+    stop(fn, ": policy_table must contain a 'hiring_rate' column.", call. = FALSE)
+  }
+  if (nrow(policy_table) == 0L) {
+    stop(fn, ": policy_table has no rows. To switch hiring off, pass ",
+         "hiring_policy = NULL instead.", call. = FALSE)
+  }
+  .validate_policy_groups(fn, policy_table, group_cols)
+
+  rate <- policy_table$hiring_rate
+  if (!is.numeric(rate) || anyNA(rate) || any(rate < 0)) {
+    stop(fn, ": hiring_rate must be numeric, with no NA, 0 or more.", call. = FALSE)
+  }
+
+  # Hiring from a rate table is what status-quo mode does once its rates are
+  # known, so this is the same policy with the rates already filled in.
+  list(
+    mode           = "status_quo",
+    group_cols     = group_cols,
+    squorate_dt    = policy_table[, c(group_cols, "hiring_rate"), with = FALSE],
+    unmatched_rate = unmatched_rate,
+    salary_scale   = salary_scale
   )
 }

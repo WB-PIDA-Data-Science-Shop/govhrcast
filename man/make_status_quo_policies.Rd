@@ -11,13 +11,7 @@ make_status_quo_policies(
   movement_group_cols = NULL,
   exit_group_cols = NULL,
   hiring_group_cols = NULL,
-  personnel_id_col = "personnel_id",
-  ref_date_col = "ref_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status",
-  salary_col = "gross_salary_lcu"
+  column_spec_args = list()
 )
 }
 \arguments{
@@ -28,7 +22,7 @@ estimation.}
 \item{personnel_dt}{data.table.  Full panel personnel microdata.}
 
 \item{salary_scale_dt}{data.table.  Pay table injected into the hiring
-policy.  Must contain a salary column matching \code{salary_col}.}
+policy.  Must contain a salary column (see \code{\link{simulate_hiring}}).}
 
 \item{movement_group_cols}{Character vector or \code{NULL}.  Columns that
 define mobility states for the movement baseline (e.g.
@@ -42,19 +36,11 @@ historical exit rate estimation.  \code{NULL} estimates an aggregate rate.}
 for the flow-based hiring policy.  \code{NULL} hires at the aggregate
 level.}
 
-\item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
-
-\item{ref_date_col}{Character.  Default \code{"ref_date"}.}
-
-\item{start_date_col}{Character.  Default \code{"start_date"}.}
-
-\item{end_date_col}{Character.  Default \code{"end_date"}.}
-
-\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
-
-\item{status_col}{Character.  Default \code{"employment_status"}.}
-
-\item{salary_col}{Character.  Default \code{"gross_salary_lcu"}.}
+\item{column_spec_args}{Named list.  Column names, if your data use
+different names from the \code{govhr} defaults: give only the ones you
+need to change, e.g. \code{list(salary_col = "base_salary_lcu")}.  See
+\code{\link{simulate_horizon}} for the keys and defaults.  Pass the same
+list to \code{simulate_horizon()} when you run these policies.}
 }
 \value{
 Named list with four elements:

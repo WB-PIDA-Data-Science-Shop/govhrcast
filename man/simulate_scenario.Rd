@@ -19,18 +19,8 @@ simulate_scenario(
   salary_growth_rate = 0,
   pension_cola_rate = 0,
   allowance_growth_rate = 0,
-  personnel_id_col = "personnel_id",
-  contract_id_col = "contract_id",
-  birth_date_col = "birth_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type",
-  status_col = "employment_status",
-  age_col = "age",
-  tenure_col = "personnel_tenure",
+  column_spec_args = list(),
   period_fraction = 1,
-  hire_date_col = NULL,
   seed = NULL
 )
 }
@@ -51,9 +41,10 @@ Stored in \code{pensioner_register} for cohort auditing and used as the
 \code{period_date} column in the returned summary row.}
 
 \item{pensioner_register}{data.table or \code{NULL}.  Accumulated pensioner
-ledger from prior periods.  Must contain columns \code{personnel_id},
-\code{pension_amount}, \code{period_date}.  Pass \code{NULL} (default)
-for the first period -- an empty register is initialised internally.}
+ledger from prior periods.  Must contain the person ID column (under the
+name \code{personnel_id_col} gives), \code{pension_amount} and
+\code{period_date}.  Pass \code{NULL} (default) for the first period --
+an empty register is initialised internally.}
 
 \item{retirement_policy, exit_policy, movement_policy, hiring_policy, allowance_policy}{Lists, or \code{NULL} to switch that module off (the default here for
 all five).  Build them with the same helper functions as
@@ -94,39 +85,16 @@ applied to \code{allowance_policy$policy_table}'s \code{amount} column
 this period (via \code{apply_salary_scale_adjustment()}), so next
 period's assignment reflects the grown scale.  Default \code{0}.}
 
-\item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
-
-\item{contract_id_col}{Character.  Default \code{"contract_id"}.}
-
-\item{birth_date_col}{Character.  Column holding date of birth.
-Default \code{"birth_date"}.}
-
-\item{start_date_col}{Character.  Default \code{"start_date"}.}
-
-\item{end_date_col}{Character.  Default \code{"end_date"}.}
-
-\item{salary_col}{Character.  Default \code{"gross_salary_lcu"}.}
-
-\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
-
-\item{status_col}{Character.  Default \code{"employment_status"}.}
-
-\item{age_col}{Character or \code{NULL}.  Age column to increment.
-Default \code{"age"}.}
-
-\item{tenure_col}{Character or \code{NULL}.  Tenure (years of service)
-column to increment.  Default \code{"personnel_tenure"}, the \code{govhr}
-dictionary name.}
+\item{column_spec_args}{Named list.  Column names, if your data use
+different names from the \code{govhr} defaults: give only the ones you
+need to change, e.g. \code{list(salary_col = "base_salary_lcu")}.  See
+\code{\link{simulate_horizon}} for the keys and defaults.  Here,
+\code{age_col} and \code{tenure_col} are the columns aged each period;
+\code{NULL} leaves that column as it is.}
 
 \item{period_fraction}{Numeric.  Fraction of a year each period represents
 (1 for annual, 1/12 for monthly, 1/365.25 for daily).  Used to increment
-\code{age_col} and \code{tenure_col} by the correct amount.  Default 1.}
-
-\item{hire_date_col}{Character or \code{NULL}.  Forwarded to
-\code{simulate_hiring()}.  When supplied, historical hiring rates are
-estimated from this person-level hire-date column rather than from panel
-first-appearance detection.  Only relevant when
-\code{hiring_policy$mode = "status_quo"}.  Default \code{NULL}.}
+the age and tenure columns by the correct amount.  Default 1.}
 
 \item{seed}{Integer or \code{NULL}.  When supplied, calls
 \code{set.seed(seed)} before any random selection this call performs

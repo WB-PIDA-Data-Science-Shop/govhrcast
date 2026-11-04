@@ -4,19 +4,11 @@
 \alias{movement_policy_template}
 \title{Editable Table of Historical Movement Rates}
 \usage{
-movement_policy_template(
-  contract_dt,
-  group_cols,
-  personnel_id_col = "personnel_id",
-  ref_date_col = "ref_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type"
-)
+movement_policy_template(contract_dt, group_cols, column_spec_args = list())
 }
 \arguments{
 \item{contract_dt}{data.table.  Contract data with at least two
-\code{ref_date_col} snapshots (a panel).  Only contracts whose type is
+snapshots (a panel).  Only contracts whose type is
 not \code{"inactive"} are counted.}
 
 \item{group_cols}{Character vector.  The columns that define a "group" a
@@ -26,8 +18,12 @@ transfers, \code{c("est_id", "paygrade")} for both at once.  Must be the
 same \code{group_cols} you later pass to
 \code{\link{design_movement_policy_adjustment}}.}
 
-\item{personnel_id_col, ref_date_col, start_date_col, end_date_col, contract_type_col}{Character.  Column names in \code{contract_dt}, if they differ from the
-package defaults.}
+\item{column_spec_args}{Named list.  Column names, if your data use
+different names from the \code{govhr} defaults: give only the ones you
+need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
+\code{end_date_col}, \code{contract_type_col}.  See
+\code{\link{simulate_horizon}} for the defaults.}
 }
 \value{
 A data.table with one row per observed move and columns:

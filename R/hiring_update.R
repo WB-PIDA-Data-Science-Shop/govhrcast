@@ -393,7 +393,8 @@ update_state_with_adjustment <- function(contract_dt,
   contract_type_col <- column_spec_args$contract_type_col
   status_col        <- column_spec_args$status_col
   salary_col        <- column_spec_args$salary_col
-  
+  .as_of_date       <- ref_date
+
   group_cols <- policy_params$group_cols
   salary_scale <- policy_params$salary_scale
   removal_strategy <- if (!is.null(policy_params$removal_strategy)) {
@@ -489,7 +490,7 @@ update_state_with_adjustment <- function(contract_dt,
         # Deactivate contracts
         contract_dt[
           get(personnel_id_col) %in% personnel_to_remove,
-          c(end_date_col, contract_type_col) := list(ref_date, "terminated")
+          c(end_date_col, contract_type_col) := list(.as_of_date, "terminated")
         ]
         
         # Deactivate personnel
@@ -600,7 +601,7 @@ update_state_with_adjustment <- function(contract_dt,
       # Deactivate
       contract_dt[
         get(personnel_id_col) %in% personnel_to_remove,
-        c(end_date_col, contract_type_col) := list(ref_date, "terminated")
+        c(end_date_col, contract_type_col) := list(.as_of_date, "terminated")
       ]
       
       personnel_dt[

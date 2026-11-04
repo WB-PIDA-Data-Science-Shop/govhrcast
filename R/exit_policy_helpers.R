@@ -58,6 +58,36 @@ NULL
 }
 
 
+# A rate table has one row per group: exactly one row overall when there are no
+# groups, otherwise every group column present and no group listed twice.
+# Shared by the exit and hiring adjustment helpers.
+#' @keywords internal
+.validate_policy_groups <- function(fn, policy_table, group_cols) {
+  if (is.null(group_cols)) {
+    if (nrow(policy_table) != 1L) {
+      stop(fn, ": with group_cols = NULL, policy_table must have exactly one row ",
+           "(an overall rate). It has ", nrow(policy_table), " -- set group_cols ",
+           "to the columns that tell the rows apart.", call. = FALSE)
+    }
+    return(invisible(TRUE))
+  }
+  if (!is.character(group_cols) || length(group_cols) == 0L) {
+    stop(fn, ": group_cols must be a character vector or NULL.", call. = FALSE)
+  }
+  .missing <- setdiff(group_cols, names(policy_table))
+  if (length(.missing) > 0L) {
+    stop(fn, ": policy_table is missing group_cols column(s): ",
+         paste(.missing, collapse = ", "), ".", call. = FALSE)
+  }
+  if (anyDuplicated(policy_table, by = group_cols)) {
+    stop(fn, ": policy_table has more than one row for the same group (",
+         paste(group_cols, collapse = ", "), "). Each group must appear once.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+
 #' @keywords internal
 .validate_share <- function(fn, x, name) {
   if (!is.numeric(x) || length(x) != 1L || is.na(x) || x < 0 || x > 1) {
@@ -248,27 +278,7 @@ design_exit_policy_adjustment <- function(policy_table,
          "exit_policy = NULL instead.", call. = FALSE)
   }
 
-  if (is.null(group_cols)) {
-    if (nrow(policy_table) != 1L) {
-      stop(fn, ": with group_cols = NULL, policy_table must have exactly one row ",
-           "(an overall rate). It has ", nrow(policy_table), " -- set group_cols ",
-           "to the columns that tell the rows apart.", call. = FALSE)
-    }
-  } else {
-    if (!is.character(group_cols) || length(group_cols) == 0L) {
-      stop(fn, ": group_cols must be a character vector or NULL.", call. = FALSE)
-    }
-    .missing <- setdiff(group_cols, names(policy_table))
-    if (length(.missing) > 0L) {
-      stop(fn, ": policy_table is missing group_cols column(s): ",
-           paste(.missing, collapse = ", "), ".", call. = FALSE)
-    }
-    if (anyDuplicated(policy_table, by = group_cols)) {
-      stop(fn, ": policy_table has more than one row for the same group (",
-           paste(group_cols, collapse = ", "), "). Each group must appear once.",
-           call. = FALSE)
-    }
-  }
+  .validate_policy_groups(fn, policy_table, group_cols)
 
   .rate <- policy_table$exit_rate
   if (!is.numeric(.rate) || anyNA(.rate) || any(.rate < 0 | .rate > 1)) {

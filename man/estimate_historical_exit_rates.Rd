@@ -8,12 +8,7 @@ estimate_historical_exit_rates(
   panel_contract_dt,
   panel_personnel_dt,
   group_cols = NULL,
-  personnel_id_col = "personnel_id",
-  ref_date_col = "ref_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  column_spec_args = list()
 )
 }
 \arguments{
@@ -25,17 +20,12 @@ estimate_historical_exit_rates(
 \item{group_cols}{Character vector or \code{NULL}.  Columns to group by
 (e.g. \code{"est_id"}).  Pass \code{NULL} for an overall (ungrouped) rate.}
 
-\item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
-
-\item{ref_date_col}{Character.  Default \code{"ref_date"}.}
-
-\item{start_date_col}{Character.  Default \code{"start_date"}.}
-
-\item{end_date_col}{Character.  Default \code{"end_date"}.}
-
-\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
-
-\item{status_col}{Character.  Default \code{"employment_status"}.}
+\item{column_spec_args}{Named list.  Column names, if your data use
+different names from the \code{govhr} defaults: give only the ones you
+need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
+\code{end_date_col}, \code{contract_type_col}, \code{status_col}.  See
+\code{\link{simulate_horizon}} for the defaults.}
 }
 \value{
 data.table with \code{group_cols} (if specified) and

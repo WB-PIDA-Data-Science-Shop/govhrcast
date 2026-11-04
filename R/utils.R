@@ -399,9 +399,12 @@ get_active_contracts <- function(contract_dt,
   
   # Filter: started before/on ref_date AND (no end date OR ended after ref_date)
   # AND not inactive AND not pensioner (pensioners are not part of the active workforce)
+  # (inside the brackets a bare `ref_date` would read a column of that name,
+  # which stays at the start date during a projection)
+  .as_of_date <- ref_date
   active <- contract_dt[
-    get(start_date_col) <= ref_date &
-    (is.na(get(end_date_col)) | get(end_date_col) >= ref_date) &
+    get(start_date_col) <= .as_of_date &
+    (is.na(get(end_date_col)) | get(end_date_col) >= .as_of_date) &
     !get(contract_type_col) %in% c("inactive", "pensioner")
   ]
   
@@ -589,6 +592,15 @@ select_nearest_ref_date <- function(x, ref_date) {
   }
   
   max(valid_dates)
+}
+
+
+# One snapshot of a panel, without its date column. The rows are picked outside
+# the data.table brackets: inside them, `date` would read a column of that name
+# instead of this argument, and the caller's columns can have any name.
+.panel_snapshot <- function(panel_dt, ref_date_col, date) {
+  on_date <- panel_dt[[ref_date_col]] == date
+  panel_dt[on_date, !ref_date_col, with = FALSE]
 }
 
 
@@ -1137,7 +1149,7 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #'   estimation.
 #' @param personnel_dt data.table.  Full panel personnel microdata.
 #' @param salary_scale_dt data.table.  Pay table injected into the hiring
-#'   policy.  Must contain a salary column matching \code{salary_col}.
+#'   policy.  Must contain a salary column (see \code{\link{simulate_hiring}}).
 #' @param movement_group_cols Character vector or \code{NULL}.  Columns that
 #'   define mobility states for the movement baseline (e.g.
 #'   \code{c("paygrade")}).  \code{NULL} disables movement estimation and the
@@ -1147,13 +1159,11 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #' @param hiring_group_cols Character vector or \code{NULL}.  Group columns
 #'   for the flow-based hiring policy.  \code{NULL} hires at the aggregate
 #'   level.
-#' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param ref_date_col Character.  Default \code{"ref_date"}.
-#' @param start_date_col Character.  Default \code{"start_date"}.
-#' @param end_date_col Character.  Default \code{"end_date"}.
-#' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"employment_status"}.
-#' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
+#' @param column_spec_args Named list.  Column names, if your data use
+#'   different names from the \code{govhr} defaults: give only the ones you
+#'   need to change, e.g. \code{list(salary_col = "base_salary_lcu")}.  See
+#'   \code{\link{simulate_horizon}} for the keys and defaults.  Pass the same
+#'   list to \code{simulate_horizon()} when you run these policies.
 #'
 #' @return Named list with four elements:
 #'   \describe{
@@ -1175,21 +1185,17 @@ make_status_quo_policies <- function(contract_dt,
                                      movement_group_cols = NULL,
                                      exit_group_cols     = NULL,
                                      hiring_group_cols   = NULL,
-                                     personnel_id_col    = "personnel_id",
-                                     ref_date_col        = "ref_date",
-                                     start_date_col      = "start_date",
-                                     end_date_col        = "end_date",
-                                     contract_type_col   = "contract_type",
-                                     status_col         = "employment_status",
-                                     salary_col          = "gross_salary_lcu") {
+                                     column_spec_args    = list()) {
 
   if (!data.table::is.data.table(contract_dt))
     contract_dt <- data.table::as.data.table(contract_dt)
   if (!data.table::is.data.table(personnel_dt))
     personnel_dt <- data.table::as.data.table(personnel_dt)
 
-  has_panel <- ref_date_col %in% names(contract_dt) &&
-               data.table::uniqueN(contract_dt[[ref_date_col]]) >= 2L
+  cols <- .column_spec(column_spec_args)
+
+  has_panel <- cols$ref_date_col %in% names(contract_dt) &&
+               data.table::uniqueN(contract_dt[[cols$ref_date_col]]) >= 2L
 
   # ------------------------------------------------------------------
   # 1. Retirement — fully scalar, no estimation needed
@@ -1203,7 +1209,7 @@ make_status_quo_policies <- function(contract_dt,
       min_age          = 60,
       min_tenure       = 10,
       accrual_rate     = 0.02,
-      ref_wage_col     = salary_col,
+      ref_wage_col     = cols$salary_col,
       max_years        = 35,
       replacement_cap  = 0.80
     )
@@ -1215,15 +1221,10 @@ make_status_quo_policies <- function(contract_dt,
   if (has_panel) {
     exit_rates <- tryCatch(
       estimate_historical_exit_rates(
-        panel_contract_dt = contract_dt,
+        panel_contract_dt  = contract_dt,
         panel_personnel_dt = personnel_dt,
-        group_cols        = exit_group_cols,
-        personnel_id_col  = personnel_id_col,
-        ref_date_col      = ref_date_col,
-        start_date_col    = start_date_col,
-        end_date_col      = end_date_col,
-        contract_type_col = contract_type_col,
-        status_col        = status_col
+        group_cols         = exit_group_cols,
+        column_spec_args   = cols
       ),
       error = function(e) {
         warning("make_status_quo_policies: exit rate estimation failed (",
@@ -1258,11 +1259,7 @@ make_status_quo_policies <- function(contract_dt,
       estimate_historical_movement_rates(
         contract_dt       = contract_dt,
         group_cols        = movement_group_cols,
-        personnel_id_col  = personnel_id_col,
-        ref_date_col      = ref_date_col,
-        start_date_col    = start_date_col,
-        end_date_col      = end_date_col,
-        contract_type_col = contract_type_col
+        column_spec_args  = cols
       ),
       error = function(e) {
         warning("make_status_quo_policies: movement baseline estimation failed (",

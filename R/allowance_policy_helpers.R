@@ -70,9 +70,13 @@ NULL
 #'   snapshot on or before it is used.
 #' @param total_multiplier,multiplier_group_cols See
 #'   \code{\link{allowance_policy_helpers}}.  Default \code{1}: no change.
-#' @param allowance_type_col,amount_col,contract_id_col,ref_date_col
-#'   Character.  Column names, if they differ from the defaults.
-#'   \code{amount_col} must already be numeric.
+#' @param allowance_type_col,amount_col Character.  The allowance table's type
+#'   and amount columns, if they differ from the defaults.  \code{amount_col}
+#'   must already be numeric.
+#' @param column_spec_args Named list.  Column names, if your data use
+#'   different names from the \code{govhr} defaults: give only the ones you
+#'   need to change, e.g. \code{list(contract_id_col = "cid")}.  Keys read
+#'   here: \code{contract_id_col}, \code{ref_date_col}.
 #'
 #' @return A list with \code{group_cols} (your columns plus
 #'   \code{"allowance_type"}), \code{policy_table}, \code{defaults} and the
@@ -104,8 +108,7 @@ design_allowance_policy_status_quo <- function(panel_allowance_dt,
                                                multiplier_group_cols = NULL,
                                                allowance_type_col    = "allowance_type",
                                                amount_col            = "allowance_lcu",
-                                               contract_id_col       = "contract_id",
-                                               ref_date_col          = "ref_date") {
+                                               column_spec_args      = list()) {
   fn <- "design_allowance_policy_status_quo"
   if (is.null(group_cols) || !is.character(group_cols) || length(group_cols) == 0L) {
     stop(fn, ": group_cols must be a non-empty character vector (e.g. \"est_id\").",
@@ -119,8 +122,7 @@ design_allowance_policy_status_quo <- function(panel_allowance_dt,
     ref_date           = ref_date,
     allowance_type_col = allowance_type_col,
     amount_col         = amount_col,
-    contract_id_col    = contract_id_col,
-    ref_date_col       = ref_date_col
+    column_spec_args   = column_spec_args
   )
 
   .build_allowance_policy(fn, scale_dt, group_cols, total_multiplier,

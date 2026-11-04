@@ -8,13 +8,7 @@ estimate_historical_hiring_rates(
   panel_contract_dt,
   panel_personnel_dt,
   group_cols,
-  hire_date_col = NULL,
-  personnel_id_col = "personnel_id",
-  ref_date_col = "ref_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  column_spec_args = list()
 )
 }
 \arguments{
@@ -25,32 +19,24 @@ estimate_historical_hiring_rates(
 \item{group_cols}{Character vector. Columns to group by (e.g. \code{"est_id"}).
 Pass \code{NULL} for overall (ungrouped) rates.}
 
-\item{hire_date_col}{Character or \code{NULL}.  Name of a person-level column
-in \code{panel_personnel_dt} that holds the true administrative hire date
-(e.g. \code{"first_employment_date"}).  When supplied, the function counts
-hires directly from this column instead of using panel first-appearance
-detection.  Default \code{NULL} (panel first-appearance method).}
-
-\item{personnel_id_col}{Character. Personnel ID column. Default \code{"personnel_id"}.}
-
-\item{ref_date_col}{Character. Reference-date column in both panel tables.
-Default \code{"ref_date"}.}
-
-\item{start_date_col}{Character. Contract start-date column. Default \code{"start_date"}.}
-
-\item{end_date_col}{Character. Contract end-date column. Default \code{"end_date"}.}
-
-\item{contract_type_col}{Character. Contract-type column. Default \code{"contract_type"}.}
-
-\item{status_col}{Character. Personnel status column. Default \code{"employment_status"}.}
+\item{column_spec_args}{Named list.  Column names, if your data use
+different names from the \code{govhr} defaults: give only the ones you
+need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
+\code{end_date_col}, \code{contract_type_col}, \code{status_col}, and
+\code{hire_date_col}: a person-level column in \code{panel_personnel_dt}
+holding the true administrative hire date (e.g.
+\code{"first_employment_date"}).  When given, hires are counted directly
+from that column instead of from when people first appear in the panel.
+See \code{\link{simulate_horizon}} for the defaults.}
 }
 \value{
 data.table with \code{group_cols} (if specified) and \code{hiring_rate} column.
 }
 \description{
 Estimates per-group hiring rates (hires per head of starting stock, per interval) from historical panel
-data.  Two methods are supported, selected by the \code{hire_date_col}
-argument:
+data.  Two methods are supported, selected by \code{hire_date_col} in
+\code{column_spec_args}:
 
 \describe{
 \item{Panel first-appearance (default, \code{hire_date_col = NULL})}{

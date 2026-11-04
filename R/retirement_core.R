@@ -779,10 +779,10 @@ prepare_retiree_data <- function(eligibility_dt,
 #' \code{policy_params$defaults$eligibility_type = "hazard_rate"}.
 #'
 #' @param panel_personnel_dt data.table.  Full panel of personnel data (all
-#'   \code{ref_date_col} snapshots).  Must contain \code{age_col},
-#'   \code{status_col}, \code{personnel_id_col}, \code{ref_date_col}, and any
-#'   columns named in \code{group_cols} other than \code{"age_yr_int"} (which
-#'   this function derives internally).  \code{govhr::estimate_decrement_rates()}
+#'   snapshots).  Must contain the age, status, person ID and snapshot-date
+#'   columns (see \code{column_spec_args}), and any columns named in
+#'   \code{group_cols} other than \code{"age_yr_int"} (which this function
+#'   derives internally).  \code{govhr::estimate_decrement_rates()}
 #'   works from this table alone, so any contract-level grouping column (e.g.
 #'   \code{est_id}) must already be joined onto \code{panel_personnel_dt}
 #'   before calling.
@@ -790,13 +790,7 @@ prepare_retiree_data <- function(eligibility_dt,
 #'   hazard rates are always estimated per integer age.  Additional columns
 #'   (e.g. \code{"est_id"}) further stratify the estimate.  Default \code{NULL}
 #'   is invalid and triggers an error, since \code{"age_yr_int"} is required.
-#' @param age_col Character.  Fractional age column on \code{panel_personnel_dt}.
-#'   Default \code{"age"}.
-#' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param ref_date_col Character.  Default \code{"ref_date"}.
-#' @param status_col Character.  Employment status column used to detect the
-#'   retirement transition.  Default \code{"employment_status"}.
-#' @param retire_status Character.  The value of \code{status_col} that marks
+#' @param retire_status Character.  The value of the status column that marks
 #'   retirement.  Default \code{"pensioner"}.
 #' @param smooth Logical.  When \code{TRUE}, pass the full per-age decrement
 #'   table through \code{govhr::smooth_decrement_rates()} (loess graduation,
@@ -808,6 +802,12 @@ prepare_retiree_data <- function(eligibility_dt,
 #'   most likely to bite when \code{group_cols} is granular (e.g. per
 #'   establishment): consider \code{smooth = TRUE} whenever a group/age cell
 #'   is likely to have thin exposure in the historical panel.
+#' @param column_spec_args Named list.  Column names, if your data use
+#'   different names from the \code{govhr} defaults: give only the ones you
+#'   need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+#'   here: \code{age_col} (fractional age; \code{NULL} means \code{"age"}),
+#'   \code{personnel_id_col}, \code{ref_date_col}, \code{status_col}.  See
+#'   \code{\link{simulate_horizon}} for the defaults.
 #'
 #' @return data.table with \code{group_cols} and \code{hazard_rate}.  One row
 #'   per unique combination of \code{group_cols} observed in the panel.
@@ -819,12 +819,9 @@ prepare_retiree_data <- function(eligibility_dt,
 #' @export
 estimate_retirement_hazard_rates <- function(panel_personnel_dt,
                                              group_cols       = NULL,
-                                             age_col          = "age",
-                                             personnel_id_col = "personnel_id",
-                                             ref_date_col     = "ref_date",
-                                             status_col       = "employment_status",
                                              retire_status    = "pensioner",
-                                             smooth           = FALSE) {
+                                             smooth           = FALSE,
+                                             column_spec_args = list()) {
 
   if (!"age_yr_int" %in% group_cols) {
     stop(
@@ -833,6 +830,14 @@ estimate_retirement_hazard_rates <- function(panel_personnel_dt,
       call. = FALSE
     )
   }
+
+  cols <- .column_spec(column_spec_args)
+  if (is.null(cols$age_col)) cols$age_col <- "age"
+  .check_spec_columns(NULL, panel_personnel_dt, cols, required = list(
+    personnel_dt = c("age_col", "personnel_id_col", "ref_date_col", "status_col")
+  ))
+  age_col    <- cols$age_col
+  status_col <- cols$status_col
 
   panel_personnel_dt <- if (!data.table::is.data.table(panel_personnel_dt)) {
     data.table::as.data.table(panel_personnel_dt)
@@ -854,8 +859,8 @@ estimate_retirement_hazard_rates <- function(panel_personnel_dt,
     personnel         = panel_personnel_dt,
     duration_col      = "age_yr_int",
     status_col        = status_col,
-    personnel_id_col  = personnel_id_col,
-    ref_date_col      = ref_date_col,
+    personnel_id_col  = cols$personnel_id_col,
+    ref_date_col      = cols$ref_date_col,
     group_cols        = govhr_group_cols
   )
 

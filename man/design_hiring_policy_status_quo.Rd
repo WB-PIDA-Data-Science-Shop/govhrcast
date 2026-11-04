@@ -35,7 +35,8 @@ and \code{\link{compute_status_quo_hiring}}.
 
 \strong{Auto-estimation only happens inside \code{\link{simulate_horizon}}},
 which estimates the rate table from the panel you pass it and stores it in
-the policy as \code{squorate_dt} -- not something you supply here.  Without
+the policy as \code{squorate_dt}.  To set some groups' rates yourself, use
+\code{\link{design_hiring_policy_adjustment}} instead.  Without
 rates there is no status quo to reproduce, so \code{simulate_horizon()}
 stops with an error if the estimate fails (e.g. a \code{group_cols} column
 the panel does not have) or if the data are a single snapshot and you have
@@ -46,6 +47,15 @@ single snapshot, no panel), there is no automatic fallback: you must
 pre-populate \code{policy_params$squorate_dt} yourself (e.g. by calling
 \code{\link{estimate_historical_hiring_rates}} ahead of time) before
 calling \code{simulate_hiring()} standalone.
+
+\strong{Each group keeps its historical rate for the whole projection}, and
+the rate applies to the group's current staff, including people hired
+earlier in the projection.  A group that hired heavily in the past therefore
+keeps growing at that pace: a group with a rate of 100\\% doubles every year.
+This is the meaning of "status quo", and it matters more the longer you
+project, so check the rates from
+\code{\link{estimate_historical_hiring_rates}} if you project beyond a few
+years.
 }
 \examples{
 design_hiring_policy_status_quo()

@@ -87,6 +87,9 @@ movement per run.  Default \code{NULL}: nobody moves.}
 \item{hiring_policy}{List or \code{NULL}.  How many people are hired each
 year, and into which groups.  Build it with
 \code{\link{design_hiring_policy_status_quo}} (historical hiring rates),
+\code{\link{design_hiring_policy_adjustment}} (your own rates, e.g. edited
+\code{\link{estimate_historical_hiring_rates}} output, to treat groups
+differently),
 \code{\link{design_hiring_policy_flow}} (replace a share of those who
 left) or \code{\link{design_hiring_policy_stock}} (hire or downsize
 towards target headcounts).  See \code{\link{hiring_policy_helpers}}.
@@ -139,6 +142,8 @@ the ones you need to change, e.g. \code{list(salary_col =
 \describe{
 \item{\code{personnel_id_col}}{\code{"personnel_id"}}
 \item{\code{contract_id_col}}{\code{"contract_id"}}
+\item{\code{ref_date_col}}{\code{"ref_date"}.  The snapshot date.  Also
+the column that stamps each year in the returned microdata.}
 \item{\code{start_date_col}}{\code{"start_date"}}
 \item{\code{end_date_col}}{\code{"end_date"}}
 \item{\code{salary_col}}{\code{"gross_salary_lcu"}.  The salary the
@@ -211,15 +216,15 @@ for backward compatibility).}
 \item{\code{$metadata}}{List recording the policies used, plus
 \code{scenario_name} and \code{is_baseline} when given.}
 \item{\code{$pensioner_register}}{data.table, one row per retiree per
-year: \code{personnel_id}, \code{pension_amount},
-\code{period_date} and details at retirement.  Always present
+year: the person ID (under your name for that column),
+\code{pension_amount}, \code{period_date} and details at retirement.  Always present
 (zero rows when nobody retired).  To chain several runs, combine
 their registers with \code{data.table::rbindlist()}.  This is
 person-level data: handle it like the input microdata before
 saving or sharing the result.}
 \item{\code{$contract_dt}, \code{$personnel_dt}}{Every projected
 year's microdata, stacked (one snapshot per year, stamped in
-\code{ref_date}).  Only when \code{return_microdata = TRUE}.  Also
+\code{ref_date_col}).  Only when \code{return_microdata = TRUE}.  Also
 person-level data.}
 \item{\code{$allowance_dt}}{Allowance ledger: one row per contract x
 allowance type x year.  Only when \code{return_microdata = TRUE}
@@ -260,7 +265,7 @@ retirement is on by default.\tabular{llll}{
    Retirement \tab \code{retirement_policy} \tab \code{\link{design_retirement_policy_status_quo}} (default) \tab \code{\link{design_retirement_policy_age}}, \code{\link{design_retirement_policy_tenure}}, \code{\link{design_retirement_policy_age_tenure}}, or \code{\link{design_retirement_policy}} for any \code{eligibility_*()} + \code{pension_*()} combination \cr
    Other exits \tab \code{exit_policy} \tab \code{\link{design_exit_policy_status_quo}} \tab \code{\link{design_exit_policy_flat}}, \code{\link{design_exit_policy_adjustment}} \cr
    Promotions / transfers \tab \code{movement_policy} \tab \code{\link{design_movement_policy_status_quo}} \tab \code{\link{design_movement_policy_adjustment}} (start from \code{\link{movement_policy_template}}) \cr
-   Hiring \tab \code{hiring_policy} \tab \code{\link{design_hiring_policy_status_quo}} \tab \code{\link{design_hiring_policy_flow}}, \code{\link{design_hiring_policy_stock}} \cr
+   Hiring \tab \code{hiring_policy} \tab \code{\link{design_hiring_policy_status_quo}} \tab \code{\link{design_hiring_policy_adjustment}}, \code{\link{design_hiring_policy_flow}}, \code{\link{design_hiring_policy_stock}} \cr
    Allowances \tab \code{allowance_policy} \tab \code{\link{design_allowance_policy_status_quo}} \tab \code{\link{design_allowance_policy_adjustment}} \cr
 }
 
@@ -274,8 +279,9 @@ help page (e.g. \code{\link{simulate_exits}}) describes its exact shape.
 
 \code{contract_dt} and \code{personnel_dt} should be \strong{panels}:
 several yearly snapshots stacked together, each row stamped with its
-snapshot date in a \code{ref_date} column (the \code{govhr} harmonized
-format, as in \code{\link{bra_hrmis_contract}}).  The projection starts
+snapshot date in a \code{ref_date} column, or the column named by
+\code{ref_date_col} (the \code{govhr} harmonized format, as in
+\code{\link{bra_hrmis_contract}}).  The projection starts
 from the snapshot whose date equals \code{ref_date}.  The earlier
 snapshots are the history that status-quo policies are estimated from.
 At least two snapshots are needed for any status-quo policy, including

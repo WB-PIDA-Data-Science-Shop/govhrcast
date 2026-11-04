@@ -24,6 +24,8 @@ compute_status_quo_hiring(
 \code{estimate_historical_hiring_rates()}.
 \item group_cols: Character vector or NULL.
 \item rate_mult: Numeric scalar (default 1). Scales the estimated historical rate.
+\item unmatched_rate: Numeric scalar (default 0). Rate for groups with no
+row in \code{squorate_dt}.
 \item salary_scale: data.table used for salary assignment of new hires.
 }}
 

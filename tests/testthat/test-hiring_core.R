@@ -548,7 +548,7 @@ test_that("hire_date_col path counts only hires within the panel window", {
     panel_contract_dt  = d$contract_dt,
     panel_personnel_dt = d$personnel_dt,
     group_cols         = NULL,
-    hire_date_col      = "first_employment_date"
+    column_spec_args   = list(hire_date_col = "first_employment_date")
   )
 
   expect_s3_class(result, "data.table")
@@ -568,7 +568,7 @@ test_that("hire_date_col = NULL (fallback) returns a numeric hiring_rate", {
     panel_contract_dt  = d$contract_dt,
     panel_personnel_dt = d$personnel_dt,
     group_cols         = NULL,
-    hire_date_col      = NULL   # panel first-appearance fallback
+    column_spec_args   = list(hire_date_col = NULL)   # panel first-appearance fallback
   )
 
   expect_s3_class(result, "data.table")
@@ -585,7 +585,7 @@ test_that("hire_date_col path errors clearly when column absent", {
       panel_contract_dt  = d$contract_dt,
       panel_personnel_dt = d$personnel_dt,
       group_cols         = NULL,
-      hire_date_col      = "nonexistent_col"
+      column_spec_args   = list(hire_date_col = "nonexistent_col")
     ),
     regexp = "nonexistent_col"
   )
@@ -598,7 +598,7 @@ test_that("hire_date_col path with group_cols returns one row per group", {
     panel_contract_dt  = d$contract_dt,
     panel_personnel_dt = d$personnel_dt,
     group_cols         = "department",
-    hire_date_col      = "first_employment_date"
+    column_spec_args   = list(hire_date_col = "first_employment_date")
   )
 
   expect_s3_class(result, "data.table")
@@ -618,7 +618,7 @@ test_that("hire_date_col path: all hires outside window produces rate = 0", {
     panel_contract_dt  = d$contract_dt,
     panel_personnel_dt = d$personnel_dt,
     group_cols         = NULL,
-    hire_date_col      = "first_employment_date"
+    column_spec_args   = list(hire_date_col = "first_employment_date")
   )
 
   expect_equal(result$hiring_rate, 0)
@@ -631,14 +631,14 @@ test_that("hire_date_col produces lower rate than panel-appearance when pre-pane
     panel_contract_dt  = d$contract_dt,
     panel_personnel_dt = d$personnel_dt,
     group_cols         = NULL,
-    hire_date_col      = "first_employment_date"
+    column_spec_args   = list(hire_date_col = "first_employment_date")
   )$hiring_rate
 
   rate_panel <- estimate_historical_hiring_rates(
     panel_contract_dt  = d$contract_dt,
     panel_personnel_dt = d$personnel_dt,
     group_cols         = NULL,
-    hire_date_col      = NULL
+    column_spec_args   = list(hire_date_col = NULL)
   )$hiring_rate
 
   # Panel first-appearance will count P1 and P5 as appearing at first snapshot;
@@ -682,7 +682,8 @@ test_that("estimate_historical_hiring_rates: events are read from the caller's s
   pt <- data.table::copy(p$pt)
   pt[, situacao := employment_status]
   pt[, employment_status := "pensioner"]
-  rate <- estimate_historical_hiring_rates(p$ct, pt, group_cols = NULL, status_col = "situacao")
+  rate <- estimate_historical_hiring_rates(p$ct, pt, group_cols = NULL,
+                                           column_spec_args = list(status_col = "situacao"))
   expect_equal(rate$hiring_rate, 0.5)
 })
 

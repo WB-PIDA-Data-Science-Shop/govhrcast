@@ -66,10 +66,11 @@ update_contracts_for_retirees <- function(contract_dt,
   # Inactive/terminated/closed contracts are left untouched.
   active_types_to_update <- c("inactive", "pensioner", "closed_due_to_retirement",
                                "terminated")
+  .as_of_date <- ref_date
   contract_dt[
     get(personnel_id_col) %in% retiring_ids &
       !get(contract_type_col) %in% active_types_to_update,
-    c(contract_type_col, end_date_col, salary_col) := list("pensioner", ref_date, 0)
+    c(contract_type_col, end_date_col, salary_col) := list("pensioner", .as_of_date, 0)
   ]
 
   return(contract_dt)

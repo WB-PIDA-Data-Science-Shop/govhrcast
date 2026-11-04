@@ -47,8 +47,11 @@
 #' @param allowance_type_col Character. Default \code{"allowance_type"}.
 #' @param amount_col Character. Default \code{"allowance_lcu"}. Must already
 #'   be numeric -- this function does not parse currency strings.
-#' @param contract_id_col Character. Default \code{"contract_id"}.
-#' @param ref_date_col Character. Default \code{"ref_date"}.
+#' @param column_spec_args Named list.  Column names, if your data use
+#'   different names from the \code{govhr} defaults: give only the ones you
+#'   need to change, e.g. \code{list(contract_id_col = "cid")}.  Keys read
+#'   here: \code{contract_id_col}, \code{ref_date_col}, which name the same
+#'   columns in both tables.
 #'
 #' @return data.table with columns \code{group_cols}, \code{allowance_type},
 #'   \code{amount}. Usable directly as \code{policy_params$policy_table} in
@@ -88,8 +91,7 @@ estimate_baseline_allowance_scale <- function(panel_allowance_dt,
                                               ref_date,
                                               allowance_type_col = "allowance_type",
                                               amount_col         = "allowance_lcu",
-                                              contract_id_col    = "contract_id",
-                                              ref_date_col       = "ref_date") {
+                                              column_spec_args   = list()) {
 
   validate_datatable(panel_allowance_dt, "panel_allowance_dt")
   validate_datatable(panel_contract_dt, "panel_contract_dt")
@@ -97,6 +99,10 @@ estimate_baseline_allowance_scale <- function(panel_allowance_dt,
     stop("group_cols must be specified for allowance scale estimation.", call. = FALSE)
 
   ref_date <- validate_date_format(ref_date, "ref_date")
+
+  cols <- .column_spec(column_spec_args)
+  contract_id_col <- cols$contract_id_col
+  ref_date_col    <- cols$ref_date_col
 
   missing_contract_cols <- setdiff(c(group_cols, contract_id_col, ref_date_col),
                                     names(panel_contract_dt))

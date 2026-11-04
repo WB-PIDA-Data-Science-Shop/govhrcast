@@ -698,8 +698,7 @@ test_that("simulate_scenario hiring errors when salary_scale_dt is finer than gr
       period_date       = as.Date("2020-01-01"),
       retirement_policy = ret_pol,
       hiring_policy     = hire_pol,
-      age_col           = "age",
-      tenure_col        = "tenure_years"
+      column_spec_args  = list(age_col = "age", tenure_col = "tenure_years")
     ),
     "Duplicate keys found in salary_scale_dt"
   )

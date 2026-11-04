@@ -151,11 +151,12 @@ compute_flow_demand <- function(contract_dt,
     # If group_cols specified, need to merge with contract_dt to get grouping variables
     if (!is.null(group_cols) && length(group_cols) > 0) {
       # Get active contracts for retirees
+      .as_of_date <- ref_date
       active_retiree_contracts <- contract_dt[
         get(personnel_id_col) %in% exits_dt[[personnel_id_col]]
       ][
-        get(start_date_col) <= ref_date &
-        (is.na(get(end_date_col)) | get(end_date_col) >= ref_date)
+        get(start_date_col) <= .as_of_date &
+        (is.na(get(end_date_col)) | get(end_date_col) >= .as_of_date)
       ]
       
       # Get primary contract per retiree
@@ -202,8 +203,11 @@ compute_flow_demand <- function(contract_dt,
       stop("replacement_rate is a data.table but no group_cols specified", call. = FALSE)
     }
     
+    # A group with leavers but no row in the table uses unmatched_rate
+    unmatched_rate <- as.numeric(policy_params$unmatched_rate %||% 0)
     demand_dt <- replacement_rate[exiting_stock, on = group_cols]
-    demand_dt[, total_hires := exit_count * replacement_rate]
+    demand_dt[, total_hires := exit_count *
+                data.table::fcoalesce(as.numeric(replacement_rate), unmatched_rate)]
   } else {
     # Scalar replacement rate
     demand_dt <- data.table::copy(exiting_stock)
@@ -405,8 +409,8 @@ compute_combined_demand <- function(contract_dt,
 #'
 #' @description
 #' Estimates per-group hiring rates (hires per head of starting stock, per interval) from historical panel
-#' data.  Two methods are supported, selected by the \code{hire_date_col}
-#' argument:
+#' data.  Two methods are supported, selected by \code{hire_date_col} in
+#' \code{column_spec_args}:
 #'
 #' \describe{
 #'   \item{Panel first-appearance (default, \code{hire_date_col = NULL})}{
@@ -435,31 +439,33 @@ compute_combined_demand <- function(contract_dt,
 #' @param panel_personnel_dt data.table. Full panel of personnel data (all ref_dates).
 #' @param group_cols Character vector. Columns to group by (e.g. \code{"est_id"}).
 #'   Pass \code{NULL} for overall (ungrouped) rates.
-#' @param hire_date_col Character or \code{NULL}.  Name of a person-level column
-#'   in \code{panel_personnel_dt} that holds the true administrative hire date
-#'   (e.g. \code{"first_employment_date"}).  When supplied, the function counts
-#'   hires directly from this column instead of using panel first-appearance
-#'   detection.  Default \code{NULL} (panel first-appearance method).
-#' @param personnel_id_col Character. Personnel ID column. Default \code{"personnel_id"}.
-#' @param ref_date_col Character. Reference-date column in both panel tables.
-#'   Default \code{"ref_date"}.
-#' @param start_date_col Character. Contract start-date column. Default \code{"start_date"}.
-#' @param end_date_col Character. Contract end-date column. Default \code{"end_date"}.
-#' @param contract_type_col Character. Contract-type column. Default \code{"contract_type"}.
-#' @param status_col Character. Personnel status column. Default \code{"employment_status"}.
+#' @param column_spec_args Named list.  Column names, if your data use
+#'   different names from the \code{govhr} defaults: give only the ones you
+#'   need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+#'   here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
+#'   \code{end_date_col}, \code{contract_type_col}, \code{status_col}, and
+#'   \code{hire_date_col}: a person-level column in \code{panel_personnel_dt}
+#'   holding the true administrative hire date (e.g.
+#'   \code{"first_employment_date"}).  When given, hires are counted directly
+#'   from that column instead of from when people first appear in the panel.
+#'   See \code{\link{simulate_horizon}} for the defaults.
 #'
 #' @return data.table with \code{group_cols} (if specified) and \code{hiring_rate} column.
 #' @export
 estimate_historical_hiring_rates <- function(panel_contract_dt,
                                              panel_personnel_dt,
                                              group_cols,
-                                             hire_date_col     = NULL,
-                                             personnel_id_col  = "personnel_id",
-                                             ref_date_col      = "ref_date",
-                                             start_date_col    = "start_date",
-                                             end_date_col      = "end_date",
-                                             contract_type_col = "contract_type",
-                                             status_col         = "employment_status") {
+                                             column_spec_args = list()) {
+
+  cols <- .column_spec(column_spec_args)
+  .check_spec_columns(panel_contract_dt, panel_personnel_dt, cols, required = list(
+    contract_dt  = c("personnel_id_col", "ref_date_col", "start_date_col",
+                     "end_date_col", "contract_type_col"),
+    personnel_dt = c("personnel_id_col", "ref_date_col", "status_col")
+  ))
+  personnel_id_col <- cols$personnel_id_col
+  ref_date_col     <- cols$ref_date_col
+  hire_date_col    <- cols$hire_date_col
 
   panel_dates <- sort(unique(panel_personnel_dt[[ref_date_col]]))
   panel_start <- min(panel_dates, na.rm = TRUE)
@@ -494,15 +500,8 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
     if (!is.null(group_cols) && length(group_cols) > 0) {
       # Use the latest available snapshot per person to recover group_cols;
       # govhr::add_contract_to_event() deduplicates to one row per person.
-      # We create a synthetic event table keyed on hire date so the helper
-      # can match each hire to its contract context.
-      hire_event_dt <- data.table::copy(hire_events)
-      data.table::setnames(hire_event_dt, hire_date_col, "hire_date")
-
-      hire_event_dt <- govhr::add_contract_to_event(
-        events      = hire_event_dt,
-        contracts   = panel_contract_dt,
-        keep_vars   = group_cols
+      hire_event_dt <- .govhr_add_contract_to_event(
+        hire_events, panel_contract_dt, group_cols, personnel_id_col, ref_date_col
       )
 
 
@@ -521,30 +520,8 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
       hire_counts <- data.table::data.table(n_hires = mean(hire_counts$n_hires, na.rm = TRUE))
     }
 
-    # Stock denominator: mean active stock across all snapshots (same denominator
-    # as in the panel first-appearance path)
-    # stock_list <- lapply(panel_dates, function(snap) {
-    #   ct_snap <- panel_contract_dt[get(ref_date_col) == snap]
-    #   pt_snap <- panel_personnel_dt[get(ref_date_col) == snap]
-    #   ct_snap <- ct_snap[, !ref_date_col, with = FALSE]
-    #   pt_snap <- pt_snap[, !ref_date_col, with = FALSE]
-
-    #   s <- compute_current_stock(
-    #     contract_dt       = ct_snap,
-    #     personnel_dt      = pt_snap,
-    #     ref_date          = snap,
-    #     group_cols        = group_cols,
-    #     personnel_id_col  = personnel_id_col,
-    #     start_date_col    = start_date_col,
-    #     end_date_col      = end_date_col,
-    #     contract_type_col = contract_type_col,
-    #     status_col        = status_col
-    #   )
-    #   s
-    # })
-    # stock_dt <- data.table::rbindlist(stock_list, fill = TRUE)
-
-    stock_dt <- panel_contract_dt[, data.table::uniqueN(personnel_id), 
+    # Stock denominator: mean count of people across all snapshots
+    stock_dt <- panel_contract_dt[, data.table::uniqueN(get(personnel_id_col)),
                                     by = c(group_cols, ref_date_col)]
     setnames(stock_dt, "V1", "current_stock")
 
@@ -583,19 +560,17 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
   # PATH B: Panel first-appearance (fallback when hire_date_col = NULL)
   # ------------------------------------------------------------------
   # Detect hire events across the full panel
-  hire_events <- govhr::detect_movement(panel_personnel_dt, status_col = status_col)[
-    hire %in% TRUE
-  ]
+  hire_events <- .govhr_detect_movement(
+    panel_personnel_dt, personnel_id_col, ref_date_col, cols$status_col
+  )[hire %in% TRUE]
 
   # Join to contract panel to retrieve group_cols per hire.
   # govhr::add_contract_to_event() deduplicates to one row per
   # person x ref_date x keep_vars before joining, preventing row
   # duplication for multi-contract individuals.
   if (!is.null(group_cols) && length(group_cols) > 0) {
-    hire_events <- govhr::add_contract_to_event(
-      events      = hire_events,
-      contracts   = panel_contract_dt,
-      keep_vars   = group_cols
+    hire_events <- .govhr_add_contract_to_event(
+      hire_events, panel_contract_dt, group_cols, personnel_id_col, ref_date_col
     )
 
     hire_counts <- hire_events[
@@ -624,31 +599,17 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
     interval_end   <- panel_dates
   }
 
-  # Transition (ADR 0012): this function's own *_col arguments go in the
-  # estimate_*() slice
-  stock_spec <- .column_spec(list(
-    personnel_id_col  = personnel_id_col,
-    start_date_col    = start_date_col,
-    end_date_col      = end_date_col,
-    contract_type_col = contract_type_col,
-    status_col        = status_col
-  ))
-
   # Active stock per group at each interval start, stamped with the
   # interval's END date so it joins to the hires dated at that end.
   stock_list <- lapply(seq_along(interval_start), function(i) {
     snap <- interval_start[i]
-    ct_snap <- panel_contract_dt[get(ref_date_col) == snap]
-    pt_snap <- panel_personnel_dt[get(ref_date_col) == snap]
-    ct_snap <- ct_snap[, !ref_date_col, with = FALSE]
-    pt_snap <- pt_snap[, !ref_date_col, with = FALSE]
 
     s <- compute_current_stock(
-      contract_dt       = ct_snap,
-      personnel_dt      = pt_snap,
+      contract_dt       = .panel_snapshot(panel_contract_dt, ref_date_col, snap),
+      personnel_dt      = .panel_snapshot(panel_personnel_dt, ref_date_col, snap),
       ref_date          = snap,
       group_cols        = group_cols,
-      column_spec_args  = stock_spec
+      column_spec_args  = cols
     )
     s[, (ref_date_col) := interval_end[i]]
     s
@@ -703,6 +664,8 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
 #'       \code{estimate_historical_hiring_rates()}.
 #'     \item group_cols: Character vector or NULL.
 #'     \item rate_mult: Numeric scalar (default 1). Scales the estimated historical rate.
+#'     \item unmatched_rate: Numeric scalar (default 0). Rate for groups with no
+#'       row in \code{squorate_dt}.
 #'     \item salary_scale: data.table used for salary assignment of new hires.
 #'   }
 #' @param ref_date Date. Reference date for current-period stock calculation.
@@ -717,22 +680,10 @@ compute_status_quo_hiring <- function(contract_dt,
                                       ref_date,
                                       column_spec_args = .column_spec()) {
 
-  group_cols <- policy_params$group_cols
-  rate_mult  <- if (!is.null(policy_params$rate_mult)) policy_params$rate_mult else 1
-
-  # Estimate historical rates from panel (panel was injected by simulate_horizon)
-  # rates <- estimate_historical_hiring_rates(
-  #   panel_contract_dt  = policy_params$panel_contract_dt,
-  #   panel_personnel_dt = policy_params$panel_personnel_dt,
-  #   group_cols         = group_cols,
-  #   hire_date_col      = hire_date_col,
-  #   personnel_id_col   = personnel_id_col,
-  #   start_date_col     = start_date_col,
-  #   end_date_col       = end_date_col,
-  #   contract_type_col  = contract_type_col,
-  #   status_col         = status_col
-  # )
-  rates <- policy_params$squorate_dt
+  group_cols     <- policy_params$group_cols
+  rate_mult      <- policy_params$rate_mult %||% 1
+  unmatched_rate <- as.numeric(policy_params$unmatched_rate %||% 0)
+  rates          <- policy_params$squorate_dt
 
   # Current active stock in this period
   stock <- compute_current_stock(
@@ -750,7 +701,8 @@ compute_status_quo_hiring <- function(contract_dt,
     demand <- cbind(stock, rates)
   }
 
-  demand[is.na(hiring_rate), hiring_rate := 0]
+  # A group with no row in the rate table
+  demand[, hiring_rate := data.table::fcoalesce(as.numeric(hiring_rate), unmatched_rate)]
 
   # Hires this period: current stock x historical rate x rate_mult. The
   # policy's rate table is only read, never changed, so every period applies

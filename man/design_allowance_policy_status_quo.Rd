@@ -13,8 +13,7 @@ design_allowance_policy_status_quo(
   multiplier_group_cols = NULL,
   allowance_type_col = "allowance_type",
   amount_col = "allowance_lcu",
-  contract_id_col = "contract_id",
-  ref_date_col = "ref_date"
+  column_spec_args = list()
 )
 }
 \arguments{
@@ -38,8 +37,14 @@ snapshot on or before it is used.}
 \item{total_multiplier, multiplier_group_cols}{See
 \code{\link{allowance_policy_helpers}}.  Default \code{1}: no change.}
 
-\item{allowance_type_col, amount_col, contract_id_col, ref_date_col}{Character.  Column names, if they differ from the defaults.
-\code{amount_col} must already be numeric.}
+\item{allowance_type_col, amount_col}{Character.  The allowance table's type
+and amount columns, if they differ from the defaults.  \code{amount_col}
+must already be numeric.}
+
+\item{column_spec_args}{Named list.  Column names, if your data use
+different names from the \code{govhr} defaults: give only the ones you
+need to change, e.g. \code{list(contract_id_col = "cid")}.  Keys read
+here: \code{contract_id_col}, \code{ref_date_col}.}
 }
 \value{
 A list with \code{group_cols} (your columns plus

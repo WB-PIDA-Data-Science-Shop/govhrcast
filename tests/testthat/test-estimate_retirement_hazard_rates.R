@@ -181,8 +181,8 @@ test_that("estimate_retirement_hazard_rates respects custom status_col/retire_st
   result <- estimate_retirement_hazard_rates(
     panel_personnel_dt = panel,
     group_cols          = "age_yr_int",
-    status_col          = "status",
-    retire_status        = "retired"
+    retire_status        = "retired",
+    column_spec_args    = list(status_col = "status")
   )
 
   expect_equal(result[age_yr_int == 60]$hazard_rate, 0.5)

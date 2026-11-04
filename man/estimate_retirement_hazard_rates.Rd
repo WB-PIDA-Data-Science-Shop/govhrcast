@@ -7,20 +7,17 @@
 estimate_retirement_hazard_rates(
   panel_personnel_dt,
   group_cols = NULL,
-  age_col = "age",
-  personnel_id_col = "personnel_id",
-  ref_date_col = "ref_date",
-  status_col = "employment_status",
   retire_status = "pensioner",
-  smooth = FALSE
+  smooth = FALSE,
+  column_spec_args = list()
 )
 }
 \arguments{
 \item{panel_personnel_dt}{data.table.  Full panel of personnel data (all
-\code{ref_date_col} snapshots).  Must contain \code{age_col},
-\code{status_col}, \code{personnel_id_col}, \code{ref_date_col}, and any
-columns named in \code{group_cols} other than \code{"age_yr_int"} (which
-this function derives internally).  \code{govhr::estimate_decrement_rates()}
+snapshots).  Must contain the age, status, person ID and snapshot-date
+columns (see \code{column_spec_args}), and any columns named in
+\code{group_cols} other than \code{"age_yr_int"} (which this function
+derives internally).  \code{govhr::estimate_decrement_rates()}
 works from this table alone, so any contract-level grouping column (e.g.
 \code{est_id}) must already be joined onto \code{panel_personnel_dt}
 before calling.}
@@ -30,17 +27,7 @@ hazard rates are always estimated per integer age.  Additional columns
 (e.g. \code{"est_id"}) further stratify the estimate.  Default \code{NULL}
 is invalid and triggers an error, since \code{"age_yr_int"} is required.}
 
-\item{age_col}{Character.  Fractional age column on \code{panel_personnel_dt}.
-Default \code{"age"}.}
-
-\item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
-
-\item{ref_date_col}{Character.  Default \code{"ref_date"}.}
-
-\item{status_col}{Character.  Employment status column used to detect the
-retirement transition.  Default \code{"employment_status"}.}
-
-\item{retire_status}{Character.  The value of \code{status_col} that marks
+\item{retire_status}{Character.  The value of the status column that marks
 retirement.  Default \code{"pensioner"}.}
 
 \item{smooth}{Logical.  When \code{TRUE}, pass the full per-age decrement
@@ -53,6 +40,13 @@ retirements observed at this age/group" is taken at face value. This is
 most likely to bite when \code{group_cols} is granular (e.g. per
 establishment): consider \code{smooth = TRUE} whenever a group/age cell
 is likely to have thin exposure in the historical panel.}
+
+\item{column_spec_args}{Named list.  Column names, if your data use
+different names from the \code{govhr} defaults: give only the ones you
+need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+here: \code{age_col} (fractional age; \code{NULL} means \code{"age"}),
+\code{personnel_id_col}, \code{ref_date_col}, \code{status_col}.  See
+\code{\link{simulate_horizon}} for the defaults.}
 }
 \value{
 data.table with \code{group_cols} and \code{hazard_rate}.  One row

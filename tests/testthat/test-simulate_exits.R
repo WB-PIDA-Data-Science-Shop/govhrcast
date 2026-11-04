@@ -731,7 +731,7 @@ test_that("estimate_historical_exit_rates: events are read from the caller's sta
   pt <- data.table::copy(p$pt)
   pt[, situacao := employment_status]
   pt[, employment_status := "pensioner"]
-  expect_equal(estimate_historical_exit_rates(p$ct, pt, status_col = "situacao")$exit_rate, 0.30)
+  expect_equal(estimate_historical_exit_rates(p$ct, pt, column_spec_args = list(status_col = "situacao"))$exit_rate, 0.30)
 })
 
 test_that("estimate_historical_exit_rates: someone who later retires after a gap is not an exit", {

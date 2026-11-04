@@ -174,8 +174,9 @@ identify_movers <- function(contract_dt,
     workforce <- tig_dt[workforce, on = personnel_id_col]
   } else if (needs_tig) {
     # Fall back to start_date if no panel data
+    .as_of_date <- ref_date
     workforce[, time_in_grade := as.numeric(
-      difftime(ref_date, get(start_date_col), units = "days")
+      difftime(.as_of_date, get(start_date_col), units = "days")
     ) / 365.25]
   }
 

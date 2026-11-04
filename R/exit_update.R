@@ -56,10 +56,11 @@ update_contracts_for_exits <- function(contract_dt,
       get(contract_type_col) %in% active_types,
     (contract_type_col) := exited_type
   ]
+  .as_of_date <- as.Date(ref_date)
   contract_dt[
     get(personnel_id_col) %in% exiting_ids &
       get(contract_type_col) == exited_type,
-    (end_date_col) := as.Date(ref_date)
+    (end_date_col) := .as_of_date
   ]
 
   invisible(contract_dt)

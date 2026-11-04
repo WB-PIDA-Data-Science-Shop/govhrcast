@@ -42,6 +42,31 @@ test_that("package code never writes files, calls the network or changes global 
   expect_identical(hits, NULL)
 })
 
+test_that("a bare ref_date never appears inside data.table brackets (B-86)", {
+  # There it reads a column called ref_date when the table has one, which stays
+  # at the start date during a projection, instead of the date passed in. Use a
+  # local alias such as .as_of_date. Listed here: `[` on a plain vector, or a
+  # table made in the function that holds no such column.
+  safe <- c("compute_age", "compute_time_in_grade", "select_nearest_ref_date",
+            "update_allowance_register")
+  names_in <- function(e) {
+    if (is.name(e)) return(as.character(e))
+    if (!is.call(e)) return(character(0))
+    unlist(lapply(as.list(e)[-1], function(a) if (missing(a)) NULL else names_in(a)))
+  }
+  uses_it <- function(e) {
+    if (!is.call(e)) return(FALSE)
+    parts <- as.list(e)
+    in_brackets <- identical(e[[1]], as.name("[")) &&
+      "ref_date" %in% unlist(lapply(parts[-(1:2)], function(a) if (missing(a)) NULL else names_in(a)))
+    in_brackets || any(vapply(parts, function(a) !missing(a) && uses_it(a), logical(1)))
+  }
+  fns <- package_functions()
+  hits <- Filter(function(n) !n %in% safe && !is.primitive(fns[[n]]) && uses_it(body(fns[[n]])),
+                 names(fns))
+  expect_identical(hits, character(0))
+})
+
 test_that("Imports stay within the approved list; a new import needs an ADR (ADR 0004)", {
   desc <- read.dcf(system.file("DESCRIPTION", package = "govhrcast"), fields = "Imports")
   imports <- trimws(sub("\\(.*\\)", "", strsplit(desc[1, "Imports"], ",")[[1]]))

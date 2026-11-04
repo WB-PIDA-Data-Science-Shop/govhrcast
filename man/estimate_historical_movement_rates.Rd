@@ -7,11 +7,7 @@
 estimate_historical_movement_rates(
   contract_dt,
   group_cols,
-  personnel_id_col = "personnel_id",
-  ref_date_col = "ref_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type"
+  column_spec_args = list()
 )
 }
 \arguments{
@@ -21,15 +17,11 @@ Must contain ref_date_col for panel identification.}
 \item{group_cols}{Character vector. Columns defining movement states
 (e.g., c("est_id", "paygrade") or c("paygrade"))}
 
-\item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
-
-\item{ref_date_col}{Character. Reference date column (default: "ref_date")}
-
-\item{start_date_col}{Character. Contract start date column (default: "start_date")}
-
-\item{end_date_col}{Character. Contract end date column (default: "end_date")}
-
-\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
+\item{column_spec_args}{Named list.  Column names, if your data use
+different names from the \code{govhr} defaults: give only the ones you
+need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
+\code{end_date_col}, \code{contract_type_col}.}
 }
 \value{
 data.table with columns:

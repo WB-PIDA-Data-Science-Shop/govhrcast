@@ -634,11 +634,7 @@ simulate_promotions_transfers <- function(contract_dt,
       estimate_historical_movement_rates(
         contract_dt       = contract_dt,
         group_cols        = group_cols,
-        personnel_id_col  = personnel_id_col,
-        ref_date_col      = ref_date_col,
-        start_date_col    = cols$start_date_col,
-        end_date_col      = cols$end_date_col,
-        contract_type_col = cols$contract_type_col
+        column_spec_args  = cols
       ),
       error = function(e) NULL
     )

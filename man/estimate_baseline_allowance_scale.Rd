@@ -11,8 +11,7 @@ estimate_baseline_allowance_scale(
   ref_date,
   allowance_type_col = "allowance_type",
   amount_col = "allowance_lcu",
-  contract_id_col = "contract_id",
-  ref_date_col = "ref_date"
+  column_spec_args = list()
 )
 }
 \arguments{
@@ -44,9 +43,11 @@ need to land exactly on a snapshot date.}
 \item{amount_col}{Character. Default \code{"allowance_lcu"}. Must already
 be numeric -- this function does not parse currency strings.}
 
-\item{contract_id_col}{Character. Default \code{"contract_id"}.}
-
-\item{ref_date_col}{Character. Default \code{"ref_date"}.}
+\item{column_spec_args}{Named list.  Column names, if your data use
+different names from the \code{govhr} defaults: give only the ones you
+need to change, e.g. \code{list(contract_id_col = "cid")}.  Keys read
+here: \code{contract_id_col}, \code{ref_date_col}, which name the same
+columns in both tables.}
 }
 \value{
 data.table with columns \code{group_cols}, \code{allowance_type},

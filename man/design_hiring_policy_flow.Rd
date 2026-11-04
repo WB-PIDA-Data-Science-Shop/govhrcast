@@ -7,7 +7,8 @@
 design_hiring_policy_flow(
   replacement_rate,
   group_cols = NULL,
-  salary_scale = NULL
+  salary_scale = NULL,
+  unmatched_rate = 0
 )
 }
 \arguments{
@@ -27,6 +28,10 @@ When \code{NULL} and called through \code{\link{simulate_horizon}},
 automatically derived from its \code{salary_scale_dt} argument -- this
 only happens inside \code{simulate_horizon()}; standalone
 \code{\link{simulate_hiring}} calls need it supplied directly.}
+
+\item{unmatched_rate}{Number, 0 or more.  Replacement rate for groups that
+have leavers but no row in a \code{replacement_rate} table.  Default
+\code{0}: nobody is hired to replace them.}
 }
 \value{
 A list with \code{mode = "flow"} plus the fields above -- directly

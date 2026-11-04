@@ -58,12 +58,12 @@ NULL
 #' @param panel_personnel_dt data.table.  Full panel of personnel data.
 #' @param group_cols Character vector or \code{NULL}.  Columns to group by
 #'   (e.g. \code{"est_id"}).  Pass \code{NULL} for an overall (ungrouped) rate.
-#' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param ref_date_col Character.  Default \code{"ref_date"}.
-#' @param start_date_col Character.  Default \code{"start_date"}.
-#' @param end_date_col Character.  Default \code{"end_date"}.
-#' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"employment_status"}.
+#' @param column_spec_args Named list.  Column names, if your data use
+#'   different names from the \code{govhr} defaults: give only the ones you
+#'   need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+#'   here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
+#'   \code{end_date_col}, \code{contract_type_col}, \code{status_col}.  See
+#'   \code{\link{simulate_horizon}} for the defaults.
 #'
 #' @return data.table with \code{group_cols} (if specified) and
 #'   \code{exit_rate} column -- one row per group, or a single row when
@@ -72,36 +72,38 @@ NULL
 #' @export
 estimate_historical_exit_rates <- function(panel_contract_dt,
                                            panel_personnel_dt,
-                                           group_cols        = NULL,
-                                           personnel_id_col  = "personnel_id",
-                                           ref_date_col      = "ref_date",
-                                           start_date_col    = "start_date",
-                                           end_date_col      = "end_date",
-                                           contract_type_col = "contract_type",
-                                           status_col         = "employment_status") {
+                                           group_cols       = NULL,
+                                           column_spec_args = list()) {
 
   if (!data.table::is.data.table(panel_contract_dt))
     panel_contract_dt <- data.table::as.data.table(panel_contract_dt)
   if (!data.table::is.data.table(panel_personnel_dt))
     panel_personnel_dt <- data.table::as.data.table(panel_personnel_dt)
 
+  cols <- .column_spec(column_spec_args)
+  .check_spec_columns(panel_contract_dt, panel_personnel_dt, cols, required = list(
+    contract_dt  = c("personnel_id_col", "ref_date_col", "start_date_col",
+                     "end_date_col", "contract_type_col"),
+    personnel_dt = c("personnel_id_col", "ref_date_col", "status_col")
+  ))
+  personnel_id_col <- cols$personnel_id_col
+  ref_date_col     <- cols$ref_date_col
+
   panel_dates <- sort(unique(panel_personnel_dt[[ref_date_col]]))
 
   # Detect non-retirement exit events across the full panel. govhr's
   # `separation` leaves out people who next appear as pensioners.
-  fire_events <- govhr::detect_movement(panel_personnel_dt, status_col = status_col)[
-    separation %in% TRUE
-  ]
+  fire_events <- .govhr_detect_movement(
+    panel_personnel_dt, personnel_id_col, ref_date_col, cols$status_col
+  )[separation %in% TRUE]
 
   # Join to contract panel to retrieve group_cols per exit.
   # govhr::add_contract_to_event() deduplicates to one row per
   # person x ref_date x keep_vars before joining, preventing row
   # duplication for multi-contract individuals.
   if (!is.null(group_cols) && length(group_cols) > 0) {
-    fire_events <- govhr::add_contract_to_event(
-      events      = fire_events,
-      contracts   = panel_contract_dt,
-      keep_vars   = group_cols
+    fire_events <- .govhr_add_contract_to_event(
+      fire_events, panel_contract_dt, group_cols, personnel_id_col, ref_date_col
     )
 
     exit_counts <- fire_events[
@@ -121,29 +123,14 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
   # by (n - 1) / n.
   rate_dates <- if (length(panel_dates) >= 2L) panel_dates[-length(panel_dates)] else panel_dates
 
-  # Transition (ADR 0012): this function's own *_col arguments go in the
-  # estimate_*() slice
-  stock_spec <- .column_spec(list(
-    personnel_id_col  = personnel_id_col,
-    start_date_col    = start_date_col,
-    end_date_col      = end_date_col,
-    contract_type_col = contract_type_col,
-    status_col        = status_col
-  ))
-
   # Compute active stock per snapshot per group (re-uses compute_current_stock)
   stock_list <- lapply(rate_dates, function(snap) {
-    ct_snap <- panel_contract_dt[get(ref_date_col) == snap]
-    pt_snap <- panel_personnel_dt[get(ref_date_col) == snap]
-    ct_snap <- ct_snap[, !ref_date_col, with = FALSE]
-    pt_snap <- pt_snap[, !ref_date_col, with = FALSE]
-
     s <- compute_current_stock(
-      contract_dt       = ct_snap,
-      personnel_dt      = pt_snap,
+      contract_dt       = .panel_snapshot(panel_contract_dt, ref_date_col, snap),
+      personnel_dt      = .panel_snapshot(panel_personnel_dt, ref_date_col, snap),
       ref_date          = snap,
       group_cols        = group_cols,
-      column_spec_args  = stock_spec
+      column_spec_args  = cols
     )
     s[, (ref_date_col) := snap]
     s
