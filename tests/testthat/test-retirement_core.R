@@ -97,12 +97,7 @@ test_that(".filter_active_candidate_pool keeps active non-pensioner personnel", 
   result <- filter_active_candidate_pool(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
-    ref_date = as.Date("2025-01-01"),
-    personnel_id_col = "personnel_id",
-    start_date_col = "start_date",
-    end_date_col = "end_date",
-    contract_type_col = "contract_type",
-    status_col = "employment_status"
+    ref_date = as.Date("2025-01-01")
   )
 
   expect_setequal(result$all_pid, c("P1", "P2", "P3"))
@@ -131,12 +126,7 @@ test_that(".enrich_working_table adds needed columns from both sources", {
     needed_cols = c("grade", "region"),
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
-    ref_date = as.Date("2025-01-01"),
-    personnel_id_col = "personnel_id",
-    contract_id_col = "contract_id",
-    start_date_col = "start_date",
-    end_date_col = "end_date",
-    contract_type_col = "contract_type"
+    ref_date = as.Date("2025-01-01")
   )
 
   expect_equal(working_dt[personnel_id == "P1", grade], "A")
@@ -1104,8 +1094,8 @@ test_that("compute_status_quo_retirements: computes age from birth_date when age
   )
 
   result <- compute_status_quo_retirements(
-    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01"),
-    age_col = "age" # not present on personnel_dt -> falls back to compute_age()
+    # age_col defaults to "age": not present on personnel_dt -> falls back to compute_age()
+    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
   )
 
   expect_setequal(result$personnel_id, c("p1", "p2"))

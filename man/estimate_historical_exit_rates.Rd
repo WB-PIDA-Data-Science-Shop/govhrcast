@@ -8,7 +8,6 @@ estimate_historical_exit_rates(
   panel_contract_dt,
   panel_personnel_dt,
   group_cols = NULL,
-  freq = "year",
   personnel_id_col = "personnel_id",
   ref_date_col = "ref_date",
   start_date_col = "start_date",
@@ -25,9 +24,6 @@ estimate_historical_exit_rates(
 
 \item{group_cols}{Character vector or \code{NULL}.  Columns to group by
 (e.g. \code{"est_id"}).  Pass \code{NULL} for an overall (ungrouped) rate.}
-
-\item{freq}{Character.  Frequency passed to
-\code{govhr::detect_personnel_event()}.  Default \code{"year"}.}
 
 \item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
 
@@ -48,14 +44,17 @@ data.table with \code{group_cols} (if specified) and
 any interval gets a rate of 0.
 }
 \description{
-Uses \code{govhr::detect_personnel_event(event_type = "fire")} to identify
-non-retirement attrition events (voluntary resignation, dismissal, contract
-non-renewal) across the full historical panel, and turns them into one
-historical exit rate per group.
+Uses \code{govhr::detect_movement()} to identify non-retirement attrition
+events (voluntary resignation, dismissal, contract non-renewal) across the
+full historical panel, and turns them into one historical exit rate per
+group.
 
 Each pair of consecutive snapshots is one interval.  Someone active at the
 start of an interval and no longer active at its end counts as an exit in
-that interval.  The rate is \strong{pooled} across intervals:
+that interval, \strong{unless they next appear in the panel as a
+pensioner}: retirements have their own module, so counting them here too
+would remove the same people twice.  The rate is \strong{pooled} across
+intervals:
 
 \code{exit_rate = total exits over all intervals / total active staff at
 the start of each interval}

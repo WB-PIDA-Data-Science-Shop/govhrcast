@@ -11,9 +11,7 @@ simulate_allowances(
   policy_params,
   ref_date,
   allowance_types = NULL,
-  contract_type_col = "contract_type",
-  personnel_id_col = "personnel_id",
-  contract_id_col = "contract_id"
+  column_spec_args = list()
 )
 }
 \arguments{
@@ -41,14 +39,25 @@ types to resolve. When \code{NULL} (the default), derived from
 needs to be supplied explicitly for a purely scalar policy with no
 \code{policy_table}.}
 
-\item{contract_type_col}{Character. Default \code{"contract_type"}. Rows
-with this in \code{c("pensioner", "inactive")} are excluded -- see
+\item{column_spec_args}{A named list saying what your columns are called,
+so the function can read your data as it is. List only the names that
+differ from the \strong{govhr} harmonized defaults; for example
+\code{list(personnel_id_col = "pid")}. Your names are used throughout, so
+the ledger keeps them, and you write the same names in \code{group_cols}
+and \code{multiplier_group_cols}. The same list can be passed to every
+\strong{govhrcast} function; keys a function does not use are ignored, and
+an unknown key is an error.
+
+Keys used here (default in brackets):
+\itemize{
+\item \code{personnel_id_col} (\code{"personnel_id"}) and
+\code{contract_id_col} (\code{"contract_id"}): identify each ledger
+row.
+\item \code{contract_type_col} (\code{"contract_type"}): rows with this
+in \code{c("pensioner", "inactive")} are excluded -- see
 \code{\link{resolve_allowance_amounts}} for why this can't be inferred
-from row absence.}
-
-\item{personnel_id_col}{Character. Default \code{"personnel_id"}.}
-
-\item{contract_id_col}{Character. Default \code{"contract_id"}.}
+from row absence.
+}}
 }
 \value{
 Named list:

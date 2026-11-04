@@ -9,9 +9,7 @@ check_allowance_inputs(
   personnel_dt,
   policy_params,
   ref_date,
-  contract_type_col = "contract_type",
-  personnel_id_col = "personnel_id",
-  contract_id_col = "contract_id"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -25,11 +23,8 @@ the expected shape.}
 \item{ref_date}{Date. The reference date for this period -- matches
 \code{check_retirement_inputs()}'s own parameter name.}
 
-\item{contract_type_col}{Character. Default \code{"contract_type"}.}
-
-\item{personnel_id_col}{Character. Default \code{"personnel_id"}.}
-
-\item{contract_id_col}{Character. Default \code{"contract_id"}.}
+\item{column_spec_args}{Complete column specification from
+\code{.column_spec()}.}
 }
 \value{
 Invisible \code{TRUE} if valid; stops with an informative error

@@ -9,7 +9,8 @@ compute_hiring_summary(
   new_hires_dt = NULL,
   new_contracts_dt = NULL,
   terminated_contracts_dt = NULL,
-  total_headcount = NA_integer_
+  total_headcount = NA_integer_,
+  salary_col = "gross_salary_lcu"
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ compute_hiring_summary(
 \item{terminated_contracts_dt}{data.table. Terminated contract data with salary (optional)}
 
 \item{total_headcount}{Integer. Current total headcount after adjustment}
+
+\item{salary_col}{Character. Pay column (default: "gross_salary_lcu")}
 }
 \value{
 data.table with summary statistics

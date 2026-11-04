@@ -23,6 +23,7 @@ utils::globalVariables(c(
   "total_hires",
   "exit_count",
   "head",
+  "hire",
   "hiring_rate",
   "n_hires",
   # --- movement / promotions / transfers ---

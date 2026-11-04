@@ -9,14 +9,7 @@ simulate_exits(
   personnel_dt,
   policy_params,
   ref_date,
-  personnel_id_col = "personnel_id",
-  birth_date_col = "birth_date",
-  start_date_col = "start_date",
-  contract_id_col = "contract_id",
-  contract_type_col = "contract_type",
-  status_col = "employment_status",
-  salary_col = "gross_salary_lcu",
-  end_date_col = "end_date"
+  column_spec_args = list()
 )
 }
 \arguments{
@@ -25,8 +18,8 @@ simulate_exits(
 \strong{govhr} harmonized format.
 
 At a minimum, this table must contain the columns identified by
-\code{personnel_id_col}, \code{contract_id_col}, \code{start_date_col},
-\code{end_date_col}, \code{contract_type_col}, and \code{salary_col}.
+\code{personnel_id_col}, \code{end_date_col}, \code{contract_type_col}, and \code{salary_col}
+in \code{column_spec_args}.
 
 This table should be a single-period snapshot. When called through
 \code{\link[=simulate_horizon]{simulate_horizon()}}, retirees have already been removed before this
@@ -37,7 +30,7 @@ function is called.}
 harmonized format.
 
 Must contain at least the columns identified by \code{personnel_id_col}
-and \code{status_col}.}
+and \code{status_col} in \code{column_spec_args}.}
 
 \item{policy_params}{A named list describing the exit policy.
 
@@ -79,36 +72,27 @@ fields are recognised:\tabular{ll}{
 \item{ref_date}{A \code{Date} giving the simulation date for the current
 projection period. Used to stamp exit dates onto closed contracts.}
 
-\item{personnel_id_col}{Character scalar giving the unique personnel
-identifier shared by both \code{contract_dt} and \code{personnel_dt}.
-Default is \code{"personnel_id"}.}
+\item{column_spec_args}{A named list saying what your columns are called,
+so the function can read your data as it is. List only the names that
+differ from the \strong{govhr} harmonized defaults; for example
+\code{list(personnel_id_col = "pid", salary_col = "bruto")}. Your names are used
+throughout, so the returned tables keep them, and you write the same names
+in \code{group_cols}, \code{policy_table} and \code{exit_strategy}. The same list can be
+passed to every \strong{govhrcast} function; keys a function does not use are
+ignored, and an unknown key is an error.
 
-\item{birth_date_col}{Character scalar giving the column containing each
-employee's date of birth. Default is \code{"birth_date"}.}
-
-\item{start_date_col}{Character scalar identifying the contract start
-date column. Default is \code{"start_date"}.}
-
-\item{contract_id_col}{Character scalar identifying unique contracts.
-Default is \code{"contract_id"}.}
-
-\item{contract_type_col}{Character scalar identifying the contract type
-variable. Only contract types listed in \code{policy_params$defaults$active_types}
-are eligible for exit selection. Exited contracts are reclassified to the
-value in \code{policy_params$defaults$exited_type} (default \code{"inactive"}).
-Default is \code{"contract_type"}.}
-
-\item{status_col}{Character scalar identifying the employment status
-variable in \code{personnel_dt}. Personnel records for exiting employees are
-updated to \code{"inactive"}. Default is \code{"employment_status"}.}
-
-\item{salary_col}{Character scalar identifying the primary salary column.
-Used to compute salary savings attributable to exits.
-Default is \code{"gross_salary_lcu"}.}
-
-\item{end_date_col}{Character scalar identifying the contract end date
-column. Active contracts contain \code{NA} here. Exiting employees have this
-value replaced with \code{ref_date}. Default is \code{"end_date"}.}
+Keys used here (default in brackets):
+\itemize{
+\item \code{personnel_id_col} (\code{"personnel_id"}): person identifier, in both tables.
+\item \code{contract_type_col} (\code{"contract_type"}): only types in \code{active_types} can
+exit; their contracts become \code{exited_type} (default \code{"inactive"}).
+\item \code{salary_col} (\code{"gross_salary_lcu"}): pay column, added up per person to
+give the savings from exits.
+\item \code{end_date_col} (\code{"end_date"}): contract end date. Exiting employees'
+contracts get \code{ref_date}.
+\item \code{status_col} (\code{"employment_status"}): set to \code{"inactive"} for employees
+who exit.
+}}
 }
 \value{
 A named list with four elements:

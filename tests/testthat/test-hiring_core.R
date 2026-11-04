@@ -675,6 +675,17 @@ test_that("estimate_historical_hiring_rates: hires are divided by the start-of-i
   expect_equal(estimate_historical_hiring_rates(p$ct, p$pt, group_cols = NULL)$hiring_rate, 0.5)
 })
 
+test_that("estimate_historical_hiring_rates: events are read from the caller's status column", {
+  # The real status column is "situacao"; a decoy under the default name says
+  # nobody is ever active, so reading the wrong column would find no hires
+  p <- make_hire_rate_panel(list(1:10, 1:15))
+  pt <- data.table::copy(p$pt)
+  pt[, situacao := employment_status]
+  pt[, employment_status := "pensioner"]
+  rate <- estimate_historical_hiring_rates(p$ct, pt, group_cols = NULL, status_col = "situacao")
+  expect_equal(rate$hiring_rate, 0.5)
+})
+
 test_that("estimate_historical_hiring_rates: rates are pooled across intervals", {
   # Interval 1: 5 hires on a base of 10; interval 2: 0 on 15. Pooled = 5 / 25.
   p <- make_hire_rate_panel(list(1:10, 1:15, 1:15))

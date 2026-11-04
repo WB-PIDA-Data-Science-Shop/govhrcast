@@ -9,12 +9,7 @@ compute_status_quo_hiring(
   personnel_dt,
   policy_params,
   ref_date,
-  hire_date_col = NULL,
-  personnel_id_col = "personnel_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -34,20 +29,8 @@ compute_status_quo_hiring(
 
 \item{ref_date}{Date. Reference date for current-period stock calculation.}
 
-\item{hire_date_col}{Character or \code{NULL}.  Forwarded to
-\code{estimate_historical_hiring_rates()}.  When non-\code{NULL}, the
-administrative hire-date column is used instead of panel first-appearance
-detection.  Default \code{NULL}.}
-
-\item{personnel_id_col}{Character. Default \code{"personnel_id"}.}
-
-\item{start_date_col}{Character. Default \code{"start_date"}.}
-
-\item{end_date_col}{Character. Default \code{"end_date"}.}
-
-\item{contract_type_col}{Character. Default \code{"contract_type"}.}
-
-\item{status_col}{Character. Default \code{"employment_status"}.}
+\item{column_spec_args}{Complete column specification from
+\code{.column_spec()}.}
 }
 \value{
 data.table with \code{group_cols} (if specified) and \code{total_hires} column.

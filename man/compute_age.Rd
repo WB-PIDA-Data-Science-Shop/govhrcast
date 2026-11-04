@@ -27,7 +27,8 @@ the age interval.  Typically the simulation period close date.}
 \value{
 data.table (one row per person) with columns:
 \describe{
-\item{\code{personnel_id}}{Personnel identifier.}
+\item{\emph{\code{personnel_id_col}}}{Personnel identifier, under the
+caller's column name.}
 \item{\code{age}}{Numeric.  Age in fractional years at \code{ref_date}.}
 }
 }

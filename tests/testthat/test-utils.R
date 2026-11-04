@@ -200,7 +200,8 @@ test_that("compute_age uses custom column names", {
                        birth_date_col = "dob",
                        personnel_id_col = "emp_id")
   
-  expect_true("personnel_id" %in% names(result))
+  # The ID comes back under the caller's column name (ADR 0012)
+  expect_identical(names(result), c("emp_id", "age"))
   expect_equal(nrow(result), 2)
 })
 

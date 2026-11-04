@@ -68,7 +68,8 @@ compute_years <- function(start_date, end_date) {
 #'
 #' @return data.table (one row per person) with columns:
 #'   \describe{
-#'     \item{\code{personnel_id}}{Personnel identifier.}
+#'     \item{\emph{\code{personnel_id_col}}}{Personnel identifier, under the
+#'       caller's column name.}
 #'     \item{\code{age}}{Numeric.  Age in fractional years at \code{ref_date}.}
 #'   }
 #' @keywords internal
@@ -86,13 +87,12 @@ compute_age <- function(personnel_dt,
                         birth_date_col = "birth_date",
                         personnel_id_col = "personnel_id") {
   
-  # Compute age directly without copying
-  # Return only ID and age - no modification to input
-  age_dt <- personnel_dt[, .(
-    personnel_id = get(personnel_id_col),
-    age = compute_years(start_date = get(birth_date_col), end_date = ref_date)
-  )]
-  
+  # One row per person: the caller's ID column and age at ref_date (the
+  # input table is not modified)
+  age_dt <- personnel_dt[, c(personnel_id_col, birth_date_col), with = FALSE]
+  age_dt[, age := compute_years(start_date = get(birth_date_col), end_date = ref_date)]
+  age_dt[, (birth_date_col) := NULL]
+
   return(age_dt)
 }
 
@@ -492,8 +492,9 @@ get_primary_contract <- function(contract_dt,
     order = c(-1, -1, 1)  # DESC, DESC, ASC
   )
   
-  # Take first row per personnel (highest priority)
-  primary <- contract_dt[, .SD[1], by = .(personnel_id = get(personnel_id_col))]
+  # Take first row per personnel (highest priority), keyed by the caller's
+  # ID column
+  primary <- contract_dt[, .SD[1], by = personnel_id_col]
   
   return(primary)
 }

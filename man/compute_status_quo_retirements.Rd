@@ -9,13 +9,7 @@ compute_status_quo_retirements(
   personnel_dt,
   policy_params,
   ref_date,
-  personnel_id_col = "personnel_id",
-  birth_date_col = "birth_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status",
-  age_col = "age"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -40,25 +34,17 @@ enriched onto the working table automatically, the same way
 \item{ref_date}{Date.  Reference date for active-contract filtering and age
 computation.}
 
-\item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
-
-\item{birth_date_col}{Character.  Default \code{"birth_date"}.}
-
-\item{start_date_col}{Character.  Default \code{"start_date"}.}
-
-\item{end_date_col}{Character.  Default \code{"end_date"}.}
-
-\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
-
-\item{status_col}{Character.  Default \code{"employment_status"}.}
-
-\item{age_col}{Character.  Column in \code{personnel_dt} with pre-computed
-age in years.  When present and non-missing, used directly instead of
-calling \code{\link{compute_age}} — same precedence
-\code{\link{identify_eligibility}} uses.  Default \code{"age"}.}
+\item{column_spec_args}{Complete column specification
+(\code{.column_spec()}), in the caller's column names. Keys read:
+\code{personnel_id_col}, \code{contract_id_col}, \code{birth_date_col},
+\code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
+\code{status_col}, and \code{age_col}: pre-computed age in years on
+\code{personnel_dt}, used when present and non-missing instead of
+\code{\link{compute_age}} — same precedence
+\code{\link{identify_eligibility}} uses.}
 }
 \value{
-data.table with \code{personnel_id} and \code{age} columns
+data.table with the \code{personnel_id_col} and \code{age} columns
 identifying personnel selected to retire this period (forced +
 hazard-rate-selected, deduplicated), with the age already computed
 internally (avoids recomputing from \code{birth_date_col} downstream,

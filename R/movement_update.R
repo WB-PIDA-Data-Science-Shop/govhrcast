@@ -61,17 +61,12 @@ stochastic_round <- function(x) {
 #' @param ref_date Date or character. Reference date
 #' @param baseline_matrix data.table. Full baseline matrix (used to compute
 #'   max_salary per grade for wage_based strategy). Can be NULL.
-#' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
-#' @param start_date_col Character. Contract start date column (default: "start_date")
-#' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type")
-#' @param salary_col Character. Salary column (default: "gross_salary_lcu")
-#' @param status_col Character. Status column (default: "employment_status")
-#' @param ref_date_col Character. Reference date column for panel data (default: "ref_date")
+#' @param column_spec_args Complete column specification from
+#'   \code{.column_spec()}.
 #'
 #' @return data.table with columns:
 #'   \describe{
-#'     \item{personnel_id}{Character. Selected mover ID}
+#'     \item{(the caller's personnel ID column)}{Character. Selected mover ID}
 #'     \item{from_group}{Character. Origin state key}
 #'     \item{to_group}{Character. Destination state key}
 #'   }
@@ -82,22 +77,18 @@ identify_movers <- function(contract_dt,
                              policy_params,
                              ref_date,
                              baseline_matrix = NULL,
-                             personnel_id_col = "personnel_id",
-                             start_date_col = "start_date",
-                             end_date_col = "end_date",
-                             contract_type_col = "contract_type",
-                             salary_col = "gross_salary_lcu",
-                             status_col         = "employment_status",
-                             ref_date_col = "ref_date") {
+                             column_spec_args = .column_spec()) {
+  personnel_id_col  <- column_spec_args$personnel_id_col
+  start_date_col    <- column_spec_args$start_date_col
+  end_date_col      <- column_spec_args$end_date_col
+  contract_type_col <- column_spec_args$contract_type_col
+  salary_col        <- column_spec_args$salary_col
+  ref_date_col      <- column_spec_args$ref_date_col
 
   ref_date <- validate_date_format(ref_date, "ref_date")
 
   if (is.null(demand_dt) || nrow(demand_dt) == 0) {
-    return(data.table::data.table(
-      personnel_id = character(0),
-      from_group   = character(0),
-      to_group     = character(0)
-    ))
+    return(.movers_table(character(0), character(0), character(0), personnel_id_col))
   }
 
   group_cols         <- policy_params$group_cols
@@ -118,7 +109,7 @@ identify_movers <- function(contract_dt,
 
   # One row per active person (primary contract)
   workforce <- active_contracts[
-    personnel_dt[get(status_col) == "active"],
+    personnel_dt[get(column_spec_args$status_col) == "active"],
     on = personnel_id_col,
     nomatch = NULL
   ]
@@ -126,8 +117,9 @@ identify_movers <- function(contract_dt,
   workforce <- get_primary_contract(
     contract_dt = workforce,
     personnel_id_col = personnel_id_col,
+    contract_id_col = column_spec_args$contract_id_col,
     start_date_col = start_date_col,
-    salary_col = if (salary_col %in% names(workforce)) salary_col else "gross_salary_lcu"
+    salary_col = salary_col
   )
 
   # Add group key
@@ -160,13 +152,12 @@ identify_movers <- function(contract_dt,
       contract_dt = contract_dt,
       ref_date = ref_date,
       personnel_id_col = personnel_id_col,
+      contract_id_col = column_spec_args$contract_id_col,
       start_date_col = start_date_col,
       end_date_col = end_date_col,
       contract_type_col = contract_type_col
     )
-    data.table::setnames(tenure_dt, "personnel_id", ".pid_tenure")
-    workforce <- tenure_dt[workforce, on = c(.pid_tenure = personnel_id_col)]
-    data.table::setnames(workforce, ".pid_tenure", personnel_id_col)
+    workforce <- tenure_dt[workforce, on = personnel_id_col]
   }
 
   # ------------------------------------------------------------------
@@ -178,15 +169,9 @@ identify_movers <- function(contract_dt,
       contract_dt = contract_dt,
       ref_date = ref_date,
       group_cols = group_cols,
-      personnel_id_col = personnel_id_col,
-      ref_date_col = ref_date_col,
-      start_date_col = start_date_col,
-      end_date_col = end_date_col,
-      contract_type_col = contract_type_col
+      column_spec_args = column_spec_args
     )
-    data.table::setnames(tig_dt, "personnel_id", ".pid_tig")
-    workforce <- tig_dt[workforce, on = c(.pid_tig = personnel_id_col)]
-    data.table::setnames(workforce, ".pid_tig", personnel_id_col)
+    workforce <- tig_dt[workforce, on = personnel_id_col]
   } else if (needs_tig) {
     # Fall back to start_date if no panel data
     workforce[, time_in_grade := as.numeric(
@@ -267,11 +252,7 @@ identify_movers <- function(contract_dt,
 
     if (length(selected_ids) == 0) next
 
-    mover_list[[i]] <- data.table::data.table(
-      personnel_id = selected_ids,
-      from_group   = fg,
-      to_group     = tg
-    )
+    mover_list[[i]] <- .movers_table(selected_ids, fg, tg, personnel_id_col)
 
     already_selected <- c(already_selected, selected_ids)
   }
@@ -282,14 +263,17 @@ identify_movers <- function(contract_dt,
   )
 
   if (nrow(movers_dt) == 0) {
-    movers_dt <- data.table::data.table(
-      personnel_id = character(0),
-      from_group   = character(0),
-      to_group     = character(0)
-    )
+    movers_dt <- .movers_table(character(0), character(0), character(0), personnel_id_col)
   }
 
   return(movers_dt)
+}
+
+# One row per mover, under the caller's name for the ID column.
+.movers_table <- function(ids, from_group, to_group, personnel_id_col) {
+  movers <- data.table::data.table(.id = ids, from_group = from_group, to_group = to_group)
+  data.table::setnames(movers, ".id", personnel_id_col)
+  movers
 }
 
 
@@ -305,7 +289,7 @@ identify_movers <- function(contract_dt,
 #'   see Data Integrity)
 #' @param personnel_dt data.table. Current personnel data (returned unchanged)
 #' @param movers_dt data.table. Output of \code{identify_movers()}.
-#'   Must have columns: personnel_id, from_group, to_group
+#'   Must have columns: \code{personnel_id_col}, from_group, to_group
 #' @param policy_params List. Canonical three-slot movement policy. Reads:
 #'   \describe{
 #'     \item{group_cols}{Character vector defining state columns}
@@ -327,9 +311,6 @@ identify_movers <- function(contract_dt,
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
 #' @param salary_col Character. Salary column in \code{contract_dt} to
 #'   update (default: "gross_salary_lcu")
-#' @param start_date_col Character. Contract start date column (default: "start_date")
-#' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type")
 #'
 #' @return List containing:
 #'   \describe{
@@ -350,10 +331,7 @@ update_state_with_movement <- function(contract_dt,
                                        salary_scale_dt = NULL,
                                        ref_date,
                                        personnel_id_col = "personnel_id",
-                                       salary_col = "gross_salary_lcu",
-                                       start_date_col = "start_date",
-                                       end_date_col = "end_date",
-                                       contract_type_col = "contract_type") {
+                                       salary_col = "gross_salary_lcu") {
 
   ref_date <- validate_date_format(ref_date, "ref_date")
 
@@ -436,26 +414,26 @@ update_state_with_movement <- function(contract_dt,
   # ------------------------------------------------------------------
   # Use a join approach: set new group values in one pass
   # Build a lookup: personnel_id -> new group values
-  update_lookup <- movers_dt[, c("personnel_id", paste0(".new_", group_cols)),
+  update_lookup <- movers_dt[, c(personnel_id_col, paste0(".new_", group_cols)),
                               with = FALSE]
   data.table::setnames(update_lookup,
                        paste0(".new_", group_cols),
                        group_cols)
 
   # Check for duplicate key detection
-  if (anyDuplicated(update_lookup, by = "personnel_id")) {
+  if (anyDuplicated(update_lookup, by = personnel_id_col)) {
     warning("Some personnel appear in multiple movement transitions. ",
             "Only the last transition will be applied.", call. = FALSE)
-    update_lookup <- unique(update_lookup, by = "personnel_id", fromLast = TRUE)
+    update_lookup <- unique(update_lookup, by = personnel_id_col, fromLast = TRUE)
   }
 
   # Perform update on contract_dt by reference
   # Find rows in contract_dt belonging to movers
-  mover_pids <- update_lookup$personnel_id
+  mover_pids <- update_lookup[[personnel_id_col]]
 
   for (gc in group_cols) {
     new_vals <- update_lookup[[gc]]
-    names(new_vals) <- update_lookup$personnel_id
+    names(new_vals) <- mover_pids
 
     contract_dt[get(personnel_id_col) %in% mover_pids,
                 (gc) := new_vals[get(personnel_id_col)]]
@@ -472,7 +450,8 @@ update_state_with_movement <- function(contract_dt,
     scale_subset[, .group_key := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
 
     # Build a personnel_id -> new salary lookup via to_group key
-    salary_lookup <- movers_dt[, .(personnel_id, .group_key = to_group)]
+    salary_lookup <- movers_dt[, c(personnel_id_col, "to_group"), with = FALSE]
+    data.table::setnames(salary_lookup, "to_group", ".group_key")
     salary_lookup <- scale_subset[, .(.group_key, .new_salary = get(scale_salary_col))][
       salary_lookup, on = ".group_key"
     ]
@@ -480,7 +459,7 @@ update_state_with_movement <- function(contract_dt,
 
     if (nrow(salary_lookup) > 0) {
       new_salary_vec <- salary_lookup$.new_salary
-      names(new_salary_vec) <- salary_lookup$personnel_id
+      names(new_salary_vec) <- salary_lookup[[personnel_id_col]]
 
       # Ensure salary column exists in contract_dt
       if (!salary_col %in% names(contract_dt)) {
@@ -492,7 +471,7 @@ update_state_with_movement <- function(contract_dt,
     }
 
     # Warn if any movers didn't get a salary assigned
-    n_unmatched <- length(setdiff(mover_pids, salary_lookup$personnel_id))
+    n_unmatched <- length(setdiff(mover_pids, salary_lookup[[personnel_id_col]]))
     if (n_unmatched > 0) {
       warning(n_unmatched, " mover(s) could not be matched to salary_scale. ",
               "Their salary was not updated.", call. = FALSE, immediate. = TRUE)

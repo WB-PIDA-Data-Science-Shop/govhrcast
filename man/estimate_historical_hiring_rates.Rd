@@ -9,7 +9,6 @@ estimate_historical_hiring_rates(
   panel_personnel_dt,
   group_cols,
   hire_date_col = NULL,
-  freq = "year",
   personnel_id_col = "personnel_id",
   ref_date_col = "ref_date",
   start_date_col = "start_date",
@@ -31,9 +30,6 @@ in \code{panel_personnel_dt} that holds the true administrative hire date
 (e.g. \code{"first_employment_date"}).  When supplied, the function counts
 hires directly from this column instead of using panel first-appearance
 detection.  Default \code{NULL} (panel first-appearance method).}
-
-\item{freq}{Character. Frequency passed to \code{govhr::detect_personnel_event()}
-when \code{hire_date_col = NULL}.  Default \code{"year"}.}
 
 \item{personnel_id_col}{Character. Personnel ID column. Default \code{"personnel_id"}.}
 
@@ -58,7 +54,7 @@ argument:
 
 \describe{
 \item{Panel first-appearance (default, \code{hire_date_col = NULL})}{
-Uses \code{govhr::detect_personnel_event()} to detect the first time a
+Uses \code{govhr::detect_movement()} to detect the first time a
 person appears in the panel.  Left-censored at the panel start date —
 pre-existing staff present at the first snapshot are not counted as
 hires.  Each pair of consecutive snapshots is one interval; someone

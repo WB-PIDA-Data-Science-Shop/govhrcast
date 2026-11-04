@@ -347,7 +347,7 @@ test_that("simulate_hiring handles panel data with ref_date_col", {
     personnel_dt = personnel_panel,
     policy_params = policy_params,
     ref_date = as.Date("2024-06-01"),
-    ref_date_col = "ref_date"
+    column_spec_args = list(ref_date_col = "ref_date")
   )
   
   expect_type(results, "list")
@@ -474,4 +474,32 @@ test_that("status-quo hiring leaves the policy's historical rates unchanged", {
   simulate_hiring(d$contract_dt, d$personnel_dt, policy_params = d$policy,
                   ref_date = d$ref_date)
   expect_identical(d$policy$squorate_dt$hiring_rate, 0.10)
+})
+
+test_that("simulate_hiring() in status-quo mode requires the historical rate table", {
+  d <- make_status_quo_hiring_fixture()
+  d$policy$squorate_dt <- NULL
+  expect_error(simulate_hiring(d$contract_dt, d$personnel_dt, policy_params = d$policy,
+                               ref_date = d$ref_date),
+               "squorate_dt .* is required for mode 'status_quo'")
+})
+
+test_that("flow hiring leaves the caller's retirees table unchanged (custom ID column)", {
+  # Everything keyed by a non-default ID column name, "pid"
+  ids <- sprintf("S%02d", 1:10)
+  contract_dt <- data.table(contract_id = sub("S", "C", ids), pid = ids,
+                            start_date = as.Date("2010-01-01"), end_date = as.Date(NA),
+                            contract_type = "permanent", gross_salary_lcu = 1000)
+  personnel_dt <- data.table(pid = ids, employment_status = "active")
+  retirees_dt  <- data.table(pid = c("R1", "R2"), gross_salary_lcu = c(900, 1100))
+  retirees_before <- copy(retirees_dt)
+  policy <- list(mode = "flow", replacement_rate = 1, group_cols = NULL,
+                 salary_scale = data.table(gross_salary_lcu = 1000))
+
+  res <- simulate_hiring(contract_dt, personnel_dt, policy_params = policy,
+                         retirees_dt = retirees_dt, ref_date = as.Date("2025-01-01"),
+                         column_spec_args = list(personnel_id_col = "pid"))
+
+  expect_identical(retirees_dt, retirees_before)   # still keyed by "pid"
+  expect_identical(res$summary$n_new_hires, 2L)    # 2 retirees x replacement rate 1
 })

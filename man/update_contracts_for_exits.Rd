@@ -25,7 +25,7 @@ update_contracts_for_exits(
 
 \item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
 
-\item{contract_type_col}{Character.  Default \code{"contract_type_code"}.}
+\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
 
 \item{end_date_col}{Character.  Default \code{"end_date"}.}
 

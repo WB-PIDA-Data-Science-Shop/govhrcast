@@ -10,11 +10,7 @@ compute_flow_demand(
   policy_params,
   retirees_dt = NULL,
   ref_date,
-  personnel_id_col = "personnel_id",
-  birth_date_col = "birth_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -32,15 +28,8 @@ compute_flow_demand(
 
 \item{ref_date}{Date. Reference date for calculations}
 
-\item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
-
-\item{birth_date_col}{Character. Birth date column (default: "birth_date")}
-
-\item{start_date_col}{Character. Start date column (default: "start_date")}
-
-\item{end_date_col}{Character. End date column (default: "end_date")}
-
-\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
+\item{column_spec_args}{Complete column specification from
+\code{.column_spec()}.}
 }
 \value{
 data.table with group_cols (if specified) and total_hires column

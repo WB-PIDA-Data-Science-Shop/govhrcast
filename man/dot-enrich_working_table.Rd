@@ -10,11 +10,7 @@
   contract_dt,
   personnel_dt,
   ref_date,
-  personnel_id_col,
-  contract_id_col,
-  start_date_col,
-  end_date_col,
-  contract_type_col
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -28,15 +24,10 @@
 
 \item{ref_date}{Date. Reference date for active contract extraction.}
 
-\item{personnel_id_col}{Character. Personnel identifier column name.}
-
-\item{contract_id_col}{Character. Contract identifier column name.}
-
-\item{start_date_col}{Character. Contract start date column name.}
-
-\item{end_date_col}{Character. Contract end date column name.}
-
-\item{contract_type_col}{Character. Contract type column name.}
+\item{column_spec_args}{Complete column specification
+(\code{.column_spec()}). Keys read: \code{personnel_id_col},
+\code{contract_id_col}, \code{start_date_col}, \code{end_date_col},
+\code{contract_type_col}, \code{salary_col} (picks the primary contract).}
 }
 \value{
 Invisibly returns \code{working_dt} after in-place modification.

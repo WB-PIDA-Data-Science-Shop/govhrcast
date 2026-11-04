@@ -9,15 +9,7 @@ identify_eligibility(
   personnel_dt,
   policy_params,
   ref_date,
-  personnel_id_col = "personnel_id",
-  contract_id_col = "contract_id",
-  birth_date_col = "birth_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  age_col = "age",
-  tenure_col = "personnel_tenure",
-  status_col = "employment_status"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -46,43 +38,24 @@ Eligibility-relevant keys in \code{defaults}:
 
 \item{ref_date}{Date.  Reference date for age and tenure computation.}
 
-\item{personnel_id_col}{Character.  Unique personnel identifier present in
-both \code{contract_dt} and \code{personnel_dt}.
-(default: \code{"personnel_id"}).}
-
-\item{contract_id_col}{Character.  Contract identifier in
-\code{contract_dt}.  Used by \code{\link{compute_tenure}} to deduplicate
-overlapping spells.  (default: \code{"contract_id"}).}
-
-\item{birth_date_col}{Character.  Date of birth column in
-\code{personnel_dt}.  (default: \code{"birth_date"}).}
-
-\item{start_date_col}{Character.  Contract start date column.
-(default: \code{"start_date"}).}
-
-\item{end_date_col}{Character.  Contract end date column; \code{NA} for
-open-ended contracts.  (default: \code{"end_date"}).}
-
-\item{contract_type_col}{Character.  Contract classification column.  Only
-contracts with type not in \code{c("inactive", "pensioner")} are treated
-as active candidates.  (default: \code{"contract_type"}).}
-
-\item{age_col}{Character.  Column in \code{personnel_dt} with pre-computed
-age in years.  When the column is present, \code{\link{compute_age}} is
-skipped entirely.  (default: \code{"age"}).}
-
-\item{tenure_col}{Character.  Column in \code{personnel_dt} with
-pre-computed tenure in years.  When present,
-\code{\link{compute_tenure}} is skipped.  Whichever column supplies it,
-tenure is copied to the working column \code{tenure_years}, which is
-what eligibility checks, custom rules and pension formulas read.
-(default: \code{"personnel_tenure"}, the \code{govhr} dictionary name).}
+\item{column_spec_args}{Complete column specification
+(\code{.column_spec()}), in the caller's column names. Keys read:
+\code{personnel_id_col}, \code{contract_id_col}, \code{birth_date_col},
+\code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
+\code{status_col}, and \code{age_col} / \code{tenure_col}: columns in
+\code{personnel_dt} with pre-computed age and tenure in years. When
+present they are used instead of \code{\link{compute_age}} /
+\code{\link{compute_tenure}}; \code{NULL} means always compute. Whichever
+supplies them, they are copied to the working columns \code{age} and
+\code{tenure_years}, which eligibility checks, custom rules and pension
+formulas read.}
 }
 \value{
-data.table (one row per unique \code{personnel_id}) with columns:
+data.table (one row per person) with columns:
 \describe{
-\item{\code{personnel_id}}{Personnel identifier.  All IDs from
-\code{personnel_dt} are present — inactive personnel are not dropped.}
+\item{\emph{\code{personnel_id_col}}}{Personnel identifier, under the
+caller's column name.  All IDs from \code{personnel_dt} are present
+— inactive personnel are not dropped.}
 \item{\code{retire}}{Integer (0/1).  1 = eligible and assumed to retire;
 0 = not eligible, already inactive, or a threshold was \code{NA}.}
 \item{\code{age}}{Numeric.  Age in years at \code{ref_date}.

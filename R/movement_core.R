@@ -35,22 +35,21 @@ NULL
 #' @param ref_date Date or character. Reference date for calculation
 #' @param group_cols Character vector. Columns defining the "grade" state
 #'   (e.g., c("est_id", "paygrade") or just c("paygrade"))
-#' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
-#' @param ref_date_col Character. Reference date column for panel data (default: "ref_date")
-#' @param start_date_col Character. Contract start date column (default: "start_date")
-#' @param end_date_col Character. Contract end date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type")
+#' @param column_spec_args Complete column specification from
+#'   \code{.column_spec()}.
 #'
-#' @return data.table with columns: personnel_id, time_in_grade (years)
+#' @return data.table with two columns: the caller's personnel ID column and
+#'   \code{time_in_grade} (years)
 #' @keywords internal
 compute_time_in_grade <- function(contract_dt,
                                   ref_date,
                                   group_cols,
-                                  personnel_id_col = "personnel_id",
-                                  ref_date_col = "ref_date",
-                                  start_date_col = "start_date",
-                                  end_date_col = "end_date",
-                                  contract_type_col = "contract_type") {
+                                  column_spec_args = .column_spec()) {
+  personnel_id_col  <- column_spec_args$personnel_id_col
+  ref_date_col      <- column_spec_args$ref_date_col
+  start_date_col    <- column_spec_args$start_date_col
+  end_date_col      <- column_spec_args$end_date_col
+  contract_type_col <- column_spec_args$contract_type_col
 
   ref_date <- validate_date_format(ref_date, "ref_date")
 
@@ -74,10 +73,8 @@ compute_time_in_grade <- function(contract_dt,
   ]
 
   if (nrow(current_active) == 0) {
-    return(data.table::data.table(
-      personnel_id = character(0),
-      time_in_grade = numeric(0)
-    ))
+    empty <- data.table::data.table(.id = character(0), time_in_grade = numeric(0))
+    return(data.table::setnames(empty, ".id", personnel_id_col))
   }
 
   # Get the current group state for each active person (one row per person)
@@ -116,14 +113,14 @@ compute_time_in_grade <- function(contract_dt,
     # Find the earliest snapshot in the current state per person
     earliest_in_state <- hist_in_current_state[,
       .(earliest_date = min(get(ref_date_col))),
-      by = .(personnel_id = get(personnel_id_col))
+      by = c(personnel_id_col)
     ]
 
     # Time in grade = ref_date minus the earliest date in current state
-    tig_dt <- earliest_in_state[, .(
-      personnel_id,
-      time_in_grade = as.numeric(difftime(selected_ref_date, earliest_date, units = "days")) / 365.25
-    )]
+    tig_dt <- earliest_in_state[, time_in_grade := as.numeric(
+      difftime(selected_ref_date, earliest_date, units = "days")
+    ) / 365.25]
+    tig_dt[, earliest_date := NULL]
 
   } else {
     # Single snapshot: use contract start_date as fallback
@@ -131,14 +128,16 @@ compute_time_in_grade <- function(contract_dt,
     primary <- get_primary_contract(
       contract_dt = current_active,
       personnel_id_col = personnel_id_col,
-      start_date_col = start_date_col
+      contract_id_col = column_spec_args$contract_id_col,
+      start_date_col = start_date_col,
+      salary_col = column_spec_args$salary_col
     )
 
-    tig_dt <- primary[, .(
-      personnel_id = get(personnel_id_col),
-      time_in_grade = as.numeric(difftime(selected_ref_date, get(start_date_col),
-                                          units = "days")) / 365.25
-    )]
+    tig_dt <- primary[, c(personnel_id_col, start_date_col), with = FALSE]
+    tig_dt[, time_in_grade := as.numeric(
+      difftime(selected_ref_date, get(start_date_col), units = "days")
+    ) / 365.25]
+    tig_dt[, (start_date_col) := NULL]
   }
 
   # Ensure non-negative
@@ -375,11 +374,8 @@ estimate_historical_movement_rates <- function(contract_dt,
 #'   read here.
 #' @param salary_scale_dt data.table. Valid destinations. Must contain group_cols columns.
 #' @param ref_date Date or character. Reference date
-#' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
-#' @param start_date_col Character. Start date column (default: "start_date")
-#' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type")
-#' @param status_col Character. Status column (default: "employment_status")
+#' @param column_spec_args Complete column specification from
+#'   \code{.column_spec()}.
 #'
 #' @return data.table with columns:
 #'   \describe{
@@ -396,11 +392,8 @@ compute_movement_demand <- function(contract_dt,
                                     policy_params,
                                     salary_scale_dt,
                                     ref_date,
-                                    personnel_id_col = "personnel_id",
-                                    start_date_col = "start_date",
-                                    end_date_col = "end_date",
-                                    contract_type_col = "contract_type",
-                                    status_col         = "employment_status") {
+                                    column_spec_args = .column_spec()) {
+  personnel_id_col <- column_spec_args$personnel_id_col
 
   ref_date <- validate_date_format(ref_date, "ref_date")
 
@@ -413,9 +406,9 @@ compute_movement_demand <- function(contract_dt,
   active_contracts <- get_active_contracts(
     contract_dt = contract_dt,
     ref_date = ref_date,
-    start_date_col = start_date_col,
-    end_date_col = end_date_col,
-    contract_type_col = contract_type_col
+    start_date_col = column_spec_args$start_date_col,
+    end_date_col = column_spec_args$end_date_col,
+    contract_type_col = column_spec_args$contract_type_col
   )
 
   # Deduplicate to one row per person (panel data has one row per snapshot).
@@ -427,7 +420,7 @@ compute_movement_demand <- function(contract_dt,
   person_group_unique <- stats::na.omit(person_group_unique, cols = group_cols)
 
   active_personnel <- person_group_unique[
-    personnel_dt[get(status_col) == "active", .(personnel_id = get(personnel_id_col))],
+    personnel_dt[get(column_spec_args$status_col) == "active", personnel_id_col, with = FALSE],
     on = c(personnel_id_col),
     nomatch = NULL
   ]
@@ -584,11 +577,8 @@ compute_movement_summary <- function(movers_dt,
 #' @param policy_params List.  Canonical three-slot movement policy specification.
 #'   Keys consumed: \code{group_cols}, \code{defaults$movement_rate}.
 #' @param ref_date Date.  Reference date.
-#' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param start_date_col Character.  Default \code{"start_date"}.
-#' @param end_date_col Character.  Default \code{"end_date"}.
-#' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"employment_status"}.
+#' @param column_spec_args Complete column specification from
+#'   \code{.column_spec()}.
 #'
 #' @return data.table with columns \code{from_group}, \code{to_group},
 #'   \code{movement_rate}, \code{current_stock}, \code{n_movers}.
@@ -599,11 +589,8 @@ compute_fixed_rate_movements <- function(contract_dt,
                                          salary_scale_dt,
                                          policy_params,
                                          ref_date,
-                                         personnel_id_col  = "personnel_id",
-                                         start_date_col    = "start_date",
-                                         end_date_col      = "end_date",
-                                         contract_type_col = "contract_type",
-                                         status_col         = "employment_status") {
+                                         column_spec_args = .column_spec()) {
+  personnel_id_col <- column_spec_args$personnel_id_col
 
   ref_date      <- validate_date_format(ref_date, "ref_date")
   group_cols    <- policy_params$group_cols
@@ -620,15 +607,15 @@ compute_fixed_rate_movements <- function(contract_dt,
   active_contracts <- get_active_contracts(
     contract_dt       = contract_dt,
     ref_date          = ref_date,
-    start_date_col    = start_date_col,
-    end_date_col      = end_date_col,
-    contract_type_col = contract_type_col
+    start_date_col    = column_spec_args$start_date_col,
+    end_date_col      = column_spec_args$end_date_col,
+    contract_type_col = column_spec_args$contract_type_col
   )
 
   person_groups <- unique(active_contracts[, c(personnel_id_col, group_cols), with = FALSE])
   person_groups <- stats::na.omit(person_groups, cols = group_cols)
   person_groups <- person_groups[
-    personnel_dt[get(status_col) == "active", .(personnel_id = get(personnel_id_col))],
+    personnel_dt[get(column_spec_args$status_col) == "active", personnel_id_col, with = FALSE],
     on = personnel_id_col, nomatch = NULL
   ]
 

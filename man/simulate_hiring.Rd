@@ -10,16 +10,7 @@ simulate_hiring(
   policy_params,
   retirees_dt = NULL,
   ref_date,
-  ref_date_col = "ref_date",
-  personnel_id_col = "personnel_id",
-  birth_date_col = "birth_date",
-  contract_id_col = "contract_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type",
-  status_col = "employment_status",
-  hire_date_col = NULL
+  column_spec_args = list()
 )
 }
 \arguments{
@@ -44,30 +35,36 @@ simulate_hiring(
 
 \item{ref_date}{Date. Reference date for hiring simulation}
 
-\item{ref_date_col}{Character. Name of reference date column in panel data (default: "ref_date")}
+\item{column_spec_args}{A named list saying what your columns are called,
+so the function can read your data as it is. List only the names that
+differ from the \strong{govhr} harmonized defaults; for example
+\code{list(personnel_id_col = "pid", salary_col = "bruto")}. Your names are used
+throughout, so the returned tables keep them, and you write the same names
+in \code{group_cols}, \code{stock_targets}, \code{replacement_rate} and \code{salary_scale}.
+The same list can be passed to every \strong{govhrcast} function; keys a function
+does not use are ignored, and an unknown key is an error.
 
-\item{personnel_id_col}{Character. Name of personnel ID column (default: "personnel_id")}
-
-\item{birth_date_col}{Character. Name of birth date column (default: "birth_date")}
-
-\item{contract_id_col}{Character. Name of contract ID column (default: "contract_id")}
-
-\item{start_date_col}{Character. Name of start date column (default: "start_date")}
-
-\item{end_date_col}{Character. Name of end date column (default: "end_date")}
-
-\item{salary_col}{Character. Name of salary column (default: "gross_salary_lcu")}
-
-\item{contract_type_col}{Character. Name of contract type column (default: "contract_type")}
-
-\item{status_col}{Character. Name of status column (default: "employment_status")}
-
-\item{hire_date_col}{Character or \code{NULL}.  Name of a person-level column in
-\code{personnel_dt} that holds the true administrative hire date
-(e.g. \code{"first_employment_date"}).  When supplied and
-\code{policy_params$mode = "status_quo"}, the function counts hires from
-this column instead of using panel first-appearance detection.  Avoids
-left-censoring bias.  Default \code{NULL} (panel first-appearance fallback).}
+Keys used here (default in brackets):
+\itemize{
+\item \code{ref_date_col} (\code{"ref_date"}): snapshot date of a panel. When the contract
+table holds several snapshots, the one nearest (but not later than)
+\code{ref_date} is used.
+\item \code{personnel_id_col} (\code{"personnel_id"}): person identifier, in both tables.
+\item \code{contract_id_col} (\code{"contract_id"}): contract identifier, generated for
+new contracts.
+\item \code{start_date_col}, \code{end_date_col} (\code{"start_date"}, \code{"end_date"}): contract
+dates, used to find active contracts. New hires start on \code{ref_date} with
+an open end date; contracts ended by downsizing get \code{ref_date}.
+\item \code{salary_col} (\code{"gross_salary_lcu"}): pay column. Picks each person's main
+contract and gives the pay saved by downsizing.
+\item \code{contract_type_col} (\code{"contract_type"}): new hires are \code{"permanent"};
+contracts ended by downsizing become \code{"terminated"}.
+\item \code{status_col} (\code{"employment_status"}): only \code{"active"} people count towards
+headcount. New hires are \code{"active"}; people let go become \code{"inactive"}.
+\item Flow mode only, when it works out retirees itself: \code{birth_date_col}
+(\code{"birth_date"}), \code{age_col} (\code{"age"}) and \code{tenure_col}
+(\code{"personnel_tenure"}), as in \code{\link[=simulate_retirement]{simulate_retirement()}}.
+}}
 }
 \value{
 List containing:

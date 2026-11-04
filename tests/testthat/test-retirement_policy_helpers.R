@@ -313,9 +313,9 @@ test_that("a constructed policy produces identical output to the equivalent hand
   )
 
   res_constructed <- simulate_retirement(contract_dt, personnel_dt, ref_date = ref_date,
-                                         policy_params = constructed, salary_col = "base_salary_lcu")
+                                         policy_params = constructed, column_spec_args = list(salary_col = "base_salary_lcu"))
   res_handwritten <- simulate_retirement(contract_dt, personnel_dt, ref_date = ref_date,
-                                         policy_params = handwritten, salary_col = "base_salary_lcu")
+                                         policy_params = handwritten, column_spec_args = list(salary_col = "base_salary_lcu"))
 
   expect_identical(res_constructed$retirees_dt, res_handwritten$retirees_dt)
   expect_equal(res_constructed$summary$n_retired, 1L)

@@ -12,10 +12,7 @@ update_state_with_movement(
   salary_scale_dt = NULL,
   ref_date,
   personnel_id_col = "personnel_id",
-  salary_col = "gross_salary_lcu",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type"
+  salary_col = "gross_salary_lcu"
 )
 }
 \arguments{
@@ -25,7 +22,7 @@ see Data Integrity)}
 \item{personnel_dt}{data.table. Current personnel data (returned unchanged)}
 
 \item{movers_dt}{data.table. Output of \code{identify_movers()}.
-Must have columns: personnel_id, from_group, to_group}
+Must have columns: \code{personnel_id_col}, from_group, to_group}
 
 \item{policy_params}{List. Canonical three-slot movement policy. Reads:
 \describe{
@@ -52,12 +49,6 @@ if present, otherwise the first match (not matched to
 
 \item{salary_col}{Character. Salary column in \code{contract_dt} to
 update (default: "gross_salary_lcu")}
-
-\item{start_date_col}{Character. Contract start date column (default: "start_date")}
-
-\item{end_date_col}{Character. End date column (default: "end_date")}
-
-\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
 }
 \value{
 List containing:

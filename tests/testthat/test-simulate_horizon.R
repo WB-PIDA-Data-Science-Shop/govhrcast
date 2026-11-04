@@ -2557,3 +2557,46 @@ test_that("simulate_horizon: different seeds can produce different retiree selec
   expect_true(length(unique(selections)) > 1L)
 })
 
+
+
+# =============================================================================
+# Status-quo hiring without historical rates stops with a clear error
+# =============================================================================
+
+sq_hiring_inputs <- function() {
+  start <- as.Date("2012-09-01")
+  hc <- bra_hrmis_contract[ref_date <= start]
+  hp <- bra_hrmis_personnel[ref_date <= start]
+  scale <- hc[ref_date == start & !is.na(base_salary_lcu),
+              .(base_salary_lcu = mean(base_salary_lcu)), by = est_id]
+  list(hc = hc, hp = hp, scale = scale, start = start)
+}
+
+run_sq_hiring <- function(contract_dt, personnel_dt, hiring_policy, d) {
+  suppressMessages(simulate_horizon(
+    contract_dt, personnel_dt, salary_scale_dt = d$scale, n_periods = 2L,
+    ref_date = d$start, retirement_policy = NULL, hiring_policy = hiring_policy,
+    column_spec_args = list(salary_col = "base_salary_lcu")))
+}
+
+test_that("status-quo hiring stops with a clear error when its rates cannot be estimated", {
+  d <- sq_hiring_inputs()
+  pol <- design_hiring_policy_status_quo(group_cols = "no_such_col", salary_scale = d$scale)
+  expect_error(run_sq_hiring(d$hc, d$hp, pol, d),
+               "could not estimate status-quo hiring rates")
+})
+
+test_that("status-quo hiring on a single snapshot without rates stops with a clear error", {
+  d <- sq_hiring_inputs()
+  pol <- design_hiring_policy_status_quo(group_cols = "est_id", salary_scale = d$scale)
+  expect_error(run_sq_hiring(d$hc[ref_date == d$start], d$hp[ref_date == d$start], pol, d),
+               "needs a panel with at least two ref_date snapshots")
+})
+
+test_that("status-quo hiring on a single snapshot uses rates the user supplies", {
+  d <- sq_hiring_inputs()
+  pol <- design_hiring_policy_status_quo(group_cols = "est_id", salary_scale = d$scale)
+  pol$squorate_dt <- data.table(est_id = unique(d$scale$est_id), hiring_rate = 0.05)
+  res <- run_sq_hiring(d$hc[ref_date == d$start], d$hp[ref_date == d$start], pol, d)
+  expect_true(all(res$comparison$n_hires > 0))
+})

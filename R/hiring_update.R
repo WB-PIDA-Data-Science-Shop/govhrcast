@@ -73,22 +73,15 @@ generate_new_personnel <- function(n,
 #' @param personnel_ids Character vector. Personnel IDs for new hires
 #' @param ref_date Date. Contract start date
 #' @param group_vals Named list. Values for grouping columns
-#' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
-#' @param contract_id_col Character. Contract ID column (default: "contract_id")
-#' @param start_date_col Character. Start date column (default: "start_date")
-#' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type")
+#' @param column_spec_args Complete column specification from
+#'   \code{.column_spec()}.
 #'
 #' @return data.table with new contract records
 #' @keywords internal
 generate_new_contracts <- function(personnel_ids,
                                    ref_date,
                                    group_vals = NULL,
-                                   personnel_id_col = "personnel_id",
-                                   contract_id_col = "contract_id",
-                                   start_date_col = "start_date",
-                                   end_date_col = "end_date",
-                                   contract_type_col = "contract_type") {
+                                   column_spec_args = .column_spec()) {
   
   n <- length(personnel_ids)
   
@@ -117,8 +110,11 @@ generate_new_contracts <- function(personnel_ids,
   data.table::setnames(new_contracts,
                        old = c("contract_id", "personnel_id", "start_date", 
                                "end_date", "contract_type"),
-                       new = c(contract_id_col, personnel_id_col, start_date_col,
-                               end_date_col, contract_type_col))
+                       new = c(column_spec_args$contract_id_col,
+                               column_spec_args$personnel_id_col,
+                               column_spec_args$start_date_col,
+                               column_spec_args$end_date_col,
+                               column_spec_args$contract_type_col))
   
   # Add grouping columns if specified
   if (!is.null(group_vals) && length(group_vals) > 0) {
@@ -270,11 +266,8 @@ assign_compensation <- function(new_contracts_dt,
 #'   Options: "last_hired_first", "random"
 #' @param group_vals Named list. Values for grouping columns to filter on
 #' @param ref_date Date. Reference date
-#' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
-#' @param start_date_col Character. Start date column (default: "start_date")
-#' @param end_date_col Character. End date column (default: "end_date")
-#' @param contract_type_col Character. Contract type column (default: "contract_type")
-#' @param status_col Character. Status column (default: "employment_status")
+#' @param column_spec_args Complete column specification from
+#'   \code{.column_spec()}.
 #'
 #' @return Character vector of personnel_ids to remove
 #' @keywords internal
@@ -284,11 +277,9 @@ select_personnel_to_remove <- function(contract_dt,
                                        strategy = "last_hired_first",
                                        group_vals = NULL,
                                        ref_date,
-                                       personnel_id_col = "personnel_id",
-                                       start_date_col = "start_date",
-                                       end_date_col = "end_date",
-                                       contract_type_col = "contract_type",
-                                       status_col         = "employment_status") {
+                                       column_spec_args = .column_spec()) {
+  personnel_id_col <- column_spec_args$personnel_id_col
+  start_date_col   <- column_spec_args$start_date_col
   
   if (n_remove <= 0) {
     return(character(0))
@@ -299,12 +290,12 @@ select_personnel_to_remove <- function(contract_dt,
     contract_dt = contract_dt,
     ref_date = ref_date,
     start_date_col = start_date_col,
-    end_date_col = end_date_col,
-    contract_type_col = contract_type_col
+    end_date_col = column_spec_args$end_date_col,
+    contract_type_col = column_spec_args$contract_type_col
   )
-  
+
   active_personnel <- active_contracts[
-    personnel_dt[get(status_col) == "active"],
+    personnel_dt[get(column_spec_args$status_col) == "active"],
     on = personnel_id_col,
     nomatch = NULL
   ]
@@ -325,8 +316,9 @@ select_personnel_to_remove <- function(contract_dt,
   primary_contracts <- get_primary_contract(
     contract_dt = active_personnel,
     personnel_id_col = personnel_id_col,
+    contract_id_col = column_spec_args$contract_id_col,
     start_date_col = start_date_col,
-    salary_col = "gross_salary_lcu"
+    salary_col = column_spec_args$salary_col
   )
   
   # Apply removal strategy
@@ -373,13 +365,8 @@ select_personnel_to_remove <- function(contract_dt,
 #'     \item group_cols: Character vector of grouping columns (can be NULL)
 #'   }
 #' @param ref_date Date. Reference date for adjustments
-#' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
-#' @param contract_id_col Character. Contract ID column (default: "contract_id")
-#' @param start_date_col Character. Start date column (default: "start_date")
-#' @param end_date_col Character. End date column (default: "end_date")
-#' @param salary_col Character. Salary column (default: "gross_salary_lcu")
-#' @param contract_type_col Character. Contract type column (default: "contract_type")
-#' @param status_col Character. Status column (default: "employment_status")
+#' @param column_spec_args Complete column specification from
+#'   \code{.column_spec()}.
 #'
 #' @return List containing:
 #'   \itemize{
@@ -399,13 +386,13 @@ update_state_with_adjustment <- function(contract_dt,
                                          adjustment_dt,
                                          policy_params,
                                          ref_date,
-                                         personnel_id_col = "personnel_id",
-                                         contract_id_col = "contract_id",
-                                         start_date_col = "start_date",
-                                         end_date_col = "end_date",
-                                         salary_col = "gross_salary_lcu",
-                                         contract_type_col = "contract_type",
-                                         status_col         = "employment_status") {
+                                         column_spec_args = .column_spec()) {
+  personnel_id_col  <- column_spec_args$personnel_id_col
+  start_date_col    <- column_spec_args$start_date_col
+  end_date_col      <- column_spec_args$end_date_col
+  contract_type_col <- column_spec_args$contract_type_col
+  status_col        <- column_spec_args$status_col
+  salary_col        <- column_spec_args$salary_col
   
   group_cols <- policy_params$group_cols
   salary_scale <- policy_params$salary_scale
@@ -446,11 +433,7 @@ update_state_with_adjustment <- function(contract_dt,
           personnel_ids = new_personnel[[personnel_id_col]],
           ref_date = ref_date,
           group_vals = group_vals,
-          personnel_id_col = personnel_id_col,
-          contract_id_col = contract_id_col,
-          start_date_col = start_date_col,
-          end_date_col = end_date_col,
-          contract_type_col = contract_type_col
+          column_spec_args = column_spec_args
         )
         
         # Assign compensation (auto-detects join cols and salary col)
@@ -490,11 +473,7 @@ update_state_with_adjustment <- function(contract_dt,
           strategy = removal_strategy,
           group_vals = group_vals,
           ref_date = ref_date,
-          personnel_id_col = personnel_id_col,
-          start_date_col = start_date_col,
-          end_date_col = end_date_col,
-          contract_type_col = contract_type_col,
-          status_col = status_col
+          column_spec_args = column_spec_args
         )
         
         # Capture active contracts for terminated personnel (for salary cost reporting)
@@ -544,11 +523,7 @@ update_state_with_adjustment <- function(contract_dt,
         personnel_ids = new_personnel[[personnel_id_col]],
         ref_date = ref_date,
         group_vals = NULL,
-        personnel_id_col = personnel_id_col,
-        contract_id_col = contract_id_col,
-        start_date_col = start_date_col,
-        end_date_col = end_date_col,
-        contract_type_col = contract_type_col
+        column_spec_args = column_spec_args
       )
       
       # For overall hiring without grouping, salary scale should have 1 row or join on other columns
@@ -609,11 +584,7 @@ update_state_with_adjustment <- function(contract_dt,
         strategy = removal_strategy,
         group_vals = NULL,
         ref_date = ref_date,
-        personnel_id_col = personnel_id_col,
-        start_date_col = start_date_col,
-        end_date_col = end_date_col,
-        contract_type_col = contract_type_col,
-        status_col = status_col
+        column_spec_args = column_spec_args
       )
       
       # Capture active contracts for terminated personnel (for salary cost reporting)

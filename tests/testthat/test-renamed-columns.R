@@ -1,0 +1,783 @@
+# Renaming the input columns does not change the results (ADR 0012)
+#
+# Every exported function reads the caller's column names from
+# column_spec_args and uses them all the way down. So a run on data whose
+# columns carry other names must match the run on default-named data exactly,
+# once the names are mapped back -- and the caller's names are what come out.
+
+library(data.table)
+
+# The caller's name for each default column (default name = caller name)
+user_names <- c(
+  personnel_id      = "pid",
+  contract_id       = "cid",
+  ref_date          = "snap",
+  start_date        = "inicio",
+  end_date          = "fim",
+  gross_salary_lcu  = "bruto",
+  contract_type     = "tipo",
+  employment_status = "situacao",
+  age               = "idade",
+  personnel_tenure  = "tempo",
+  birth_date        = "nasc"
+)
+
+# The same mapping, as the column_spec_args a caller would pass
+user_spec <- list(
+  personnel_id_col  = "pid",
+  contract_id_col   = "cid",
+  ref_date_col      = "snap",
+  start_date_col    = "inicio",
+  end_date_col      = "fim",
+  salary_col        = "bruto",
+  contract_type_col = "tipo",
+  status_col        = "situacao",
+  age_col           = "idade",
+  tenure_col        = "tempo",
+  birth_date_col    = "nasc"
+)
+
+# Columns the package creates itself keep their own names in every run
+package_made <- "age"
+
+to_user_names <- function(dt) {
+  setnames(copy(dt), names(user_names), user_names, skip_absent = TRUE)
+}
+
+# Back to default names, including column names held as values
+to_default_names <- function(dt) {
+  dt <- setnames(copy(dt), user_names, names(user_names), skip_absent = TRUE)
+  if ("ref_wage_col" %in% names(dt)) {
+    hit <- dt$ref_wage_col %in% user_names
+    dt[hit, ref_wage_col := names(user_names)[match(ref_wage_col, user_names)]]
+  }
+  dt
+}
+
+# Two Alagoas snapshots (so the run must pick one via ref_date_col), in
+# default and in renamed form
+renamed_fixture <- function() {
+  snap <- as.Date("2012-09-01")
+  keep <- c(as.Date("2011-09-01"), snap)
+  hc <- bra_hrmis_contract[ref_date %in% keep]
+  hp <- bra_hrmis_personnel[ref_date %in% keep]
+  list(hc = hc, hp = hp, hc_user = to_user_names(hc), hp_user = to_user_names(hp),
+       ref_date = snap)
+}
+
+# Run simulate_retirement() on default names and on renamed data
+retire_both_ways <- function(policy_default, policy_user, seed = 1L) {
+  d <- renamed_fixture()
+  set.seed(seed)
+  default_run <- simulate_retirement(d$hc, d$hp, ref_date = d$ref_date,
+                                     policy_params = policy_default)
+  set.seed(seed)
+  user_run <- simulate_retirement(d$hc_user, d$hp_user, ref_date = d$ref_date,
+                                  policy_params = policy_user,
+                                  column_spec_args = user_spec)
+  list(default = default_run, user = user_run)
+}
+
+expect_same_results_in_user_names <- function(runs, result_table = "retirees_dt") {
+  for (tbl in c("contract_dt", "personnel_dt", result_table)) {
+    out <- runs$user[[tbl]]
+    expect_true("pid" %in% names(out), info = tbl)
+    expect_length(setdiff(intersect(names(user_names), names(out)), package_made), 0L)
+    expect_equal(to_default_names(out), runs$default[[tbl]], info = tbl)
+  }
+  expect_equal(runs$user$summary, runs$default$summary)
+}
+
+
+# ---- simulate_retirement() ----------------------------------------------------
+
+test_that("simulate_retirement(): renamed columns give the default-name results", {
+  accrual_by_type <- function(type_col) {
+    setnames(data.table(x = c("permanent", "fixed-term", "short-term"),
+                        accrual_rate = c(0.02, 0.015, 0.01)), "x", type_col)
+  }
+  policy <- function(type_col, wage_col) list(
+    group_cols   = type_col,
+    policy_table = accrual_by_type(type_col),
+    defaults     = list(eligibility_type = "age_and_tenure", min_age = 60,
+                        min_tenure = 10, pension_type = "db", accrual_rate = 0.02,
+                        ref_wage_col = wage_col, max_years = 35,
+                        replacement_cap = 0.8)
+  )
+  runs <- retire_both_ways(policy("contract_type", "gross_salary_lcu"),
+                           policy("tipo", "bruto"))
+  expect_gt(nrow(runs$default$retirees_dt), 0L)
+  expect_same_results_in_user_names(runs)
+})
+
+test_that("simulate_retirement(): custom rules and formulas use the caller's names", {
+  policy <- function(rule, formula) list(
+    group_cols = NULL, policy_table = NULL,
+    defaults = list(eligibility_type = "custom", eligibility_rule = rule,
+                    pension_type = "custom", pension_formula = formula)
+  )
+  # A pension formula sees the retiree's contract columns plus the package's
+  # own age and tenure_years (age at ref_date), which keep their names
+  default_formula <- "gross_salary_lcu * (age - 40) / 100"
+  user_formula    <- "bruto * (age - 40) / 100"
+  runs <- retire_both_ways(
+    policy("age >= 60 & personnel_tenure >= 10", default_formula),
+    policy("idade >= 60 & tempo >= 10",          user_formula)
+  )
+  expect_gt(nrow(runs$default$retirees_dt), 0L)
+
+  # The formula carried on retirees_dt is exactly the caller's text
+  expect_identical(unique(runs$user$retirees_dt$pension_formula), user_formula)
+  runs$user$retirees_dt[, pension_formula := default_formula]
+  expect_same_results_in_user_names(runs)
+})
+
+test_that("simulate_retirement(): hazard-rate retirement works on renamed columns", {
+  policy <- function(wage_col) list(
+    group_cols   = "age_yr_int",
+    policy_table = data.table(age_yr_int = 55:75, hazard_rate = 0.2),
+    defaults     = list(eligibility_type = "hazard_rate", pension_type = "rate",
+                        pension_rate = 0.5, ref_wage_col = wage_col)
+  )
+  runs <- retire_both_ways(policy("gross_salary_lcu"), policy("bruto"))
+  expect_gt(nrow(runs$default$retirees_dt), 0L)
+  expect_same_results_in_user_names(runs)
+})
+
+test_that("simulate_retirement(): the caller's tables are left unchanged", {
+  # Guard: the run works on copies, never on the caller's tables.
+  d <- renamed_fixture()
+  hc_before <- copy(d$hc_user)
+  hp_before <- copy(d$hp_user)
+  simulate_retirement(
+    d$hc_user, d$hp_user, ref_date = d$ref_date,
+    policy_params = list(group_cols = NULL, policy_table = NULL,
+                         defaults = list(eligibility_type = "age_only", min_age = 60,
+                                         pension_type = "rate", pension_rate = 0.5,
+                                         ref_wage_col = "bruto")),
+    column_spec_args = user_spec)
+  expect_identical(d$hc_user, hc_before)
+  expect_identical(d$hp_user, hp_before)
+})
+
+test_that("simulate_retirement(): age_col = NULL means 'compute age from birth dates'", {
+  # Guard: with age_col and tenure_col set to NULL, precomputed age and
+  # tenure columns are ignored, even when they exist.
+  d <- renamed_fixture()
+  policy <- list(group_cols = NULL, policy_table = NULL,
+                 defaults = list(eligibility_type = "age_only", min_age = 60,
+                                 pension_type = "rate", pension_rate = 0.5,
+                                 ref_wage_col = "gross_salary_lcu"))
+  run <- function(hp) simulate_retirement(
+    d$hc, hp, ref_date = d$ref_date, policy_params = policy,
+    column_spec_args = list(age_col = NULL, tenure_col = NULL))
+  # A precomputed age ten years off: ignored, so the results must not move
+  with_age    <- run(copy(d$hp)[, age := age + 10])
+  without_age <- run(copy(d$hp)[, c("age", "personnel_tenure") := NULL])
+  expect_equal(with_age$retirees_dt, without_age$retirees_dt)
+})
+
+test_that("simulate_retirement(): age from birth dates works on renamed columns", {
+  # No age column used (age_col = NULL) and tenure-only eligibility: age is
+  # computed from birth dates both for eligibility and for the retiree table
+  policy <- function(wage_col) list(
+    group_cols = NULL, policy_table = NULL,
+    defaults = list(eligibility_type = "tenure_only", min_tenure = 25,
+                    pension_type = "rate", pension_rate = 0.5, ref_wage_col = wage_col)
+  )
+  d <- renamed_fixture()
+  no_age <- list(age_col = NULL)
+  runs <- list(
+    default = simulate_retirement(d$hc, d$hp, ref_date = d$ref_date,
+                                  policy_params = policy("gross_salary_lcu"),
+                                  column_spec_args = no_age),
+    user    = simulate_retirement(d$hc_user, d$hp_user, ref_date = d$ref_date,
+                                  policy_params = policy("bruto"),
+                                  column_spec_args = modifyList(user_spec, no_age))
+  )
+  expect_gt(nrow(runs$default$retirees_dt), 0L)
+  expect_false(anyNA(runs$user$retirees_dt$age))
+  expect_same_results_in_user_names(runs)
+})
+
+test_that("identify_eligibility(): every person is listed under the caller's ID column", {
+  # People without an active contract are listed with retire = 0 under the
+  # same ID column as everyone else -- callers join on that column.
+  d <- renamed_fixture()
+  hc <- d$hc_user[snap == d$ref_date]
+  hp <- d$hp_user[snap == d$ref_date]
+  hc <- hc[!pid %in% hp$pid[1:5]]   # five people lose their contracts
+  out <- identify_eligibility(
+    hc, hp, ref_date = d$ref_date,
+    policy_params = list(group_cols = NULL, policy_table = NULL,
+                         defaults = list(eligibility_type = "age_only", min_age = 60)),
+    column_spec_args = .column_spec(user_spec)
+  )
+  expect_identical(names(out), c("pid", "retire", "age", "tenure_years"))
+  expect_setequal(out$pid, hp$pid)
+  expect_true(all(out[pid %in% hp$pid[1:5], retire] == 0L))
+})
+
+
+# ---- simulate_exits() ---------------------------------------------------------
+
+# simulate_exits() works on one snapshot, so the fixture is cut to ref_date
+exit_fixture <- function() {
+  d <- renamed_fixture()
+  list(hc = d$hc[ref_date == d$ref_date], hp = d$hp[ref_date == d$ref_date],
+       hc_user = d$hc_user[snap == d$ref_date], hp_user = d$hp_user[snap == d$ref_date],
+       ref_date = d$ref_date)
+}
+
+exit_both_ways <- function(policy_default, policy_user, seed = 1L) {
+  d <- exit_fixture()
+  set.seed(seed)
+  default_run <- simulate_exits(d$hc, d$hp, policy_params = policy_default,
+                                ref_date = d$ref_date)
+  set.seed(seed)
+  user_run <- simulate_exits(d$hc_user, d$hp_user, policy_params = policy_user,
+                             ref_date = d$ref_date, column_spec_args = user_spec)
+  list(default = default_run, user = user_run)
+}
+
+test_that("simulate_exits(): a flat rate on renamed columns gives the default-name results", {
+  policy <- list(group_cols = NULL, policy_table = NULL,
+                 defaults = list(exit_rate = 0.1))
+  runs <- exit_both_ways(policy, policy)
+  expect_gt(nrow(runs$default$exits_dt), 0L)
+  expect_gt(runs$default$summary$exit_savings, 0)
+  expect_same_results_in_user_names(runs, "exits_dt")
+})
+
+test_that("simulate_exits(): a one-row policy table on renamed columns gives the default-name results", {
+  policy <- list(group_cols = NULL, policy_table = data.table(exit_rate = 0.1),
+                 defaults = list())
+  runs <- exit_both_ways(policy, policy)
+  expect_gt(nrow(runs$default$exits_dt), 0L)
+  expect_same_results_in_user_names(runs, "exits_dt")
+})
+
+test_that("simulate_exits(): rates grouped on a renamed column give the default-name results", {
+  policy <- function(type_col) list(
+    group_cols   = type_col,
+    policy_table = setnames(data.table(x = c("permanent", "fixed-term", "short-term"),
+                                       exit_rate = c(0.05, 0.2, 0.3)), "x", type_col),
+    defaults     = list(exit_rate = 0)
+  )
+  runs <- exit_both_ways(policy("contract_type"), policy("tipo"))
+  expect_gt(nrow(runs$default$exits_dt), 0L)
+  expect_same_results_in_user_names(runs, "exits_dt")
+})
+
+test_that("simulate_exits(): a ranking exit strategy reads the caller's column", {
+  # Lowest-paid leave first. With random selection (what an unrecognised name
+  # falls back to) the leavers would differ from the lowest-paid.
+  policy <- function(pay_col) list(
+    group_cols = NULL, policy_table = NULL,
+    defaults = list(exit_rate = 0.1, exit_strategy = pay_col)
+  )
+  runs <- exit_both_ways(policy("gross_salary_lcu"), policy("bruto"))
+  expect_gt(nrow(runs$default$exits_dt), 0L)
+  expect_same_results_in_user_names(runs, "exits_dt")
+})
+
+test_that("simulate_exits(): the caller's tables are left unchanged", {
+  # Guard: the run works on copies, never on the caller's tables.
+  d <- exit_fixture()
+  hc_before <- copy(d$hc_user)
+  hp_before <- copy(d$hp_user)
+  simulate_exits(d$hc_user, d$hp_user,
+                 policy_params = list(group_cols = NULL, policy_table = NULL,
+                                      defaults = list(exit_rate = 0.1)),
+                 ref_date = d$ref_date, column_spec_args = user_spec)
+  expect_identical(d$hc_user, hc_before)
+  expect_identical(d$hp_user, hp_before)
+})
+
+test_that("simulate_exits(): a column the run needs must exist, and unused keys are not checked", {
+  d <- exit_fixture()
+  policy <- list(group_cols = NULL, policy_table = NULL, defaults = list(exit_rate = 0.1))
+  run <- function(spec) simulate_exits(d$hc_user, d$hp_user, policy_params = policy,
+                                       ref_date = d$ref_date, column_spec_args = spec)
+
+  for (key in c("personnel_id_col", "contract_type_col", "salary_col", "end_date_col", "status_col")) {
+    bad <- modifyList(user_spec, setNames(list("not_a_column"), key))
+    expect_error(run(bad), paste0(key, " = 'not_a_column'"), fixed = TRUE)
+  }
+
+  # simulate_exits() never reads birth dates or contract IDs, so it does not ask for them
+  unused <- modifyList(user_spec, list(birth_date_col = "not_a_column", contract_id_col = "also_not"))
+  expect_no_error(run(unused))
+})
+
+
+# ---- simulate_promotions_transfers() ------------------------------------------
+
+# The pay table's own pay column is named so the current detection finds it;
+# detection is replaced by the pay-column work (B-31), not by this slice
+movement_scale <- function(hc, ref) {
+  hc[ref_date == ref & !is.na(paygrade),
+     .(salary = mean(gross_salary_lcu, na.rm = TRUE)), by = paygrade][!is.na(salary)]
+}
+
+move_both_ways <- function(policy_default, policy_user, d = renamed_fixture(), seed = 1L) {
+  scale <- movement_scale(d$hc, d$ref_date)
+  set.seed(seed)
+  default_run <- simulate_promotions_transfers(
+    d$hc, d$hp, salary_scale_dt = scale, policy_params = policy_default,
+    ref_date = d$ref_date)
+  set.seed(seed)
+  user_run <- simulate_promotions_transfers(
+    d$hc_user, d$hp_user, salary_scale_dt = scale, policy_params = policy_user,
+    ref_date = d$ref_date, column_spec_args = user_spec)
+  list(default = default_run, user = user_run)
+}
+
+expect_same_movement <- function(runs) {
+  expect_same_results_in_user_names(runs, "movers_dt")
+  expect_equal(runs$user$demand_dt, runs$default$demand_dt)
+  expect_equal(runs$user$baseline_matrix, runs$default$baseline_matrix)
+}
+
+movement_policy <- function(strategy = "random", rule = "scale", rate = 0, table = NULL) list(
+  group_cols   = "paygrade",
+  policy_table = table,
+  defaults     = list(movement_rate = rate, movement_strategy = strategy,
+                      salary_update_rule = rule)
+)
+
+test_that("simulate_promotions_transfers(): every selection strategy works on renamed columns", {
+  for (strategy in c("tenure", "reverse_tenure", "wage_based", "random")) {
+    runs <- move_both_ways(movement_policy(strategy), movement_policy(strategy))
+    expect_gt(nrow(runs$default$movers_dt), 0L)
+    expect_identical(names(runs$user$movers_dt)[[1L]], "pid", label = strategy)
+    expect_same_movement(runs)
+  }
+})
+
+test_that("simulate_promotions_transfers(): the 'keep' pay rule works on renamed columns", {
+  runs <- move_both_ways(movement_policy(rule = "keep"), movement_policy(rule = "keep"))
+  expect_gt(nrow(runs$default$movers_dt), 0L)
+  expect_same_movement(runs)
+})
+
+test_that("simulate_promotions_transfers(): a ranking column reads the caller's name", {
+  policy <- function(col) c(movement_policy(), list(promotion_order_col = col))
+  runs <- move_both_ways(policy("gross_salary_lcu"), policy("bruto"))
+  expect_gt(nrow(runs$default$movers_dt), 0L)
+  expect_same_movement(runs)
+})
+
+test_that("simulate_promotions_transfers(): a supplied rate table works on renamed columns", {
+  d <- renamed_fixture()
+  rates <- estimate_historical_movement_rates(d$hc, group_cols = "paygrade")
+  rates <- rates[, .(from_group, to_group, movement_rate = pmin(movement_rate * 2, 0.5))]
+  runs <- move_both_ways(movement_policy(table = rates), movement_policy(table = rates), d)
+  expect_gt(nrow(runs$default$movers_dt), 0L)
+  expect_same_movement(runs)
+})
+
+test_that("simulate_promotions_transfers(): the flat-rate fallback works on renamed columns", {
+  # Both snapshots hold the same people in the same grades, so nothing can be
+  # estimated and defaults$movement_rate drives the run
+  d <- renamed_fixture()
+  earlier <- as.Date("2011-09-01")
+  stack <- function(dt, date_col) {
+    now <- dt[get(date_col) == d$ref_date]
+    rbind(copy(now)[, (date_col) := earlier], now)
+  }
+  d$hc <- stack(d$hc, "ref_date");  d$hp <- stack(d$hp, "ref_date")
+  d$hc_user <- stack(d$hc_user, "snap");  d$hp_user <- stack(d$hp_user, "snap")
+
+  policy <- movement_policy(rate = 0.2)
+  runs <- suppressMessages(move_both_ways(policy, policy, d))
+  expect_gt(nrow(runs$default$movers_dt), 0L)
+  expect_same_movement(runs)
+})
+
+test_that("simulate_promotions_transfers(): an empty result is under the caller's ID column too", {
+  d <- renamed_fixture()
+  scale <- movement_scale(d$hc, d$ref_date)
+
+  # One snapshot and no rate table: returns before any selection
+  single <- suppressMessages(simulate_promotions_transfers(
+    d$hc_user[snap == d$ref_date], d$hp_user[snap == d$ref_date], scale,
+    movement_policy(rate = 0.1), ref_date = d$ref_date, column_spec_args = user_spec))
+  expect_identical(names(single$movers_dt), c("pid", "from_group", "to_group"))
+
+  # A rate table that matches nobody: demand is empty, so nobody is selected
+  rates <- data.table(from_group = "x", to_group = "y", movement_rate = 0)
+  none <- simulate_promotions_transfers(
+    d$hc_user, d$hp_user, scale, movement_policy(table = rates),
+    ref_date = d$ref_date, column_spec_args = user_spec)
+  expect_identical(names(none$movers_dt), c("pid", "from_group", "to_group"))
+})
+
+test_that("simulate_promotions_transfers(): the caller's tables are left unchanged", {
+  # Guard: the run works on copies, never on the caller's tables.
+  d <- renamed_fixture()
+  hc_before <- copy(d$hc_user)
+  hp_before <- copy(d$hp_user)
+  simulate_promotions_transfers(d$hc_user, d$hp_user, movement_scale(d$hc, d$ref_date),
+                                movement_policy(), ref_date = d$ref_date,
+                                column_spec_args = user_spec)
+  expect_identical(d$hc_user, hc_before)
+  expect_identical(d$hp_user, hp_before)
+})
+
+test_that("simulate_promotions_transfers(): a column the run needs must exist, and unused keys are not checked", {
+  d <- renamed_fixture()
+  run <- function(spec) simulate_promotions_transfers(
+    d$hc_user, d$hp_user, movement_scale(d$hc, d$ref_date), movement_policy(),
+    ref_date = d$ref_date, column_spec_args = spec)
+
+  for (key in c("personnel_id_col", "contract_id_col", "start_date_col", "end_date_col",
+                "salary_col", "contract_type_col", "status_col")) {
+    bad <- modifyList(user_spec, setNames(list("not_a_column"), key))
+    expect_error(run(bad), paste0(key, " = 'not_a_column'"), fixed = TRUE)
+  }
+
+  # Movement never reads birth dates or a stored age, so it does not ask for them
+  unused <- modifyList(user_spec, list(birth_date_col = "not_a_column", age_col = "also_not"))
+  expect_no_error(run(unused))
+})
+
+test_that("simulate_promotions_transfers(): matched movers raise no false 'unmatched' warning", {
+  # Every destination is in the pay table, so nobody can be unmatched
+  d <- renamed_fixture()
+  expect_no_warning(simulate_promotions_transfers(
+    d$hc_user, d$hp_user, movement_scale(d$hc, d$ref_date), movement_policy(),
+    ref_date = d$ref_date, column_spec_args = user_spec))
+})
+
+test_that("identify_movers(): time in grade uses the caller's snapshot column", {
+  # Called directly on a panel, so time in grade comes from the snapshots.
+  # If the snapshot column were not found it would come from contract start
+  # dates instead, and rank people differently.
+  d <- renamed_fixture()
+  demand <- move_both_ways(movement_policy(), movement_policy(), d)$default$demand_dt
+  policy <- movement_policy("tenure")
+  default_movers <- identify_movers(d$hc, d$hp[ref_date == d$ref_date], demand, policy,
+                                    d$ref_date)
+  user_movers <- identify_movers(d$hc_user, d$hp_user[snap == d$ref_date], demand, policy,
+                                 d$ref_date, column_spec_args = .column_spec(user_spec))
+  expect_gt(nrow(default_movers), 0L)
+  expect_equal(setnames(copy(user_movers), "pid", "personnel_id"), default_movers)
+})
+
+test_that("compute_time_in_grade(): every path answers under the caller's ID column", {
+  d <- renamed_fixture()
+  spec <- .column_spec(user_spec)
+  to_default <- function(dt) setnames(copy(dt), "pid", "personnel_id")
+
+  # Several snapshots: earliest snapshot in the current grade
+  many_default <- compute_time_in_grade(d$hc, d$ref_date, "paygrade")
+  many_user    <- compute_time_in_grade(d$hc_user, d$ref_date, "paygrade", column_spec_args = spec)
+  expect_identical(names(many_user), c("pid", "time_in_grade"))
+  expect_equal(to_default(many_user), many_default)
+
+  # One snapshot: falls back to the contract start date
+  one_default <- compute_time_in_grade(d$hc[ref_date == d$ref_date], d$ref_date, "paygrade")
+  one_user    <- compute_time_in_grade(d$hc_user[snap == d$ref_date], d$ref_date, "paygrade",
+                                       column_spec_args = spec)
+  expect_identical(names(one_user), c("pid", "time_in_grade"))
+  expect_equal(to_default(one_user), one_default)
+
+  # Nobody active
+  gone <- copy(d$hc_user)[, tipo := "inactive"]
+  empty <- compute_time_in_grade(gone, d$ref_date, "paygrade", column_spec_args = spec)
+  expect_identical(names(empty), c("pid", "time_in_grade"))
+  expect_equal(nrow(empty), 0L)
+})
+
+
+# ---- simulate_hiring() --------------------------------------------------------
+
+# As for movement, the pay table's column is named so the current detection
+# finds it. Detection and paying new hires in the caller's pay column are the
+# pay-column work (B-11, B-31). Until then the check warns that the pay table
+# lacks the pay column; that one warning is expected here.
+hiring_scale <- function(d) {
+  # Includes the bundled data's missing paygrade: staff there can be replaced
+  # too, and new hires must find a row in the pay table
+  d$hc[ref_date == d$ref_date, .(salary = mean(gross_salary_lcu, na.rm = TRUE)), by = paygrade]
+}
+
+hire_quietly <- function(...) {
+  withCallingHandlers(
+    simulate_hiring(...),
+    warning = function(w) {
+      if (grepl("salary_scale does not contain", conditionMessage(w), fixed = TRUE)) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+}
+
+# Retirees retiring at the fixture's snapshot, under each run's own names
+retirees_of <- function(hc, hp, ref, wage_col, spec = list()) {
+  simulate_retirement(hc, hp, ref_date = ref, column_spec_args = spec, policy_params = list(
+    group_cols = NULL, policy_table = NULL,
+    defaults = list(eligibility_type = "age_only", min_age = 60, pension_type = "rate",
+                    pension_rate = 0.5, ref_wage_col = wage_col)
+  ))$retirees_dt
+}
+
+hire_both_ways <- function(policy, retirees_default = NULL, retirees_user = NULL,
+                           d = renamed_fixture(), seed = 1L) {
+  set.seed(seed)
+  default_run <- hire_quietly(d$hc, d$hp, policy_params = policy,
+                              retirees_dt = retirees_default, ref_date = d$ref_date)
+  set.seed(seed)
+  user_run <- hire_quietly(d$hc_user, d$hp_user, policy_params = policy,
+                           retirees_dt = retirees_user, ref_date = d$ref_date,
+                           column_spec_args = user_spec)
+  list(default = default_run, user = user_run)
+}
+
+expect_same_hiring <- function(runs, new_hires = TRUE) {
+  tables <- if (new_hires) c("new_hires_dt", "new_hire_contracts_dt") else character(0)
+  expect_same_results_in_user_names(runs, tables)
+  expect_equal(runs$user$adjustment_dt, runs$default$adjustment_dt)
+}
+
+# Current staff per grade, so targets can sit above or below it
+grade_stock <- function(d) {
+  compute_current_stock(d$hc[ref_date == d$ref_date], d$hp[ref_date == d$ref_date],
+                        d$ref_date, group_cols = "paygrade")[!is.na(paygrade)]
+}
+
+test_that("simulate_hiring(): flow mode with a retirees table works on renamed columns", {
+  d <- renamed_fixture()
+  policy <- list(mode = "flow", group_cols = "paygrade", replacement_rate = 1,
+                 salary_scale = hiring_scale(d))
+  runs <- hire_both_ways(policy,
+                         retirees_of(d$hc, d$hp, d$ref_date, "gross_salary_lcu"),
+                         retirees_of(d$hc_user, d$hp_user, d$ref_date, "bruto", user_spec))
+  expect_gt(runs$default$summary$n_new_hires, 0L)
+  expect_same_hiring(runs)
+})
+
+test_that("simulate_hiring(): flow mode recovers the groups of a bare retirees table", {
+  # A retirees table holding only IDs: the groups come from the contract table
+  d <- renamed_fixture()
+  policy <- list(mode = "flow", group_cols = "paygrade", replacement_rate = 1,
+                 salary_scale = hiring_scale(d))
+  ids_default <- retirees_of(d$hc, d$hp, d$ref_date, "gross_salary_lcu")[, .(personnel_id)]
+  ids_user    <- retirees_of(d$hc_user, d$hp_user, d$ref_date, "bruto", user_spec)[, .(pid)]
+  runs <- hire_both_ways(policy, ids_default, ids_user)
+  expect_gt(runs$default$summary$n_new_hires, 0L)
+  expect_same_hiring(runs)
+})
+
+test_that("simulate_hiring(): flow mode finds retirees itself on renamed columns", {
+  # No retirees table: eligibility is worked out from the policy
+  d <- renamed_fixture()
+  policy <- list(mode = "flow", group_cols = "paygrade", replacement_rate = 1,
+                 salary_scale = hiring_scale(d),
+                 defaults = list(eligibility_type = "age_only", min_age = 60))
+  d$hc <- d$hc[ref_date == d$ref_date];  d$hp <- d$hp[ref_date == d$ref_date]
+  d$hc_user <- d$hc_user[snap == d$ref_date];  d$hp_user <- d$hp_user[snap == d$ref_date]
+  runs <- hire_both_ways(policy, d = d)
+  expect_gt(runs$default$summary$n_new_hires, 0L)
+  expect_same_hiring(runs)
+})
+
+test_that("simulate_hiring(): stock mode hires and downsizes on renamed columns", {
+  # Every other grade grows or shrinks, so both branches run. Pay saved by
+  # downsizing is read from the caller's pay column.
+  d <- renamed_fixture()
+  for (strategy in c("last_hired_first", "random")) {
+    stock <- grade_stock(d)
+    targets <- stock[, .(paygrade, target_stock = fifelse(seq_len(.N) %% 2L == 0L,
+                                                          current_stock + 2L,
+                                                          pmax(current_stock - 2L, 0L)))]
+    policy <- list(mode = "stock", group_cols = "paygrade", stock_targets = targets,
+                   salary_scale = hiring_scale(d), removal_strategy = strategy)
+    runs <- hire_both_ways(policy)
+    expect_gt(runs$default$summary$n_new_hires, 0L)
+    expect_true(any(runs$default$adjustment_dt$net_change < 0L))
+    expect_same_hiring(runs)
+  }
+})
+
+test_that("simulate_hiring(): downsizing with no groups reads the caller's columns", {
+  # Hiring with no groups is a separate open bug (B-32); shrinking works
+  d <- renamed_fixture()
+  stock <- compute_current_stock(d$hc[ref_date == d$ref_date], d$hp[ref_date == d$ref_date],
+                                 d$ref_date)$current_stock
+  policy <- list(mode = "stock", group_cols = NULL,
+                 stock_targets = data.table(target_stock = stock - 5L))
+  runs <- hire_both_ways(policy)
+  expect_equal(sum(runs$default$adjustment_dt$net_change), -5L)
+  expect_lt(runs$default$summary$total_new_salary_cost, 0)
+  expect_same_hiring(runs, new_hires = FALSE)
+})
+
+test_that("simulate_hiring(): combined mode works on renamed columns", {
+  d <- renamed_fixture()
+  stock <- grade_stock(d)
+  policy <- list(mode = "combined", group_cols = "paygrade", replacement_rate = 0.1,
+                 stock_targets = stock[, .(paygrade, target_stock = current_stock)],
+                 salary_scale = hiring_scale(d))
+  runs <- hire_both_ways(policy)
+  expect_gt(runs$default$summary$n_new_hires, 0L)
+  expect_same_hiring(runs)
+})
+
+test_that("simulate_hiring(): status-quo mode works on renamed columns", {
+  d <- renamed_fixture()
+  rates <- grade_stock(d)[, .(paygrade, hiring_rate = 0.1)]
+  policy <- list(mode = "status_quo", group_cols = "paygrade", squorate_dt = rates,
+                 salary_scale = hiring_scale(d))
+  runs <- hire_both_ways(policy)
+  expect_gt(runs$default$summary$n_new_hires, 0L)
+  expect_same_hiring(runs)
+})
+
+test_that("simulate_hiring(): a run with no change reports headcount on renamed columns", {
+  d <- renamed_fixture()
+  policy <- list(mode = "flow", group_cols = NULL, replacement_rate = 0)
+  retirees_default <- retirees_of(d$hc, d$hp, d$ref_date, "gross_salary_lcu")
+  retirees_user    <- retirees_of(d$hc_user, d$hp_user, d$ref_date, "bruto", user_spec)
+  runs <- hire_both_ways(policy, retirees_default, retirees_user)
+  expect_gt(runs$default$summary$total_headcount, 0L)
+  expect_equal(runs$user$summary, runs$default$summary)
+  expect_equal(nrow(runs$user$new_hires_dt), 0L)
+})
+
+test_that("simulate_hiring(): the caller's tables are left unchanged", {
+  # Guard: the run works on copies, never on the caller's tables.
+  d <- renamed_fixture()
+  hc_before <- copy(d$hc_user)
+  hp_before <- copy(d$hp_user)
+  retirees <- retirees_of(d$hc_user, d$hp_user, d$ref_date, "bruto", user_spec)
+  retirees_before <- copy(retirees)
+  hire_quietly(d$hc_user, d$hp_user,
+               policy_params = list(mode = "flow", group_cols = "paygrade", replacement_rate = 1,
+                                    salary_scale = hiring_scale(d)),
+               retirees_dt = retirees, ref_date = d$ref_date, column_spec_args = user_spec)
+  expect_identical(d$hc_user, hc_before)
+  expect_identical(d$hp_user, hp_before)
+  expect_identical(retirees, retirees_before)
+})
+
+test_that("simulate_hiring(): tables with no snapshot column are left unchanged by downsizing", {
+  # Guard: with no snapshot column nothing is subset first, so only the entry
+  # copies keep downsizing, which edits in place, away from the caller's tables.
+  d <- exit_fixture()
+  hc <- copy(d$hc_user)[, snap := NULL]
+  hp <- copy(d$hp_user)[, snap := NULL]
+  hc_before <- copy(hc)
+  hp_before <- copy(hp)
+  stock <- compute_current_stock(d$hc, d$hp, d$ref_date)$current_stock
+  hire_quietly(hc, hp,
+               policy_params = list(mode = "stock", group_cols = NULL,
+                                    stock_targets = data.table(target_stock = stock - 5L)),
+               ref_date = d$ref_date, column_spec_args = user_spec)
+  expect_identical(hc, hc_before)
+  expect_identical(hp, hp_before)
+})
+
+test_that("simulate_hiring(): a column the run needs must exist, and unused keys are not checked", {
+  d <- renamed_fixture()
+  policy <- list(mode = "stock", group_cols = "paygrade",
+                 stock_targets = grade_stock(d)[, .(paygrade, target_stock = current_stock)],
+                 salary_scale = hiring_scale(d))
+  run <- function(spec) hire_quietly(d$hc_user, d$hp_user, policy_params = policy,
+                                     ref_date = d$ref_date, column_spec_args = spec)
+
+  for (key in c("personnel_id_col", "contract_id_col", "start_date_col", "end_date_col",
+                "salary_col", "contract_type_col", "status_col")) {
+    bad <- modifyList(user_spec, setNames(list("not_a_column"), key))
+    expect_error(run(bad), paste0(key, " = 'not_a_column'"), fixed = TRUE)
+  }
+
+  # Without flow-mode eligibility, hiring never reads birth dates or a stored age
+  unused <- modifyList(user_spec, list(birth_date_col = "not_a_column", age_col = "also_not"))
+  expect_no_error(run(unused))
+})
+
+
+# ---- simulate_allowances() ----------------------------------------------------
+
+allowances_both_ways <- function(policy_default, policy_user, ledger_default = NULL,
+                                 ledger_user = NULL, types = c("hazard", "transport")) {
+  d <- exit_fixture()
+  list(
+    default = simulate_allowances(d$hc, d$hp, allowance_dt = ledger_default,
+                                  policy_params = policy_default, ref_date = d$ref_date,
+                                  allowance_types = types),
+    user    = simulate_allowances(d$hc_user, d$hp_user, allowance_dt = ledger_user,
+                                  policy_params = policy_user, ref_date = d$ref_date,
+                                  allowance_types = types, column_spec_args = user_spec)
+  )
+}
+
+test_that("simulate_allowances(): a scalar amount works on renamed columns", {
+  policy <- list(group_cols = NULL, policy_table = NULL, defaults = list(amount = 100))
+  runs <- allowances_both_ways(policy, policy)
+  expect_gt(runs$default$summary$allowance_cost_total, 0)
+  expect_same_results_in_user_names(runs, "allowance_dt")
+})
+
+test_that("simulate_allowances(): amounts and multipliers grouped on a renamed column", {
+  policy <- function(type_col) list(
+    group_cols   = c(type_col, "allowance_type"),
+    policy_table = setnames(data.table(x = "permanent", allowance_type = "hazard", amount = 250),
+                            "x", type_col),
+    defaults     = list(amount = 10),
+    multiplier_group_cols   = type_col,
+    multiplier_policy_table = setnames(data.table(x = "fixed-term", total_allowance_multiplier = 2),
+                                       "x", type_col)
+  )
+  runs <- allowances_both_ways(policy("contract_type"), policy("tipo"))
+  expect_true(all(c(10, 20, 250) %in% runs$default$allowance_dt$amount))
+  expect_same_results_in_user_names(runs, "allowance_dt")
+})
+
+test_that("simulate_allowances(): pensioner and inactive rows are left out under a renamed type column", {
+  d <- exit_fixture()
+  hc <- copy(d$hc_user)
+  hc[1:10, tipo := "pensioner"]
+  run <- simulate_allowances(hc, d$hp_user,
+                             policy_params = list(group_cols = NULL, policy_table = NULL,
+                                                  defaults = list(amount = 100)),
+                             ref_date = d$ref_date, allowance_types = "hazard",
+                             column_spec_args = user_spec)
+  expect_false(any(run$allowance_dt$cid %in% hc$cid[1:10]))
+})
+
+test_that("simulate_allowances(): an empty ledger uses the caller's ID columns", {
+  # No policy: nothing is resolved, but the ledger still has the caller's names
+  d <- exit_fixture()
+  run <- simulate_allowances(d$hc_user, d$hp_user, policy_params = NULL, ref_date = d$ref_date,
+                             column_spec_args = user_spec)
+  expect_identical(names(run$allowance_dt),
+                   c("cid", "pid", "allowance_type", "amount", "period_date"))
+  expect_equal(nrow(run$allowance_dt), 0L)
+})
+
+test_that("simulate_allowances(): the ledger carries forward under the caller's names", {
+  policy <- list(group_cols = NULL, policy_table = NULL, defaults = list(amount = 100))
+  first <- allowances_both_ways(policy, policy)
+  runs  <- allowances_both_ways(policy, policy, first$default$allowance_dt, first$user$allowance_dt)
+  expect_equal(nrow(runs$user$allowance_dt), 2L * nrow(first$user$allowance_dt))
+  expect_same_results_in_user_names(runs, "allowance_dt")
+})
+
+test_that("simulate_allowances(): a column the run needs must exist, and unused keys are not checked", {
+  d <- exit_fixture()
+  policy <- list(group_cols = NULL, policy_table = NULL, defaults = list(amount = 100))
+  run <- function(spec) simulate_allowances(d$hc_user, d$hp_user, policy_params = policy,
+                                            ref_date = d$ref_date, allowance_types = "hazard",
+                                            column_spec_args = spec)
+  for (key in c("personnel_id_col", "contract_id_col", "contract_type_col")) {
+    bad <- modifyList(user_spec, setNames(list("not_a_column"), key))
+    expect_error(run(bad), paste0(key, " = 'not_a_column'"), fixed = TRUE)
+  }
+
+  # Allowances never read the pay column or contract dates, so they do not ask for them
+  unused <- modifyList(user_spec, list(salary_col = "not_a_column", start_date_col = "also_not"))
+  expect_no_error(run(unused))
+})

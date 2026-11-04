@@ -16,7 +16,7 @@ RoxygenNote: 7.3.3
 Imports:
     methods,
     data.table,
-    govhr (>= 0.4.0)
+    govhr (>= 0.4.4)
 Suggests:
     testthat (>= 3.0.0),
     future,

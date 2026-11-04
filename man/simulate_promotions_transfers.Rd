@@ -10,14 +10,7 @@ simulate_promotions_transfers(
   salary_scale_dt,
   policy_params,
   ref_date,
-  ref_date_col = "ref_date",
-  personnel_id_col = "personnel_id",
-  contract_id_col = "contract_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  column_spec_args = list()
 )
 }
 \arguments{
@@ -33,14 +26,14 @@ time-in-grade calculation.
 
 Must contain at least the columns identified by \code{personnel_id_col},
 \code{contract_id_col}, \code{start_date_col}, \code{end_date_col},
-\code{contract_type_col}, and \code{salary_col}.}
+\code{contract_type_col}, and \code{salary_col} in \code{column_spec_args}.}
 
 \item{personnel_dt}{A \code{data.table} (or object coercible to a
 \code{data.table}) containing the personnel register in \strong{govhr} harmonized
 format.
 
 Must contain at least the columns identified by \code{personnel_id_col} and
-\code{status_col}.}
+\code{status_col} in \code{column_spec_args}.}
 
 \item{salary_scale_dt}{A \code{data.table} keyed on \code{group_cols} containing
 the reference salary for each group. Used both to validate movement
@@ -91,37 +84,34 @@ fields are recognised:\tabular{ll}{
 projection period. Used to select the workforce snapshot, compute
 time-in-grade, and compute overall tenure.}
 
-\item{ref_date_col}{Character scalar giving the name of the reference
-date column used in workforce panel datasets. Used to identify and
-iterate over snapshot pairs during baseline estimation and time-in-grade
-calculation. Default is \code{"ref_date"}.}
+\item{column_spec_args}{A named list saying what your columns are called,
+so the function can read your data as it is. List only the names that
+differ from the \strong{govhr} harmonized defaults; for example
+\code{list(personnel_id_col = "pid", salary_col = "bruto")}. Your names are used
+throughout, so the returned tables keep them, and you write the same names
+in \code{group_cols} and \code{promotion_order_col}. The same list can be passed to
+every \strong{govhrcast} function; keys a function does not use are ignored, and
+an unknown key is an error.
 
-\item{personnel_id_col}{Character scalar giving the unique personnel
-identifier shared by both \code{contract_dt} and \code{personnel_dt}.
-Default is \code{"personnel_id"}.}
-
-\item{contract_id_col}{Character scalar identifying unique contracts.
-Default is \code{"contract_id"}.}
-
-\item{start_date_col}{Character scalar identifying the contract start
-date column. Used to compute tenure and as a fallback for time-in-grade
-when panel history is unavailable. Default is \code{"start_date"}.}
-
-\item{end_date_col}{Character scalar identifying the contract end date
-column. Active contracts contain \code{NA} here. Default is \code{"end_date"}.}
-
-\item{salary_col}{Character scalar identifying the primary salary column
-in \code{contract_dt}. Used to capture pre-move salaries for reporting and
-to assign post-move salaries when \code{salary_update_rule = "scale"}.
-Default is \code{"gross_salary_lcu"}.}
-
-\item{contract_type_col}{Character scalar identifying the contract type
-variable. Contracts of type \code{"inactive"} or \code{"pensioner"} are excluded
-from movement. Default is \code{"contract_type"}.}
-
-\item{status_col}{Character scalar identifying the employment status
-variable in \code{personnel_dt}. Only personnel with status \code{"active"} are
-included in the eligible pool. Default is \code{"employment_status"}.}
+Keys used here (default in brackets):
+\itemize{
+\item \code{ref_date_col} (\code{"ref_date"}): snapshot date of a panel. Used to pick the
+snapshot to simulate and to compare consecutive snapshots when estimating
+the baseline.
+\item \code{personnel_id_col} (\code{"personnel_id"}): person identifier, in both tables.
+\item \code{contract_id_col} (\code{"contract_id"}): contract identifier. Used to count
+each contract once when calculating tenure.
+\item \code{start_date_col}, \code{end_date_col} (\code{"start_date"}, \code{"end_date"}): contract
+dates, used to find active contracts and to calculate tenure. Open
+contracts have \code{NA} end dates.
+\item \code{salary_col} (\code{"gross_salary_lcu"}): pay column in \code{contract_dt}. Records
+pay before the move and, under \code{salary_update_rule = "scale"}, receives
+the destination group's pay.
+\item \code{contract_type_col} (\code{"contract_type"}): contracts of type \code{"inactive"}
+or \code{"pensioner"} cannot move.
+\item \code{status_col} (\code{"employment_status"}): only people with status \code{"active"}
+can move.
+}}
 }
 \value{
 A named list with six elements:
@@ -153,7 +143,7 @@ personnel-level status fields in the current implementation.
 A \code{data.table} containing one row per employee who moved during the
 current period, with columns:\tabular{ll}{
    Column \tab Description \cr
-   \code{personnel_id} \tab Employee identifier \cr
+   your \code{personnel_id_col} \tab Employee identifier \cr
    \code{from_group} \tab Origin group key (\verb{\|\|}-concatenated \code{group_cols} values) \cr
    \code{to_group} \tab Destination group key \cr
    \code{salary_before} \tab Salary at the time of movement, before any update \cr
@@ -405,7 +395,7 @@ results <- simulate_promotions_transfers(
   salary_scale_dt = salary_scale_dt,
   policy_params   = movement_policy,
   ref_date        = ref_date,
-  salary_col      = "gross_salary_cpi"
+  column_spec_args = list(salary_col = "gross_salary_cpi")
 )
 
 results$summary
@@ -454,7 +444,7 @@ results_reform <- simulate_promotions_transfers(
   salary_scale_dt = salary_scale_dt,
   policy_params   = movement_policy_reform,
   ref_date        = ref_date,
-  salary_col      = "gross_salary_cpi"
+  column_spec_args = list(salary_col = "gross_salary_cpi")
 )
 
 results_reform$summary
@@ -490,7 +480,7 @@ results_promotions <- simulate_promotions_transfers(
   salary_scale_dt = salary_scale_grade,
   policy_params   = movement_policy_promotions,
   ref_date        = ref_date,
-  salary_col      = "gross_salary_cpi"
+  column_spec_args = list(salary_col = "gross_salary_cpi")
 )
 
 results_promotions$summary
@@ -526,7 +516,7 @@ results_transfers <- simulate_promotions_transfers(
   salary_scale_dt = salary_scale_est,
   policy_params   = movement_policy_transfers,
   ref_date        = ref_date,
-  salary_col      = "gross_salary_cpi"
+  column_spec_args = list(salary_col = "gross_salary_cpi")
 )
 
 results_transfers$summary
@@ -558,7 +548,7 @@ results_keep <- simulate_promotions_transfers(
   salary_scale_dt = salary_scale_dt,
   policy_params   = movement_policy_keep,
   ref_date        = ref_date,
-  salary_col      = "gross_salary_cpi"
+  column_spec_args = list(salary_col = "gross_salary_cpi")
 )
 
 # Confirm salaries unchanged: salary_before should equal

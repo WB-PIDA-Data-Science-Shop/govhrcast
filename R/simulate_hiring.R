@@ -24,21 +24,35 @@
 #'   }
 #' @param retirees_dt data.table. Optional. Output from simulate_retirement (default: NULL)
 #' @param ref_date Date. Reference date for hiring simulation
-#' @param ref_date_col Character. Name of reference date column in panel data (default: "ref_date")
-#' @param personnel_id_col Character. Name of personnel ID column (default: "personnel_id")
-#' @param birth_date_col Character. Name of birth date column (default: "birth_date")
-#' @param contract_id_col Character. Name of contract ID column (default: "contract_id")
-#' @param start_date_col Character. Name of start date column (default: "start_date")
-#' @param end_date_col Character. Name of end date column (default: "end_date")
-#' @param salary_col Character. Name of salary column (default: "gross_salary_lcu")
-#' @param contract_type_col Character. Name of contract type column (default: "contract_type")
-#' @param status_col Character. Name of status column (default: "employment_status")
-#' @param hire_date_col Character or \code{NULL}.  Name of a person-level column in
-#'   \code{personnel_dt} that holds the true administrative hire date
-#'   (e.g. \code{"first_employment_date"}).  When supplied and
-#'   \code{policy_params$mode = "status_quo"}, the function counts hires from
-#'   this column instead of using panel first-appearance detection.  Avoids
-#'   left-censoring bias.  Default \code{NULL} (panel first-appearance fallback).
+#' @param column_spec_args A named list saying what your columns are called,
+#'   so the function can read your data as it is. List only the names that
+#'   differ from the **govhr** harmonized defaults; for example
+#'   `list(personnel_id_col = "pid", salary_col = "bruto")`. Your names are used
+#'   throughout, so the returned tables keep them, and you write the same names
+#'   in `group_cols`, `stock_targets`, `replacement_rate` and `salary_scale`.
+#'   The same list can be passed to every **govhrcast** function; keys a function
+#'   does not use are ignored, and an unknown key is an error.
+#'
+#'   Keys used here (default in brackets):
+#'
+#'   * `ref_date_col` (`"ref_date"`): snapshot date of a panel. When the contract
+#'     table holds several snapshots, the one nearest (but not later than)
+#'     `ref_date` is used.
+#'   * `personnel_id_col` (`"personnel_id"`): person identifier, in both tables.
+#'   * `contract_id_col` (`"contract_id"`): contract identifier, generated for
+#'     new contracts.
+#'   * `start_date_col`, `end_date_col` (`"start_date"`, `"end_date"`): contract
+#'     dates, used to find active contracts. New hires start on `ref_date` with
+#'     an open end date; contracts ended by downsizing get `ref_date`.
+#'   * `salary_col` (`"gross_salary_lcu"`): pay column. Picks each person's main
+#'     contract and gives the pay saved by downsizing.
+#'   * `contract_type_col` (`"contract_type"`): new hires are `"permanent"`;
+#'     contracts ended by downsizing become `"terminated"`.
+#'   * `status_col` (`"employment_status"`): only `"active"` people count towards
+#'     headcount. New hires are `"active"`; people let go become `"inactive"`.
+#'   * Flow mode only, when it works out retirees itself: `birth_date_col`
+#'     (`"birth_date"`), `age_col` (`"age"`) and `tenure_col`
+#'     (`"personnel_tenure"`), as in [simulate_retirement()].
 #'
 #' @return List containing:
 #'   \describe{
@@ -136,34 +150,22 @@ simulate_hiring <- function(contract_dt,
                            policy_params,
                            retirees_dt = NULL,
                            ref_date,
-                           ref_date_col = "ref_date",
-                           personnel_id_col = "personnel_id",
-                           birth_date_col = "birth_date",
-                           contract_id_col = "contract_id",
-                           start_date_col = "start_date",
-                           end_date_col = "end_date",
-                           salary_col = "gross_salary_lcu",
-                           contract_type_col = "contract_type",
-                           status_col         = "employment_status",
-                           hire_date_col = NULL) {
+                           column_spec_args = list()) {
   
   # ========================================
   # 1. Input Validation
   # ========================================
+  # The caller's column names, with defaults for any not given; the same
+  # list is passed to every step below
+  cols <- .column_spec(column_spec_args)
   check_hiring_inputs(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
     policy_params = policy_params,
     ref_date = ref_date,
-    personnel_id_col = personnel_id_col,
-    birth_date_col = birth_date_col,
-    contract_id_col = contract_id_col,
-    start_date_col = start_date_col,
-    end_date_col = end_date_col,
-    salary_col = salary_col,
-    contract_type_col = contract_type_col,
-    status_col = status_col
+    column_spec_args = cols
   )
+  ref_date_col <- cols$ref_date_col
   
   # Convert to data.table and create working copies
   # We copy here to avoid modifying the user's input data
@@ -204,13 +206,7 @@ simulate_hiring <- function(contract_dt,
     policy_params = policy_params,
     retirees_dt = retirees_dt,
     ref_date = ref_date,
-    hire_date_col = hire_date_col,
-    personnel_id_col = personnel_id_col,
-    birth_date_col = birth_date_col,
-    start_date_col = start_date_col,
-    end_date_col = end_date_col,
-    contract_type_col = contract_type_col,
-    status_col = status_col
+    column_spec_args = cols
   )
   
   # Rename total_hires to net_change for clarity in update function
@@ -224,13 +220,9 @@ simulate_hiring <- function(contract_dt,
       personnel_dt = personnel_dt,
       ref_date = ref_date,
       group_cols = NULL,  # Overall
-      personnel_id_col = personnel_id_col,
-      start_date_col = start_date_col,
-      end_date_col = end_date_col,
-      contract_type_col = contract_type_col,
-      status_col = status_col
+      column_spec_args = cols
     )
-    
+
     summary_tbl <- data.table::data.table(
       n_new_hires = 0L,
       net_headcount_change = 0L,
@@ -258,15 +250,9 @@ simulate_hiring <- function(contract_dt,
     adjustment_dt = adjustment_dt,
     policy_params = policy_params,
     ref_date = ref_date,
-    personnel_id_col = personnel_id_col,
-    contract_id_col = contract_id_col,
-    start_date_col = start_date_col,
-    end_date_col = end_date_col,
-    salary_col = salary_col,
-    contract_type_col = contract_type_col,
-    status_col = status_col
+    column_spec_args = cols
   )
-  
+
   # Extract updated data.tables and new hire information
   contract_dt <- update_results$contract_dt
   personnel_dt <- update_results$personnel_dt
@@ -303,19 +289,16 @@ simulate_hiring <- function(contract_dt,
     personnel_dt = personnel_dt,
     ref_date = ref_date,
     group_cols = NULL,  # Overall
-    personnel_id_col = personnel_id_col,
-    start_date_col = start_date_col,
-    end_date_col = end_date_col,
-    contract_type_col = contract_type_col,
-    status_col = status_col
+    column_spec_args = cols
   )
-  
+
   summary_tbl <- compute_hiring_summary(
     adjustment_dt = adjustment_dt,
     new_hires_dt = new_hires_dt,
     new_contracts_dt = new_contracts_dt,
     terminated_contracts_dt = terminated_contracts_dt,
-    total_headcount = final_headcount$current_stock
+    total_headcount = final_headcount$current_stock,
+    salary_col = cols$salary_col
   )
   
   # ========================================

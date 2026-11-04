@@ -65,7 +65,7 @@ test_that("estimate_retirement_hazard_rates matches a direct govhr::estimate_dec
   panel_check[, age_yr_int := as.integer(age)]
   expected <- govhr::estimate_decrement_rates(
     personnel         = panel_check,
-    age_col           = "age_yr_int",
+    duration_col      = "age_yr_int",
     status_col        = "employment_status",
     personnel_id_col  = "personnel_id",
     ref_date_col      = "ref_date",
@@ -98,7 +98,7 @@ test_that("estimate_retirement_hazard_rates matches a direct govhr::estimate_dec
   panel_check[, age_yr_int := as.integer(age)]
   expected <- govhr::estimate_decrement_rates(
     personnel         = panel_check,
-    age_col           = "age_yr_int",
+    duration_col      = "age_yr_int",
     status_col        = "employment_status",
     personnel_id_col  = "personnel_id",
     ref_date_col      = "ref_date",
@@ -138,7 +138,7 @@ test_that("estimate_retirement_hazard_rates smooth = TRUE matches a direct govhr
   panel_check[, age_yr_int := as.integer(age)]
   raw <- govhr::estimate_decrement_rates(
     personnel         = panel_check,
-    age_col           = "age_yr_int",
+    duration_col      = "age_yr_int",
     status_col        = "employment_status",
     personnel_id_col  = "personnel_id",
     ref_date_col      = "ref_date",
@@ -146,7 +146,7 @@ test_that("estimate_retirement_hazard_rates smooth = TRUE matches a direct govhr
   )
   smoothed <- suppressWarnings(govhr::smooth_decrement_rates(
     decrements = raw,
-    age_col    = "age_yr_int",
+    duration_col = "age_yr_int",
     status_col = "employment_status",
     group_cols = character(0)
   ))

@@ -742,7 +742,7 @@ test_that("check_retirement_inputs validates required contract columns", {
 
   expect_error(
     check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "Columns not found in contract_dt: contract_type"
+    "contract_type_col = .contract_type.: column not found in contract_dt"
   )
 })
 
@@ -770,7 +770,7 @@ test_that("check_retirement_inputs validates required personnel columns", {
 
   expect_error(
     check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "Columns not found in personnel_dt: employment_status"
+    "status_col = .employment_status.: column not found in personnel_dt"
   )
 })
 

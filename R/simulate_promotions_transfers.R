@@ -229,14 +229,14 @@
 #'
 #' Must contain at least the columns identified by `personnel_id_col`,
 #' `contract_id_col`, `start_date_col`, `end_date_col`,
-#' `contract_type_col`, and `salary_col`.
+#' `contract_type_col`, and `salary_col` in `column_spec_args`.
 #'
 #' @param personnel_dt A `data.table` (or object coercible to a
 #' `data.table`) containing the personnel register in **govhr** harmonized
 #' format.
 #'
 #' Must contain at least the columns identified by `personnel_id_col` and
-#' `status_col`.
+#' `status_col` in `column_spec_args`.
 #'
 #' @param salary_scale_dt A `data.table` keyed on `group_cols` containing
 #' the reference salary for each group. Used both to validate movement
@@ -251,37 +251,33 @@
 #' projection period. Used to select the workforce snapshot, compute
 #' time-in-grade, and compute overall tenure.
 #'
-#' @param ref_date_col Character scalar giving the name of the reference
-#' date column used in workforce panel datasets. Used to identify and
-#' iterate over snapshot pairs during baseline estimation and time-in-grade
-#' calculation. Default is `"ref_date"`.
+#' @param column_spec_args A named list saying what your columns are called,
+#' so the function can read your data as it is. List only the names that
+#' differ from the **govhr** harmonized defaults; for example
+#' `list(personnel_id_col = "pid", salary_col = "bruto")`. Your names are used
+#' throughout, so the returned tables keep them, and you write the same names
+#' in `group_cols` and `promotion_order_col`. The same list can be passed to
+#' every **govhrcast** function; keys a function does not use are ignored, and
+#' an unknown key is an error.
 #'
-#' @param personnel_id_col Character scalar giving the unique personnel
-#' identifier shared by both `contract_dt` and `personnel_dt`.
-#' Default is `"personnel_id"`.
+#' Keys used here (default in brackets):
 #'
-#' @param contract_id_col Character scalar identifying unique contracts.
-#' Default is `"contract_id"`.
-#'
-#' @param start_date_col Character scalar identifying the contract start
-#' date column. Used to compute tenure and as a fallback for time-in-grade
-#' when panel history is unavailable. Default is `"start_date"`.
-#'
-#' @param end_date_col Character scalar identifying the contract end date
-#' column. Active contracts contain `NA` here. Default is `"end_date"`.
-#'
-#' @param salary_col Character scalar identifying the primary salary column
-#' in `contract_dt`. Used to capture pre-move salaries for reporting and
-#' to assign post-move salaries when `salary_update_rule = "scale"`.
-#' Default is `"gross_salary_lcu"`.
-#'
-#' @param contract_type_col Character scalar identifying the contract type
-#' variable. Contracts of type `"inactive"` or `"pensioner"` are excluded
-#' from movement. Default is `"contract_type"`.
-#'
-#' @param status_col Character scalar identifying the employment status
-#' variable in `personnel_dt`. Only personnel with status `"active"` are
-#' included in the eligible pool. Default is `"employment_status"`.
+#' * `ref_date_col` (`"ref_date"`): snapshot date of a panel. Used to pick the
+#'   snapshot to simulate and to compare consecutive snapshots when estimating
+#'   the baseline.
+#' * `personnel_id_col` (`"personnel_id"`): person identifier, in both tables.
+#' * `contract_id_col` (`"contract_id"`): contract identifier. Used to count
+#'   each contract once when calculating tenure.
+#' * `start_date_col`, `end_date_col` (`"start_date"`, `"end_date"`): contract
+#'   dates, used to find active contracts and to calculate tenure. Open
+#'   contracts have `NA` end dates.
+#' * `salary_col` (`"gross_salary_lcu"`): pay column in `contract_dt`. Records
+#'   pay before the move and, under `salary_update_rule = "scale"`, receives
+#'   the destination group's pay.
+#' * `contract_type_col` (`"contract_type"`): contracts of type `"inactive"`
+#'   or `"pensioner"` cannot move.
+#' * `status_col` (`"employment_status"`): only people with status `"active"`
+#'   can move.
 #'
 #' @return
 #' A named list with six elements:
@@ -318,7 +314,7 @@
 #'
 #'   | Column | Description |
 #'   |:-------|:------------|
-#'   | `personnel_id` | Employee identifier |
+#'   | your `personnel_id_col` | Employee identifier |
 #'   | `from_group` | Origin group key (`\|\|`-concatenated `group_cols` values) |
 #'   | `to_group` | Destination group key |
 #'   | `salary_before` | Salary at the time of movement, before any update |
@@ -380,7 +376,7 @@
 #'   salary_scale_dt = salary_scale_dt,
 #'   policy_params   = movement_policy,
 #'   ref_date        = ref_date,
-#'   salary_col      = "gross_salary_cpi"
+#'   column_spec_args = list(salary_col = "gross_salary_cpi")
 #' )
 #'
 #' results$summary
@@ -429,7 +425,7 @@
 #'   salary_scale_dt = salary_scale_dt,
 #'   policy_params   = movement_policy_reform,
 #'   ref_date        = ref_date,
-#'   salary_col      = "gross_salary_cpi"
+#'   column_spec_args = list(salary_col = "gross_salary_cpi")
 #' )
 #'
 #' results_reform$summary
@@ -465,7 +461,7 @@
 #'   salary_scale_dt = salary_scale_grade,
 #'   policy_params   = movement_policy_promotions,
 #'   ref_date        = ref_date,
-#'   salary_col      = "gross_salary_cpi"
+#'   column_spec_args = list(salary_col = "gross_salary_cpi")
 #' )
 #'
 #' results_promotions$summary
@@ -501,7 +497,7 @@
 #'   salary_scale_dt = salary_scale_est,
 #'   policy_params   = movement_policy_transfers,
 #'   ref_date        = ref_date,
-#'   salary_col      = "gross_salary_cpi"
+#'   column_spec_args = list(salary_col = "gross_salary_cpi")
 #' )
 #'
 #' results_transfers$summary
@@ -533,7 +529,7 @@
 #'   salary_scale_dt = salary_scale_dt,
 #'   policy_params   = movement_policy_keep,
 #'   ref_date        = ref_date,
-#'   salary_col      = "gross_salary_cpi"
+#'   column_spec_args = list(salary_col = "gross_salary_cpi")
 #' )
 #'
 #' # Confirm salaries unchanged: salary_before should equal
@@ -577,30 +573,24 @@ simulate_promotions_transfers <- function(contract_dt,
                                           salary_scale_dt,
                                           policy_params,
                                           ref_date,
-                                          ref_date_col       = "ref_date",
-                                          personnel_id_col   = "personnel_id",
-                                          contract_id_col    = "contract_id",
-                                          start_date_col     = "start_date",
-                                          end_date_col       = "end_date",
-                                          salary_col         = "gross_salary_lcu",
-                                          contract_type_col  = "contract_type",
-                                          status_col         = "employment_status") {
+                                          column_spec_args = list()) {
 
   # ======================================================================
   # 1. Input Validation
   # ======================================================================
+  # The caller's column names, with defaults for any not given; the same
+  # list is passed to every step below
+  cols <- .column_spec(column_spec_args)
   check_movement_inputs(
-    contract_dt       = contract_dt,
-    personnel_dt      = personnel_dt,
-    salary_scale_dt   = salary_scale_dt,
-    policy_params     = policy_params,
-    ref_date          = ref_date,
-    personnel_id_col  = personnel_id_col,
-    start_date_col    = start_date_col,
-    end_date_col      = end_date_col,
-    contract_type_col = contract_type_col,
-    status_col        = status_col
+    contract_dt      = contract_dt,
+    personnel_dt     = personnel_dt,
+    salary_scale_dt  = salary_scale_dt,
+    policy_params    = policy_params,
+    ref_date         = ref_date,
+    column_spec_args = cols
   )
+  ref_date_col     <- cols$ref_date_col
+  personnel_id_col <- cols$personnel_id_col
 
   # Convert ref_date early (accepts string or Date)
   ref_date <- validate_date_format(ref_date, "ref_date")
@@ -646,9 +636,9 @@ simulate_promotions_transfers <- function(contract_dt,
         group_cols        = group_cols,
         personnel_id_col  = personnel_id_col,
         ref_date_col      = ref_date_col,
-        start_date_col    = start_date_col,
-        end_date_col      = end_date_col,
-        contract_type_col = contract_type_col
+        start_date_col    = cols$start_date_col,
+        end_date_col      = cols$end_date_col,
+        contract_type_col = cols$contract_type_col
       ),
       error = function(e) NULL
     )
@@ -696,11 +686,7 @@ simulate_promotions_transfers <- function(contract_dt,
   if (n_snapshots < 2L && is.null(policy_params$policy_table)) {
     message("No movement baseline available: contract_dt contains only one ",
             "snapshot and policy_table is NULL. Returning 0 movers.")
-    empty_movers <- data.table::data.table(
-      personnel_id = character(0),
-      from_group   = character(0),
-      to_group     = character(0)
-    )
+    empty_movers <- .movers_table(character(0), character(0), character(0), personnel_id_col)
     empty_demand <- data.table::data.table(
       from_group    = character(0),
       to_group      = character(0),
@@ -731,12 +717,12 @@ simulate_promotions_transfers <- function(contract_dt,
   active_before <- get_active_contracts(
     contract_dt = snap_contract_dt,
     ref_date = selected_ref_date,
-    start_date_col = start_date_col,
-    end_date_col = end_date_col,
-    contract_type_col = contract_type_col
+    start_date_col = cols$start_date_col,
+    end_date_col = cols$end_date_col,
+    contract_type_col = cols$contract_type_col
   )
   active_before <- active_before[
-    snap_personnel_dt[get(status_col) == "active"],
+    snap_personnel_dt[get(cols$status_col) == "active"],
     on = personnel_id_col, nomatch = NULL
   ]
   stock_before <- data.table::uniqueN(active_before[[personnel_id_col]])
@@ -752,17 +738,13 @@ simulate_promotions_transfers <- function(contract_dt,
   # a flat scalar across the active workforce.
   if (!is.null(baseline_matrix)) {
     demand_dt <- compute_movement_demand(
-      contract_dt       = snap_contract_dt,
-      personnel_dt      = snap_personnel_dt,
-      baseline_matrix   = baseline_matrix,
-      policy_params     = policy_params,
-      salary_scale_dt   = salary_scale_dt,
-      ref_date          = selected_ref_date,
-      personnel_id_col  = personnel_id_col,
-      start_date_col    = start_date_col,
-      end_date_col      = end_date_col,
-      contract_type_col = contract_type_col,
-      status_col        = status_col
+      contract_dt      = snap_contract_dt,
+      personnel_dt     = snap_personnel_dt,
+      baseline_matrix  = baseline_matrix,
+      policy_params    = policy_params,
+      salary_scale_dt  = salary_scale_dt,
+      ref_date         = selected_ref_date,
+      column_spec_args = cols
     )
   } else if (is.null(policy_params$defaults$movement_rate)) {
     # No usable baseline (e.g. the panel shows no transitions, or a
@@ -783,16 +765,12 @@ simulate_promotions_transfers <- function(contract_dt,
   } else {
     baseline_matrix <- data.table::data.table()   # keep downstream code clean
     demand_dt <- compute_fixed_rate_movements(
-      contract_dt       = snap_contract_dt,
-      personnel_dt      = snap_personnel_dt,
-      salary_scale_dt   = salary_scale_dt,
-      policy_params     = policy_params,
-      ref_date          = selected_ref_date,
-      personnel_id_col  = personnel_id_col,
-      start_date_col    = start_date_col,
-      end_date_col      = end_date_col,
-      contract_type_col = contract_type_col,
-      status_col        = status_col
+      contract_dt      = snap_contract_dt,
+      personnel_dt     = snap_personnel_dt,
+      salary_scale_dt  = salary_scale_dt,
+      policy_params    = policy_params,
+      ref_date         = selected_ref_date,
+      column_spec_args = cols
     )
   }
 
@@ -800,11 +778,7 @@ simulate_promotions_transfers <- function(contract_dt,
   # 7. Identify Movers (selection engine)
   # ======================================================================
   if (is.null(demand_dt) || nrow(demand_dt) == 0 || sum(demand_dt$n_movers) == 0) {
-    empty_movers <- data.table::data.table(
-      personnel_id = character(0),
-      from_group   = character(0),
-      to_group     = character(0)
-    )
+    empty_movers <- .movers_table(character(0), character(0), character(0), personnel_id_col)
 
     summary_tbl <- compute_movement_summary(
       movers_dt       = empty_movers,
@@ -825,19 +799,13 @@ simulate_promotions_transfers <- function(contract_dt,
   }
 
   movers_dt <- identify_movers(
-    contract_dt       = snap_contract_dt,
-    personnel_dt      = snap_personnel_dt,
-    demand_dt         = demand_dt,
-    policy_params     = policy_params,
-    ref_date          = selected_ref_date,
-    baseline_matrix   = baseline_matrix,
-    personnel_id_col  = personnel_id_col,
-    start_date_col    = start_date_col,
-    end_date_col      = end_date_col,
-    contract_type_col = contract_type_col,
-    salary_col        = salary_col,
-    status_col        = status_col,
-    ref_date_col      = ref_date_col
+    contract_dt      = snap_contract_dt,
+    personnel_dt     = snap_personnel_dt,
+    demand_dt        = demand_dt,
+    policy_params    = policy_params,
+    ref_date         = selected_ref_date,
+    baseline_matrix  = baseline_matrix,
+    column_spec_args = cols
   )
 
   # ======================================================================
@@ -851,10 +819,7 @@ simulate_promotions_transfers <- function(contract_dt,
     salary_scale_dt   = salary_scale_dt,
     ref_date          = selected_ref_date,
     personnel_id_col  = personnel_id_col,
-    salary_col        = salary_col,
-    start_date_col    = start_date_col,
-    end_date_col      = end_date_col,
-    contract_type_col = contract_type_col
+    salary_col        = cols$salary_col
   )
 
   snap_contract_dt  <- update_result$contract_dt

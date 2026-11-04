@@ -445,8 +445,7 @@ test_that("simulate_retirement works with package data", {
     contract_dt  = bra_hrmis_contract,
     personnel_dt = bra_hrmis_personnel,
     ref_date     = ref_date,
-    policy_params = policy_params,
-    status_col   = "employment_status"
+    policy_params = policy_params
   )
 
   expect_type(result, "list")

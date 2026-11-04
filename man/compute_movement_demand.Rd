@@ -11,11 +11,7 @@ compute_movement_demand(
   policy_params,
   salary_scale_dt,
   ref_date,
-  personnel_id_col = "personnel_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -35,15 +31,8 @@ read here.}
 
 \item{ref_date}{Date or character. Reference date}
 
-\item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
-
-\item{start_date_col}{Character. Start date column (default: "start_date")}
-
-\item{end_date_col}{Character. End date column (default: "end_date")}
-
-\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
-
-\item{status_col}{Character. Status column (default: "employment_status")}
+\item{column_spec_args}{Complete column specification from
+\code{.column_spec()}.}
 }
 \value{
 data.table with columns:

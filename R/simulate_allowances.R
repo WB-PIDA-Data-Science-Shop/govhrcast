@@ -51,12 +51,25 @@
 #'   \code{unique(policy_params$policy_table$allowance_type)} -- so it only
 #'   needs to be supplied explicitly for a purely scalar policy with no
 #'   \code{policy_table}.
-#' @param contract_type_col Character. Default \code{"contract_type"}. Rows
-#'   with this in \code{c("pensioner", "inactive")} are excluded -- see
-#'   \code{\link{resolve_allowance_amounts}} for why this can't be inferred
-#'   from row absence.
-#' @param personnel_id_col Character. Default \code{"personnel_id"}.
-#' @param contract_id_col Character. Default \code{"contract_id"}.
+#' @param column_spec_args A named list saying what your columns are called,
+#'   so the function can read your data as it is. List only the names that
+#'   differ from the \strong{govhr} harmonized defaults; for example
+#'   \code{list(personnel_id_col = "pid")}. Your names are used throughout, so
+#'   the ledger keeps them, and you write the same names in \code{group_cols}
+#'   and \code{multiplier_group_cols}. The same list can be passed to every
+#'   \strong{govhrcast} function; keys a function does not use are ignored, and
+#'   an unknown key is an error.
+#'
+#'   Keys used here (default in brackets):
+#'   \itemize{
+#'     \item \code{personnel_id_col} (\code{"personnel_id"}) and
+#'       \code{contract_id_col} (\code{"contract_id"}): identify each ledger
+#'       row.
+#'     \item \code{contract_type_col} (\code{"contract_type"}): rows with this
+#'       in \code{c("pensioner", "inactive")} are excluded -- see
+#'       \code{\link{resolve_allowance_amounts}} for why this can't be inferred
+#'       from row absence.
+#'   }
 #'
 #' @return Named list:
 #'   \describe{
@@ -139,19 +152,25 @@ simulate_allowances <- function(contract_dt,
                                 policy_params,
                                 ref_date,
                                 allowance_types    = NULL,
-                                contract_type_col  = "contract_type",
-                                personnel_id_col   = "personnel_id",
-                                contract_id_col    = "contract_id") {
+                                column_spec_args   = list()) {
 
   ref_date <- validate_date_format(ref_date, "ref_date")
 
+  # The caller's column names, with defaults for any not given
+  cols <- .column_spec(column_spec_args)
+  contract_id_col <- cols$contract_id_col
+
   if (is.null(policy_params)) {
-    empty_ledger <- allowance_dt %||% data.table::data.table(
-      contract_id    = character(0),
-      personnel_id   = character(0),
-      allowance_type = character(0),
-      amount         = numeric(0),
-      period_date    = as.Date(character(0))
+    empty_ledger <- allowance_dt %||% data.table::setnames(
+      data.table::data.table(
+        .contract        = character(0),
+        .person          = character(0),
+        allowance_type   = character(0),
+        amount           = numeric(0),
+        period_date      = as.Date(character(0))
+      ),
+      c(".contract", ".person"),
+      c(contract_id_col, cols$personnel_id_col)
     )
     return(list(
       contract_dt  = contract_dt,
@@ -164,13 +183,11 @@ simulate_allowances <- function(contract_dt,
   }
 
   check_allowance_inputs(
-    contract_dt       = contract_dt,
-    personnel_dt      = personnel_dt,
-    policy_params     = policy_params,
-    ref_date          = ref_date,
-    contract_type_col = contract_type_col,
-    personnel_id_col  = personnel_id_col,
-    contract_id_col   = contract_id_col
+    contract_dt      = contract_dt,
+    personnel_dt     = personnel_dt,
+    policy_params    = policy_params,
+    ref_date         = ref_date,
+    column_spec_args = cols
   )
 
   if (is.null(allowance_types)) {
@@ -187,8 +204,8 @@ simulate_allowances <- function(contract_dt,
     contract_dt       = contract_dt,
     policy_params     = policy_params,
     allowance_types   = allowance_types,
-    contract_type_col = contract_type_col,
-    personnel_id_col  = personnel_id_col,
+    contract_type_col = cols$contract_type_col,
+    personnel_id_col  = cols$personnel_id_col,
     contract_id_col   = contract_id_col
   )
 

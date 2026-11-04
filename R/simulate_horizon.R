@@ -457,22 +457,28 @@ simulate_scenario <- function(contract_dt,
   retirees_dt      <- NULL
 
 
+  # Transition (ADR 0012): the column names travel as one spec; this
+  # function's own *_col arguments go when it is converted
+  column_spec_args <- list(
+    personnel_id_col  = personnel_id_col,
+    contract_id_col   = contract_id_col,
+    birth_date_col    = birth_date_col,
+    start_date_col    = start_date_col,
+    end_date_col      = end_date_col,
+    salary_col        = salary_col,
+    contract_type_col = contract_type_col,
+    status_col        = status_col,
+    age_col           = age_col,
+    tenure_col        = tenure_col
+  )
+
  if (!is.null(retirement_policy)) {
     ret_result <- simulate_retirement(
       contract_dt             = contract_dt,
       personnel_dt            = personnel_dt,
       policy_params           = retirement_policy,
       ref_date                = period_date,
-      personnel_id_col        = personnel_id_col,
-      contract_id_col         = contract_id_col,
-      birth_date_col          = birth_date_col,
-      start_date_col          = start_date_col,
-      end_date_col            = end_date_col,
-      salary_col              = salary_col,
-      contract_type_col       = contract_type_col,
-      status_col              = status_col,
-      age_col                 = age_col,
-      tenure_col              = tenure_col
+      column_spec_args        = column_spec_args
     )
     retirees_dt  <- ret_result$retirees_dt
     contract_dt  <- ret_result$contract_dt
@@ -513,18 +519,11 @@ simulate_scenario <- function(contract_dt,
 
   if (!is.null(exit_policy)) {
     exit_result <- simulate_exits(
-      contract_dt       = contract_dt,
-      personnel_dt      = personnel_dt,
-      policy_params     = exit_policy,
-      ref_date          = period_date,
-      personnel_id_col  = personnel_id_col,
-      birth_date_col    = birth_date_col,
-      start_date_col    = start_date_col,
-      contract_id_col   = contract_id_col,
-      contract_type_col = contract_type_col,
-      status_col        = status_col,
-      salary_col        = salary_col,
-      end_date_col      = end_date_col
+      contract_dt      = contract_dt,
+      personnel_dt     = personnel_dt,
+      policy_params    = exit_policy,
+      ref_date         = period_date,
+      column_spec_args = column_spec_args
     )
     contract_dt          <- exit_result$contract_dt
     personnel_dt         <- exit_result$personnel_dt
@@ -547,13 +546,7 @@ simulate_scenario <- function(contract_dt,
       salary_scale_dt   = data.table::copy(salary_scale_dt),
       policy_params     = movement_policy,
       ref_date          = period_date,
-      personnel_id_col  = personnel_id_col,
-      contract_id_col   = contract_id_col,
-      start_date_col    = start_date_col,
-      end_date_col      = end_date_col,
-      salary_col        = salary_col,
-      contract_type_col = contract_type_col,
-      status_col        = status_col
+      column_spec_args  = column_spec_args
     )
 
     movers_dt    <- mov_result$movers_dt
@@ -623,14 +616,7 @@ simulate_scenario <- function(contract_dt,
       policy_params     = hiring_policy,
       retirees_dt       = retirees_dt,
       ref_date          = period_date,
-      personnel_id_col  = personnel_id_col,
-      contract_id_col   = contract_id_col,
-      start_date_col    = start_date_col,
-      end_date_col      = end_date_col,
-      salary_col        = salary_col,
-      contract_type_col = contract_type_col,
-      status_col        = status_col,
-      hire_date_col     = hire_date_col
+      column_spec_args  = column_spec_args
     )
 
     contract_dt  <- hire_result$contract_dt
@@ -664,9 +650,7 @@ simulate_scenario <- function(contract_dt,
       allowance_dt  = allowance_dt,
       policy_params = allowance_policy,
       ref_date      = period_date,
-      contract_type_col = contract_type_col,
-      personnel_id_col  = personnel_id_col,
-      contract_id_col   = contract_id_col
+      column_spec_args = column_spec_args
     )
     allowance_dt       <- alw_result$allowance_dt
     allowance_cost_end <- alw_result$summary$allowance_cost_total
@@ -1178,24 +1162,13 @@ simulate_horizon <- function(contract_dt,
   # 0. Validate and set up
   # ====================================================================
 
-  # column_spec_args / output_control_args: caller supplies only the keys
-  # they want to override (utils::modifyList() layers them onto the full
-  # defaults below), so e.g. column_spec_args = list(age_col = "age_yrs")
-  # is sufficient -- every other column name keeps its default.
-  .default_column_spec <- list(
-    personnel_id_col  = "personnel_id",
-    contract_id_col   = "contract_id",
-    start_date_col    = "start_date",
-    end_date_col      = "end_date",
-    salary_col        = "gross_salary_lcu",
-    contract_type_col = "contract_type",
-    status_col        = "employment_status",
-    age_col           = NULL,
-    tenure_col        = NULL,
-    birth_date_col    = "birth_date",
-    hire_date_col     = NULL
-  )
-  column_spec_args <- utils::modifyList(.default_column_spec, column_spec_args)
+  # column_spec_args / output_control_args: the caller supplies only the keys
+  # they want to override, e.g. column_spec_args = list(age_col = "age_yrs");
+  # every other name keeps its govhr default. Unknown keys, malformed values,
+  # two keys naming one column, and mapped columns missing from the data all
+  # stop the run here, before any work starts.
+  column_spec_args <- .column_spec(column_spec_args)
+  .check_spec_columns(contract_dt, personnel_dt, column_spec_args)
   personnel_id_col  <- column_spec_args$personnel_id_col
   contract_id_col   <- column_spec_args$contract_id_col
   start_date_col    <- column_spec_args$start_date_col
@@ -1208,12 +1181,7 @@ simulate_horizon <- function(contract_dt,
   birth_date_col    <- column_spec_args$birth_date_col
   hire_date_col     <- column_spec_args$hire_date_col
 
-  .default_output_control <- list(
-    scenario_name    = NULL,
-    is_baseline      = FALSE,
-    return_microdata = FALSE
-  )
-  output_control_args <- utils::modifyList(.default_output_control, output_control_args)
+  output_control_args <- .output_control(output_control_args)
   scenario_name    <- output_control_args$scenario_name
   is_baseline      <- output_control_args$is_baseline
   return_microdata <- output_control_args$return_microdata
@@ -1390,6 +1358,9 @@ simulate_horizon <- function(contract_dt,
   # precedence. Either way the panels are then dropped from the policy, so
   # the policy -- which is returned in $metadata -- holds only the small rate
   # table, never person-level data.
+  # Without rates there is no status quo to reproduce, so a failed estimate
+  # or a missing panel stops the run with a clear error rather than
+  # projecting zero hiring (pass hiring_policy = NULL to run without hiring).
   if (!is.null(hiring_policy) && identical(hiring_policy$mode, "status_quo")) {
     if (.has_panel_) {
       hiring_policy$squorate_dt <- tryCatch(
@@ -1404,12 +1375,19 @@ simulate_horizon <- function(contract_dt,
           contract_type_col  = contract_type_col,
           status_col         = status_col
         ),
-        error = function(e) {
-          warning("simulate_horizon: historical rate estimation failed ",
-                  conditionMessage(e), ". No hiring will be simulated",
-                  call. = FALSE)
-          hiring_policy <- NULL
-        }
+        error = function(e) stop(
+          "simulate_horizon: could not estimate status-quo hiring rates from the ",
+          "panel: ", conditionMessage(e), ". Check hiring_policy$group_cols, or ",
+          "supply the rates yourself in hiring_policy$squorate_dt.",
+          call. = FALSE
+        )
+      )
+    } else if (is.null(hiring_policy$squorate_dt)) {
+      stop(
+        "simulate_horizon: status-quo hiring needs a panel with at least two ",
+        "ref_date snapshots to estimate hiring rates from, or a squorate_dt you ",
+        "supply in hiring_policy (e.g. from estimate_historical_hiring_rates()).",
+        call. = FALSE
       )
     }
     hiring_policy$panel_contract_dt  <- NULL
@@ -1600,9 +1578,7 @@ simulate_horizon <- function(contract_dt,
       allowance_dt  = NULL,
       policy_params = allowance_policy,
       ref_date      = ref_date,
-      contract_type_col = contract_type_col,
-      personnel_id_col  = personnel_id_col,
-      contract_id_col   = contract_id_col
+      column_spec_args = column_spec_args
     )
     period0_allowance_cost <- alw0$summary$allowance_cost_total
   }
@@ -1722,9 +1698,6 @@ simulate_horizon <- function(contract_dt,
   # with is_baseline = TRUE.
   # ------------------------------------------------------------------
   if (!is.null(scenario_name)) {
-    if (!is.character(scenario_name) || length(scenario_name) != 1L)
-      stop("scenario_name must be a single character string or NULL.",
-           call. = FALSE)
     summary_dt[, scenario_id    := scenario_name]
     summary_dt[, scenario_label := scenario_name]
   }

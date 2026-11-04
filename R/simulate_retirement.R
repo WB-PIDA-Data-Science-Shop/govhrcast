@@ -187,101 +187,40 @@ utils::globalVariables(c(
 #' * select the appropriate workforce snapshot, and
 #' * stamp retirement dates onto closed contracts.
 #'
-#' @param ref_date_col Character scalar giving the name of the reference
-#' date column used in workforce panel datasets.
+#' @param column_spec_args A named list saying what your columns are called,
+#' so the function can read your data as it is. List only the names that
+#' differ from the **govhr** harmonized defaults; for example
+#' `list(personnel_id_col = "pid", age_col = "idade")`. Your names are used
+#' throughout, so the returned tables keep them, and you write the same names
+#' in `group_cols`, `policy_table`, `retire_strategy`, `ref_wage_col` and
+#' inside `eligibility_rule` / `pension_formula`. The same list can be passed
+#' to every **govhrcast** function; keys a function does not use are ignored,
+#' and an unknown key is an error.
 #'
-#' If this column is present and contains multiple unique dates,
-#' `simulate_retirement()` automatically selects the snapshot nearest
-#' (but not later than) `ref_date`.
+#' Keys used here (default in brackets):
 #'
-#' Ignored when only a single workforce snapshot is supplied.
-#'
-#' Default is `"ref_date"`.
-#'
-#' @param personnel_id_col Character scalar giving the unique personnel
-#' identifier shared by both `contract_dt` and `personnel_dt`.
-#'
-#' Default is `"personnel_id"`.
-#'
-#' @param birth_date_col Character scalar giving the column containing each
-#' employee's date of birth.
-#'
-#' Used to calculate age whenever `age_col` is unavailable or contains
-#' missing values.
-#'
-#' Default is `"birth_date"`.
-#'
-#' @param contract_id_col Character scalar identifying unique contracts.
-#'
-#' Used internally when constructing employment histories and resolving
-#' duplicate contract records.
-#'
-#' Default is `"contract_id"`.
-#'
-#' @param start_date_col Character scalar identifying the contract start
-#' date column.
-#'
-#' Used when computing employee tenure.
-#'
-#' Default is `"start_date"`.
-#'
-#' @param end_date_col Character scalar identifying the contract end date
-#' column.
-#'
-#' Active contracts should contain `NA` in this column.
-#'
-#' Retiring employees have this value replaced with `ref_date`.
-#'
-#' Default is `"end_date"`.
-#'
-#' @param salary_col Character scalar identifying the primary salary column.
-#'
-#' This column is used when preparing retiree records and when updating
-#' contracts after retirement.
-#'
-#' Depending on the selected pension formula, pension calculations may
-#' instead use the column specified by `policy_params$defaults$ref_wage_col`.
-#'
-#' Default is `"gross_salary_lcu"`.
-#'
-#' @param contract_type_col Character scalar identifying the contract type
-#' variable.
-#'
-#' Only contract types listed in
-#' `policy_params$defaults$active_types`
-#' are considered eligible for retirement.
-#'
-#' Contracts belonging to retiring employees are reclassified as
-#' `"pensioner"` before being returned.
-#'
-#' Default is `"contract_type"`.
-#'
-#' @param status_col Character scalar identifying the employment status
-#' variable in `personnel_dt`.
-#'
-#' Personnel records corresponding to retiring employees are updated to
-#' `"inactive"`.
-#'
-#' Default is `"employment_status"`.
-#'
-#' @param age_col Character scalar giving the name of a pre-computed age
-#' variable.
-#'
-#' When this column exists and contains non-missing values, age is read
-#' directly instead of being calculated from `birth_date_col`.
-#'
-#' Default is `"age"`.
-#'
-#' @param tenure_col Character scalar giving the name of a pre-computed
-#' tenure variable measured in years.
-#'
-#' When available, this variable is used directly instead of reconstructing
-#' tenure from contract histories.
-#'
-#' Default is `"personnel_tenure"`, the name in the `govhr` harmonized
-#' dictionary. Whichever column supplies it (or if it is calculated from
-#' contracts), tenure is available to custom eligibility rules and pension
-#' formulas as `tenure_years`.
+#' * `personnel_id_col` (`"personnel_id"`): person identifier, in both tables.
+#' * `contract_id_col` (`"contract_id"`): contract identifier.
+#' * `ref_date_col` (`"ref_date"`): snapshot date of a panel. When the
+#'   contract table holds several snapshots, the one nearest (but not later
+#'   than) `ref_date` is used.
+#' * `start_date_col`, `end_date_col` (`"start_date"`, `"end_date"`):
+#'   contract dates, used for tenure and to find active contracts. Open
+#'   contracts have `NA` end dates; retiring employees' contracts get
+#'   `ref_date`.
+#' * `salary_col` (`"gross_salary_lcu"`): pay column. Picks each retiree's
+#'   main contract, is set to 0 on contracts that close, and is the pension
+#'   wage base unless `ref_wage_col` names another column.
+#' * `contract_type_col` (`"contract_type"`): only types in `active_types`
+#'   can retire; closing contracts become `"pensioner"`.
+#' * `status_col` (`"employment_status"`): set to `"inactive"` for retirees.
+#' * `birth_date_col` (`"birth_date"`): used to calculate age when no age
+#'   column is available.
+#' * `age_col`, `tenure_col` (`"age"`, `"personnel_tenure"`): pre-computed
+#'   age and years of service on `personnel_dt`, used when present instead of
+#'   calculating them. Set to `NULL` to always calculate. Whichever source is
+#'   used, custom rules and pension formulas can read them as `age` and
+#'   `tenure_years`.
 #' @return
 #' A named list with four elements:
 #'
@@ -441,34 +380,24 @@ simulate_retirement <- function(contract_dt,
                                     replacement_cap  = 0.80
                                   )
                                 ),
-                                ref_date_col = "ref_date",
-                                personnel_id_col = "personnel_id",
-                                birth_date_col = "birth_date",
-                                contract_id_col = "contract_id",
-                                start_date_col = "start_date",
-                                end_date_col = "end_date",
-                                salary_col = "gross_salary_lcu",
-                                contract_type_col = "contract_type",
-                                status_col         = "employment_status",
-                                age_col    = "age",
-                                tenure_col = "personnel_tenure") {
-  
+                                column_spec_args = list()) {
+
   # ========================================
   # 1. Input Validation
+  # ========================================
+  # The caller's column names, with defaults for any not given; the same
+  # list is passed to every step below
+  cols <- .column_spec(column_spec_args)
   check_retirement_inputs(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
     policy_params = policy_params,
     ref_date = ref_date,
-    personnel_id_col = personnel_id_col,
-    birth_date_col = birth_date_col,
-    contract_id_col = contract_id_col,
-    start_date_col = start_date_col,
-    end_date_col = end_date_col,
-    contract_type_col = contract_type_col,
-    status_col = status_col
+    column_spec_args = cols
   )
-  
+  personnel_id_col <- cols$personnel_id_col
+  ref_date_col     <- cols$ref_date_col
+
   # Convert to data.table and create working copies
   # We copy here to avoid modifying the user's input data
   if (!data.table::is.data.table(contract_dt)) {
@@ -503,9 +432,9 @@ simulate_retirement <- function(contract_dt,
   .etype <- policy_params$defaults$eligibility_type %||% "age_only"
 
   if (identical(.etype, "hazard_rate")) {
-    # Hazard-rate path: compute_status_quo_retirements() returns personnel_id
+    # Hazard-rate path: compute_status_quo_retirements() returns the ID
     # + the age it already computed internally, so adapt it to the
-    # eligibility_dt shape prepare_retiree_data() expects below (personnel_id
+    # eligibility_dt shape prepare_retiree_data() expects below (ID
     # / retire / age / tenure_years) without discarding that age -- discarding
     # it and leaving NA would force prepare_retiree_data() to recompute age
     # from birth_date_col downstream, which fails when age was pre-computed
@@ -513,38 +442,22 @@ simulate_retirement <- function(contract_dt,
     # tenure_years is left NA regardless -- compute_status_quo_retirements()
     # never computes it, and prepare_retiree_data()'s tenure fallback (via
     # compute_tenure() on contract_dt) doesn't share that fragility.
-    .selected <- compute_status_quo_retirements(
+    eligibility_dt <- compute_status_quo_retirements(
       contract_dt = contract_dt,
       personnel_dt = personnel_dt,
       policy_params = policy_params,
       ref_date = ref_date,  # Use user's ref_date for age calculation
-      personnel_id_col = personnel_id_col,
-      birth_date_col = birth_date_col,
-      start_date_col = start_date_col,
-      end_date_col = end_date_col,
-      contract_type_col = contract_type_col,
-      status_col = status_col,
-      age_col = age_col
+      column_spec_args = cols
     )
-    eligibility_dt <- data.table::data.table(
-      personnel_id = .selected$personnel_id,
-      retire       = 1L,
-      age          = .selected$age,
-      tenure_years = NA_real_
-    )
+    eligibility_dt[, c("retire", "tenure_years") := list(rep(1L, .N), rep(NA_real_, .N))]
+    data.table::setcolorder(eligibility_dt, c(personnel_id_col, "retire", "age", "tenure_years"))
   } else {
     eligibility_dt <- identify_eligibility(
       contract_dt = contract_dt,
       personnel_dt = personnel_dt,
       policy_params = policy_params,
       ref_date = ref_date,  # Use user's ref_date for age/tenure calculation
-      personnel_id_col = personnel_id_col,
-      birth_date_col = birth_date_col,
-      start_date_col = start_date_col,
-      end_date_col = end_date_col,
-      contract_type_col = contract_type_col,
-      age_col    = age_col,
-      tenure_col = tenure_col
+      column_spec_args = cols
     )
   }
   
@@ -556,13 +469,7 @@ simulate_retirement <- function(contract_dt,
     contract_dt       = contract_dt,
     personnel_dt      = personnel_dt,
     ref_date          = ref_date,  # Use user's ref_date
-    personnel_id_col  = personnel_id_col,
-    birth_date_col    = birth_date_col,
-    contract_id_col   = contract_id_col,
-    start_date_col    = start_date_col,
-    end_date_col      = end_date_col,
-    salary_col        = salary_col,
-    contract_type_col = contract_type_col
+    column_spec_args  = cols
   )
   
   # Handle case of no retirees
@@ -621,18 +528,13 @@ simulate_retirement <- function(contract_dt,
   # ========================================
   # 6. Update State
   # ========================================
-  
+
   # Update contracts (modifies contract_dt in place)
   update_contracts_for_retirees(
     contract_dt = contract_dt,
     retirees_dt = retirees_dt,
     ref_date = ref_date,  # Use user's ref_date
-    personnel_id_col = personnel_id_col,
-    contract_id_col = contract_id_col,
-    start_date_col = start_date_col,
-    end_date_col = end_date_col,
-    salary_col = salary_col,
-    contract_type_col = contract_type_col
+    column_spec_args = cols
   )
   
   # Update personnel (modifies personnel_dt in place)
@@ -640,8 +542,8 @@ simulate_retirement <- function(contract_dt,
     personnel_dt = personnel_dt,
     contract_dt = contract_dt,
     personnel_id_col = personnel_id_col,
-    contract_type_col = contract_type_col,
-    status_col = status_col
+    contract_type_col = cols$contract_type_col,
+    status_col = cols$status_col
   )
   
   # ========================================

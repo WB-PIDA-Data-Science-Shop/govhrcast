@@ -711,3 +711,34 @@ test_that("estimate_historical_exit_rates: grouped rates are pooled per group", 
   data.table::setkey(r, est_id)
   expect_equal(r$exit_rate, c(2 / 8, 1 / 9))
 })
+
+test_that("estimate_historical_exit_rates: people who retire are not counted as exits", {
+  # Regression test (B-17): retirements have their own module, so counting them
+  # here too would remove them twice. Of 10 active staff, P09 and P10 become
+  # pensioners and P08 simply leaves, so only 1 of 10 is an exit (not 3).
+  p <- make_rate_panel(list(1:10, 1:7))
+  pensioners <- data.table::data.table(ref_date = as.Date("2020-01-01"),
+                                       personnel_id = c("P09", "P10"),
+                                       employment_status = "pensioner")
+  pt <- data.table::rbindlist(list(p$pt, pensioners))
+  expect_equal(estimate_historical_exit_rates(p$ct, pt)$exit_rate, 1 / 10)
+})
+
+test_that("estimate_historical_exit_rates: events are read from the caller's status column", {
+  # The real status column is "situacao"; a decoy under the default name says
+  # nobody ever leaves, so reading the wrong column would give a different rate
+  p <- make_rate_panel(list(1:10, 1:7))
+  pt <- data.table::copy(p$pt)
+  pt[, situacao := employment_status]
+  pt[, employment_status := "pensioner"]
+  expect_equal(estimate_historical_exit_rates(p$ct, pt, status_col = "situacao")$exit_rate, 0.30)
+})
+
+test_that("estimate_historical_exit_rates: someone who later retires after a gap is not an exit", {
+  # P10 is absent from the middle snapshot, then appears as a pensioner.
+  p <- make_rate_panel(list(1:10, 1:9, 1:9))
+  pensioner <- data.table::data.table(ref_date = as.Date("2021-01-01"), personnel_id = "P10",
+                                      employment_status = "pensioner")
+  pt <- data.table::rbindlist(list(p$pt, pensioner))
+  expect_equal(estimate_historical_exit_rates(p$ct, pt)$exit_rate, 0)
+})

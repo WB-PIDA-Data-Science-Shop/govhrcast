@@ -24,7 +24,7 @@ NULL
 #'   \code{personnel_id_col}.
 #' @param ref_date Date.  Reference date; becomes the exit date.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default \code{"contract_type"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param active_types Character vector.  Contract type values to update.
 #'   Default \code{c("permanent", "fixed-term", "short-term")} — the
