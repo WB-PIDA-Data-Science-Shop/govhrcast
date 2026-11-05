@@ -10,14 +10,7 @@ simulate_promotions_transfers(
   salary_scale_dt,
   policy_params,
   ref_date,
-  ref_date_col = "ref_date",
-  personnel_id_col = "personnel_id",
-  contract_id_col = "contract_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  column_spec_args = list()
 )
 }
 \arguments{
@@ -33,14 +26,14 @@ time-in-grade calculation.
 
 Must contain at least the columns identified by \code{personnel_id_col},
 \code{contract_id_col}, \code{start_date_col}, \code{end_date_col},
-\code{contract_type_col}, and \code{salary_col}.}
+\code{contract_type_col}, and \code{salary_col} in \code{column_spec_args}.}
 
 \item{personnel_dt}{A \code{data.table} (or object coercible to a
 \code{data.table}) containing the personnel register in \strong{govhr} harmonized
 format.
 
 Must contain at least the columns identified by \code{personnel_id_col} and
-\code{status_col}.}
+\code{status_col} in \code{column_spec_args}.}
 
 \item{salary_scale_dt}{A \code{data.table} keyed on \code{group_cols} containing
 the reference salary for each group. Used both to validate movement
@@ -49,7 +42,7 @@ destinations (transitions whose \code{to_group} is absent from
 \code{salary_update_rule = "scale"}.
 
 Must have exactly one row per group — duplicate keys will cause an
-error. Must contain a numeric salary column matching \code{salary_col}.}
+error. Must contain a numeric column with the same name as \code{salary_col}.}
 
 \item{policy_params}{A named list describing the movement policy.
 
@@ -69,58 +62,56 @@ A \code{data.table} containing the transition baseline. Must have columns
 the \code{||}-concatenated values of \code{group_cols} (e.g.
 \code{"SECRETARIA||Grade A"}).
 
-Pass the output of \code{\link[=estimate_movement_baseline]{estimate_movement_baseline()}} for status quo
+Pass the output of \code{\link[=estimate_historical_movement_rates]{estimate_historical_movement_rates()}} for status quo
 projections, or supply a custom matrix for reform scenarios.
 
 Use \code{NULL} to trigger automatic estimation from panel data (requires
-≥2 snapshots) or flat scalar rate application (single snapshot).
+≥2 snapshots). With a single snapshot, \code{NULL} currently yields 0 movers.
 
 \strong{defaults}
 
 Named list containing default movement policy parameters. The following
 fields are recognised:\tabular{ll}{
    Parameter \tab Description \cr
-   \code{movement_rate} \tab Scalar attrition rate used when \code{policy_table = NULL} and only one snapshot is available \cr
-   \code{movement_strategy} \tab Mover selection rule: \code{"tenure"}, \code{"wage_based"}, \code{"reverse_tenure"}, or \code{"random"} \cr
-   \code{active_types} \tab Contract type values treated as eligible for movement. Must match actual \code{contract_type} values (e.g. \code{"permanent"}) \cr
-   \code{salary_update_rule} \tab \code{"scale"} (assign destination salary from \code{salary_scale_dt}) or \code{"keep"} (retain current salary) \cr
+   \code{movement_rate} \tab Scalar movement rate (share of each group's stock that moves per period). Used only as a fallback when \code{policy_table = NULL} and estimation from a multi-snapshot panel fails or finds zero transitions. Not applied to single-snapshot data (see \strong{Transition baseline}) \cr
+   \code{movement_strategy} \tab Mover selection rule: \code{"tenure"} (used when omitted), \code{"wage_based"}, \code{"reverse_tenure"}, or \code{"random"} \cr
+   \code{active_types} \tab Contract types the policy covers: only contracts of these types (or a blank type, which counts as staff) can move. Default: every contract whose type is not \code{"inactive"} or \code{"pensioner"} \cr
+   \code{salary_update_rule} \tab \code{"scale"} (default; assign destination salary from \code{salary_scale_dt}) or \code{"keep"} (retain current salary) \cr
+   \code{movement_type} \tab \code{"promotion"} (default) or \code{"transfer"}. Not used by this function; tells \code{\link[=simulate_horizon]{simulate_horizon()}} which column to report this policy's movers under \cr
 }}
 
 \item{ref_date}{A \code{Date} giving the simulation date for the current
 projection period. Used to select the workforce snapshot, compute
 time-in-grade, and compute overall tenure.}
 
-\item{ref_date_col}{Character scalar giving the name of the reference
-date column used in workforce panel datasets. Used to identify and
-iterate over snapshot pairs during baseline estimation and time-in-grade
-calculation. Default is \code{"ref_date"}.}
+\item{column_spec_args}{A named list saying what your columns are called,
+so the function can read your data as it is. List only the names that
+differ from the \strong{govhr} harmonized defaults; for example
+\code{list(personnel_id_col = "pid", salary_col = "bruto")}. Your names are used
+throughout, so the returned tables keep them, and you write the same names
+in \code{group_cols} and \code{promotion_order_col}. The same list can be passed to
+every \strong{govhrcast} function; keys a function does not use are ignored, and
+an unknown key is an error.
 
-\item{personnel_id_col}{Character scalar giving the unique personnel
-identifier shared by both \code{contract_dt} and \code{personnel_dt}.
-Default is \code{"personnel_id"}.}
-
-\item{contract_id_col}{Character scalar identifying unique contracts.
-Default is \code{"contract_id"}.}
-
-\item{start_date_col}{Character scalar identifying the contract start
-date column. Used to compute tenure and as a fallback for time-in-grade
-when panel history is unavailable. Default is \code{"start_date"}.}
-
-\item{end_date_col}{Character scalar identifying the contract end date
-column. Active contracts contain \code{NA} here. Default is \code{"end_date"}.}
-
-\item{salary_col}{Character scalar identifying the primary salary column
-in \code{contract_dt}. Used to capture pre-move salaries for reporting and
-to assign post-move salaries when \code{salary_update_rule = "scale"}.
-Default is \code{"gross_salary_lcu"}.}
-
-\item{contract_type_col}{Character scalar identifying the contract type
-variable. Only contract types listed in \code{policy_params$defaults$active_types}
-are eligible for movement. Default is \code{"contract_type"}.}
-
-\item{status_col}{Character scalar identifying the employment status
-variable in \code{personnel_dt}. Only personnel with status \code{"active"} are
-included in the eligible pool. Default is \code{"employment_status"}.}
+Keys used here (default in brackets):
+\itemize{
+\item \code{ref_date_col} (\code{"ref_date"}): snapshot date of a panel. Used to pick the
+snapshot to simulate and to compare consecutive snapshots when estimating
+the baseline.
+\item \code{personnel_id_col} (\code{"personnel_id"}): person identifier, in both tables.
+\item \code{contract_id_col} (\code{"contract_id"}): contract identifier. Used to count
+each contract once when calculating tenure.
+\item \code{start_date_col}, \code{end_date_col} (\code{"start_date"}, \code{"end_date"}): contract
+dates, used to find active contracts and to calculate tenure. Open
+contracts have \code{NA} end dates.
+\item \code{salary_col} (\code{"gross_salary_lcu"}): pay column in \code{contract_dt}. Records
+pay before the move and, under \code{salary_update_rule = "scale"}, receives
+the destination group's pay.
+\item \code{contract_type_col} (\code{"contract_type"}): contracts of type \code{"inactive"}
+or \code{"pensioner"} cannot move.
+\item \code{status_col} (\code{"employment_status"}): only people with status \code{"active"}
+can move.
+}}
 }
 \value{
 A named list with six elements:
@@ -152,7 +143,7 @@ personnel-level status fields in the current implementation.
 A \code{data.table} containing one row per employee who moved during the
 current period, with columns:\tabular{ll}{
    Column \tab Description \cr
-   \code{personnel_id} \tab Employee identifier \cr
+   your \code{personnel_id_col} \tab Employee identifier \cr
    \code{from_group} \tab Origin group key (\verb{\|\|}-concatenated \code{group_cols} values) \cr
    \code{to_group} \tab Destination group key \cr
    \code{salary_before} \tab Salary at the time of movement, before any update \cr
@@ -163,7 +154,7 @@ Returns an empty \code{data.table} when no movements occur.
 \item \strong{baseline_matrix}
 
 The transition baseline used for the simulation — either the estimated
-matrix from \code{\link[=estimate_movement_baseline]{estimate_movement_baseline()}} or the user-supplied
+matrix from \code{\link[=estimate_historical_movement_rates]{estimate_historical_movement_rates()}} or the user-supplied
 \code{policy_table}. Empty \code{data.table} when the flat scalar rate path
 was used.
 \item \strong{demand_dt}
@@ -212,8 +203,10 @@ below).
 \item Select the workforce snapshot nearest (but not later than) \code{ref_date}
 when panel data are supplied.
 \item Compute movement demand via \code{\link[=compute_movement_demand]{compute_movement_demand()}} when a
-\code{policy_table} is supplied, or via \code{\link[=compute_fixed_rate_movements]{compute_fixed_rate_movements()}}
-when it is not. Demand is expressed as integer mover counts per
+transition baseline is available (supplied \code{policy_table} or a
+non-empty panel estimate), or via \code{\link[=compute_fixed_rate_movements]{compute_fixed_rate_movements()}}
+when panel estimation fails or finds zero transitions. Demand is
+expressed as integer mover counts per
 \verb{from_group → to_group} pair using stochastic rounding.
 \item Select individual movers via \code{\link[=identify_movers]{identify_movers()}} using the specified
 \code{movement_strategy}.
@@ -232,7 +225,7 @@ The transition baseline is a \verb{from_group → to_group} matrix of movement
 rates. Two paths are available:
 
 \strong{Empirical estimation} (\code{policy_table = NULL}, panel data supplied):
-\code{\link[=estimate_movement_baseline]{estimate_movement_baseline()}} processes consecutive snapshot pairs
+\code{\link[=estimate_historical_movement_rates]{estimate_historical_movement_rates()}} processes consecutive snapshot pairs
 (T0→T1, T1→T2, …), counts observed transitions per pair, and averages
 across all pairs to produce \code{avg_prob} per \verb{from_group → to_group} cell.
 Only actual transitions (\verb{from_group ≠ to_group}) are retained. Groups
@@ -246,12 +239,23 @@ to impose specific transition probabilities — for example doubling
 promotion rates into senior grades — without being constrained by
 historical patterns.
 
-\strong{Flat scalar rate} (\code{policy_table = NULL}, single snapshot): when only
-one snapshot is available and no \code{policy_table} is supplied, the function
-falls back to \code{\link[=compute_fixed_rate_movements]{compute_fixed_rate_movements()}}, which applies
+\strong{Flat scalar rate} (\code{policy_table = NULL}, panel supplied but
+estimation fails or finds zero transitions): the function emits a message
+and falls back to \code{\link[=compute_fixed_rate_movements]{compute_fixed_rate_movements()}}, which applies
 \code{defaults$movement_rate} uniformly across the active workforce and
 distributes movers equally across all valid destinations in
-\code{salary_scale_dt}.
+\code{salary_scale_dt}. If \code{defaults$movement_rate} is not supplied either,
+\strong{nobody moves} that period (a message says so): when history shows no
+transitions, zero movement is the status-quo answer. The same applies
+when \code{policy_table} is a zero-row table, which is what
+\code{\link[=simulate_horizon]{simulate_horizon()}} passes on when its up-front estimate finds no
+transitions.
+
+\strong{Single snapshot, no \code{policy_table}}: nothing can be estimated, and the
+function currently returns \strong{0 movers} with a message --
+\code{defaults$movement_rate} is \emph{not} applied in this case. Supply a
+\code{policy_table} (or a multi-snapshot panel) to get movements from
+single-snapshot data.
 }
 
 \subsection{Demand calculation}{
@@ -266,8 +270,8 @@ n_movers   = floor(expected_n) + Bernoulli(expected_n - floor(expected_n))
 Total outflow from any \code{from_group} is capped at 1.0 — if the sum of
 transition probabilities out of a group exceeds 1, all rates are
 rescaled proportionally before demand is computed. Destinations not
-present in \code{salary_scale_dt} are scrubbed and a message is emitted
-for each scrubbed transition.
+present in \code{salary_scale_dt} are scrubbed (those employees simply stay
+put) and a single message reports how many transitions were scrubbed.
 }
 
 \subsection{Mover selection strategies}{
@@ -289,24 +293,30 @@ their grade ceiling are next in line for promotion.
 \item \code{"reverse_tenure"} — employees with the shortest overall tenure are
 selected first. Useful for modelling transfer policies that rotate
 newer staff across establishments.
-\item \code{"random"} (default) — employees are drawn uniformly at random from
-the eligible pool. Any unrecognised strategy value also falls back
-to random.
+\item \code{"random"} — employees are drawn uniformly at random from the eligible
+pool.
 }
 
-The \code{promotion_order_col} override in \code{policy_params} takes precedence
-over \code{movement_strategy} when supplied: employees are ranked in
-descending order of that column and the highest-ranked are selected
-first.
+When \code{movement_strategy} is not supplied, \code{"tenure"} is used. Any other
+value is rejected by input validation.
+
+Note that inside \code{\link[=simulate_horizon]{simulate_horizon()}} each period sees a single snapshot,
+so \code{"tenure"} there ranks by time since contract start rather than true
+time-in-grade from panel history.
+
+An optional \code{promotion_order_col} element placed at the \strong{top level} of
+\code{policy_params} (not inside \code{defaults}) takes precedence over
+\code{movement_strategy} when supplied: employees are ranked in descending
+order of that numeric column and the highest-ranked are selected first.
 }
 
 \subsection{Salary update after movement}{
 
 Two salary update rules are available via \code{defaults$salary_update_rule}:
 \itemize{
-\item \code{"scale"} (default) — the mover's salary is replaced with the value
-from \code{salary_scale_dt} for their new \code{to_group}. The salary column
-detected in \code{salary_scale_dt} must match \code{salary_col}.
+\item \code{"scale"} (default) — the mover's salary (\code{salary_col} in
+\code{contract_dt}) is replaced with the value from \code{salary_scale_dt} for
+their new \code{to_group}, read from the column of the same name.
 \item \code{"keep"} — the mover retains their current salary. Use this when
 salary adjustments are handled separately, for example through a
 merit increment applied after movement.
@@ -380,7 +390,7 @@ results <- simulate_promotions_transfers(
   salary_scale_dt = salary_scale_dt,
   policy_params   = movement_policy,
   ref_date        = ref_date,
-  salary_col      = "gross_salary_cpi"
+  column_spec_args = list(salary_col = "gross_salary_cpi")
 )
 
 results$summary
@@ -395,7 +405,7 @@ head(results$movers_dt)
 ## promotion probabilities for a targeted reform scenario.
 ############################################################
 
-baseline <- estimate_movement_baseline(
+baseline <- estimate_historical_movement_rates(
   contract_dt       = contract_dt,
   group_cols        = c("est_id", "paygrade"),
   personnel_id_col  = "personnel_id",
@@ -429,47 +439,13 @@ results_reform <- simulate_promotions_transfers(
   salary_scale_dt = salary_scale_dt,
   policy_params   = movement_policy_reform,
   ref_date        = ref_date,
-  salary_col      = "gross_salary_cpi"
+  column_spec_args = list(salary_col = "gross_salary_cpi")
 )
 
 results_reform$summary
 
 ############################################################
-## Example 3: Single snapshot — flat scalar movement rate
-##
-## When only one snapshot is available and policy_table = NULL,
-## the function falls back to a flat rate applied uniformly
-## across the active workforce, with movers distributed equally
-## across all valid destinations in salary_scale_dt.
-############################################################
-
-snap_contract_dt <- contract_dt[ref_date == as.Date("2017-09-01")]
-snap_personnel_dt <- personnel_dt[ref_date == as.Date("2017-09-01")]
-
-movement_policy_flat <- list(
-  group_cols   = c("est_id", "paygrade"),
-  policy_table = NULL,
-  defaults = list(
-    movement_rate      = 0.05,
-    movement_strategy  = "random",
-    active_types       = "permanent",
-    salary_update_rule = "scale"
-  )
-)
-
-results_flat <- simulate_promotions_transfers(
-  contract_dt     = snap_contract_dt,
-  personnel_dt    = snap_personnel_dt,
-  salary_scale_dt = salary_scale_dt,
-  policy_params   = movement_policy_flat,
-  ref_date        = ref_date,
-  salary_col      = "gross_salary_cpi"
-)
-
-results_flat$summary
-
-############################################################
-## Example 4: Paygrade-only promotions, tenure-based selection
+## Example 3: Paygrade-only promotions, tenure-based selection
 ##
 ## group_cols = "paygrade" restricts movements to vertical
 ## promotions within grades regardless of establishment.
@@ -499,13 +475,13 @@ results_promotions <- simulate_promotions_transfers(
   salary_scale_dt = salary_scale_grade,
   policy_params   = movement_policy_promotions,
   ref_date        = ref_date,
-  salary_col      = "gross_salary_cpi"
+  column_spec_args = list(salary_col = "gross_salary_cpi")
 )
 
 results_promotions$summary
 
 ############################################################
-## Example 5: Establishment-only transfers, random selection
+## Example 4: Establishment-only transfers, random selection
 ##
 ## group_cols = "est_id" restricts movements to lateral
 ## transfers between establishments with no grade change.
@@ -535,14 +511,14 @@ results_transfers <- simulate_promotions_transfers(
   salary_scale_dt = salary_scale_est,
   policy_params   = movement_policy_transfers,
   ref_date        = ref_date,
-  salary_col      = "gross_salary_cpi"
+  column_spec_args = list(salary_col = "gross_salary_cpi")
 )
 
 results_transfers$summary
 head(results_transfers$movers_dt)
 
 ############################################################
-## Example 6: salary_update_rule = "keep"
+## Example 5: salary_update_rule = "keep"
 ##
 ## Movers change group assignment but retain their current
 ## salary. Useful when salary adjustments are handled
@@ -567,7 +543,7 @@ results_keep <- simulate_promotions_transfers(
   salary_scale_dt = salary_scale_dt,
   policy_params   = movement_policy_keep,
   ref_date        = ref_date,
-  salary_col      = "gross_salary_cpi"
+  column_spec_args = list(salary_col = "gross_salary_cpi")
 )
 
 # Confirm salaries unchanged: salary_before should equal
@@ -586,14 +562,14 @@ all(check$salary_before == check$gross_salary_cpi)  # should be TRUE
 \seealso{
 \code{\link[=simulate_horizon]{simulate_horizon()}} for multi-period workforce simulations.
 
-\code{\link[=estimate_movement_baseline]{estimate_movement_baseline()}} for estimating empirical transition
+\code{\link[=estimate_historical_movement_rates]{estimate_historical_movement_rates()}} for estimating empirical transition
 probabilities from panel data to supply as \code{policy_table}.
 
 \code{\link[=compute_movement_demand]{compute_movement_demand()}} for the demand calculation when a transition
 baseline is available.
 
 \code{\link[=compute_fixed_rate_movements]{compute_fixed_rate_movements()}} for the flat scalar rate fallback when
-only a single snapshot is available.
+panel estimation fails or finds zero transitions.
 
 \code{\link[=identify_movers]{identify_movers()}} for the individual mover selection engine.
 

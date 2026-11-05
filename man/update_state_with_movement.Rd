@@ -11,55 +11,56 @@ update_state_with_movement(
   policy_params,
   salary_scale_dt = NULL,
   ref_date,
-  personnel_id_col = "personnel_id",
-  salary_col = "gross_salary_lcu",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
-\item{contract_dt}{data.table. Current contract data (will be copied)}
+\item{contract_dt}{data.table. Current contract data (modified in place,
+see Data Integrity)}
 
-\item{personnel_dt}{data.table. Current personnel data (will be copied)}
+\item{personnel_dt}{data.table. Current personnel data (returned unchanged)}
 
 \item{movers_dt}{data.table. Output of \code{identify_movers()}.
-Must have columns: personnel_id, from_group, to_group, movement_type}
+Must have columns: \code{personnel_id_col}, from_group, to_group}
 
-\item{policy_params}{List. Must contain:
+\item{policy_params}{List. Canonical three-slot movement policy. Reads:
 \describe{
 \item{group_cols}{Character vector defining state columns}
-\item{salary_scale}{data.table. Salary scale keyed on group_cols}
-\item{salary_update_rule}{Character. How to set salary after a move:
-\code{"scale"} (default) assigns the destination salary from
-\code{salary_scale}; \code{"keep"} retains the mover's current salary.}
+\item{defaults$salary_update_rule}{Character. How to set salary after
+a move: \code{"scale"} (default) assigns the destination salary
+from the salary scale; \code{"keep"} retains the mover's current
+salary. A legacy top-level \code{salary_update_rule} is also
+accepted.}
+\item{salary_scale}{data.table. Legacy fallback, used only when
+\code{salary_scale_dt} is \code{NULL}.}
 }}
+
+\item{salary_scale_dt}{data.table or \code{NULL}. Salary scale keyed on
+\code{group_cols}, one row per group, with the pay in a column named
+\code{salary_col}.}
 
 \item{ref_date}{Date or character. Reference date}
 
-\item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
-
-\item{salary_col}{Character. Salary column (default: "gross_salary_lcu")}
-
-\item{start_date_col}{Character. Contract start date column (default: "start_date")}
-
-\item{end_date_col}{Character. End date column (default: "end_date")}
-
-\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
+\item{column_spec_args}{Complete column specification from
+\code{.column_spec()}.  \code{salary_col} is the pay column, in
+\code{contract_dt} and in the salary scale.}
 }
 \value{
 List containing:
 \describe{
 \item{contract_dt}{Updated contract data}
 \item{personnel_dt}{Updated personnel data (unchanged in current spec)}
-\item{movers_dt}{The input movers_dt (passed through for reporting)}
+\item{movers_dt}{The input movers_dt with a \code{salary_before} column
+added (pre-move salary summed across the mover's contracts)}
 }
 }
 \description{
 The ONLY function that modifies state in the promotions/transfers module.
-Updates \code{contract_dt} to reflect new group assignments (org_id and/or
-paygrade_id) and re-assigns compensation from the salary scale for all
-selected movers. Returns modified copies.
+Updates \code{contract_dt} to reflect new group assignments (the
+\code{group_cols} columns) and, when \code{salary_update_rule = "scale"},
+re-assigns salary from the salary scale for all selected movers.  A mover moves
+on their main contract only (see \code{\link{get_primary_contract}}): a second
+job, a closed contract or a pension row stays as it is.
 }
 \section{Data Integrity}{
 

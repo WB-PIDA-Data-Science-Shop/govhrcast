@@ -16,7 +16,8 @@ utils::globalVariables(c(
   ".s",          # compute_tenure: segment start numeric
   ".e",          # compute_tenure: segment end numeric
   ".lag_max_e",  # compute_tenure: lagged max end for overlap detection
-  ".contrib"     # compute_tenure: per-segment tenure contribution
+  ".contrib",    # compute_tenure: per-segment tenure contribution
+  "rank_val"     # .select_personnel_subset: ordering column built from dynamic strategy col
 ))
 
 #' Calculate Years Between Two Dates
@@ -67,7 +68,8 @@ compute_years <- function(start_date, end_date) {
 #'
 #' @return data.table (one row per person) with columns:
 #'   \describe{
-#'     \item{\code{personnel_id}}{Personnel identifier.}
+#'     \item{\emph{\code{personnel_id_col}}}{Personnel identifier, under the
+#'       caller's column name.}
 #'     \item{\code{age}}{Numeric.  Age in fractional years at \code{ref_date}.}
 #'   }
 #' @keywords internal
@@ -85,13 +87,12 @@ compute_age <- function(personnel_dt,
                         birth_date_col = "birth_date",
                         personnel_id_col = "personnel_id") {
   
-  # Compute age directly without copying
-  # Return only ID and age - no modification to input
-  age_dt <- personnel_dt[, .(
-    personnel_id = get(personnel_id_col),
-    age = compute_years(start_date = get(birth_date_col), end_date = ref_date)
-  )]
-  
+  # One row per person: the caller's ID column and age at ref_date (the
+  # input table is not modified)
+  age_dt <- personnel_dt[, c(personnel_id_col, birth_date_col), with = FALSE]
+  age_dt[, age := compute_years(start_date = get(birth_date_col), end_date = ref_date)]
+  age_dt[, (birth_date_col) := NULL]
+
   return(age_dt)
 }
 
@@ -177,7 +178,7 @@ compute_tenure <- function(contract_dt,
   .ref_date_ <- ref_date
 
   # 1. Filter inactive types — subset returns a new object, no copy() needed
-  dt <- contract_dt[!get(contract_type_col) %in% c("inactive", "pensioner")]
+  dt <- contract_dt[.on_payroll(get(contract_type_col))]
 
   # 2. Keep only contracts that started on or before ref_date
   dt <- dt[get(start_date_col) <= .ref_date_]
@@ -314,7 +315,7 @@ compute_tenure_panel <- function(contract_dt,
   # 1. Filter: active types only, started on or before each row's ref_date
   dt <- contract_dt[
     get(start_date_col) <= get(ref_date_col) &
-      !get(contract_type_col) %in% c("inactive", "pensioner")
+      .on_payroll(get(contract_type_col))
   ]
 
   # 2. Cap open-ended / future contracts at each row's ref_date
@@ -363,6 +364,30 @@ compute_tenure_panel <- function(contract_dt,
 }
 
 
+# Contract types that are off the payroll. Every other type, including a blank,
+# is staff: a blank contract type is missing data, not a reason to go unpaid.
+.OFF_PAYROLL_TYPES <- c("pensioner", "inactive")
+
+# Which rows are on the payroll, given the contract type column. Works inside
+# data.table brackets: contract_dt[.on_payroll(get(contract_type_col))].
+.on_payroll <- function(contract_type) !contract_type %in% .OFF_PAYROLL_TYPES
+
+# Adds up pay across someone's rows. Blank only if every row is blank: no pay
+# recorded is missing data, not a pay of zero.
+.total_pay <- function(pay) {
+  if (all(is.na(pay))) NA_real_ else sum(as.numeric(pay), na.rm = TRUE)
+}
+
+# The contracts a policy covers, from those already known to be active. With no
+# defaults$active_types it covers them all. A blank type is missing data and still
+# counts as staff.
+.covered_by_policy <- function(contracts, policy_params, contract_type_col) {
+  active_types <- policy_params$defaults$active_types
+  if (is.null(active_types)) return(contracts)
+  contracts[get(contract_type_col) %in% c(active_types, NA_character_)]
+}
+
+
 #' Get Active Contracts at Reference Date
 #'
 #' @description
@@ -370,10 +395,9 @@ compute_tenure_panel <- function(contract_dt,
 #' contracts that have started, have not yet ended, and are not classified as
 #' \code{"inactive"} or \code{"pensioner"}.
 #'
-#' Use this filter for headcount, attrition, hiring demand, and retirement
-#' eligibility computations.  For wage bill computations use
-#' \code{\link{get_salary_bearing_contracts}} instead, which retains
-#' inactive-but-paid staff.
+#' Use this filter for hiring demand and retirement eligibility.
+#' \code{simulate_horizon()} clears staff end dates at the start of a projection
+#' (contracts are renewed), so there it picks out the same rows as the payroll.
 #'
 #' @param contract_dt data.table.  Contract register.  Required columns:
 #'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col}.
@@ -398,47 +422,16 @@ get_active_contracts <- function(contract_dt,
   
   # Filter: started before/on ref_date AND (no end date OR ended after ref_date)
   # AND not inactive AND not pensioner (pensioners are not part of the active workforce)
+  # (inside the brackets a bare `ref_date` would read a column of that name,
+  # which stays at the start date during a projection)
+  .as_of_date <- ref_date
   active <- contract_dt[
-    get(start_date_col) <= ref_date &
-    (is.na(get(end_date_col)) | get(end_date_col) >= ref_date) &
-    !get(contract_type_col) %in% c("inactive", "pensioner")
+    get(start_date_col) <= .as_of_date &
+    (is.na(get(end_date_col)) | get(end_date_col) >= .as_of_date) &
+    .on_payroll(get(contract_type_col))
   ]
   
   return(active)
-}
-
-
-#' Get Salary-Bearing Contracts at Reference Date
-#'
-#' @description
-#' Returns all contract rows where the government is paying a salary — that is,
-#' any row that is \emph{not} a pensioner contract and has a non-\code{NA}
-#' salary value.  This is the correct filter for wage bill computation.
-#'
-#' Unlike \code{get_active_contracts()}, which restricts to personnel who are
-#' actively working, this function deliberately retains inactive-but-paid staff
-#' (e.g. those on government-funded leave or training) because the government
-#' is still paying their salary and they must be counted in the wage bill.
-#'
-#' @param contract_dt data.table.  Contract data.
-#' @param salary_col Character.  Name of the salary column.
-#'   Default \code{"gross_salary_lcu"}.
-#' @param contract_type_col Character.  Name of the contract type column.
-#'   Default \code{"contract_type"}.
-#' @param pensioner_type Character scalar.  The contract type value that
-#'   identifies pensioner rows.  Default \code{"pensioner"}.
-#'
-#' @return data.table of salary-bearing contract rows (a subset of
-#'   \code{contract_dt}).
-#' @keywords internal
-get_salary_bearing_contracts <- function(contract_dt,
-                                         salary_col          = "gross_salary_lcu",
-                                         contract_type_col   = "contract_type",
-                                         pensioner_type      = "pensioner") {
-  contract_dt[
-    get(contract_type_col) != pensioner_type &
-    !is.na(get(salary_col))
-  ]
 }
 
 
@@ -491,8 +484,9 @@ get_primary_contract <- function(contract_dt,
     order = c(-1, -1, 1)  # DESC, DESC, ASC
   )
   
-  # Take first row per personnel (highest priority)
-  primary <- contract_dt[, .SD[1], by = .(personnel_id = get(personnel_id_col))]
+  # Take first row per personnel (highest priority), keyed by the caller's
+  # ID column
+  primary <- contract_dt[, .SD[1], by = personnel_id_col]
   
   return(primary)
 }
@@ -590,6 +584,15 @@ select_nearest_ref_date <- function(x, ref_date) {
 }
 
 
+# One snapshot of a panel, without its date column. The rows are picked outside
+# the data.table brackets: inside them, `date` would read a column of that name
+# instead of this argument, and the caller's columns can have any name.
+.panel_snapshot <- function(panel_dt, ref_date_col, date) {
+  on_date <- panel_dt[[ref_date_col]] == date
+  panel_dt[on_date, !ref_date_col, with = FALSE]
+}
+
+
 #' Format Date as YYYYMMDD String
 #'
 #' @description
@@ -633,6 +636,31 @@ expand_rate_vector <- function(x, n_periods, param_name) {
       n_periods, ").",
       call. = FALSE
     )
+  }
+}
+
+
+# Save and restore the caller's random-number state.
+#
+# A run with a `seed` calls set.seed(), which overwrites the session's random
+# stream (.Random.seed in the global environment). simulate_horizon() and
+# simulate_scenario() save the state on entry and restore it with on.exit(),
+# so seeding a run never changes the draws in the user's own code afterwards.
+# .save_rng_state() returns NULL when the session has not drawn a random
+# number yet; .restore_rng_state(NULL) then removes the seed the run created.
+# Base R only -- withr::local_seed() would do the same but is not a
+# dependency of this package.
+.save_rng_state <- function() {
+  if (exists(".Random.seed", envir = globalenv(), inherits = FALSE))
+    get(".Random.seed", envir = globalenv()) else NULL
+}
+
+.restore_rng_state <- function(state) {
+  if (is.null(state)) {
+    if (exists(".Random.seed", envir = globalenv(), inherits = FALSE))
+      rm(".Random.seed", envir = globalenv())
+  } else {
+    assign(".Random.seed", state, envir = globalenv())
   }
 }
 
@@ -988,6 +1016,66 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 }
 
 
+#' Select a Subset of Personnel from a Pool
+#'
+#' @description
+#' Shared selection mechanism used by every module that must draw a fixed
+#' number of individuals from a candidate pool: random draw, or rank-by-column
+#' (ascending — lowest values selected first). Originally exit-specific
+#' (\code{.select_exits()} in \code{exit_core.R}); relocated here once
+#' retirement's hazard-rate path needed the identical mechanism, since neither
+#' the pool/rank/random logic nor its inputs were ever exit-specific.
+#'
+#' @param pool_ids Character vector.  Candidate personnel IDs to select from.
+#' @param pool_dt data.table.  Table containing \code{personnel_id_col} and,
+#'   when \code{strategy} names a column, that ranking column.
+#' @param n_select Integer.  Number of IDs to select.  Capped at
+#'   \code{length(pool_ids)}.
+#' @param strategy Character.  Either \code{"random"}, or the name of a
+#'   numeric column in \code{pool_dt} to rank ascending (ties broken by
+#'   \code{max()} per ID, lowest values selected first).  Falls back to random
+#'   selection for any other value.
+#' @param personnel_id_col Character.  Personnel identifier column name in
+#'   \code{pool_dt}.
+#'
+#' @return Character vector of selected personnel IDs, length
+#'   \code{min(n_select, length(pool_ids))}.  Empty \code{character(0)} when
+#'   \code{n_select <= 0}.
+#' @keywords internal
+.select_personnel_subset <- function(pool_ids,
+                                     pool_dt,
+                                     n_select,
+                                     strategy,
+                                     personnel_id_col) {
+
+  n_select <- as.integer(min(n_select, length(pool_ids)))
+  if (n_select <= 0L) return(character(0))
+
+  if (strategy == "random") {
+    return(sample(pool_ids, size = n_select, replace = FALSE))
+  }
+
+  # Treat strategy as a column name -- rank ascending, lowest values first.
+  # Restrict to pool_ids before ranking: pool_dt may be a shared, ungrouped
+  # table (e.g. the full active workforce passed once per group from a
+  # grouped caller), so ranking over pool_dt unfiltered would rank across
+  # every group's candidates together and could return IDs outside pool_ids
+  # entirely.
+  if (strategy %in% names(pool_dt)) {
+    primary <- pool_dt[
+      get(personnel_id_col) %in% pool_ids,
+      .(rank_val = max(get(strategy), na.rm = TRUE)),
+      by = c(personnel_id_col)
+    ]
+    primary <- primary[order(rank_val)]
+    return(head(primary[[personnel_id_col]], n_select))
+  }
+
+  # Fallback to random
+  sample(pool_ids, size = n_select, replace = FALSE)
+}
+
+
 #' Build Status Quo Policy Parameters from Panel Data
 #'
 #' @description
@@ -1006,13 +1094,16 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #'     \code{replacement_cap = 0.80}).  Purely scalar — no panel needed.}
 #'   \item{\code{exit}}{Non-retirement attrition at the historically
 #'     observed aggregate rate, estimated via
-#'     \code{estimate_historical_exit_rates()}.  Falls back to a 5\%
+#'     \code{estimate_historical_exit_rates()}.  Falls back to a 5%
 #'     annual rate with a warning when fewer than two snapshots are present.}
 #'   \item{\code{movement}}{Grade/group transition probabilities estimated
-#'     from the panel via \code{estimate_movement_baseline()}.  Requires
-#'     \code{movement_group_cols} to be specified (see argument).  Falls back
-#'     to a 5\% flat movement rate with a warning when the panel is
-#'     insufficient.}
+#'     from the panel via \code{estimate_historical_movement_rates()}.  Requires
+#'     \code{movement_group_cols} to be specified (see argument).  When the
+#'     panel is insufficient (fewer than 2 snapshots) a warning is raised and
+#'     \code{policy_table} is left \code{NULL} with a 5% \code{movement_rate}
+#'     in \code{defaults} -- but note that
+#'     \code{simulate_promotions_transfers()} currently does not apply that
+#'     flat rate to single-snapshot data, so this yields no movements.}
 #'   \item{\code{hiring}}{Flow-based replacement at 1:1 (\code{replacement_rate
 #'     = 1.0}), using \code{salary_scale_dt} for new-hire pay.}
 #' }
@@ -1047,7 +1138,8 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #'   estimation.
 #' @param personnel_dt data.table.  Full panel personnel microdata.
 #' @param salary_scale_dt data.table.  Pay table injected into the hiring
-#'   policy.  Must contain a salary column matching \code{salary_col}.
+#'   policy.  Must contain a numeric column with the same name as
+#'   \code{salary_col}.
 #' @param movement_group_cols Character vector or \code{NULL}.  Columns that
 #'   define mobility states for the movement baseline (e.g.
 #'   \code{c("paygrade")}).  \code{NULL} disables movement estimation and the
@@ -1057,13 +1149,11 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #' @param hiring_group_cols Character vector or \code{NULL}.  Group columns
 #'   for the flow-based hiring policy.  \code{NULL} hires at the aggregate
 #'   level.
-#' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param ref_date_col Character.  Default \code{"ref_date"}.
-#' @param start_date_col Character.  Default \code{"start_date"}.
-#' @param end_date_col Character.  Default \code{"end_date"}.
-#' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"status"}.
-#' @param salary_col Character.  Default \code{"gross_salary_lcu"}.
+#' @param column_spec_args Named list.  Column names, if your data use
+#'   different names from the \code{govhr} defaults: give only the ones you
+#'   need to change, e.g. \code{list(salary_col = "base_salary_lcu")}.  See
+#'   \code{\link{simulate_horizon}} for the keys and defaults.  Pass the same
+#'   list to \code{simulate_horizon()} when you run these policies.
 #'
 #' @return Named list with four elements:
 #'   \describe{
@@ -1085,21 +1175,22 @@ make_status_quo_policies <- function(contract_dt,
                                      movement_group_cols = NULL,
                                      exit_group_cols     = NULL,
                                      hiring_group_cols   = NULL,
-                                     personnel_id_col    = "personnel_id",
-                                     ref_date_col        = "ref_date",
-                                     start_date_col      = "start_date",
-                                     end_date_col        = "end_date",
-                                     contract_type_col   = "contract_type",
-                                     status_col         = "employment_status",
-                                     salary_col          = "gross_salary_lcu") {
+                                     column_spec_args    = list()) {
+
+  .Deprecated(msg = paste0(
+    "make_status_quo_policies() is deprecated. Use the design_*_status_quo() helpers, which ",
+    "estimate retirement from the history instead of assuming a rule: see ?simulate_horizon."
+  ))
 
   if (!data.table::is.data.table(contract_dt))
     contract_dt <- data.table::as.data.table(contract_dt)
   if (!data.table::is.data.table(personnel_dt))
     personnel_dt <- data.table::as.data.table(personnel_dt)
 
-  has_panel <- ref_date_col %in% names(contract_dt) &&
-               data.table::uniqueN(contract_dt[[ref_date_col]]) >= 2L
+  cols <- .column_spec(column_spec_args)
+
+  has_panel <- cols$ref_date_col %in% names(contract_dt) &&
+               data.table::uniqueN(contract_dt[[cols$ref_date_col]]) >= 2L
 
   # ------------------------------------------------------------------
   # 1. Retirement — fully scalar, no estimation needed
@@ -1113,7 +1204,6 @@ make_status_quo_policies <- function(contract_dt,
       min_age          = 60,
       min_tenure       = 10,
       accrual_rate     = 0.02,
-      ref_wage_col     = salary_col,
       max_years        = 35,
       replacement_cap  = 0.80
     )
@@ -1125,15 +1215,10 @@ make_status_quo_policies <- function(contract_dt,
   if (has_panel) {
     exit_rates <- tryCatch(
       estimate_historical_exit_rates(
-        panel_contract_dt = contract_dt,
+        panel_contract_dt  = contract_dt,
         panel_personnel_dt = personnel_dt,
-        group_cols        = exit_group_cols,
-        personnel_id_col  = personnel_id_col,
-        ref_date_col      = ref_date_col,
-        start_date_col    = start_date_col,
-        end_date_col      = end_date_col,
-        contract_type_col = contract_type_col,
-        status_col        = status_col
+        group_cols         = exit_group_cols,
+        column_spec_args   = cols
       ),
       error = function(e) {
         warning("make_status_quo_policies: exit rate estimation failed (",
@@ -1155,8 +1240,7 @@ make_status_quo_policies <- function(contract_dt,
     defaults = list(
       exit_rate     = 0.05,      # fallback when policy_table estimation fails
       exit_strategy = "random",
-      active_types  = c("permanent", "fterm", "temp"),
-      exited_type   = "inactive"
+      active_types  = c("permanent", "fixed-term", "short-term")
     )
   )
 
@@ -1165,14 +1249,10 @@ make_status_quo_policies <- function(contract_dt,
   # ------------------------------------------------------------------
   if (!is.null(movement_group_cols) && has_panel) {
     mov_baseline <- tryCatch(
-      estimate_movement_baseline(
+      estimate_historical_movement_rates(
         contract_dt       = contract_dt,
         group_cols        = movement_group_cols,
-        personnel_id_col  = personnel_id_col,
-        ref_date_col      = ref_date_col,
-        start_date_col    = start_date_col,
-        end_date_col      = end_date_col,
-        contract_type_col = contract_type_col
+        column_spec_args  = cols
       ),
       error = function(e) {
         warning("make_status_quo_policies: movement baseline estimation failed (",

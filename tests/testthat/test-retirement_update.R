@@ -261,21 +261,10 @@ test_that("update_contracts_for_retirees handles retiree with no active contract
 # update_personnel_for_retirees()
 # =============================================================================
 
-test_that("update_personnel_for_retirees updates status correctly", {
+test_that("update_personnel_for_retirees gives retirees the status pensioner", {
   personnel_dt <- create_test_personnel_for_update()
-  
-  contract_dt <- data.table(
-    contract_id = c("C001", "C002"),
-    personnel_id = c("P001", "P002"),
-    contract_type = c("pensioner", "perm")
-  )
-  
-  result <- update_personnel_for_retirees(personnel_dt, contract_dt)
-  
-  # P001 should be inactive (has pensioner contract)
-  expect_equal(result[personnel_id == "P001"]$employment_status, "inactive")
-  
-  # Others remain active
+  result <- update_personnel_for_retirees(personnel_dt, data.table(personnel_id = "P001"))
+  expect_equal(result[personnel_id == "P001"]$employment_status, "pensioner")
   expect_equal(result[personnel_id == "P002"]$employment_status, "active")
   expect_equal(result[personnel_id == "P003"]$employment_status, "active")
   expect_equal(result[personnel_id == "P004"]$employment_status, "active")
@@ -283,108 +272,30 @@ test_that("update_personnel_for_retirees updates status correctly", {
 
 test_that("update_personnel_for_retirees handles multiple retirees", {
   personnel_dt <- create_test_personnel_for_update()
-  
-  contract_dt <- data.table(
-    contract_id = c("C001", "C002", "C003", "C004"),
-    personnel_id = c("P001", "P002", "P003", "P004"),
-    contract_type = c("pensioner", "pensioner", "perm", "perm")
-  )
-  
-  result <- update_personnel_for_retirees(personnel_dt, contract_dt)
-  
-  # P001 and P002 should be inactive
-  expect_equal(result[personnel_id == "P001"]$employment_status, "inactive")
-  expect_equal(result[personnel_id == "P002"]$employment_status, "inactive")
-  
-  # P003 and P004 remain active
-  expect_equal(result[personnel_id == "P003"]$employment_status, "active")
-  expect_equal(result[personnel_id == "P004"]$employment_status, "active")
+  result <- update_personnel_for_retirees(personnel_dt, data.table(personnel_id = c("P001", "P002")))
+  expect_equal(result[personnel_id %in% c("P001", "P002")]$employment_status, c("pensioner", "pensioner"))
+  expect_equal(result[personnel_id %in% c("P003", "P004")]$employment_status, c("active", "active"))
 })
 
-test_that("update_personnel_for_retirees handles no pensioners", {
+test_that("update_personnel_for_retirees with nobody retiring changes nothing", {
   personnel_dt <- create_test_personnel_for_update()
-  
-  contract_dt <- data.table(
-    contract_id = c("C001", "C002", "C003", "C004"),
-    personnel_id = c("P001", "P002", "P003", "P004"),
-    contract_type = c("perm", "perm", "perm", "perm")
-  )
-  
-  result <- update_personnel_for_retirees(personnel_dt, contract_dt)
-  
-  # All should remain active
+  result <- update_personnel_for_retirees(personnel_dt, data.table(personnel_id = character()))
   expect_true(all(result$employment_status == "active"))
 })
 
 test_that("update_personnel_for_retirees modifies input data.table in place", {
   personnel_dt <- create_test_personnel_for_update()
   original_personnel_dt <- copy(personnel_dt)
-  
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    contract_type = "pensioner"
-  )
-  
-  result <- update_personnel_for_retirees(personnel_dt, contract_dt)
-  
-  # Input should be modified (same object returned)
+  result <- update_personnel_for_retirees(personnel_dt, data.table(personnel_id = "P001"))
   expect_true(identical(personnel_dt, result))
-  
-  # Should have changes compared to original
   expect_false(identical(personnel_dt, original_personnel_dt))
-  expect_equal(personnel_dt[personnel_id == "P001"]$employment_status, "inactive")
+  expect_equal(personnel_dt[personnel_id == "P001"]$employment_status, "pensioner")
 })
 
-test_that("update_personnel_for_retirees handles personnel with multiple contracts", {
-  personnel_dt <- create_test_personnel_for_update()
-  
-  # P001 has multiple contracts, one is pensioner
-  contract_dt <- data.table(
-    contract_id = c("C001", "C002", "C003"),
-    personnel_id = c("P001", "P001", "P002"),
-    contract_type = c("pensioner", "closed_due_to_retirement", "perm")
-  )
-  
-  result <- update_personnel_for_retirees(personnel_dt, contract_dt)
-  
-  # P001 should be inactive (has at least one pensioner contract)
-  expect_equal(result[personnel_id == "P001"]$employment_status, "inactive")
-  
-  # P002 remains active
-  expect_equal(result[personnel_id == "P002"]$employment_status, "active")
-})
-
-test_that("update_personnel_for_retirees handles empty contract table", {
-  personnel_dt <- create_test_personnel_for_update()
-  
-  contract_dt <- data.table(
-    contract_id = character(),
-    personnel_id = character(),
-    contract_type = character()
-  )
-  
-  result <- update_personnel_for_retirees(personnel_dt, contract_dt)
-  
-  # All should remain active
-  expect_true(all(result$employment_status == "active"))
-})
-
-test_that("update_personnel_for_retirees handles pensioner not in personnel table", {
-  personnel_dt <- data.table(
-    personnel_id = c("P001", "P002"),
-    employment_status = c("active", "active")
-  )
-  
-  contract_dt <- data.table(
-    contract_id = c("C001", "C002", "C003"),
-    personnel_id = c("P001", "P002", "P999"),  # P999 not in personnel_dt
-    contract_type = c("perm", "perm", "pensioner")
-  )
-  
-  result <- update_personnel_for_retirees(personnel_dt, contract_dt)
-  
-  # Should not error, just update existing personnel
+test_that("update_personnel_for_retirees ignores a retiree not in the personnel table", {
+  personnel_dt <- data.table(personnel_id = c("P001", "P002"),
+                             employment_status = c("active", "active"))
+  result <- update_personnel_for_retirees(personnel_dt, data.table(personnel_id = "P999"))
   expect_equal(nrow(result), 2)
   expect_true(all(result$employment_status == "active"))
 })

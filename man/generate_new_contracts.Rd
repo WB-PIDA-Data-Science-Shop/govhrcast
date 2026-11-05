@@ -8,11 +8,7 @@ generate_new_contracts(
   personnel_ids,
   ref_date,
   group_vals = NULL,
-  personnel_id_col = "personnel_id",
-  contract_id_col = "contract_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -22,21 +18,15 @@ generate_new_contracts(
 
 \item{group_vals}{Named list. Values for grouping columns}
 
-\item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
-
-\item{contract_id_col}{Character. Contract ID column (default: "contract_id")}
-
-\item{start_date_col}{Character. Start date column (default: "start_date")}
-
-\item{end_date_col}{Character. End date column (default: "end_date")}
-
-\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
+\item{column_spec_args}{Complete column specification from
+\code{.column_spec()}.}
 }
 \value{
 data.table with new contract records
 }
 \description{
 Creates new contract records for new hires. Generates unique contract IDs
-and sets start_date to ref_date.
+and sets start_date to ref_date. The type is "permanent" until set from the
+policy's new hire profile.
 }
 \keyword{internal}

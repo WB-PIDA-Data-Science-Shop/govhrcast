@@ -11,13 +11,7 @@ identify_movers(
   policy_params,
   ref_date,
   baseline_matrix = NULL,
-  personnel_id_col = "personnel_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  salary_col = "gross_salary_lcu",
-  status_col = "employment_status",
-  ref_date_col = "ref_date"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -25,20 +19,23 @@ identify_movers(
 
 \item{personnel_dt}{data.table. Current personnel data}
 
-\item{demand_dt}{data.table. Output of \code{compute_movement_demand()}.
-Must have columns: from_group, to_group, movement_type, n_movers}
+\item{demand_dt}{data.table. Output of \code{compute_movement_demand()}
+or \code{compute_fixed_rate_movements()}.
+Must have columns: from_group, to_group, n_movers}
 
-\item{policy_params}{List. Must contain:
+\item{policy_params}{List. Canonical three-slot movement policy. Reads:
 \describe{
 \item{group_cols}{Character vector defining state columns}
-\item{promotion_strategy}{Character. "tenure" or "wage_based"}
-\item{promotion_order_col}{Character or \code{NULL}. Optional.  When
-provided, overrides \code{promotion_strategy} ordering by ranking
-eligible persons on this column (descending — highest value promoted
-first).  Must be a numeric column present in \code{contract_dt} or
-the merged workforce view.  Default \code{NULL} (uses
-\code{promotion_strategy}).}
-\item{transfer_strategy}{Character. "random", "tenure", or "reverse_tenure"}
+\item{defaults$movement_strategy}{Character. \code{"tenure"},
+\code{"wage_based"}, \code{"reverse_tenure"}, or \code{"random"}.
+If absent, a legacy top-level \code{promotion_strategy} is used,
+and failing that \code{"tenure"}.}
+\item{promotion_order_col}{Character or \code{NULL}, top level (not
+in \code{defaults}). Optional.  When provided, overrides
+\code{movement_strategy} ordering by ranking eligible persons on
+this column (descending — highest value moved first).  Must be a
+numeric column present in \code{contract_dt} or the merged
+workforce view.  Default \code{NULL}.}
 }}
 
 \item{ref_date}{Date or character. Reference date}
@@ -46,27 +43,15 @@ the merged workforce view.  Default \code{NULL} (uses
 \item{baseline_matrix}{data.table. Full baseline matrix (used to compute
 max_salary per grade for wage_based strategy). Can be NULL.}
 
-\item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
-
-\item{start_date_col}{Character. Contract start date column (default: "start_date")}
-
-\item{end_date_col}{Character. End date column (default: "end_date")}
-
-\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
-
-\item{salary_col}{Character. Salary column (default: "gross_salary_lcu")}
-
-\item{status_col}{Character. Status column (default: "status")}
-
-\item{ref_date_col}{Character. Reference date column for panel data (default: "ref_date")}
+\item{column_spec_args}{Complete column specification from
+\code{.column_spec()}.}
 }
 \value{
 data.table with columns:
 \describe{
-\item{personnel_id}{Character. Selected mover ID}
+\item{(the caller's personnel ID column)}{Character. Selected mover ID}
 \item{from_group}{Character. Origin state key}
 \item{to_group}{Character. Destination state key}
-\item{movement_type}{Character. "promotion" or "transfer"}
 }
 }
 \description{

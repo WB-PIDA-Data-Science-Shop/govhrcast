@@ -38,9 +38,8 @@ Returns the strictly active workforce subset of \code{contract_dt}:
 contracts that have started, have not yet ended, and are not classified as
 \code{"inactive"} or \code{"pensioner"}.
 
-Use this filter for headcount, attrition, hiring demand, and retirement
-eligibility computations.  For wage bill computations use
-\code{\link{get_salary_bearing_contracts}} instead, which retains
-inactive-but-paid staff.
+Use this filter for hiring demand and retirement eligibility.
+\code{simulate_horizon()} clears staff end dates at the start of a projection
+(contracts are renewed), so there it picks out the same rows as the payroll.
 }
 \keyword{internal}

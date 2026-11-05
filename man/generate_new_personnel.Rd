@@ -21,13 +21,14 @@ generate_new_personnel(
 
 \item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
 
-\item{status_col}{Character. Status column (default: "status")}
+\item{status_col}{Character. Status column (default: "employment_status")}
 }
 \value{
 data.table with new personnel records
 }
 \description{
 Creates new personnel records for new hires. Generates unique personnel IDs
-and sets status to "active".
+and sets status to "active". Their age, tenure and gender are set afterwards,
+from the policy's new hire profile.
 }
 \keyword{internal}

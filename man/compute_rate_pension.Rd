@@ -4,12 +4,15 @@
 \alias{compute_rate_pension}
 \title{Compute Rate Pension}
 \usage{
-compute_rate_pension(dt)
+compute_rate_pension(dt, salary_col = "gross_salary_lcu")
 }
 \arguments{
 \item{dt}{data.table. Retiree subset (\code{pension_type == "rate"}).
-Required columns: \code{pension_rate} (numeric, e.g. \code{0.15}),
-\code{ref_wage_col} (character column-pointer naming the wage column).}
+Required columns: \code{pension_rate} (numeric, e.g. \code{0.15}) and the
+pay column.}
+
+\item{salary_col}{Character.  The pay column.  Default
+\code{"gross_salary_lcu"}.}
 }
 \value{
 Numeric vector of pension amounts (length \code{nrow(dt)}).
@@ -18,13 +21,13 @@ Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 \description{
 Computes a pension as a fixed proportion of the retiree's reference wage.
 Intended for schemes where the periodic pension is a known percentage of
-final salary (e.g. Botswana's 15\\% defined-contribution scheme).
+final salary (e.g. Botswana's 15\% defined-contribution scheme).
 }
 \details{
 \strong{Formula:}
 \deqn{P_i = r_i \cdot w_i}
 where \eqn{r_i} = \code{pension_rate} and \eqn{w_i} = wage from the
-column named by \code{ref_wage_col}. \code{pmax(pension, 0)} prevents
+pay column. \code{pmax(pension, 0)} prevents
 negative pensions from non-positive rates or wages.
 }
 \keyword{internal}

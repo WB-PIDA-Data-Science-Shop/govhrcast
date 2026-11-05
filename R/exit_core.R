@@ -16,7 +16,7 @@ utils::globalVariables(c(
   "n_exits",   # estimate_historical_exit_rates: column created by := and used in ratio
   "exit_rate", # groups_dt: resolved rate column in compute_status_quo_exits grouped path
   "n_exit",    # groups_dt: exit count column in compute_status_quo_exits grouped path
-  "rank_val"   # .select_exits: ordering column built from dynamic strategy col
+  "separation" # govhr::detect_movement() output: left, and did not retire
 ))
 
 #' @name exit_core
@@ -31,70 +31,79 @@ NULL
 #' Estimate Historical Non-Retirement Exit Rates from Panel Data
 #'
 #' @description
-#' Uses \code{govhr::detect_personnel_event(event_type = "fire")} to identify
-#' non-retirement attrition events (voluntary resignation, dismissal, contract
-#' non-renewal) across the full historical panel.  Computes
-#' \code{exit_rate = n_exits / n_active} per group per panel snapshot, then
-#' returns the mean rate per group.
+#' Uses \code{govhr::detect_movement()} to identify non-retirement attrition
+#' events (voluntary resignation, dismissal, contract non-renewal) across the
+#' full historical panel, and turns them into one historical exit rate per
+#' group.
+#'
+#' Each pair of consecutive snapshots is one interval.  Someone active at the
+#' start of an interval and no longer active at its end counts as an exit in
+#' that interval, \strong{unless they next appear in the panel as a
+#' pensioner}: retirements have their own module, so counting them here too
+#' would remove the same people twice.  The rate is \strong{pooled} across
+#' intervals:
+#'
+#' \code{exit_rate = total exits over all intervals / total active staff at
+#' the start of each interval}
+#'
+#' e.g. 3 exits from 10 staff in the first interval and 0 from 7 in the
+#' second gives \code{3 / 17}.  Pooling gives steadier rates for small
+#' groups than averaging each interval's rate, and weights busier years by
+#' their size.  The last snapshot starts no interval, so it only ever serves
+#' as an end point.  Exits and staff are counted in the group the person
+#' was in at the start of the interval.
 #'
 #' @param panel_contract_dt data.table.  Full panel of contract data (all
 #'   \code{ref_date} snapshots).
 #' @param panel_personnel_dt data.table.  Full panel of personnel data.
 #' @param group_cols Character vector or \code{NULL}.  Columns to group by
 #'   (e.g. \code{"est_id"}).  Pass \code{NULL} for an overall (ungrouped) rate.
-#' @param freq Character.  Frequency passed to
-#'   \code{govhr::detect_personnel_event()}.  Default \code{"year"}.
-#' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param ref_date_col Character.  Default \code{"ref_date"}.
-#' @param start_date_col Character.  Default \code{"start_date"}.
-#' @param end_date_col Character.  Default \code{"end_date"}.
-#' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"status"}.
+#' @param column_spec_args Named list.  Column names, if your data use
+#'   different names from the \code{govhr} defaults: give only the ones you
+#'   need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+#'   here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
+#'   \code{end_date_col}, \code{contract_type_col}, \code{status_col}.  See
+#'   \code{\link{simulate_horizon}} for the defaults.
 #'
 #' @return data.table with \code{group_cols} (if specified) and
-#'   \code{exit_rate} column.
+#'   \code{exit_rate} column -- one row per group, or a single row when
+#'   \code{group_cols = NULL}.  A group with no active staff at the start of
+#'   any interval gets a rate of 0.
 #' @export
 estimate_historical_exit_rates <- function(panel_contract_dt,
                                            panel_personnel_dt,
-                                           group_cols        = NULL,
-                                           freq              = "year",
-                                           personnel_id_col  = "personnel_id",
-                                           ref_date_col      = "ref_date",
-                                           start_date_col    = "start_date",
-                                           end_date_col      = "end_date",
-                                           contract_type_col = "contract_type",
-                                           status_col         = "employment_status") {
+                                           group_cols       = NULL,
+                                           column_spec_args = list()) {
 
   if (!data.table::is.data.table(panel_contract_dt))
     panel_contract_dt <- data.table::as.data.table(panel_contract_dt)
   if (!data.table::is.data.table(panel_personnel_dt))
     panel_personnel_dt <- data.table::as.data.table(panel_personnel_dt)
 
-  panel_dates <- sort(unique(panel_personnel_dt[[ref_date_col]]))
-  start_str   <- format(min(panel_dates, na.rm = TRUE))
-  end_str     <- format(max(panel_dates, na.rm = TRUE))
+  cols <- .column_spec(column_spec_args)
+  .check_spec_columns(panel_contract_dt, panel_personnel_dt, cols, required = list(
+    contract_dt  = c("personnel_id_col", "ref_date_col", "start_date_col",
+                     "end_date_col", "contract_type_col"),
+    personnel_dt = c("personnel_id_col", "ref_date_col", "status_col")
+  ))
+  personnel_id_col <- cols$personnel_id_col
+  ref_date_col     <- cols$ref_date_col
 
-  # Detect non-retirement exit events across the full panel
-  fire_events <- govhr::detect_personnel_event(
-    data       = panel_personnel_dt,
-    id_col     = personnel_id_col,
-    event_type = "fire",
-    start_date = start_str,
-    end_date   = end_str,
-    freq       = freq,
-    status_col = status_col
-  )
-  # fire_events columns: personnel_id_col, ref_date, type_event
+  panel_dates <- sort(unique(panel_personnel_dt[[ref_date_col]]))
+
+  # Detect non-retirement exit events across the full panel. govhr's
+  # `separation` leaves out people who next appear as pensioners.
+  fire_events <- .govhr_detect_movement(
+    panel_personnel_dt, personnel_id_col, ref_date_col, cols$status_col
+  )[separation %in% TRUE]
 
   # Join to contract panel to retrieve group_cols per exit.
   # govhr::add_contract_to_event() deduplicates to one row per
   # person x ref_date x keep_vars before joining, preventing row
   # duplication for multi-contract individuals.
   if (!is.null(group_cols) && length(group_cols) > 0) {
-    fire_events <- govhr::add_contract_to_event(
-      event_dt    = fire_events,
-      contract_dt = panel_contract_dt,
-      keep_vars   = group_cols
+    fire_events <- .govhr_add_contract_to_event(
+      fire_events, panel_contract_dt, group_cols, personnel_id_col, ref_date_col
     )
 
     exit_counts <- fire_events[
@@ -106,23 +115,22 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
     exit_counts <- fire_events[, .(n_exits = .N), by = ref_date_col]
   }
 
-  # Compute active stock per snapshot per group (re-uses compute_current_stock)
-  stock_list <- lapply(panel_dates, function(snap) {
-    ct_snap <- panel_contract_dt[get(ref_date_col) == snap]
-    pt_snap <- panel_personnel_dt[get(ref_date_col) == snap]
-    ct_snap <- ct_snap[, !ref_date_col, with = FALSE]
-    pt_snap <- pt_snap[, !ref_date_col, with = FALSE]
+  # Each exit is dated to the START of the snapshot interval it happens in
+  # (detect_movement() flags a separation at t when someone is gone
+  # at t+1), so the exposed population is the active stock at t. The last
+  # snapshot starts no interval and can never have an exit, so it is left
+  # out -- including it would add a structural zero and bias the rate down
+  # by (n - 1) / n.
+  rate_dates <- if (length(panel_dates) >= 2L) panel_dates[-length(panel_dates)] else panel_dates
 
+  # Compute active stock per snapshot per group (re-uses compute_current_stock)
+  stock_list <- lapply(rate_dates, function(snap) {
     s <- compute_current_stock(
-      contract_dt       = ct_snap,
-      personnel_dt      = pt_snap,
+      contract_dt       = .panel_snapshot(panel_contract_dt, ref_date_col, snap),
+      personnel_dt      = .panel_snapshot(panel_personnel_dt, ref_date_col, snap),
       ref_date          = snap,
       group_cols        = group_cols,
-      personnel_id_col  = personnel_id_col,
-      start_date_col    = start_date_col,
-      end_date_col      = end_date_col,
-      contract_type_col = contract_type_col,
-      status_col        = status_col
+      column_spec_args  = cols
     )
     s[, (ref_date_col) := snap]
     s
@@ -134,16 +142,18 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
 
   rate_dt <- exit_counts[stock_dt, on = join_keys]
   rate_dt[is.na(n_exits), n_exits := 0L]
-  rate_dt[, exit_rate := data.table::fifelse(
-    current_stock > 0,
-    n_exits / current_stock,
-    0
-  )]
 
+  # Pooled rate: total exits / total exposed stock across all intervals (the
+  # same pooling govhr::estimate_decrement_rates() uses). More stable than
+  # averaging each interval's rate when groups are small.
+  .pool <- function(n_ev, stock) {
+    tot <- sum(stock, na.rm = TRUE)
+    if (tot > 0) sum(n_ev, na.rm = TRUE) / tot else 0
+  }
   if (!is.null(group_cols) && length(group_cols) > 0) {
-    result <- rate_dt[, .(exit_rate = mean(exit_rate, na.rm = TRUE)), by = group_cols]
+    result <- rate_dt[, .(exit_rate = .pool(n_exits, current_stock)), by = group_cols]
   } else {
-    result <- data.table::data.table(exit_rate = mean(rate_dt$exit_rate, na.rm = TRUE))
+    result <- data.table::data.table(exit_rate = .pool(rate_dt$n_exits, rate_dt$current_stock))
   }
 
   result
@@ -166,8 +176,12 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
 #' @param policy_params List.  Canonical three-slot exit policy specification.
 #'   See \code{\link{simulate_exits}} for the full three-slot specification.
 #'   Keys consumed here: \code{group_cols}, \code{policy_table} (with
-#'   \code{exit_rate} column), \code{defaults$exit_rate},
-#'   \code{defaults$exit_strategy}, \code{defaults$active_types}.
+#'   \code{exit_rate} and optionally \code{exit_multiplier} columns; exactly
+#'   one row when \code{group_cols} is \code{NULL}), \code{defaults$exit_rate},
+#'   \code{defaults$exit_multiplier},
+#'   \code{defaults$exit_strategy}, \code{defaults$active_types} (default
+#'   \code{c("permanent", "fixed-term", "short-term")} — the non-terminal
+#'   \code{contract_type} values per the \code{govhr} harmonized dictionary).
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
 #'
@@ -183,7 +197,7 @@ compute_status_quo_exits <- function(
 
   .defaults     <- policy_params$defaults %||% list()
   exit_strategy <- .defaults$exit_strategy %||% "random"
-  active_types  <- .defaults$active_types  %||% "active"
+  active_types  <- .exit_types(.defaults)
   group_cols    <- policy_params$group_cols
 
   if (!data.table::is.data.table(contract_dt))
@@ -199,9 +213,24 @@ compute_status_quo_exits <- function(
   }
 
   if (is.null(group_cols) || length(group_cols) == 0L) {
-    # Scalar path — resolve rate from a 1-row table (no N-row join).
+    # Ungrouped path. resolve_policy_table() ignores policy_table when
+    # group_cols is NULL, so an ungrouped estimate (the 1-row table
+    # estimate_historical_exit_rates() returns for group_cols = NULL) must be
+    # read here directly; defaults fill any column the table lacks.
     resolved_s <- resolve_policy_table(policy_params, active_dt[1L],
                                        c("exit_rate", "exit_multiplier"))
+    pt <- policy_params$policy_table
+    if (!is.null(pt) && nrow(pt) > 0L) {
+      if (nrow(pt) > 1L)
+        stop(
+          "compute_status_quo_exits: policy_table has ", nrow(pt), " rows but ",
+          "group_cols is NULL, so there is no way to tell which row applies. ",
+          "Set group_cols, or pass a 1-row policy_table for an overall rate.",
+          call. = FALSE
+        )
+      if ("exit_rate" %in% names(pt))       resolved_s$exit_rate       <- pt$exit_rate[[1L]]
+      if ("exit_multiplier" %in% names(pt)) resolved_s$exit_multiplier <- pt$exit_multiplier[[1L]]
+    }
     s_rate <- resolved_s$exit_rate %||% 0
     s_mult <- resolved_s$exit_multiplier %||% 1
     if (is.na(s_rate)) s_rate <- 0
@@ -209,13 +238,13 @@ compute_status_quo_exits <- function(
     eff_rate <- s_rate * s_mult
 
     n_active <- data.table::uniqueN(active_dt[[personnel_id_col]])
-    n_exit   <- min(round(n_active * eff_rate), n_active)
+    n_exit   <- min(stochastic_round(n_active * eff_rate), n_active)
     if (n_exit <= 0L) return(data.table::data.table())
 
     pool_ids     <- unique(active_dt[[personnel_id_col]])
-    selected_ids <- .select_exits(pool_ids, active_dt, n_exit,
-                                   exit_strategy, personnel_id_col)
-    return(data.table::data.table(personnel_id = selected_ids))
+    selected_ids <- .select_personnel_subset(pool_ids, active_dt, n_exit,
+                                              exit_strategy, personnel_id_col)
+    return(.exit_ids_table(selected_ids, personnel_id_col))
   }
 
   # Grouped path — scale-optimised for large HRMIS data.
@@ -251,14 +280,14 @@ compute_status_quo_exits <- function(
                                     resolved_g$exit_multiplier)]
   }
 
-  groups_dt[, n_exit := pmin(as.integer(round(n_active * exit_rate)), n_active)]
+  groups_dt[, n_exit := pmin(stochastic_round(n_active * exit_rate), n_active)]
 
   # Sample from each group's pool — no .SD copy, no [, by =] overhead
   selected_ids <- unlist(
     mapply(
       function(pool, n_exit, grp_dt) {
         if (n_exit <= 0L || length(pool) == 0L) return(character(0))
-        .select_exits(pool, active_dt, n_exit, exit_strategy, personnel_id_col)
+        .select_personnel_subset(pool, active_dt, n_exit, exit_strategy, personnel_id_col)
       },
       groups_dt$pool_ids,
       groups_dt$n_exit,
@@ -269,9 +298,7 @@ compute_status_quo_exits <- function(
 
   if (length(selected_ids) == 0L) return(data.table::data.table())
 
-  result <- data.table::data.table(personnel_id = unique(selected_ids))
-  data.table::setnames(result, "personnel_id", personnel_id_col)
-  result
+  .exit_ids_table(unique(selected_ids), personnel_id_col)
 }
 
 
@@ -290,8 +317,11 @@ compute_status_quo_exits <- function(
 #'
 #' @param contract_dt data.table.  Current (single-snapshot) contract data.
 #' @param policy_params List.  Canonical three-slot exit policy specification.
-#'   Keys consumed: \code{defaults$exit_rate}, \code{defaults$exit_strategy},
-#'   \code{defaults$active_types}.
+#'   Keys consumed: \code{defaults$exit_rate}, \code{defaults$exit_multiplier}
+#'   (default \code{1}; multiplies \code{exit_rate}), \code{defaults$exit_strategy},
+#'   \code{defaults$active_types} (default
+#'   \code{c("permanent", "fixed-term", "short-term")} — the non-terminal
+#'   \code{contract_type} values per the \code{govhr} harmonized dictionary).
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
 #'
@@ -308,13 +338,20 @@ compute_fixed_rate_exits <- function(
   .defaults     <- policy_params$defaults %||% list()
   exit_rate     <- .defaults$exit_rate
   exit_strategy <- .defaults$exit_strategy %||% "random"
-  active_types  <- .defaults$active_types  %||% "active"
+  active_types  <- .exit_types(.defaults)
 
   if (is.null(exit_rate) || !is.numeric(exit_rate) || length(exit_rate) != 1L)
     stop(
       "defaults$exit_rate must be a numeric scalar when policy_table is NULL.",
       call. = FALSE
     )
+
+  # Same lever as the status-quo path, so a multiplier is never silently
+  # dropped when simulate_horizon() falls back to the flat rate.
+  exit_multiplier <- .defaults$exit_multiplier %||% 1
+  if (!is.numeric(exit_multiplier) || length(exit_multiplier) != 1L || is.na(exit_multiplier))
+    stop("defaults$exit_multiplier must be a numeric scalar.", call. = FALSE)
+  exit_rate <- exit_rate * exit_multiplier
 
   if (!data.table::is.data.table(contract_dt))
     contract_dt <- data.table::as.data.table(contract_dt)
@@ -324,49 +361,18 @@ compute_fixed_rate_exits <- function(
   if (nrow(active_dt) == 0L) return(data.table::data.table())
 
   n_active <- data.table::uniqueN(active_dt[[personnel_id_col]])
-  n_exit   <- min(round(n_active * exit_rate), n_active)
+  n_exit   <- min(stochastic_round(n_active * exit_rate), n_active)
 
   if (n_exit <= 0L) return(data.table::data.table())
 
   pool_ids     <- unique(active_dt[[personnel_id_col]])
-  selected_ids <- .select_exits(pool_ids, active_dt, n_exit,
-                                 exit_strategy, personnel_id_col)
+  selected_ids <- .select_personnel_subset(pool_ids, active_dt, n_exit,
+                                            exit_strategy, personnel_id_col)
 
-  result <- data.table::data.table(personnel_id = selected_ids)
-  data.table::setnames(result, "personnel_id", personnel_id_col)
-  result
+  .exit_ids_table(selected_ids, personnel_id_col)
 }
 
-
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# Internal: select exits from a pool using strategy
-# ---------------------------------------------------------------------------
-.select_exits <- function(pool_ids, 
-                          pool_dt, 
-                          n_exit, 
-                          strategy, 
-                          personnel_id_col) {
-  
-  n_exit <- as.integer(min(n_exit, length(pool_ids)))
-  if (n_exit <= 0L) return(character(0))
-
-  if (strategy == "random") {
-    return(sample(pool_ids, size = n_exit, replace = FALSE))
-  }
-
-  # Treat strategy as a column name — rank ascending, lowest exits first
-  if (strategy %in% names(pool_dt)) {
-    primary <- pool_dt[
-      data.table::uniqueN(get(personnel_id_col)) > 0,
-      .(rank_val = max(get(strategy), na.rm = TRUE)),
-      by = c(personnel_id_col)
-    ]
-    primary <- primary[order(rank_val)]
-    return(head(primary[[personnel_id_col]], n_exit))
-  }
-
-  # Fallback to random
-  sample(pool_ids, size = n_exit, replace = FALSE)
+# One column of selected IDs, under the caller's name for the ID column.
+.exit_ids_table <- function(ids, personnel_id_col) {
+  data.table::setnames(data.table::data.table(ids), personnel_id_col)
 }

@@ -8,11 +8,7 @@ compute_time_in_grade(
   contract_dt,
   ref_date,
   group_cols,
-  personnel_id_col = "personnel_id",
-  ref_date_col = "ref_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -23,18 +19,12 @@ compute_time_in_grade(
 \item{group_cols}{Character vector. Columns defining the "grade" state
 (e.g., c("est_id", "paygrade") or just c("paygrade"))}
 
-\item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
-
-\item{ref_date_col}{Character. Reference date column for panel data (default: "ref_date")}
-
-\item{start_date_col}{Character. Contract start date column (default: "start_date")}
-
-\item{end_date_col}{Character. Contract end date column (default: "end_date")}
-
-\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
+\item{column_spec_args}{Complete column specification from
+\code{.column_spec()}.}
 }
 \value{
-data.table with columns: personnel_id, time_in_grade (years)
+data.table with two columns: the caller's personnel ID column and
+\code{time_in_grade} (years)
 }
 \description{
 Calculates how long each person has been in their current paygrade/position

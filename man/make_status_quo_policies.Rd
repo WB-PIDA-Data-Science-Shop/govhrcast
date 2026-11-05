@@ -11,13 +11,7 @@ make_status_quo_policies(
   movement_group_cols = NULL,
   exit_group_cols = NULL,
   hiring_group_cols = NULL,
-  personnel_id_col = "personnel_id",
-  ref_date_col = "ref_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status",
-  salary_col = "gross_salary_lcu"
+  column_spec_args = list()
 )
 }
 \arguments{
@@ -28,7 +22,8 @@ estimation.}
 \item{personnel_dt}{data.table.  Full panel personnel microdata.}
 
 \item{salary_scale_dt}{data.table.  Pay table injected into the hiring
-policy.  Must contain a salary column matching \code{salary_col}.}
+policy.  Must contain a numeric column with the same name as
+\code{salary_col}.}
 
 \item{movement_group_cols}{Character vector or \code{NULL}.  Columns that
 define mobility states for the movement baseline (e.g.
@@ -42,19 +37,11 @@ historical exit rate estimation.  \code{NULL} estimates an aggregate rate.}
 for the flow-based hiring policy.  \code{NULL} hires at the aggregate
 level.}
 
-\item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
-
-\item{ref_date_col}{Character.  Default \code{"ref_date"}.}
-
-\item{start_date_col}{Character.  Default \code{"start_date"}.}
-
-\item{end_date_col}{Character.  Default \code{"end_date"}.}
-
-\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
-
-\item{status_col}{Character.  Default \code{"status"}.}
-
-\item{salary_col}{Character.  Default \code{"gross_salary_lcu"}.}
+\item{column_spec_args}{Named list.  Column names, if your data use
+different names from the \code{govhr} defaults: give only the ones you
+need to change, e.g. \code{list(salary_col = "base_salary_lcu")}.  See
+\code{\link{simulate_horizon}} for the keys and defaults.  Pass the same
+list to \code{simulate_horizon()} when you run these policies.}
 }
 \value{
 Named list with four elements:
@@ -86,13 +73,16 @@ transition matrix) are estimated from the supplied data.
 \code{replacement_cap = 0.80}).  Purely scalar — no panel needed.}
 \item{\code{exit}}{Non-retirement attrition at the historically
 observed aggregate rate, estimated via
-\code{estimate_historical_exit_rates()}.  Falls back to a 5\\%
+\code{estimate_historical_exit_rates()}.  Falls back to a 5\%
 annual rate with a warning when fewer than two snapshots are present.}
 \item{\code{movement}}{Grade/group transition probabilities estimated
-from the panel via \code{estimate_movement_baseline()}.  Requires
-\code{movement_group_cols} to be specified (see argument).  Falls back
-to a 5\\% flat movement rate with a warning when the panel is
-insufficient.}
+from the panel via \code{estimate_historical_movement_rates()}.  Requires
+\code{movement_group_cols} to be specified (see argument).  When the
+panel is insufficient (fewer than 2 snapshots) a warning is raised and
+\code{policy_table} is left \code{NULL} with a 5\% \code{movement_rate}
+in \code{defaults} -- but note that
+\code{simulate_promotions_transfers()} currently does not apply that
+flat rate to single-snapshot data, so this yields no movements.}
 \item{\code{hiring}}{Flow-based replacement at 1:1 (\code{replacement_rate
     = 1.0}), using \code{salary_scale_dt} for new-hire pay.}
 }

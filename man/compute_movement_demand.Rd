@@ -11,11 +11,7 @@ compute_movement_demand(
   policy_params,
   salary_scale_dt,
   ref_date,
-  personnel_id_col = "personnel_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -23,31 +19,20 @@ compute_movement_demand(
 
 \item{personnel_dt}{data.table. Current personnel data}
 
-\item{baseline_matrix}{data.table. Output of \code{estimate_movement_baseline()}.
-Must have columns: from_group, to_group, avg_prob}
+\item{baseline_matrix}{data.table. Output of
+\code{estimate_historical_movement_rates()} or a user-supplied table.
+Must have columns: from_group, to_group, movement_rate}
 
-\item{policy_params}{List. Must contain:
-\describe{
-\item{group_cols}{Character vector. Columns used to define states}
-\item{promotion_multiplier}{Numeric. Scalar multiplier for promotion probs (default 1)}
-\item{transfer_multiplier}{Numeric. Scalar multiplier for transfer probs (default 1)}
-\item{promotion_strategy}{Character. "tenure" or "wage_based"}
-\item{transfer_strategy}{Character. "random", "tenure", or "reverse_tenure"}
-}}
+\item{policy_params}{List. Canonical three-slot movement policy. Only
+\code{group_cols} (character vector of columns defining states) is
+read here.}
 
 \item{salary_scale_dt}{data.table. Valid destinations. Must contain group_cols columns.}
 
 \item{ref_date}{Date or character. Reference date}
 
-\item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
-
-\item{start_date_col}{Character. Start date column (default: "start_date")}
-
-\item{end_date_col}{Character. End date column (default: "end_date")}
-
-\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
-
-\item{status_col}{Character. Status column (default: "status")}
+\item{column_spec_args}{Complete column specification from
+\code{.column_spec()}.}
 }
 \value{
 data.table with columns:
@@ -61,9 +46,11 @@ data.table with columns:
 }
 \description{
 Pure function that joins the current workforce stock with the baseline
-transition matrix, applies policy multipliers, scrubs invalid targets
-(not present in salary_scale), redistributes scrubbed probability to
-"no movement", and calculates integer mover counts per from_group -> to_group
-transition using stochastic rounding.
+transition matrix, scrubs destinations not present in
+\code{salary_scale_dt} (those employees simply stay put), rescales each
+origin group's rates so total outflow is at most 1, and calculates
+integer mover counts per from_group -> to_group transition using
+stochastic rounding. Rates are used as supplied -- there is no multiplier
+applied here.
 }
 \keyword{internal}

@@ -11,10 +11,17 @@
 NULL
 
 
+# Contract types that can exit: the policy's, or the dictionary's working types,
+# plus a blank, which is missing data and no reason never to leave.
+.exit_types <- function(defaults = list()) {
+  c(defaults$active_types %||% c("permanent", "fixed-term", "short-term"), NA_character_)
+}
+
+
 #' Update Contracts for Non-Retirement Exits
 #'
 #' @description
-#' Marks ALL active contracts for each exiting person as \code{exited_type}
+#' Marks ALL active contracts for each exiting person as \code{"inactive"}
 #' and sets \code{end_date_col} to \code{ref_date}.  Uses a plain membership
 #' filter on \code{personnel_id} so that multi-contract persons are handled
 #' correctly in one pass.
@@ -24,11 +31,10 @@ NULL
 #'   \code{personnel_id_col}.
 #' @param ref_date Date.  Reference date; becomes the exit date.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param contract_type_col Character.  Default \code{"contract_type_code"}.
+#' @param contract_type_col Character.  Default \code{"contract_type"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
 #' @param active_types Character vector.  Contract type values to update.
-#' @param exited_type Character.  Value to write into \code{contract_type_col}.
-#'   Default \code{"inactive"}.
+#'   Default: the \code{govhr} dictionary's working types, plus a blank.
 #'
 #' @return \code{contract_dt} (invisibly; modified by reference in place).
 #' @section Data Integrity:
@@ -42,21 +48,16 @@ update_contracts_for_exits <- function(contract_dt,
                                        personnel_id_col  = "personnel_id",
                                        contract_type_col = "contract_type",
                                        end_date_col      = "end_date",
-                                       active_types      = "active",
-                                       exited_type       = "inactive") {
+                                       active_types      = .exit_types()) {
   if (is.null(exits_dt) || nrow(exits_dt) == 0L) return(invisible(contract_dt))
 
   exiting_ids <- unique(exits_dt[[personnel_id_col]])
 
+  .as_of_date <- as.Date(ref_date)
   contract_dt[
     get(personnel_id_col) %in% exiting_ids &
       get(contract_type_col) %in% active_types,
-    (contract_type_col) := exited_type
-  ]
-  contract_dt[
-    get(personnel_id_col) %in% exiting_ids &
-      get(contract_type_col) == exited_type,
-    (end_date_col) := as.Date(ref_date)
+    c(contract_type_col, end_date_col) := list("inactive", .as_of_date)
   ]
 
   invisible(contract_dt)
@@ -71,7 +72,7 @@ update_contracts_for_exits <- function(contract_dt,
 #' @param personnel_dt data.table.  Personnel data (modified by reference).
 #' @param exits_dt data.table.  Table of exiting personnel.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
-#' @param status_col Character.  Default \code{"status"}.
+#' @param status_col Character.  Default \code{"employment_status"}.
 #'
 #' @return \code{personnel_dt} (invisibly; modified by reference in place).
 #' @section Data Integrity:

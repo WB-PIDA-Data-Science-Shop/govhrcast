@@ -8,13 +8,9 @@ compute_flow_demand(
   contract_dt,
   personnel_dt,
   policy_params,
-  retirees_dt = NULL,
+  leavers_dt = NULL,
   ref_date,
-  personnel_id_col = "personnel_id",
-  birth_date_col = "birth_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -26,28 +22,30 @@ compute_flow_demand(
 \itemize{
 \item replacement_rate: Scalar or data.table with group_cols + replacement_rate
 \item group_cols: Character vector of grouping columns (can be NULL)
+\item defaults: Only when \code{leavers_dt} is \code{NULL}: the retirement
+rule to work out who leaves, e.g.
+\code{list(eligibility_type = "age_only", min_age = 60)}.
 }}
 
-\item{retirees_dt}{data.table. Optional. Output from simulate_retirement (default: NULL)}
+\item{leavers_dt}{data.table or \code{NULL}. The people who left, with the
+person ID column, and the group columns if they have them (otherwise these
+are read from \code{contract_dt}).  An empty table means nobody left.
+\code{NULL} means this is not known, so retirees are worked out from the rule
+in \code{policy_params$defaults}.  \code{simulate_scenario()} always passes
+a table.}
 
 \item{ref_date}{Date. Reference date for calculations}
 
-\item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
-
-\item{birth_date_col}{Character. Birth date column (default: "birth_date")}
-
-\item{start_date_col}{Character. Start date column (default: "start_date")}
-
-\item{end_date_col}{Character. End date column (default: "end_date")}
-
-\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
+\item{column_spec_args}{Complete column specification from
+\code{.column_spec()}.}
 }
 \value{
 data.table with group_cols (if specified) and total_hires column
 }
 \description{
-Calculates hiring needs based on exits (retirements) from previous period.
-Demand = exits × replacement_rate. Replacement rate can be scalar or data.table
-matched on group_cols.
+Calculates hiring needs from the people who left this period: retirees and
+other exits.  Demand = leavers x replacement_rate, so a replacement rate of 1
+holds headcount.  Replacement rate can be scalar or data.table matched on
+group_cols.  A period when nobody left needs no hires.
 }
 \keyword{internal}

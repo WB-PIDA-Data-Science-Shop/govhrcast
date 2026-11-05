@@ -10,13 +10,7 @@ update_state_with_adjustment(
   adjustment_dt,
   policy_params,
   ref_date,
-  personnel_id_col = "personnel_id",
-  contract_id_col = "contract_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -31,23 +25,15 @@ update_state_with_adjustment(
 \item salary_scale: data.table with salary information
 \item removal_strategy: Character for downsizing (default: "last_hired_first")
 \item group_cols: Character vector of grouping columns (can be NULL)
+\item new_hire_profile, new_hire_profile_overall: Optional. What new hires
+start with: see \code{\link{estimate_new_hire_profile}}.  Without a
+profile, hires are \code{"permanent"} with a blank age and gender.
 }}
 
 \item{ref_date}{Date. Reference date for adjustments}
 
-\item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
-
-\item{contract_id_col}{Character. Contract ID column (default: "contract_id")}
-
-\item{start_date_col}{Character. Start date column (default: "start_date")}
-
-\item{end_date_col}{Character. End date column (default: "end_date")}
-
-\item{salary_col}{Character. Salary column (default: "gross_salary_lcu")}
-
-\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
-
-\item{status_col}{Character. Status column (default: "status")}
+\item{column_spec_args}{Complete column specification from
+\code{.column_spec()}.}
 }
 \value{
 List containing:
