@@ -157,8 +157,8 @@ test_that("a constructed flow policy produces identical output to the equivalent
   handwritten <- list(mode = "flow", group_cols = NULL, replacement_rate = 1.0,
                       salary_scale = data.table(gross_salary_lcu = 5000))
 
-  res_c <- simulate_hiring(contract_dt, personnel_dt, policy_params = constructed, retirees_dt = retirees_dt, ref_date = ref_date)
-  res_h <- simulate_hiring(contract_dt, personnel_dt, policy_params = handwritten, retirees_dt = retirees_dt, ref_date = ref_date)
+  res_c <- simulate_hiring(contract_dt, personnel_dt, policy_params = constructed, leavers_dt = retirees_dt, ref_date = ref_date)
+  res_h <- simulate_hiring(contract_dt, personnel_dt, policy_params = handwritten, leavers_dt = retirees_dt, ref_date = ref_date)
 
   expect_identical(res_c$new_hire_contracts_dt, res_h$new_hire_contracts_dt)
   expect_equal(res_c$summary$n_new_hires, 2L)
@@ -350,7 +350,7 @@ test_that("flow hiring: a group with leavers but no rate replaces nobody by defa
   d <- three_groups()
   rates <- data.table(est_id = "E1", replacement_rate = 1)
   policy <- design_hiring_policy_flow(rates, group_cols = "est_id", salary_scale = d$scale)
-  res <- simulate_hiring(d$ct, d$pt, policy_params = policy, retirees_dt = flow_retirees,
+  res <- simulate_hiring(d$ct, d$pt, policy_params = policy, leavers_dt = flow_retirees,
                          ref_date = as.Date("2020-01-01"))
   expect_equal(res$new_hire_contracts_dt[, .N, keyby = est_id], data.table(est_id = "E1", N = 1L, key = "est_id"))
 })
@@ -359,7 +359,7 @@ test_that("flow hiring: unmatched_rate sets the rate for groups not in the table
   d <- three_groups()
   rates <- data.table(est_id = "E1", replacement_rate = 0)
   policy <- design_hiring_policy_flow(rates, group_cols = "est_id", salary_scale = d$scale, unmatched_rate = 1)
-  res <- simulate_hiring(d$ct, d$pt, policy_params = policy, retirees_dt = flow_retirees,
+  res <- simulate_hiring(d$ct, d$pt, policy_params = policy, leavers_dt = flow_retirees,
                          ref_date = as.Date("2020-01-01"))
   expect_equal(res$new_hire_contracts_dt[, .N, keyby = est_id], data.table(est_id = "E2", N = 1L, key = "est_id"))
 })
@@ -369,15 +369,3 @@ test_that("design_hiring_policy_flow checks unmatched_rate", {
   expect_error(design_hiring_policy_flow(1, unmatched_rate = c(0, 1)))
 })
 
-test_that("combined hiring: a group with no rate adds no flow demand", {
-  d <- three_groups()
-  demand <- compute_combined_demand(
-    d$ct, d$pt, ref_date = as.Date("2020-01-01"),
-    policy_params = list(
-      group_cols = "est_id",
-      replacement_rate = data.table(est_id = "E1", replacement_rate = 0.5),
-      stock_targets = data.table(est_id = "E1", target_stock = 10L)
-    )
-  )
-  expect_equal(demand[order(est_id), total_hires], c(5, 0, 0))
-})

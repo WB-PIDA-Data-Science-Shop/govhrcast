@@ -8,7 +8,7 @@ simulate_hiring(
   contract_dt,
   personnel_dt,
   policy_params,
-  retirees_dt = NULL,
+  leavers_dt = NULL,
   ref_date,
   column_spec_args = list()
 )
@@ -20,18 +20,29 @@ simulate_hiring(
 
 \item{policy_params}{List. Hiring policy parameters including:
 \describe{
-\item{mode}{Character. One of: "flow", "stock", "combined", "status_quo"}
+\item{mode}{Character. One of: "flow", "stock", "status_quo"}
 \item{group_cols}{Character vector. Grouping columns (e.g., c("department", "grade")). NULL for overall.}
-\item{replacement_rate}{Numeric scalar or data.table. For "flow" and "combined" modes.}
-\item{stock_targets}{data.table. For "stock" and "combined" modes. Must contain group_cols + target_stock.}
-\item{salary_scale}{data.table. Salary scale with group_cols + salary column.}
+\item{replacement_rate}{Numeric scalar or data.table. For "flow" mode: 1 replaces everyone who left.}
+\item{stock_targets}{data.table. For "stock" mode. Must contain group_cols + target_stock. A group with
+no target stays as it is; a target for a group with no staff yet is hired up to.}
+\item{salary_scale}{data.table. Salary scale with group_cols + a numeric
+column with the same name as salary_col. With no group_cols, one row.}
 \item{removal_strategy}{Character. For downsizing. Options: "last_hired_first", "random" (default: "last_hired_first")}
-\item{eligibility_type}{Character. For flow mode with retirement calculation. See retirement module.}
-\item{min_age}{Numeric. For flow mode with retirement calculation.}
-\item{min_tenure}{Numeric. For flow mode with retirement calculation.}
+\item{defaults}{List. Only for flow mode with no \code{leavers_dt}: the rule that says who
+retires, e.g. \code{list(eligibility_type = "age_and_tenure", min_age = 60, min_tenure = 20)}.
+See \code{\link[=simulate_retirement]{simulate_retirement()}}.}
+\item{new_hire_profile}{data.table. Optional. What new hires start with: entry age, contract
+type and gender shares, by group, from \code{\link[=estimate_new_hire_profile]{estimate_new_hire_profile()}} (edit it to set your own).
+\code{\link[=simulate_horizon]{simulate_horizon()}} estimates this for you from the panel. Without one, hires here are
+\code{"permanent"} with a blank age and gender, and tenure 0.}
+\item{new_hire_profile_overall}{data.table. Optional. The same with no groups, used for a group
+with no rows in \code{new_hire_profile}.}
 }}
 
-\item{retirees_dt}{data.table. Optional. Output from simulate_retirement (default: NULL)}
+\item{leavers_dt}{data.table or \code{NULL}. For flow mode: the people to replace, one row per
+person, with the person ID column, e.g. \code{retirees_dt} from \code{\link[=simulate_retirement]{simulate_retirement()}}. They are
+replaced in the group of their main contract. An empty table means nobody left, so nobody is hired.
+\code{NULL} (default) works out retirees from the rule in \code{policy_params$defaults}.}
 
 \item{ref_date}{Date. Reference date for hiring simulation}
 
@@ -57,19 +68,24 @@ dates, used to find active contracts. New hires start on \code{ref_date} with
 an open end date; contracts ended by downsizing get \code{ref_date}.
 \item \code{salary_col} (\code{"gross_salary_lcu"}): pay column. Picks each person's main
 contract and gives the pay saved by downsizing.
-\item \code{contract_type_col} (\code{"contract_type"}): new hires are \code{"permanent"};
-contracts ended by downsizing become \code{"terminated"}.
+\item \code{contract_type_col} (\code{"contract_type"}): new hires get the type in the new
+hire profile, or \code{"permanent"} without one; contracts ended by downsizing
+become \code{"inactive"}.
 \item \code{status_col} (\code{"employment_status"}): only \code{"active"} people count towards
 headcount. New hires are \code{"active"}; people let go become \code{"inactive"}.
-\item Flow mode only, when it works out retirees itself: \code{birth_date_col}
-(\code{"birth_date"}), \code{age_col} (\code{"age"}) and \code{tenure_col}
-(\code{"personnel_tenure"}), as in \code{\link[=simulate_retirement]{simulate_retirement()}}.
+\item \code{age_col} (\code{"age"}), \code{birth_date_col} (\code{"birth_date"}), \code{tenure_col}
+(\code{"personnel_tenure"}), \code{gender_col} (\code{"gender"}) and \code{hire_date_col}
+(\code{NULL}): what new hires start with, in the columns \code{personnel_dt} has. In
+flow mode with no \code{leavers_dt}, the first three also work out retirees, as
+in \code{\link[=simulate_retirement]{simulate_retirement()}}.
 }}
 }
 \value{
 List containing:
 \describe{
-\item{summary}{data.table with hiring summary statistics}
+\item{summary}{data.table with hiring summary statistics, including
+\code{n_downsized} (people let go) and \code{downsizing_savings} (their
+pay, a positive number)}
 \item{contract_dt}{Updated contract data with new hires}
 \item{personnel_dt}{Updated personnel data with new hires}
 \item{adjustment_dt}{data.table of adjustments by group}
@@ -81,8 +97,9 @@ List containing:
 \description{
 Main user-facing function for simulating hiring and workforce adjustments.
 Orchestrates the entire hiring workflow: demand estimation, state updates,
-and summary reporting. Supports three policy modes: flow-based (replacement),
-stock-based (target levels), and combined.
+and summary reporting. Supports three policy modes: flow-based (replacement of
+the people who left), stock-based (target levels) and status quo (historical
+rates).
 }
 \examples{
 \dontrun{
@@ -98,9 +115,11 @@ policy_params_flow <- list(
   mode = "flow",
   group_cols = c("department", "paygrade"),
   replacement_rate = 1.0,
-  eligibility_type = "age_and_tenure",
-  min_age = 60,
-  min_tenure = 20,
+  defaults = list(
+    eligibility_type = "age_and_tenure",
+    min_age = 60,
+    min_tenure = 20
+  ),
   salary_scale = data.table(
     department = c("HR", "IT"),
     paygrade = c("G5", "G6"),
@@ -154,7 +173,7 @@ hiring_results <- simulate_hiring(
   contract_dt = retirement_results$contract_dt,
   personnel_dt = retirement_results$personnel_dt,
   policy_params = policy_params_flow,
-  retirees_dt = retirement_results$retirees_dt,
+  leavers_dt = retirement_results$retirees_dt,
   ref_date = as.Date("2025-01-01")
 )
 

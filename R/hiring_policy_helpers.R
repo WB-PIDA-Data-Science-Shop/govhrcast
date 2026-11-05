@@ -18,7 +18,8 @@
 #' The constructors:
 #' \itemize{
 #'   \item \code{\link{design_hiring_policy_flow}} -- replace a fraction of
-#'     exits (e.g. \code{replacement_rate = 1} rehires everyone who left).
+#'     the people who left: retirees and other exits
+#'     (\code{replacement_rate = 1} holds headcount).
 #'   \item \code{\link{design_hiring_policy_stock}} -- hire (or downsize)
 #'     toward a target headcount.
 #'   \item \code{\link{design_hiring_policy_status_quo}} -- reproduce
@@ -27,10 +28,6 @@
 #'     rates, usually the historical rates with some groups edited: status
 #'     quo for most groups and a reform for others.
 #' }
-#' \code{"combined"} mode (flow + stock simultaneously) has no constructor
-#' here -- it has no clean policy interpretation of its own and is expected
-#' to see negligible real use; hand-write the list directly for that case.
-#'
 #' Every constructor returns a \strong{plain list} -- the same shape a
 #' hand-written \code{hiring_policy} already has.  Nothing is hidden behind a
 #' class: anything not reachable through these constructors remains reachable
@@ -55,26 +52,30 @@ NULL
 #' Flow-Based Hiring Policy
 #'
 #' @description
-#' Builds a hiring policy that replaces a fraction of exits each period:
-#' \code{demand = n_exits x replacement_rate}, where \code{n_exits} comes
-#' from \code{simulate_retirement()}'s output for that period (supplied
-#' automatically when called through \code{\link{simulate_scenario}}/
-#' \code{\link{simulate_horizon}}).  See \code{\link{compute_flow_demand}}.
+#' Builds a hiring policy that replaces a fraction of the people who left each
+#' period: \code{demand = leavers x replacement_rate}.  Leavers are retirees and
+#' other exits, supplied automatically when called through
+#' \code{\link{simulate_scenario}}/\code{\link{simulate_horizon}}, so
+#' \code{replacement_rate = 1} holds headcount.  See
+#' \code{\link{compute_flow_demand}}.
 #'
 #' @param replacement_rate Numeric scalar, or data.table with \code{group_cols}
 #'   and a \code{replacement_rate} column for group-varying rates (e.g. IT
 #'   replaces 100% of leavers, HR replaces 50%).  \code{1.0} replaces every
-#'   exit; \code{0} hires no replacements. A data.table here requires
+#'   leaver; \code{0} hires no replacements. A data.table here requires
 #'   \code{group_cols} to be set.
 #' @param group_cols Character vector or \code{NULL} (default).  Columns
 #'   defining hiring groups (e.g. \code{"est_id"}).  \code{NULL} for an
 #'   overall (ungrouped) policy.
 #' @param salary_scale data.table or \code{NULL} (default).  Salary scale
-#'   for new hires, keyed on \code{group_cols} plus a numeric salary column.
+#'   for new hires, keyed on \code{group_cols} plus a numeric column with the
+#'   same name as \code{salary_col}.  With no \code{group_cols}, one row.
 #'   When \code{NULL} and called through \code{\link{simulate_horizon}},
 #'   automatically derived from its \code{salary_scale_dt} argument -- this
 #'   only happens inside \code{simulate_horizon()}; standalone
-#'   \code{\link{simulate_hiring}} calls need it supplied directly.
+#'   \code{\link{simulate_hiring}} calls need it supplied directly.  Give pay
+#'   at the start of the projection: \code{simulate_horizon()} grows it each
+#'   year by \code{salary_growth_rate}, the same as \code{salary_scale_dt}.
 #' @param unmatched_rate Number, 0 or more.  Replacement rate for groups that
 #'   have leavers but no row in a \code{replacement_rate} table.  Default
 #'   \code{0}: nobody is hired to replace them.

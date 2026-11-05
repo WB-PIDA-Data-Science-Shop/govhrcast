@@ -42,7 +42,7 @@ destinations (transitions whose \code{to_group} is absent from
 \code{salary_update_rule = "scale"}.
 
 Must have exactly one row per group — duplicate keys will cause an
-error. Must contain a numeric salary column matching \code{salary_col}.}
+error. Must contain a numeric column with the same name as \code{salary_col}.}
 
 \item{policy_params}{A named list describing the movement policy.
 
@@ -75,7 +75,7 @@ fields are recognised:\tabular{ll}{
    Parameter \tab Description \cr
    \code{movement_rate} \tab Scalar movement rate (share of each group's stock that moves per period). Used only as a fallback when \code{policy_table = NULL} and estimation from a multi-snapshot panel fails or finds zero transitions. Not applied to single-snapshot data (see \strong{Transition baseline}) \cr
    \code{movement_strategy} \tab Mover selection rule: \code{"tenure"} (used when omitted), \code{"wage_based"}, \code{"reverse_tenure"}, or \code{"random"} \cr
-   \code{active_types} \tab Accepted but \strong{currently not applied} by this module: every contract whose type is not \code{"inactive"} or \code{"pensioner"} is eligible to move, regardless of this value \cr
+   \code{active_types} \tab Contract types the policy covers: only contracts of these types (or a blank type, which counts as staff) can move. Default: every contract whose type is not \code{"inactive"} or \code{"pensioner"} \cr
    \code{salary_update_rule} \tab \code{"scale"} (default; assign destination salary from \code{salary_scale_dt}) or \code{"keep"} (retain current salary) \cr
    \code{movement_type} \tab \code{"promotion"} (default) or \code{"transfer"}. Not used by this function; tells \code{\link[=simulate_horizon]{simulate_horizon()}} which column to report this policy's movers under \cr
 }}
@@ -316,12 +316,7 @@ Two salary update rules are available via \code{defaults$salary_update_rule}:
 \itemize{
 \item \code{"scale"} (default) — the mover's salary (\code{salary_col} in
 \code{contract_dt}) is replaced with the value from \code{salary_scale_dt} for
-their new \code{to_group}. The value is read from a numeric column of
-\code{salary_scale_dt} whose name matches
-\code{salary|wage|pay|compensation|allowance}: \code{gross_salary_lcu} if
-present, otherwise the first such column. It is \emph{not} matched to
-\code{salary_col} by name, so keep only one salary column in
-\code{salary_scale_dt} to avoid picking the wrong one.
+their new \code{to_group}, read from the column of the same name.
 \item \code{"keep"} — the mover retains their current salary. Use this when
 salary adjustments are handled separately, for example through a
 merit increment applied after movement.

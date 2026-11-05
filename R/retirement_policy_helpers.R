@@ -251,15 +251,11 @@ eligibility_custom <- function(rule) {
 #' @description
 #' Builds the pension half of a retirement policy for a final-salary
 #' defined-benefit formula.  See \code{\link{compute_db_pension}} for the
-#' exact formula (accrual rate x capped service x reference wage, itself
-#' optionally capped as a replacement rate).
+#' exact formula (accrual rate x capped service x pay, itself
+#' optionally capped as a replacement rate).  Pay is the run's \code{salary_col}.
 #'
 #' @param accrual_rate Numeric.  Annual accrual rate (e.g. \code{0.02} = 2%
 #'   of wage per year of service).
-#' @param ref_wage_col Character.  Name of the salary column to use as the
-#'   pension reference wage (e.g. \code{"base_salary_lcu"}) -- this is a
-#'   column-name pointer, not checked for existence here since it can only be
-#'   verified once real workforce data is supplied at simulation time.
 #' @param max_years Numeric or \code{NA} (default).  Service cap in years;
 #'   \code{NA} = uncapped.
 #' @param replacement_cap Numeric or \code{NA} (default).  Maximum
@@ -270,19 +266,16 @@ eligibility_custom <- function(rule) {
 #'   preset), or as \code{\link{pension_hybrid}}'s \code{db} argument.
 #' @seealso \code{\link{design_retirement_policy}}, \code{\link{compute_db_pension}}
 #' @examples
-#' pension_db(accrual_rate = 0.02, ref_wage_col = "base_salary_lcu",
-#'            max_years = 35, replacement_cap = 0.80)
+#' pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80)
 #' @export
-pension_db <- function(accrual_rate, ref_wage_col, max_years = NA, replacement_cap = NA) {
+pension_db <- function(accrual_rate, max_years = NA, replacement_cap = NA) {
   validate_positive_number(accrual_rate, "accrual_rate", allow_zero = TRUE)
-  validate_character_string(ref_wage_col, "ref_wage_col")
   if (!is.na(max_years))       validate_positive_number(max_years, "max_years", allow_zero = TRUE)
   if (!is.na(replacement_cap)) validate_positive_number(replacement_cap, "replacement_cap", allow_zero = TRUE)
 
   list(defaults = list(
     pension_type    = "db",
     accrual_rate    = accrual_rate,
-    ref_wage_col    = ref_wage_col,
     max_years       = max_years,
     replacement_cap = replacement_cap
   ))
@@ -353,28 +346,23 @@ pension_flat <- function(flat_amount) {
 #'
 #' @description
 #' Builds the pension half of a retirement policy that pays a fixed
-#' proportion of the retiree's reference wage (e.g. a scheme paying a flat
-#' 15% of final salary). See \code{\link{compute_rate_pension}}.
+#' proportion of the retiree's pay, the run's \code{salary_col} (e.g. a scheme
+#' paying a flat 15% of final salary). See \code{\link{compute_rate_pension}}.
 #'
-#' @param pension_rate Numeric.  Proportion of reference wage paid (e.g.
-#'   \code{0.15}).
-#' @param ref_wage_col Character.  Name of the salary column to use as the
-#'   reference wage -- a column-name pointer, not checked for existence here.
+#' @param pension_rate Numeric.  Proportion of pay paid (e.g. \code{0.15}).
 #'
 #' @return A list with a single \code{defaults} element -- pass this as the
 #'   \code{pension} argument to \code{\link{design_retirement_policy}} (or a
 #'   preset).
 #' @seealso \code{\link{design_retirement_policy}}, \code{\link{compute_rate_pension}}
 #' @examples
-#' pension_rate(pension_rate = 0.15, ref_wage_col = "base_salary_lcu")
+#' pension_rate(pension_rate = 0.15)
 #' @export
-pension_rate <- function(pension_rate, ref_wage_col) {
+pension_rate <- function(pension_rate) {
   validate_positive_number(pension_rate, "pension_rate", allow_zero = TRUE)
-  validate_character_string(ref_wage_col, "ref_wage_col")
   list(defaults = list(
     pension_type = "rate",
-    pension_rate = pension_rate,
-    ref_wage_col = ref_wage_col
+    pension_rate = pension_rate
   ))
 }
 
@@ -396,7 +384,7 @@ pension_rate <- function(pension_rate, ref_wage_col) {
 #' @seealso \code{\link{design_retirement_policy}}, \code{\link{compute_hybrid_pension}}
 #' @examples
 #' pension_hybrid(
-#'   db = pension_db(accrual_rate = 0.015, ref_wage_col = "base_salary_lcu"),
+#'   db = pension_db(accrual_rate = 0.015),
 #'   dc = pension_dc(balance_col = "dc_balance", annuity_factor = 12)
 #' )
 #' @export
@@ -486,13 +474,13 @@ pension_custom <- function(pension_formula) {
 #' @examples
 #' design_retirement_policy(
 #'   eligibility = eligibility_age(min_age = 60),
-#'   pension     = pension_rate(pension_rate = 0.15, ref_wage_col = "base_salary_lcu")
+#'   pension     = pension_rate(pension_rate = 0.15)
 #' )
 #'
 #' # group-varying accrual_rate by grade
 #' design_retirement_policy(
 #'   eligibility  = eligibility_age(min_age = 60),
-#'   pension      = pension_db(accrual_rate = 0.02, ref_wage_col = "base_salary_lcu"),
+#'   pension      = pension_db(accrual_rate = 0.02),
 #'   group_cols   = "grade",
 #'   policy_table = data.table::data.table(grade = c("A", "B"), accrual_rate = c(0.02, 0.03))
 #' )
@@ -610,7 +598,7 @@ design_retirement_policy_tenure <- function(min_tenure, pension, group_cols = NU
 #' @examples
 #' design_retirement_policy_age_tenure(
 #'   min_age = 60, min_tenure = 10,
-#'   pension = pension_db(accrual_rate = 0.02, ref_wage_col = "base_salary_lcu")
+#'   pension = pension_db(accrual_rate = 0.02)
 #' )
 #' @export
 design_retirement_policy_age_tenure <- function(min_age, min_tenure, pension,
@@ -639,7 +627,7 @@ design_retirement_policy_age_tenure <- function(min_age, min_tenure, pension,
 #' @examples
 #' design_retirement_policy_status_quo(
 #'   mandatory_age = 75,
-#'   pension       = pension_rate(pension_rate = 0.15, ref_wage_col = "base_salary_lcu")
+#'   pension       = pension_rate(pension_rate = 0.15)
 #' )
 #' @export
 design_retirement_policy_status_quo <- function(pension,

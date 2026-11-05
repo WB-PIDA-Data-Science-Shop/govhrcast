@@ -56,8 +56,11 @@ when no one is selected.
 Group-level hazard-rate analog of \code{\link{compute_status_quo_exits}}:
 resolves a mandatory retirement-age ceiling and a per-group
 \code{hazard_rate} from \code{policy_params}, force-retires everyone at or
-above the ceiling, then selects \code{round(n_active * hazard_rate)}
-individuals per remaining group via the shared
-\code{\link{.select_personnel_subset}} helper.
+above the ceiling, then selects \code{n_active * hazard_rate} individuals
+(rounded up or down at random, see \code{\link{stochastic_round}}) per
+remaining group via the shared \code{\link{.select_personnel_subset}} helper.
+Ages above the oldest age with a rate take that age's rate, worked out for each
+group, unless the policy sets \code{defaults$hazard_rate}.  Other ages with no
+row in the table get a rate of 0.
 }
 \keyword{internal}

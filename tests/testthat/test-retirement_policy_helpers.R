@@ -98,17 +98,20 @@ test_that("eligibility_custom validates the rule at construction time", {
 # =============================================================================
 
 test_that("pension_db builds the correct fragment with defaults", {
-  result <- pension_db(accrual_rate = 0.02, ref_wage_col = "base_salary_lcu")
+  result <- pension_db(accrual_rate = 0.02)
   expect_equal(result$defaults$pension_type, "db")
   expect_equal(result$defaults$accrual_rate, 0.02)
-  expect_equal(result$defaults$ref_wage_col, "base_salary_lcu")
   expect_true(is.na(result$defaults$max_years))
   expect_true(is.na(result$defaults$replacement_cap))
 })
 
 test_that("pension_db validates inputs at construction", {
-  expect_error(pension_db(accrual_rate = "x", ref_wage_col = "y"), regexp = "numeric")
-  expect_error(pension_db(accrual_rate = 0.02, ref_wage_col = 5), regexp = "character string")
+  expect_error(pension_db(accrual_rate = "x"), regexp = "numeric")
+})
+
+test_that("a pension helper no longer takes a wage column", {
+  expect_error(pension_db(accrual_rate = 0.02, ref_wage_col = "w"), "unused argument")
+  expect_error(pension_rate(pension_rate = 0.15, ref_wage_col = "w"), "unused argument")
 })
 
 test_that("pension_dc builds the correct fragment", {
@@ -128,28 +131,27 @@ test_that("pension_flat builds the correct fragment", {
 })
 
 test_that("pension_rate builds the correct fragment", {
-  result <- pension_rate(pension_rate = 0.15, ref_wage_col = "base_salary_lcu")
+  result <- pension_rate(pension_rate = 0.15)
   expect_equal(
     result,
-    list(defaults = list(pension_type = "rate", pension_rate = 0.15, ref_wage_col = "base_salary_lcu"))
+    list(defaults = list(pension_type = "rate", pension_rate = 0.15))
   )
 })
 
 test_that("pension_hybrid unions db and dc fields under pension_type = hybrid", {
   result <- pension_hybrid(
-    db = pension_db(accrual_rate = 0.015, ref_wage_col = "base_salary_lcu"),
+    db = pension_db(accrual_rate = 0.015),
     dc = pension_dc(balance_col = "dc_balance", annuity_factor = 12)
   )
   expect_equal(result$defaults$pension_type, "hybrid")
   expect_equal(result$defaults$accrual_rate, 0.015)
-  expect_equal(result$defaults$ref_wage_col, "base_salary_lcu")
   expect_equal(result$defaults$balance_col, "dc_balance")
   expect_equal(result$defaults$annuity_factor, 12)
 })
 
 test_that("pension_hybrid requires its arguments to be pension_db()/pension_dc() results", {
   expect_error(pension_hybrid(db = pension_flat(500), dc = pension_dc("b", 12)), regexp = "pension_db")
-  expect_error(pension_hybrid(db = pension_db(0.02, "x"), dc = pension_flat(500)), regexp = "pension_dc")
+  expect_error(pension_hybrid(db = pension_db(0.02), dc = pension_flat(500)), regexp = "pension_dc")
 })
 
 test_that("pension_custom validates the formula at construction time", {
@@ -167,7 +169,7 @@ test_that("pension_custom validates the formula at construction time", {
 test_that("design_retirement_policy merges eligibility and pension defaults", {
   result <- design_retirement_policy(
     eligibility = eligibility_age_tenure(60, 10),
-    pension     = pension_db(accrual_rate = 0.02, ref_wage_col = "base_salary_lcu", max_years = 35, replacement_cap = 0.80)
+    pension     = pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80)
   )
   expect_null(result$group_cols)
   expect_null(result$policy_table)
@@ -182,7 +184,7 @@ test_that("design_retirement_policy passes through explicit group_cols/policy_ta
   tbl <- data.table(grade = c("A", "B"), accrual_rate = c(0.02, 0.03))
   result <- design_retirement_policy(
     eligibility_age(60),
-    pension_db(accrual_rate = 0.02, ref_wage_col = "base_salary_lcu"),
+    pension_db(accrual_rate = 0.02),
     group_cols = "grade", policy_table = tbl
   )
   expect_equal(result$group_cols, "grade")
@@ -305,11 +307,11 @@ test_that("a constructed policy produces identical output to the equivalent hand
   )
   ref_date <- as.Date("2025-01-01")
 
-  constructed <- design_retirement_policy_age(min_age = 60, pension = pension_rate(0.15, "base_salary_lcu"))
+  constructed <- design_retirement_policy_age(min_age = 60, pension = pension_rate(0.15))
   handwritten <- list(
     group_cols = NULL, policy_table = NULL,
     defaults = list(eligibility_type = "age_only", min_age = 60,
-                     pension_type = "rate", pension_rate = 0.15, ref_wage_col = "base_salary_lcu")
+                     pension_type = "rate", pension_rate = 0.15)
   )
 
   res_constructed <- simulate_retirement(contract_dt, personnel_dt, ref_date = ref_date,
@@ -359,6 +361,7 @@ test_that("design_retirement_policy_status_quo works end-to-end through simulate
     ref_date = snap2, seed = 1
   )
 
-  # 4 active candidates (P3-P6) at snap2, estimated hazard_rate = 2/6 -> round(4 * 1/3) = 1 retiree.
-  expect_equal(res$comparison$n_exits[1], 1L)
+  # 4 active candidates (P3-P6) at snap2, estimated hazard_rate = 2/6:
+  # 1.33 expected, so 1 or 2 retirees (rounded at random, D6).
+  expect_true(res$comparison$n_exits[1] %in% 1:2)
 })

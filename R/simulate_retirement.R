@@ -128,10 +128,9 @@ utils::globalVariables(c(
 #' | `eligibility_type` | `"age_only"`, `"tenure_only"`, `"age_and_tenure"`, `"custom"` or `"hazard_rate"` |
 #' | `min_age` | Minimum retirement age.  For `"hazard_rate"`, a mandatory ceiling instead (everyone at or above it retires with certainty) rather than a threshold that turns the hazard mechanism on |
 #' | `min_tenure` | Minimum years of service |
-#' | `active_types` | Contract types considered active |
+#' | `active_types` | Contract types the policy covers: only people on these types can retire, though a retiree leaves every contract they hold. A blank type counts as staff. Default: everyone on the payroll |
 #' | `retire_strategy` | `"hazard_rate"` only: `"random"` (default) or a rank-by-column name, used to select which individuals retire within each group once the group's retiree count is determined |
 #' | `pension_type` | `"db"`, `"dc"`, `"rate"`, `"flat"` or `"hybrid"` |
-#' | `ref_wage_col` | Salary column used as the pension reference wage |
 #' | `accrual_rate` | Annual DB accrual rate |
 #' | `max_years` | Maximum years counted toward DB accrual |
 #' | `replacement_cap` | Maximum pension replacement rate |
@@ -146,7 +145,8 @@ utils::globalVariables(c(
 #' `"age_yr_int"`, and `policy_table` must supply a `hazard_rate` column keyed
 #' by `group_cols` (see [estimate_retirement_hazard_rates()] to estimate one
 #' from historical panel data). Within each group,
-#' `round(n_active * hazard_rate)` individuals are selected to retire via
+#' `n_active * hazard_rate` individuals (rounded up or down at random, see
+#' [stochastic_round()]) are selected to retire via
 #' `retire_strategy`, after anyone at or above `min_age` (if set) is
 #' force-retired first.
 #'
@@ -192,7 +192,7 @@ utils::globalVariables(c(
 #' differ from the **govhr** harmonized defaults; for example
 #' `list(personnel_id_col = "pid", age_col = "idade")`. Your names are used
 #' throughout, so the returned tables keep them, and you write the same names
-#' in `group_cols`, `policy_table`, `retire_strategy`, `ref_wage_col` and
+#' in `group_cols`, `policy_table`, `retire_strategy` and
 #' inside `eligibility_rule` / `pension_formula`. The same list can be passed
 #' to every **govhrcast** function; keys a function does not use are ignored,
 #' and an unknown key is an error.
@@ -209,11 +209,11 @@ utils::globalVariables(c(
 #'   contracts have `NA` end dates; retiring employees' contracts get
 #'   `ref_date`.
 #' * `salary_col` (`"gross_salary_lcu"`): pay column. Picks each retiree's
-#'   main contract, is set to 0 on contracts that close, and is the pension
-#'   wage base unless `ref_wage_col` names another column.
+#'   main contract, is set to 0 on contracts that close, and is what
+#'   wage-based pensions are calculated from.
 #' * `contract_type_col` (`"contract_type"`): only types in `active_types`
 #'   can retire; closing contracts become `"pensioner"`.
-#' * `status_col` (`"employment_status"`): set to `"inactive"` for retirees.
+#' * `status_col` (`"employment_status"`): set to `"pensioner"` for retirees.
 #' * `birth_date_col` (`"birth_date"`): used to calculate age when no age
 #'   column is available.
 #' * `age_col`, `tenure_col` (`"age"`, `"personnel_tenure"`): pre-computed
@@ -246,13 +246,15 @@ utils::globalVariables(c(
 #'
 #'   The updated personnel register after retirement has been processed.
 #'
-#'   Employees who retire during the current simulation period are marked
-#'   as inactive.
+#'   Employees who retire during the current simulation period get the status
+#'   `"pensioner"`.
 #'
 #' * **retirees_dt**
 #'
 #'   A `data.table` containing one row for every employee retiring during
-#'   the current simulation period.
+#'   the current simulation period. Its `salary_col` is their pay on all their
+#'   contracts added up: that is the wage the pension is calculated on, and
+#'   what leaves the wage bill. Their other columns come from their main contract.
 #'
 #'   This table includes the variables required for pension calculation,
 #'   the resolved retirement policy parameters applied to each retiree,
@@ -289,8 +291,7 @@ utils::globalVariables(c(
 #'       "fixed-term"
 #'     ),
 #'     pension_type = "rate",
-#'     pension_rate = 0.15,
-#'     ref_wage_col = "gross_salary_lcu"
+#'     pension_rate = 0.15
 #'   )
 #' )
 #'
@@ -324,7 +325,6 @@ utils::globalVariables(c(
 #'     active_types = c("permanent", "fixed-term"),
 #'     pension_type = "db",
 #'     accrual_rate = 0.02,
-#'     ref_wage_col = "gross_salary_lcu",
 #'     max_years = 35,
 #'     replacement_cap = 0.80
 #'   )
@@ -375,7 +375,6 @@ simulate_retirement <- function(contract_dt,
                                     min_age          = 60,
                                     min_tenure       = 10,
                                     accrual_rate     = 0.02,
-                                    ref_wage_col     = "gross_salary_lcu",
                                     max_years        = 35,
                                     replacement_cap  = 0.80
                                   )
@@ -509,7 +508,7 @@ simulate_retirement <- function(contract_dt,
   # Resolve all policy params (eligibility + pension) to per-row columns on
   # retirees_dt via a single policy_table join + defaults fill.
   .all_pension_params <- c(
-    "pension_type", "accrual_rate", "ref_wage_col",
+    "pension_type", "accrual_rate",
     "max_years", "replacement_cap",
     "balance_col", "annuity_factor", "notional_rate",
     "flat_amount", "pension_rate", "pension_formula"
@@ -523,7 +522,8 @@ simulate_retirement <- function(contract_dt,
   for (.p in names(.resolved_pension))
     data.table::set(retirees_dt, j = .p, value = .resolved_pension[[.p]])
 
-  data.table::set(retirees_dt, j = "pension", value = compute_pension(retirees_dt))
+  data.table::set(retirees_dt, j = "pension",
+                  value = compute_pension(retirees_dt, cols$salary_col))
   
   # ========================================
   # 6. Update State
@@ -540,9 +540,8 @@ simulate_retirement <- function(contract_dt,
   # Update personnel (modifies personnel_dt in place)
   update_personnel_for_retirees(
     personnel_dt = personnel_dt,
-    contract_dt = contract_dt,
+    retirees_dt = retirees_dt,
     personnel_id_col = personnel_id_col,
-    contract_type_col = cols$contract_type_col,
     status_col = cols$status_col
   )
   

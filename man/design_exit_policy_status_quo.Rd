@@ -37,8 +37,8 @@ group from the full panel before the first period (see
 
 \strong{Use this with \code{simulate_horizon()} and panel data} (at least
 two \code{ref_date} snapshots).  With single-snapshot data there is
-nothing to estimate from: \code{simulate_horizon()} warns and models no
-exits -- use \code{\link{design_exit_policy_flat}} instead.  Passed to
+nothing to estimate from: \code{simulate_horizon()} stops with an error
+-- use \code{\link{design_exit_policy_flat}} instead.  Passed to
 \code{\link{simulate_exits}} directly, this policy stops with an error,
 since that function never estimates rates itself; estimate them with
 \code{\link{estimate_historical_exit_rates}} and use

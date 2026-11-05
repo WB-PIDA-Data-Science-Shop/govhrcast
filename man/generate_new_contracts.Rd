@@ -26,6 +26,7 @@ data.table with new contract records
 }
 \description{
 Creates new contract records for new hires. Generates unique contract IDs
-and sets start_date to ref_date.
+and sets start_date to ref_date. The type is "permanent" until set from the
+policy's new hire profile.
 }
 \keyword{internal}

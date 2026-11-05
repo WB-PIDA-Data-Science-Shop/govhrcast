@@ -178,7 +178,7 @@ compute_tenure <- function(contract_dt,
   .ref_date_ <- ref_date
 
   # 1. Filter inactive types — subset returns a new object, no copy() needed
-  dt <- contract_dt[!get(contract_type_col) %in% c("inactive", "pensioner")]
+  dt <- contract_dt[.on_payroll(get(contract_type_col))]
 
   # 2. Keep only contracts that started on or before ref_date
   dt <- dt[get(start_date_col) <= .ref_date_]
@@ -315,7 +315,7 @@ compute_tenure_panel <- function(contract_dt,
   # 1. Filter: active types only, started on or before each row's ref_date
   dt <- contract_dt[
     get(start_date_col) <= get(ref_date_col) &
-      !get(contract_type_col) %in% c("inactive", "pensioner")
+      .on_payroll(get(contract_type_col))
   ]
 
   # 2. Cap open-ended / future contracts at each row's ref_date
@@ -364,6 +364,30 @@ compute_tenure_panel <- function(contract_dt,
 }
 
 
+# Contract types that are off the payroll. Every other type, including a blank,
+# is staff: a blank contract type is missing data, not a reason to go unpaid.
+.OFF_PAYROLL_TYPES <- c("pensioner", "inactive")
+
+# Which rows are on the payroll, given the contract type column. Works inside
+# data.table brackets: contract_dt[.on_payroll(get(contract_type_col))].
+.on_payroll <- function(contract_type) !contract_type %in% .OFF_PAYROLL_TYPES
+
+# Adds up pay across someone's rows. Blank only if every row is blank: no pay
+# recorded is missing data, not a pay of zero.
+.total_pay <- function(pay) {
+  if (all(is.na(pay))) NA_real_ else sum(as.numeric(pay), na.rm = TRUE)
+}
+
+# The contracts a policy covers, from those already known to be active. With no
+# defaults$active_types it covers them all. A blank type is missing data and still
+# counts as staff.
+.covered_by_policy <- function(contracts, policy_params, contract_type_col) {
+  active_types <- policy_params$defaults$active_types
+  if (is.null(active_types)) return(contracts)
+  contracts[get(contract_type_col) %in% c(active_types, NA_character_)]
+}
+
+
 #' Get Active Contracts at Reference Date
 #'
 #' @description
@@ -371,10 +395,9 @@ compute_tenure_panel <- function(contract_dt,
 #' contracts that have started, have not yet ended, and are not classified as
 #' \code{"inactive"} or \code{"pensioner"}.
 #'
-#' Use this filter for headcount, attrition, hiring demand, and retirement
-#' eligibility computations.  For wage bill computations use
-#' \code{\link{get_salary_bearing_contracts}} instead, which retains
-#' inactive-but-paid staff.
+#' Use this filter for hiring demand and retirement eligibility.
+#' \code{simulate_horizon()} clears staff end dates at the start of a projection
+#' (contracts are renewed), so there it picks out the same rows as the payroll.
 #'
 #' @param contract_dt data.table.  Contract register.  Required columns:
 #'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col}.
@@ -405,44 +428,10 @@ get_active_contracts <- function(contract_dt,
   active <- contract_dt[
     get(start_date_col) <= .as_of_date &
     (is.na(get(end_date_col)) | get(end_date_col) >= .as_of_date) &
-    !get(contract_type_col) %in% c("inactive", "pensioner")
+    .on_payroll(get(contract_type_col))
   ]
   
   return(active)
-}
-
-
-#' Get Salary-Bearing Contracts at Reference Date
-#'
-#' @description
-#' Returns all contract rows where the government is paying a salary — that is,
-#' any row that is \emph{not} a pensioner contract and has a non-\code{NA}
-#' salary value.  This is the correct filter for wage bill computation.
-#'
-#' Unlike \code{get_active_contracts()}, which restricts to personnel who are
-#' actively working, this function deliberately retains inactive-but-paid staff
-#' (e.g. those on government-funded leave or training) because the government
-#' is still paying their salary and they must be counted in the wage bill.
-#'
-#' @param contract_dt data.table.  Contract data.
-#' @param salary_col Character.  Name of the salary column.
-#'   Default \code{"gross_salary_lcu"}.
-#' @param contract_type_col Character.  Name of the contract type column.
-#'   Default \code{"contract_type"}.
-#' @param pensioner_type Character scalar.  The contract type value that
-#'   identifies pensioner rows.  Default \code{"pensioner"}.
-#'
-#' @return data.table of salary-bearing contract rows (a subset of
-#'   \code{contract_dt}).
-#' @keywords internal
-get_salary_bearing_contracts <- function(contract_dt,
-                                         salary_col          = "gross_salary_lcu",
-                                         contract_type_col   = "contract_type",
-                                         pensioner_type      = "pensioner") {
-  contract_dt[
-    get(contract_type_col) != pensioner_type &
-    !is.na(get(salary_col))
-  ]
 }
 
 
@@ -1149,7 +1138,8 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #'   estimation.
 #' @param personnel_dt data.table.  Full panel personnel microdata.
 #' @param salary_scale_dt data.table.  Pay table injected into the hiring
-#'   policy.  Must contain a salary column (see \code{\link{simulate_hiring}}).
+#'   policy.  Must contain a numeric column with the same name as
+#'   \code{salary_col}.
 #' @param movement_group_cols Character vector or \code{NULL}.  Columns that
 #'   define mobility states for the movement baseline (e.g.
 #'   \code{c("paygrade")}).  \code{NULL} disables movement estimation and the
@@ -1187,6 +1177,11 @@ make_status_quo_policies <- function(contract_dt,
                                      hiring_group_cols   = NULL,
                                      column_spec_args    = list()) {
 
+  .Deprecated(msg = paste0(
+    "make_status_quo_policies() is deprecated. Use the design_*_status_quo() helpers, which ",
+    "estimate retirement from the history instead of assuming a rule: see ?simulate_horizon."
+  ))
+
   if (!data.table::is.data.table(contract_dt))
     contract_dt <- data.table::as.data.table(contract_dt)
   if (!data.table::is.data.table(personnel_dt))
@@ -1209,7 +1204,6 @@ make_status_quo_policies <- function(contract_dt,
       min_age          = 60,
       min_tenure       = 10,
       accrual_rate     = 0.02,
-      ref_wage_col     = cols$salary_col,
       max_years        = 35,
       replacement_cap  = 0.80
     )
@@ -1246,8 +1240,7 @@ make_status_quo_policies <- function(contract_dt,
     defaults = list(
       exit_rate     = 0.05,      # fallback when policy_table estimation fails
       exit_strategy = "random",
-      active_types  = c("permanent", "fixed-term", "short-term"),
-      exited_type   = "inactive"
+      active_types  = c("permanent", "fixed-term", "short-term")
     )
   )
 

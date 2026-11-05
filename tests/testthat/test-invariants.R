@@ -12,7 +12,6 @@ library(data.table)
 # A status-quo projection from 2012 on the bundled panel. `pension` and `seed`
 # are the only levers the tests vary.
 run_alagoas <- function(pension = pension_db(accrual_rate = 0.02,
-                                             ref_wage_col = "base_salary_lcu",
                                              max_years = 35, replacement_cap = 0.80),
                         seed = 1L,
                         contract_dt = NULL, personnel_dt = NULL) {

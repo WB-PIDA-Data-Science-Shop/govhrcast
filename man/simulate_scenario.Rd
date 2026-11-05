@@ -80,10 +80,9 @@ Default \code{0}.}
 \code{pensioner_register$pension_amount} this period.  Defaults to
 \code{salary_growth_rate} when \code{NULL}.  Default \code{0}.}
 
-\item{allowance_growth_rate}{Numeric scalar.  COLA-style growth rate
-applied to \code{allowance_policy$policy_table}'s \code{amount} column
-this period (via \code{apply_salary_scale_adjustment()}), so next
-period's assignment reflects the grown scale.  Default \code{0}.}
+\item{allowance_growth_rate}{Numeric scalar.  Growth rate applied to the
+amounts in \code{allowance_policy} this period, before they are assigned,
+so allowances grow in the same year as pay.  Default \code{0}.}
 
 \item{column_spec_args}{Named list.  Column names, if your data use
 different names from the \code{govhr} defaults: give only the ones you
@@ -118,7 +117,8 @@ Named list:
 \code{non_ret_exit_savings}, \code{pension_cost_new},
 \code{pension_cost_total}, \code{n_promotions}, \code{n_transfers},
 \code{promotion_effect}, \code{transfer_effect}, \code{n_hires},
-\code{hiring_effect}, \code{inflation_effect},
+\code{hiring_effect}, \code{n_downsized}, \code{downsizing_savings},
+\code{inflation_effect},
 \code{n_headcount_end}, \code{wage_bill_end}, \code{allowance_cost_end}
 (\code{0} when \code{allowance_policy} is \code{NULL}).}
 \item{contract_dt}{Updated contract snapshot.}
@@ -133,6 +133,11 @@ is \code{NULL}.}
 \code{policy_table} grown by \code{allowance_growth_rate} -- pass
 this back in as next period's \code{allowance_policy} to carry the
 growth forward (\code{simulate_horizon()} does this automatically).}
+\item{hiring_policy}{\code{hiring_policy} as supplied, with any
+\code{salary_scale} you passed in it grown by
+\code{salary_growth_rate} -- pass this back in as next period's
+\code{hiring_policy} so new hires keep up with pay
+(\code{simulate_horizon()} does this automatically).}
 }
 }
 \description{
@@ -156,9 +161,13 @@ applied in this order:
 }
 \details{
 \strong{Wage bill measurement}: \code{wage_bill_start} and \code{wage_bill_end}
-are computed via an internal helper that sums \code{salary_col} over active
-contract rows only -- rows with \code{contract_type = "pensioner"} and
-rows with a missing salary are excluded.  The \code{pensioner_register} is a
+are computed via an internal helper that sums \code{salary_col} over the
+contract rows on the payroll -- rows with \code{contract_type} of
+\code{"pensioner"} or \code{"inactive"} and rows with a missing salary are
+excluded, while a blank contract type counts as staff.  Unlike
+\code{simulate_horizon()}, this function does not look at
+\code{employment_status} to find pensioners, so give their rows the contract
+type \code{"pensioner"} when you call it directly.  The \code{pensioner_register} is a
 separate audit ledger that tracks \code{pension_amount} (the pension formula
 output) and is never folded into the wage-bill totals.
 }

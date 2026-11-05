@@ -10,8 +10,7 @@ simulate_horizon(
   salary_scale_dt,
   n_periods,
   retirement_policy = design_retirement_policy_status_quo(pension =
-    pension_db(accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu", max_years = 35,
-    replacement_cap = 0.8)),
+    pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.8)),
   exit_policy = NULL,
   movement_policy = NULL,
   hiring_policy = NULL,
@@ -36,8 +35,8 @@ harmonized format: one row per person per snapshot, covering the same
 snapshots as \code{contract_dt}.}
 
 \item{salary_scale_dt}{data.table.  Pay table: one row per group, the
-group columns plus a numeric salary column (normally named the same as
-\code{salary_col}).  Used to set the pay of new hires, and of movers
+group columns plus a numeric column with the same name as
+\code{salary_col}.  Used to set the pay of new hires, and of movers
 when a movement policy uses \code{salary_update_rule = "scale"}.  Must
 include every group column used by \code{movement_policy} and
 \code{hiring_policy}.  Grows each year by \code{salary_growth_rate}.}
@@ -50,13 +49,13 @@ what pension they receive.  Build it with a
 \emph{Details} and \code{\link{retirement_policy_helpers}}.
 
 The default is the status quo:
-\code{design_retirement_policy_status_quo(pension = pension_db(accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu", max_years = 35, replacement_cap = 0.80))}.
-Staff retire at the rates observed in the panel for their age, with a
-defined-benefit pension of 2\% of \code{gross_salary_lcu} per year of
+\code{design_retirement_policy_status_quo(pension = pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80))}.
+Staff retire at the rates observed in the panel for their age, and ages
+above the oldest age with a rate take that age's rate.  They get a
+defined-benefit pension of 2\% of \code{salary_col} (on all their contracts) per year of
 service, counting at most 35 years and paying at most 80\% of salary.
 There is no mandatory retirement age -- pass your own policy with
-\code{mandatory_age} to add one, or to base pensions on a different
-salary column.  Needs at least two snapshots.
+\code{mandatory_age} to add one.  Needs at least two snapshots.
 
 \code{NULL} means nobody retires.}
 
@@ -167,6 +166,8 @@ be filled in.}
 \code{"first_employment_date"}).  When given, status-quo hiring
 rates are estimated from it instead of from when people first
 appear in the panel.}
+\item{\code{gender_col}}{\code{"gender"}.  Used to give new hires a
+gender.  If your data have no such column, new hires have none.}
 }}
 
 \item{output_control_args}{Named list.  Labelling and output size.  Give
@@ -201,10 +202,14 @@ retirements (\code{n_exits}, \code{exit_savings}), other exits
 (\code{n_non_ret_exits}, \code{non_ret_exit_savings}), promotions
 and transfers (\code{n_promotions}, \code{promotion_effect},
 \code{n_transfers}, \code{transfer_effect}), hiring
-(\code{n_hires}, \code{hiring_effect}) and inflation
+(\code{n_hires}, \code{hiring_effect}), downsizing
+(\code{n_downsized}, \code{downsizing_savings}, a positive number
+when pay is saved) and inflation
 (\code{inflation_effect}); each effect as a share of the end-of-year
 wage bill (\code{*_pct_of_end_bill}); pension costs
-(\code{pension_cost_new}, \code{pension_cost_total}); allowances
+(\code{pension_cost_new}, what the year's new retirees are awarded, and
+\code{pension_cost_total}, the whole register after the year's pension
+growth); allowances
 (\code{allowance_cost_start}, \code{allowance_cost_end}, both
 \code{0} when allowances are not modelled); and
 \code{total_wage_bill_start}/\code{total_wage_bill_end} (salaries
@@ -213,12 +218,14 @@ plus allowances).  Also \code{period_date}, plus
 when a \code{scenario_name} is given.}
 \item{\code{$summary_dt}}{The same table as \code{$comparison} (kept
 for backward compatibility).}
-\item{\code{$metadata}}{List recording the policies used, plus
+\item{\code{$metadata}}{List recording the policies used (including the
+new hire profile, which can describe few people in small groups), plus
 \code{scenario_name} and \code{is_baseline} when given.}
 \item{\code{$pensioner_register}}{data.table, one row per retiree per
 year: the person ID (under your name for that column),
 \code{pension_amount}, \code{period_date} and details at retirement.  Always present
-(zero rows when nobody retired).  To chain several runs, combine
+(zero rows when nobody retired).  Nobody leaves the register: deaths are
+not modelled, so long projections overstate pension costs.  To chain several runs, combine
 their registers with \code{data.table::rbindlist()}.  This is
 person-level data: handle it like the input microdata before
 saving or sharing the result.}
@@ -300,7 +307,10 @@ between groups, and hiring rates
 (\code{\link{estimate_historical_hiring_rates}}).  If the history
 shows no retirements, or no moves, the status quo is that nobody
 retires or moves (a message says so).
-\item The data are cut to the starting snapshot at \code{ref_date}.
+\item The new hire profile is estimated from the people hired during the
+panel (\code{\link{estimate_new_hire_profile}}).
+\item The data are cut to the starting snapshot at \code{ref_date}.  A
+\code{ref_date} that is not one of the snapshots stops with an error.
 \item Age is calculated from \code{birth_date} when no age column is
 filled in, and tenure is calculated from contract history when no
 tenure column is filled in.
@@ -316,7 +326,11 @@ recorded in \code{$pensioner_register}.
 not renewed.
 \item \strong{Promotions / transfers} -- staff move between groups
 (e.g. paygrades or establishments).
-\item \strong{Hiring} -- new contracts are created.
+\item \strong{Hiring} -- new staff join.  They start with tenure 0, the
+median entry age and most common contract type among recent hires in their
+group, and a gender drawn from the group's shares among recent hires, so
+from then on they age, retire and exit like everyone else (see
+\code{\link{estimate_new_hire_profile}}).
 \item \strong{Allowances} -- allowance amounts are assigned to every
 active contract.
 \item \strong{Aging} -- age and tenure increase by one year.
@@ -333,6 +347,29 @@ promoted, and hiring sees the vacancies created earlier in the year.
 \code{salary_col} over contracts that are not \code{"pensioner"} or
 \code{"inactive"} and have a salary.  Pension costs are \emph{never}
 included -- they are tracked separately in \code{$pensioner_register}.
+}
+
+\subsection{Who counts as what at the start}{
+
+\itemize{
+\item \strong{Pensioner:} a contract row is a pension if its
+\code{contract_type} is \code{"pensioner"} or the person's
+\code{employment_status} is \code{"pensioner"}.  The amount in
+\code{salary_col} is the pension, and several rows add up.  A pensioner
+with no amount stays on the register with a blank, and you get a message
+giving the count.  Every other row is staff, so someone with a pension
+and a working contract is on the register and on the payroll.
+\item \strong{Blank \code{contract_type}:} this is missing data.  The row
+counts as staff if the person's status is \code{"active"}, and is off the
+payroll otherwise.
+\item \strong{Contract end dates:} staff contracts are renewed past their
+end date, so everyone paid at the start stays until retirement, an exit
+or downsizing removes them.  End dates are blank in the returned
+microdata until then.
+}
+
+People who retire get the status \code{"pensioner"}; people who exit or are let
+go by downsizing get the status and contract type \code{"inactive"}.
 Modelled allowances are reported separately as
 \code{allowance_cost_start}/\code{allowance_cost_end}, and
 \code{total_wage_bill_start}/\code{total_wage_bill_end} is salaries plus
@@ -365,8 +402,7 @@ salary_scale <- hist_c[
   by = est_id
 ]
 
-pension <- pension_db(accrual_rate = 0.02, ref_wage_col = "base_salary_lcu",
-                      max_years = 35, replacement_cap = 0.80)
+pension <- pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80)
 
 \donttest{
 # 1. Status quo: every module reproduces recent history

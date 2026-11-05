@@ -38,7 +38,8 @@
 #' 3. Resolve exit rates from `policy_params` — either a scalar rate applied
 #'    uniformly or group-specific rates joined from `policy_table`.
 #' 4. Compute the number of exits per group as
-#'    `round(n_active * exit_rate)`.
+#'    `n_active * exit_rate`, rounded up or down at random so that small groups
+#'    are not stuck at zero (see [stochastic_round()]).
 #' 5. Select which employees exit using the chosen `exit_strategy`.
 #' 6. Attach pre-exit salaries to compute savings.
 #' 7. Update contract and personnel registers in place.
@@ -132,7 +133,6 @@
 #' | `exit_multiplier` | Scales the resolved exit rate in either mode (default `1`, no change). An `exit_multiplier` column in `policy_table` overrides it per group |
 #' | `exit_strategy` | `"random"` or a numeric column name in `contract_dt` to rank employees for exit selection |
 #' | `active_types` | Contract type values in `contract_type_col` treated as eligible for exit. Must match actual `contract_type` values, not `employment_status` values. Default `c("permanent", "fixed-term", "short-term")` — the non-terminal `contract_type` values per the `govhr` harmonized dictionary |
-#' | `exited_type` | Value written to `contract_type_col` after exit. Default `"inactive"` |
 #'
 #' @param contract_dt A `data.table` (or object coercible to a
 #' `data.table`) containing the active workforce contract register in
@@ -168,8 +168,9 @@
 #' Keys used here (default in brackets):
 #'
 #' * `personnel_id_col` (`"personnel_id"`): person identifier, in both tables.
-#' * `contract_type_col` (`"contract_type"`): only types in `active_types` can
-#'   exit; their contracts become `exited_type` (default `"inactive"`).
+#' * `contract_type_col` (`"contract_type"`): only types in `active_types`, or
+#'   a blank type (which is missing data), can exit; their contracts become
+#'   `"inactive"`.
 #' * `salary_col` (`"gross_salary_lcu"`): pay column, added up per person to
 #'   give the savings from exits.
 #' * `end_date_col` (`"end_date"`): contract end date. Exiting employees'
@@ -193,7 +194,7 @@
 #' * **contract_dt**
 #'
 #'   The updated contract register after exits have been processed.
-#'   Exited contracts have `contract_type_col` set to `exited_type` and
+#'   Exited contracts have `contract_type_col` set to `"inactive"` and
 #'   `end_date_col` set to `ref_date`.
 #'
 #' * **personnel_dt**
@@ -227,8 +228,7 @@
 #'   defaults = list(
 #'     exit_rate     = 0.05,
 #'     exit_strategy = "random",
-#'     active_types  = c("permanent", "short-term", "fixed-term"),
-#'     exited_type   = "inactive"
+#'     active_types  = c("permanent", "short-term", "fixed-term")
 #'   )
 #' )
 #'
@@ -264,8 +264,7 @@
 #'   defaults = list(
 #'     exit_rate     = mean(rates_dt$exit_rate, na.rm = TRUE),
 #'     exit_strategy = "personnel_tenure",
-#'     active_types  = c("permanent", "short-term", "fixed-term"),
-#'     exited_type   = "inactive"
+#'     active_types  = c("permanent", "short-term", "fixed-term")
 #'   )
 #' )
 #'
@@ -329,9 +328,7 @@ simulate_exits <- function(contract_dt,
     personnel_dt <- data.table::copy(personnel_dt)
 
   exit_strategy <- policy_params$defaults$exit_strategy %||% "random"
-  active_types  <- policy_params$defaults$active_types  %||%
-    c("permanent", "fixed-term", "short-term")
-  exited_type   <- policy_params$defaults$exited_type   %||% "inactive"
+  active_types  <- .exit_types(policy_params$defaults)
 
   # ------------------------------------------------------------------
   # 1. Validate policy_params
@@ -410,8 +407,7 @@ simulate_exits <- function(contract_dt,
       personnel_id_col  = personnel_id_col,
       contract_type_col = contract_type_col,
       end_date_col      = cols$end_date_col,
-      active_types      = active_types,
-      exited_type       = exited_type
+      active_types      = active_types
     )
     update_personnel_for_exits(
       personnel_dt     = personnel_dt,

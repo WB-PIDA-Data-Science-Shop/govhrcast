@@ -168,12 +168,11 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 # simulate_scenario() -- single-period orchestrator
 # ===========================================================================
 
-# Internal helper: salary-bearing payroll total.
-# Wage bill definition: sum of ALL salary-bearing contract rows per person,
-# then sum across persons.  A person with two simultaneous active contracts
-# contributes both salaries.  Inactive-but-paid staff (non-NA salary,
-# non-pensioner) are included because the government is paying their salary.
-# Pensioner rows are excluded -- their cost is tracked in pensioner_register.
+# Internal helper: payroll total.
+# Wage bill definition: sum of the pay on every contract row on the payroll (see
+# .on_payroll()), per person, then across persons.  A person with two contracts
+# contributes both salaries.  Pensions are excluded: their cost is tracked in
+# pensioner_register.
 # Used three times in simulate_scenario() for wage_bill_start, pre_cola, and
 # wage_bill_end snapshots.  No roxygen: internal only, not exported.
 .active_wage_bill <- function(contract_dt,
@@ -181,10 +180,54 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
                               salary_col,
                               personnel_id_col) {
   contract_dt[
-    !get(contract_type_col) %in% c("pensioner", "inactive") & !is.na(get(salary_col)),
+    .on_payroll(get(contract_type_col)) & !is.na(get(salary_col)),
     .(salary = sum(get(salary_col), na.rm = TRUE)),
     by = c(personnel_id_col)
   ][, sum(salary, na.rm = TRUE)]
+}
+
+# Internal helper: everyone who left this period, for flow hiring to replace. One
+# row per person, in the group of their main contract. Retirees bring their group
+# with them, because retiring has already zeroed the pay that helps pick the main
+# contract. An exit leaves the contract's pay and dates as they were for picking.
+.leavers_this_period <- function(retirees_dt, exits_dt, contract_dt, group_cols, column_spec_args) {
+  personnel_id_col <- column_spec_args$personnel_id_col
+  keep <- c(personnel_id_col, group_cols)
+
+  retired <- if (!is.null(retirees_dt) && nrow(retirees_dt) > 0L) retirees_dt[, keep, with = FALSE]
+  exited <- if (!is.null(exits_dt) && nrow(exits_dt) > 0L) {
+    get_primary_contract(
+      contract_dt      = contract_dt[get(personnel_id_col) %in% exits_dt[[personnel_id_col]]],
+      personnel_id_col = personnel_id_col,
+      contract_id_col  = column_spec_args$contract_id_col,
+      start_date_col   = column_spec_args$start_date_col,
+      salary_col       = column_spec_args$salary_col
+    )[, keep, with = FALSE]
+  }
+  data.table::rbindlist(list(retired, exited), use.names = TRUE)
+}
+
+# Internal helper: tells the user once, per module, which groups on the payroll
+# have no row in a rate table, so a frozen group is not a silent one.
+.report_groups_without_rate <- function(module, consequence, rate_table, group_cols,
+                                        contract_dt, contract_type_col) {
+  group_cols <- setdiff(group_cols, "age_yr_int")
+  if (is.null(rate_table) || length(group_cols) == 0L) return(invisible(NULL))
+
+  group_key <- function(dt) do.call(paste, c(dt[, group_cols, with = FALSE], sep = "||"))
+  staffed <- stats::na.omit(
+    unique(contract_dt[.on_payroll(get(contract_type_col)), group_cols, with = FALSE])
+  )
+  rated <- if ("from_group" %in% names(rate_table)) rate_table$from_group else group_key(rate_table)
+  missing_groups <- setdiff(group_key(staffed), rated)
+
+  if (length(missing_groups) > 0L) {
+    shown <- paste(utils::head(missing_groups, 5L), collapse = ", ")
+    if (length(missing_groups) > 5L) shown <- paste0(shown, ", ...")
+    message("simulate_horizon: ", module, ": ", length(missing_groups),
+            " group(s) on the payroll have no rate in the table (", shown, "). ", consequence)
+  }
+  invisible(NULL)
 }
 
 # Internal helper: the pensioner register before anyone is on it, keyed by the
@@ -223,9 +266,13 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'
 #' @details
 #' **Wage bill measurement**: \code{wage_bill_start} and \code{wage_bill_end}
-#' are computed via an internal helper that sums \code{salary_col} over active
-#' contract rows only -- rows with \code{contract_type = "pensioner"} and
-#' rows with a missing salary are excluded.  The \code{pensioner_register} is a
+#' are computed via an internal helper that sums \code{salary_col} over the
+#' contract rows on the payroll -- rows with \code{contract_type} of
+#' \code{"pensioner"} or \code{"inactive"} and rows with a missing salary are
+#' excluded, while a blank contract type counts as staff.  Unlike
+#' \code{simulate_horizon()}, this function does not look at
+#' \code{employment_status} to find pensioners, so give their rows the contract
+#' type \code{"pensioner"} when you call it directly.  The \code{pensioner_register} is a
 #' separate audit ledger that tracks \code{pension_amount} (the pension formula
 #' output) and is never folded into the wage-bill totals.
 #'
@@ -278,10 +325,9 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #' @param pension_cola_rate Numeric scalar.  Annual COLA rate applied to
 #'   \code{pensioner_register$pension_amount} this period.  Defaults to
 #'   \code{salary_growth_rate} when \code{NULL}.  Default \code{0}.
-#' @param allowance_growth_rate Numeric scalar.  COLA-style growth rate
-#'   applied to \code{allowance_policy$policy_table}'s \code{amount} column
-#'   this period (via \code{apply_salary_scale_adjustment()}), so next
-#'   period's assignment reflects the grown scale.  Default \code{0}.
+#' @param allowance_growth_rate Numeric scalar.  Growth rate applied to the
+#'   amounts in \code{allowance_policy} this period, before they are assigned,
+#'   so allowances grow in the same year as pay.  Default \code{0}.
 #' @param column_spec_args Named list.  Column names, if your data use
 #'   different names from the \code{govhr} defaults: give only the ones you
 #'   need to change, e.g. \code{list(salary_col = "base_salary_lcu")}.  See
@@ -312,7 +358,8 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'       \code{non_ret_exit_savings}, \code{pension_cost_new},
 #'       \code{pension_cost_total}, \code{n_promotions}, \code{n_transfers},
 #'       \code{promotion_effect}, \code{transfer_effect}, \code{n_hires},
-#'       \code{hiring_effect}, \code{inflation_effect},
+#'       \code{hiring_effect}, \code{n_downsized}, \code{downsizing_savings},
+#'       \code{inflation_effect},
 #'       \code{n_headcount_end}, \code{wage_bill_end}, \code{allowance_cost_end}
 #'       (\code{0} when \code{allowance_policy} is \code{NULL}).}
 #'     \item{contract_dt}{Updated contract snapshot.}
@@ -327,6 +374,11 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #'       \code{policy_table} grown by \code{allowance_growth_rate} -- pass
 #'       this back in as next period's \code{allowance_policy} to carry the
 #'       growth forward (\code{simulate_horizon()} does this automatically).}
+#'     \item{hiring_policy}{\code{hiring_policy} as supplied, with any
+#'       \code{salary_scale} you passed in it grown by
+#'       \code{salary_growth_rate} -- pass this back in as next period's
+#'       \code{hiring_policy} so new hires keep up with pay
+#'       (\code{simulate_horizon()} does this automatically).}
 #'   }
 #'
 #' @examples
@@ -417,24 +469,13 @@ simulate_scenario <- function(contract_dt,
     pensioner_register <- .empty_pensioner_register(personnel_id_col)
   }
 
-  # Detect salary column in salary_scale_dt
-  scale_salary_pat   <- "salary|wage|pay|compensation|gross|base"
-  scale_salary_cands <- grep(scale_salary_pat, names(salary_scale_dt),
-                             value = TRUE, ignore.case = TRUE)
-  # Only keep numeric candidates to avoid matching non-salary columns (e.g. "paygrade")
-  scale_salary_cands <- scale_salary_cands[
-    vapply(salary_scale_dt[, scale_salary_cands, with = FALSE], is.numeric, logical(1))
-  ]
-  if (length(scale_salary_cands) == 0L)
-    stop("Could not detect a numeric salary column in salary_scale_dt.", call. = FALSE)
-  scale_salary_col <- if (salary_col %in% scale_salary_cands) salary_col
-                      else scale_salary_cands[1L]
+  .check_pay_column(salary_scale_dt, salary_col, "salary_scale_dt")
 
   # ------------------------------------------------------------------
   # SNAPSHOT A  (active employees only -- pensioner rows excluded)
   # ------------------------------------------------------------------
   n_headcount_start <- data.table::uniqueN(
-    contract_dt[!get(contract_type_col) %in% c("pensioner", "inactive")],
+    contract_dt[.on_payroll(get(contract_type_col))],
     by = personnel_id_col
   )
   wage_bill_start <- .active_wage_bill(
@@ -487,13 +528,12 @@ simulate_scenario <- function(contract_dt,
     }
   }
 
-  pension_cost_total <- sum(pensioner_register$pension_amount, na.rm = TRUE)
-
   # ------------------------------------------------------------------
   # STEP 2: NON-RETIREMENT EXITS (Phase 3)
   # ------------------------------------------------------------------
   n_non_ret_exits          <- 0L
   non_ret_exit_savings     <- 0
+  exits_dt                 <- NULL
 
   if (!is.null(exit_policy)) {
     exit_result <- simulate_exits(
@@ -507,6 +547,7 @@ simulate_scenario <- function(contract_dt,
     personnel_dt         <- exit_result$personnel_dt
     n_non_ret_exits      <- exit_result$summary$n_exits
     non_ret_exit_savings <- exit_result$summary$exit_savings
+    exits_dt             <- exit_result$exits_dt
   }
 
   # ------------------------------------------------------------------
@@ -567,32 +608,34 @@ simulate_scenario <- function(contract_dt,
   # ------------------------------------------------------------------
   # STEP 4: HIRING
   # ------------------------------------------------------------------
-  n_hires       <- 0L
-  hiring_effect <- 0
+  n_hires            <- 0L
+  hiring_effect      <- 0
+  n_downsized        <- 0L
+  downsizing_savings <- 0
 
   if (!is.null(hiring_policy)) {
+    hiring_this_year <- hiring_policy
     if (is.null(hiring_policy$salary_scale)) {
       # Derive a hiring-compatible salary scale from salary_scale_dt by
       # aggregating to the hiring group_cols level.  This avoids injecting a
       # finer-grained scale (e.g. est_id x paygrade) into a hiring module that
       # joins only on est_id -- which would cause a cartesian join error.
-      hire_gcols <- hiring_policy$group_cols %||% character(0)
-      valid_gcols <- intersect(hire_gcols, names(salary_scale_dt))
-      if (length(valid_gcols) > 0L) {
-        hiring_policy$salary_scale <- salary_scale_dt[,
-          .(gross_salary_lcu = mean(get(scale_salary_col), na.rm = TRUE)),
-          keyby = valid_gcols
-        ]
-      } else {
-        hiring_policy$salary_scale <- data.table::copy(salary_scale_dt)
-      }
+      # With no hiring groups this is one row: the mean of the pay table.
+      # Used for this year only: next year's comes from the grown salary_scale_dt.
+      hire_groups <- intersect(hiring_policy$group_cols, names(salary_scale_dt))
+      hiring_this_year$salary_scale <- salary_scale_dt[,
+        lapply(.SD, mean, na.rm = TRUE),
+        keyby = hire_groups,
+        .SDcols = salary_col
+      ]
     }
 
     hire_result <- simulate_hiring(
       contract_dt       = contract_dt,
       personnel_dt      = personnel_dt,
-      policy_params     = hiring_policy,
-      retirees_dt       = retirees_dt,
+      policy_params     = hiring_this_year,
+      leavers_dt        = .leavers_this_period(retirees_dt, exits_dt, contract_dt,
+                                               hiring_policy$group_cols, column_spec_args),
       ref_date          = period_date,
       column_spec_args  = column_spec_args
     )
@@ -609,16 +652,69 @@ simulate_scenario <- function(contract_dt,
         "n_new_hires" %in% names(hire_result$summary)) {
       n_hires <- as.integer(hire_result$summary$n_new_hires)
     }
+    n_downsized        <- hire_result$summary$n_downsized
+    downsizing_savings <- hire_result$summary$downsizing_savings
   }
 
   # ------------------------------------------------------------------
-  # STEP 5: ALLOWANCES
+  # STEP 5: AGING
+  # ------------------------------------------------------------------
+  if (!is.null(age_col) && age_col %in% names(personnel_dt)) {
+    personnel_dt[get(status_col) == "active",
+                 (age_col) := get(age_col) + period_fraction]
+  }
+  if (!is.null(tenure_col) && tenure_col %in% names(personnel_dt)) {
+    personnel_dt[get(status_col) == "active",
+                 (tenure_col) := get(tenure_col) + period_fraction]
+  }
+
+  # ------------------------------------------------------------------
+  # STEP 6: COLA
+  # ------------------------------------------------------------------
+  growth <- salary_growth_rate
+
+  # COLA applies only to pay on the payroll; pension rows are already 0
+  pre_cola_wage_bill <- .active_wage_bill(
+    contract_dt, contract_type_col, salary_col, personnel_id_col
+  )
+  inflation_effect   <- compute_inflation_effect(pre_cola_wage_bill, growth)
+
+  if (growth != 0) {
+    salary_scale_dt[, (salary_col) := get(salary_col) * (1 + growth)]
+    contract_dt[.on_payroll(get(contract_type_col)),
+                (salary_col) := get(salary_col) * (1 + growth)]
+
+    # A pay table the user passed to the hiring policy grows the same way. This
+    # works on a copy, so the user's own table is never changed.
+    if (!is.null(hiring_policy$salary_scale)) {
+      hiring_policy$salary_scale <- data.table::copy(hiring_policy$salary_scale)[
+        , (salary_col) := get(salary_col) * (1 + growth)
+      ]
+    }
+  }
+
+  # Grow the allowance amounts themselves (not individual ledger rows), including
+  # the amount for unmatched groups, so this year's allowances below use them,
+  # the same year pay grows. A contract that stays in its group sees its allowance
+  # grow at exactly this rate, while a mover picks up the new group's grown amount.
+  if (!is.null(allowance_policy) && allowance_growth_rate != 0) {
+    if (!is.null(allowance_policy$policy_table)) {
+      allowance_policy$policy_table <- apply_salary_scale_adjustment(
+        allowance_policy$policy_table,
+        adjustment = 1 + allowance_growth_rate,
+        salary_col = "amount"
+      )
+    }
+    allowance_policy$defaults$amount <- allowance_policy$defaults$amount * (1 + allowance_growth_rate)
+  }
+
+  # ------------------------------------------------------------------
+  # STEP 7: ALLOWANCES
   # ------------------------------------------------------------------
   # Runs after hiring/movements finalise group membership (est_id, paygrade,
-  # etc.) for the period, and before aging/COLA. contract_dt/personnel_dt are
-  # never mutated here -- allowance costs live entirely in the allowance_dt
-  # ledger, the same way pensioner_register tracks pension costs outside the
-  # wage bill.
+  # etc.) for the period. contract_dt/personnel_dt are never mutated here --
+  # allowance costs live entirely in the allowance_dt ledger, the same way
+  # pensioner_register tracks pension costs outside the wage bill.
   allowance_cost_end <- 0
 
   if (!is.null(allowance_policy)) {
@@ -634,61 +730,19 @@ simulate_scenario <- function(contract_dt,
     allowance_cost_end <- alw_result$summary$allowance_cost_total
   }
 
-  # ------------------------------------------------------------------
-  # STEP 6: AGING
-  # ------------------------------------------------------------------
-  if (!is.null(age_col) && age_col %in% names(personnel_dt)) {
-    personnel_dt[get(status_col) == "active",
-                 (age_col) := get(age_col) + period_fraction]
-  }
-  if (!is.null(tenure_col) && tenure_col %in% names(personnel_dt)) {
-    personnel_dt[get(status_col) == "active",
-                 (tenure_col) := get(tenure_col) + period_fraction]
-  }
-
-  # ------------------------------------------------------------------
-  # STEP 7: COLA
-  # ------------------------------------------------------------------
-  growth <- salary_growth_rate
-
-  # COLA applies only to active (non-pensioner) salaries; pensioner rows are already 0
-  pre_cola_wage_bill <- .active_wage_bill(
-    contract_dt, contract_type_col, salary_col, personnel_id_col
-  )
-  inflation_effect   <- compute_inflation_effect(pre_cola_wage_bill, growth)
-
-  if (growth != 0) {
-    salary_scale_dt[, (scale_salary_col) := get(scale_salary_col) * (1 + growth)]
-    contract_dt[get(contract_type_col) != "pensioner",
-                (salary_col) := get(salary_col) * (1 + growth)]
-  }
-
-  # Grow the allowance scale itself (not individual ledger rows) so that next
-  # period's simulate_allowances() call resolves against the COLA-adjusted
-  # amounts. A contract whose group_cols don't change between periods will
-  # see its allowance grow at exactly this rate -- re-resolving from a scale
-  # grown by (1+g) each period is arithmetically identical to growing a
-  # sticky per-contract value by (1+g), while a mover still correctly picks
-  # up their new group's (already-grown) amount instead of a stale one.
-  if (!is.null(allowance_policy) && !is.null(allowance_policy$policy_table) &&
-      allowance_growth_rate != 0) {
-    allowance_policy$policy_table <- apply_salary_scale_adjustment(
-      allowance_policy$policy_table,
-      adjustment = 1 + allowance_growth_rate,
-      salary_col = "amount"
-    )
-  }
-
   # Apply pension COLA to the register (separate rate from active salary COLA)
   if (pension_cola_rate != 0 && nrow(pensioner_register) > 0L) {
     pensioner_register[, pension_amount := pension_amount * (1 + pension_cola_rate)]
   }
 
+  # This year's cost of everyone on the register, after this year's growth
+  pension_cost_total <- sum(pensioner_register$pension_amount, na.rm = TRUE)
+
   # ------------------------------------------------------------------
   # SNAPSHOT B  (active employees only -- pensioner rows excluded)
   # ------------------------------------------------------------------
   n_headcount_end <- data.table::uniqueN(
-    contract_dt[!get(contract_type_col) %in% c("pensioner", "inactive")],
+    contract_dt[.on_payroll(get(contract_type_col))],
     by = personnel_id_col
   )
   wage_bill_end <- .active_wage_bill(
@@ -714,6 +768,8 @@ simulate_scenario <- function(contract_dt,
     transfer_effect          = transfer_effect,
     n_hires                  = as.integer(n_hires),
     hiring_effect            = hiring_effect,
+    n_downsized              = as.integer(n_downsized),
+    downsizing_savings       = downsizing_savings,
     inflation_effect         = inflation_effect,
     n_headcount_end          = as.integer(n_headcount_end),
     wage_bill_end            = wage_bill_end,
@@ -727,7 +783,8 @@ simulate_scenario <- function(contract_dt,
     salary_scale_dt    = salary_scale_dt,
     pensioner_register = pensioner_register,
     allowance_dt       = allowance_dt,
-    allowance_policy   = allowance_policy
+    allowance_policy   = allowance_policy,
+    hiring_policy      = hiring_policy
   )
 }
 
@@ -811,7 +868,10 @@ simulate_scenario <- function(contract_dt,
 #'     (\code{\link{estimate_historical_hiring_rates}}).  If the history
 #'     shows no retirements, or no moves, the status quo is that nobody
 #'     retires or moves (a message says so).
-#'   \item The data are cut to the starting snapshot at \code{ref_date}.
+#'   \item The new hire profile is estimated from the people hired during the
+#'     panel (\code{\link{estimate_new_hire_profile}}).
+#'   \item The data are cut to the starting snapshot at \code{ref_date}.  A
+#'     \code{ref_date} that is not one of the snapshots stops with an error.
 #'   \item Age is calculated from \code{birth_date} when no age column is
 #'     filled in, and tenure is calculated from contract history when no
 #'     tenure column is filled in.
@@ -826,7 +886,11 @@ simulate_scenario <- function(contract_dt,
 #'     not renewed.
 #'   \item \strong{Promotions / transfers} -- staff move between groups
 #'     (e.g. paygrades or establishments).
-#'   \item \strong{Hiring} -- new contracts are created.
+#'   \item \strong{Hiring} -- new staff join.  They start with tenure 0, the
+#'     median entry age and most common contract type among recent hires in their
+#'     group, and a gender drawn from the group's shares among recent hires, so
+#'     from then on they age, retire and exit like everyone else (see
+#'     \code{\link{estimate_new_hire_profile}}).
 #'   \item \strong{Allowances} -- allowance amounts are assigned to every
 #'     active contract.
 #'   \item \strong{Aging} -- age and tenure increase by one year.
@@ -842,6 +906,28 @@ simulate_scenario <- function(contract_dt,
 #' \code{salary_col} over contracts that are not \code{"pensioner"} or
 #' \code{"inactive"} and have a salary.  Pension costs are \emph{never}
 #' included -- they are tracked separately in \code{$pensioner_register}.
+#'
+#' ## Who counts as what at the start
+#'
+#' \itemize{
+#'   \item \strong{Pensioner:} a contract row is a pension if its
+#'     \code{contract_type} is \code{"pensioner"} or the person's
+#'     \code{employment_status} is \code{"pensioner"}.  The amount in
+#'     \code{salary_col} is the pension, and several rows add up.  A pensioner
+#'     with no amount stays on the register with a blank, and you get a message
+#'     giving the count.  Every other row is staff, so someone with a pension
+#'     and a working contract is on the register and on the payroll.
+#'   \item \strong{Blank \code{contract_type}:} this is missing data.  The row
+#'     counts as staff if the person's status is \code{"active"}, and is off the
+#'     payroll otherwise.
+#'   \item \strong{Contract end dates:} staff contracts are renewed past their
+#'     end date, so everyone paid at the start stays until retirement, an exit
+#'     or downsizing removes them.  End dates are blank in the returned
+#'     microdata until then.
+#' }
+#'
+#' People who retire get the status \code{"pensioner"}; people who exit or are let
+#' go by downsizing get the status and contract type \code{"inactive"}.
 #' Modelled allowances are reported separately as
 #' \code{allowance_cost_start}/\code{allowance_cost_end}, and
 #' \code{total_wage_bill_start}/\code{total_wage_bill_end} is salaries plus
@@ -864,8 +950,8 @@ simulate_scenario <- function(contract_dt,
 #'   harmonized format: one row per person per snapshot, covering the same
 #'   snapshots as \code{contract_dt}.
 #' @param salary_scale_dt data.table.  Pay table: one row per group, the
-#'   group columns plus a numeric salary column (normally named the same as
-#'   \code{salary_col}).  Used to set the pay of new hires, and of movers
+#'   group columns plus a numeric column with the same name as
+#'   \code{salary_col}.  Used to set the pay of new hires, and of movers
 #'   when a movement policy uses \code{salary_update_rule = "scale"}.  Must
 #'   include every group column used by \code{movement_policy} and
 #'   \code{hiring_policy}.  Grows each year by \code{salary_growth_rate}.
@@ -876,13 +962,13 @@ simulate_scenario <- function(contract_dt,
 #'   \emph{Details} and \code{\link{retirement_policy_helpers}}.
 #'
 #'   The default is the status quo:
-#'   \code{design_retirement_policy_status_quo(pension = pension_db(accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu", max_years = 35, replacement_cap = 0.80))}.
-#'   Staff retire at the rates observed in the panel for their age, with a
-#'   defined-benefit pension of 2% of \code{gross_salary_lcu} per year of
+#'   \code{design_retirement_policy_status_quo(pension = pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80))}.
+#'   Staff retire at the rates observed in the panel for their age, and ages
+#'   above the oldest age with a rate take that age's rate.  They get a
+#'   defined-benefit pension of 2% of \code{salary_col} (on all their contracts) per year of
 #'   service, counting at most 35 years and paying at most 80% of salary.
 #'   There is no mandatory retirement age -- pass your own policy with
-#'   \code{mandatory_age} to add one, or to base pensions on a different
-#'   salary column.  Needs at least two snapshots.
+#'   \code{mandatory_age} to add one.  Needs at least two snapshots.
 #'
 #'   \code{NULL} means nobody retires.
 #' @param exit_policy List or \code{NULL}.  Non-retirement exits:
@@ -983,6 +1069,8 @@ simulate_scenario <- function(contract_dt,
 #'       \code{"first_employment_date"}).  When given, status-quo hiring
 #'       rates are estimated from it instead of from when people first
 #'       appear in the panel.}
+#'     \item{\code{gender_col}}{\code{"gender"}.  Used to give new hires a
+#'       gender.  If your data have no such column, new hires have none.}
 #'   }
 #' @param output_control_args Named list.  Labelling and output size.  Give
 #'   only the ones you need to change.  Recognized keys and defaults:
@@ -1014,10 +1102,14 @@ simulate_scenario <- function(contract_dt,
 #'       (\code{n_non_ret_exits}, \code{non_ret_exit_savings}), promotions
 #'       and transfers (\code{n_promotions}, \code{promotion_effect},
 #'       \code{n_transfers}, \code{transfer_effect}), hiring
-#'       (\code{n_hires}, \code{hiring_effect}) and inflation
+#'       (\code{n_hires}, \code{hiring_effect}), downsizing
+#'       (\code{n_downsized}, \code{downsizing_savings}, a positive number
+#'       when pay is saved) and inflation
 #'       (\code{inflation_effect}); each effect as a share of the end-of-year
 #'       wage bill (\code{*_pct_of_end_bill}); pension costs
-#'       (\code{pension_cost_new}, \code{pension_cost_total}); allowances
+#'       (\code{pension_cost_new}, what the year's new retirees are awarded, and
+#'       \code{pension_cost_total}, the whole register after the year's pension
+#'       growth); allowances
 #'       (\code{allowance_cost_start}, \code{allowance_cost_end}, both
 #'       \code{0} when allowances are not modelled); and
 #'       \code{total_wage_bill_start}/\code{total_wage_bill_end} (salaries
@@ -1026,12 +1118,14 @@ simulate_scenario <- function(contract_dt,
 #'       when a \code{scenario_name} is given.}
 #'     \item{\code{$summary_dt}}{The same table as \code{$comparison} (kept
 #'       for backward compatibility).}
-#'     \item{\code{$metadata}}{List recording the policies used, plus
+#'     \item{\code{$metadata}}{List recording the policies used (including the
+#'       new hire profile, which can describe few people in small groups), plus
 #'       \code{scenario_name} and \code{is_baseline} when given.}
 #'     \item{\code{$pensioner_register}}{data.table, one row per retiree per
 #'       year: the person ID (under your name for that column),
 #'       \code{pension_amount}, \code{period_date} and details at retirement.  Always present
-#'       (zero rows when nobody retired).  To chain several runs, combine
+#'       (zero rows when nobody retired).  Nobody leaves the register: deaths are
+#'       not modelled, so long projections overstate pension costs.  To chain several runs, combine
 #'       their registers with \code{data.table::rbindlist()}.  This is
 #'       person-level data: handle it like the input microdata before
 #'       saving or sharing the result.}
@@ -1064,8 +1158,7 @@ simulate_scenario <- function(contract_dt,
 #'   by = est_id
 #' ]
 #'
-#' pension <- pension_db(accrual_rate = 0.02, ref_wage_col = "base_salary_lcu",
-#'                       max_years = 35, replacement_cap = 0.80)
+#' pension <- pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80)
 #'
 #' \donttest{
 #' # 1. Status quo: every module reproduces recent history
@@ -1125,9 +1218,8 @@ simulate_horizon <- function(contract_dt,
                              personnel_dt,
                              salary_scale_dt,
                              n_periods,
-                             retirement_policy = design_retirement_policy_status_quo(pension = pension_db(accrual_rate = 0.02, 
-                                                                                                          ref_wage_col = "gross_salary_lcu",
-                                                                                                          max_years = 35, 
+                             retirement_policy = design_retirement_policy_status_quo(pension = pension_db(accrual_rate = 0.02,
+                                                                                                          max_years = 35,
                                                                                                           replacement_cap = 0.80)),
                              exit_policy        = NULL,
                              movement_policy    = NULL,
@@ -1211,6 +1303,18 @@ simulate_horizon <- function(contract_dt,
   has_panel <- ref_date_col %in% names(contract_dt) &&
                data.table::uniqueN(contract_dt[[ref_date_col]]) >= 2L
 
+  # The projection starts from a snapshot in the data. Between snapshots there is
+  # nobody to project.
+  if (ref_date_col %in% names(contract_dt) && !ref_date %in% contract_dt[[ref_date_col]]) {
+    snapshots <- sort(unique(contract_dt[[ref_date_col]]))
+    stop(
+      "simulate_horizon: ref_date (", format(ref_date), ") is not a snapshot in contract_dt. ",
+      "Pass one of its dates, normally the latest. It has ", length(snapshots),
+      " snapshot(s) from ", format(min(snapshots)), " to ", format(max(snapshots)), ".",
+      call. = FALSE
+    )
+  }
+
   # For movement, pre-compute the baseline from the full panel BEFORE stripping
   # ref_date.  simulate_horizon works on single-snapshot data in each period, so
   # without this cache simulate_promotions_transfers would never see a panel.
@@ -1227,29 +1331,34 @@ simulate_horizon <- function(contract_dt,
   }
 
   # For exit, pre-estimate historical rates from the full panel BEFORE stripping
-  # ref_date, so simulate_exits() receives a ready-made policy_table.
-  if (!is.null(exit_policy) && is.null(exit_policy$policy_table)) {
-    if (has_panel) {
-      exit_policy$policy_table <- tryCatch(
-        estimate_historical_exit_rates(
-          panel_contract_dt  = contract_dt,
-          panel_personnel_dt = personnel_dt,
-          group_cols         = exit_policy$group_cols,
-          column_spec_args   = column_spec_args
-        ),
-        error = function(e) {
-          warning("simulate_horizon: exit rate estimation failed \u2014 ",
-                  conditionMessage(e), ". Falling back to defaults$exit_rate.",
-                  call. = FALSE)
-          NULL
-        }
+  # ref_date, so simulate_exits() receives a ready-made policy_table. A flat rate
+  # (defaults$exit_rate with no groups) is the user's own: nothing to estimate.
+  # Without rates there is no status quo to reproduce, so this stops rather than
+  # projecting on something else, as hiring and retirement do.
+  .exit_is_flat_ <- is.null(exit_policy$group_cols) && !is.null(exit_policy$defaults$exit_rate)
+  if (!is.null(exit_policy) && is.null(exit_policy$policy_table) && !.exit_is_flat_) {
+    if (!has_panel) {
+      stop(
+        "simulate_horizon: status-quo exits need a panel with at least two ref_date ",
+        "snapshots to estimate exit rates from, or your own rate from ",
+        "design_exit_policy_flat() or design_exit_policy_adjustment().",
+        call. = FALSE
       )
-    } else if (is.null(exit_policy$defaults$exit_rate)) {
-      warning("simulate_horizon: single-snapshot data and no exit_rate in ",
-              "exit_policy$defaults. Non-retirement exits will be skipped.",
-              call. = FALSE)
-      exit_policy <- NULL
     }
+    exit_policy$policy_table <- tryCatch(
+      estimate_historical_exit_rates(
+        panel_contract_dt  = contract_dt,
+        panel_personnel_dt = personnel_dt,
+        group_cols         = exit_policy$group_cols,
+        column_spec_args   = column_spec_args
+      ),
+      error = function(e) stop(
+        "simulate_horizon: could not estimate status-quo exit rates from the panel: ",
+        conditionMessage(e), ". Check exit_policy$group_cols, or set the rates yourself ",
+        "with design_exit_policy_adjustment().",
+        call. = FALSE
+      )
+    )
   }
 
   # For retirement, pre-estimate hazard rates from the full panel BEFORE
@@ -1291,7 +1400,6 @@ simulate_horizon <- function(contract_dt,
     retirement_policy$policy_table <- estimate_retirement_hazard_rates(
       panel_personnel_dt = .hazard_panel_,
       group_cols          = retirement_policy$group_cols,
-      retire_status       = retirement_policy$pensioner_type_value %||% "pensioner",
       column_spec_args    = column_spec_args
     )
     if (nrow(retirement_policy$policy_table) == 0L) {
@@ -1349,6 +1457,28 @@ simulate_horizon <- function(contract_dt,
     hiring_policy$panel_personnel_dt <- NULL
   }
 
+  # What new hires start with, from the people hired during the panel, unless the
+  # policy brings its own.
+  if (!is.null(hiring_policy)) {
+    profile_from_panel <- function(group_cols) {
+      if (!has_panel) return(NULL)
+      estimate_new_hire_profile(contract_dt, personnel_dt, group_cols, column_spec_args)
+    }
+    if (is.null(hiring_policy$new_hire_profile)) {
+      hiring_policy$new_hire_profile <- profile_from_panel(hiring_policy$group_cols)
+    }
+    if (is.null(hiring_policy$new_hire_profile_overall)) {
+      hiring_policy$new_hire_profile_overall <- profile_from_panel(NULL)
+    }
+    if (is.null(hiring_policy$new_hire_profile) || nrow(hiring_policy$new_hire_profile) == 0L) {
+      message(
+        "simulate_horizon: no recent hires in the data to base new hires on, so they start with a ",
+        "blank age and gender, and will not retire on age. Set hiring_policy$new_hire_profile ",
+        "to say what they look like: see ?estimate_new_hire_profile."
+      )
+    }
+  }
+
   if (ref_date_col %in% names(contract_dt)) {
     contract_dt <- contract_dt[get(ref_date_col) == start_ref]
   }
@@ -1356,29 +1486,42 @@ simulate_horizon <- function(contract_dt,
     personnel_dt <- personnel_dt[get(ref_date_col) == start_ref]
   }
 
-  # Resolve pensioner type label before any filtering uses it.
-  .pensioner_type_val_ <- if (!is.null(retirement_policy) &&
-                               !is.null(retirement_policy$pensioner_type_value))
-    retirement_policy$pensioner_type_value else "pensioner"
+  # Pension rows: the contract type says so, or the person's status does. Every
+  # other row is staff, so someone with a pension and a working contract goes on
+  # the register and stays on the payroll. They are set aside here, and leave the
+  # working tables below once they are on the register.
+  .pensioner_ids_ <- personnel_dt[get(column_spec_args$status_col) %in% "pensioner"][[personnel_id_col]]
+  .is_pension_row_ <- contract_dt[[contract_type_col]] %in% "pensioner" |
+    contract_dt[[personnel_id_col]] %in% .pensioner_ids_
+  existing_pensioners <- contract_dt[.is_pension_row_]
 
-  # Retain only salary-bearing contracts in the starting snapshot.
-  # Rule: keep a row if it is a pensioner contract (needed to seed the
-  # pensioner register) OR if it has a non-NA salary (the government is paying,
-  # regardless of contract_type -- this correctly includes inactive staff on
-  # government-funded leave or training).
-  # Drop rows that are neither: these are truly separated staff whose contract
-  # lingers in panel data with no salary, and must not inflate headcount or
-  # the wage bill.
-  .has_salary_ <- !is.na(contract_dt[[salary_col]])
-  # %in%, not == : a real NA contract_type value (which occurs in bundled and
-  # real HRMIS data) makes `== .pensioner_type_val_` evaluate to NA rather
-  # than FALSE, which can make the any() check below NA instead of TRUE/FALSE
-  # depending on the rest of the snapshot -- %in% treats NA as non-matching,
-  # which is the correct "not a pensioner contract" reading.
-  .is_pensioner_ <- contract_dt[[contract_type_col]] %in% .pensioner_type_val_
-  if (any(!(.has_salary_ | .is_pensioner_))) {
-    contract_dt <- contract_dt[.has_salary_ | .is_pensioner_]
+  # Staff rows with no pay are people the government no longer pays, whose contract
+  # lingers in the data: they must not inflate headcount.
+  contract_dt <- contract_dt[!.is_pension_row_ & !is.na(get(salary_col))]
+
+  # A blank contract type is missing data: staff if the person's status is active,
+  # off the payroll otherwise.
+  .active_ids_ <- personnel_dt[get(column_spec_args$status_col) %in% "active"][[personnel_id_col]]
+  contract_dt[is.na(get(contract_type_col)) & !get(personnel_id_col) %in% .active_ids_,
+              (contract_type_col) := "inactive"]
+
+  # Contracts are renewed past their end date in the projection (decision D3):
+  # everyone paid today stays until a module says otherwise.
+  contract_dt[.on_payroll(get(contract_type_col)),
+              (column_spec_args$end_date_col) := as.Date(NA)]
+
+  # Say which groups have no rate, once per run, rather than freezing them silently
+  .report_no_rate <- function(module, consequence, rate_table, group_cols) {
+    .report_groups_without_rate(module, consequence, rate_table, group_cols, contract_dt, contract_type_col)
   }
+  .report_no_rate("exits", "Nobody exits from them.", exit_policy$policy_table, exit_policy$group_cols)
+  .report_no_rate("movement", "Nobody moves out of them.", movement_policy$policy_table, movement_policy$group_cols)
+  .report_no_rate("retirement", "Nobody retires from them before any mandatory age.",
+                  retirement_policy$policy_table, retirement_policy$group_cols)
+  .report_no_rate("hiring", "They use the policy's unmatched_rate, 0 unless you set it.",
+                  hiring_policy$squorate_dt, hiring_policy$group_cols)
+  .report_no_rate("allowances", "They get the policy's default amount.",
+                  allowance_policy$policy_table, setdiff(allowance_policy$group_cols, "allowance_type"))
 
   # Initialise the allowance ledger. Unlike pensioner_register, this is never
   # accepted as a simulate_horizon() input -- it accumulates purely within
@@ -1391,20 +1534,16 @@ simulate_horizon <- function(contract_dt,
   # Initialise pensioner register with expanded schema
   pensioner_register <- .empty_pensioner_register(personnel_id_col)
 
-  # Seed register from pre-existing retirees in the starting snapshot (Phase 2c Part A).
-  # People with contract_type_col == pensioner_type_value were already retired at ref_date;
-  # their pension costs should appear in period 1's pension_cost_total.
-
-  existing_pensioners <- contract_dt[
-    get(contract_type_col) == .pensioner_type_val_
-  ]
+  # Seed the register from people already retired at ref_date, so their pensions
+  # appear in period 1's pension_cost_total. Pensions sit in salary_col; several
+  # rows add up, and a pensioner with no pay at all has a blank amount.
   if (nrow(existing_pensioners) > 0L) {
     .ref_date_seed_ <- ref_date  # alias \u2014 avoid data.table column shadowing
     seed_reg <- existing_pensioners[, {
-      max_sal <- if (.N > 0L) max(get(salary_col), na.rm = TRUE) else 0
+      pension <- .total_pay(get(salary_col))
       list(
-        pension_amount             = max_sal,
-        final_salary               = max_sal,
+        pension_amount             = pension,
+        final_salary               = pension,
         tenure_years_at_retirement = NA_real_,
         age_at_retirement          = NA_real_,
         period_date                = .ref_date_seed_
@@ -1431,17 +1570,20 @@ simulate_horizon <- function(contract_dt,
       list(pensioner_register, seed_reg),
       use.names = TRUE, fill = TRUE
     )
-  }
 
-  # Remove pre-existing pensioner contracts from the working snapshot now that
-  # they are captured in the register.  Keeping them in contract_dt with
-  # salary = 0 would silently inflate row counts and make contract_type
-  # filtering harder in every downstream module.  Personnel rows are removed
-  # by the same key so that headcount counts stay consistent.
-  if (nrow(existing_pensioners) > 0L) {
-    .pensioner_ids_ <- unique(existing_pensioners[[personnel_id_col]])
-    contract_dt  <- contract_dt[!get(personnel_id_col) %in% .pensioner_ids_]
-    personnel_dt <- personnel_dt[!get(personnel_id_col) %in% .pensioner_ids_]
+    .n_no_pension_ <- sum(is.na(seed_reg$pension_amount))
+    if (.n_no_pension_ > 0L) {
+      message("simulate_horizon: ", .n_no_pension_, " existing pensioner(s) have no value in '",
+              salary_col, "'. They are on the pensioner register with a blank amount, and ",
+              "add nothing to the pension cost.")
+    }
+
+    # People who only hold a pension leave the working tables too; someone who
+    # also has a working contract stays.
+    personnel_dt <- personnel_dt[
+      !get(personnel_id_col) %in% setdiff(existing_pensioners[[personnel_id_col]],
+                                          contract_dt[[personnel_id_col]])
+    ]
   }
 
   # ====================================================================
@@ -1536,6 +1678,10 @@ simulate_horizon <- function(contract_dt,
     set.seed(seed)
   }
 
+  # Keep the hiring policy as supplied for $metadata: the loop below grows the
+  # pay table inside it each year.
+  hiring_policy_input <- hiring_policy
+
   for (t in seq_len(n_periods)) {
 
     growth        <- salary_growth_rate[t]
@@ -1569,6 +1715,7 @@ simulate_horizon <- function(contract_dt,
     pensioner_register <- scenario_result$pensioner_register
     allowance_dt        <- scenario_result$allowance_dt
     allowance_policy     <- scenario_result$allowance_policy
+    hiring_policy        <- scenario_result$hiring_policy
 
     # Accumulate period snapshots for panel output
     if (return_microdata) {
@@ -1592,7 +1739,7 @@ simulate_horizon <- function(contract_dt,
   # Add _pct_of_end_bill share columns for each effect driver
   effect_cols <- c("exit_savings", "non_ret_exit_savings", "promotion_effect",
                    "transfer_effect",
-                   "hiring_effect", "inflation_effect")
+                   "hiring_effect", "downsizing_savings", "inflation_effect")
   for (ec in effect_cols) {
     pct_col <- paste0(ec, "_pct_of_end_bill")
     summary_dt[, (pct_col) := data.table::fifelse(
@@ -1643,7 +1790,7 @@ simulate_horizon <- function(contract_dt,
   policy_args <- list(
     retirement_policy  = retirement_policy,
     movement_policy    = movement_policy,
-    hiring_policy      = hiring_policy,
+    hiring_policy      = hiring_policy_input,
     allowance_policy   = allowance_policy,
     salary_growth_rate = salary_growth_rate_input,
     n_periods          = n_periods,

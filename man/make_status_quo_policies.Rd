@@ -22,7 +22,8 @@ estimation.}
 \item{personnel_dt}{data.table.  Full panel personnel microdata.}
 
 \item{salary_scale_dt}{data.table.  Pay table injected into the hiring
-policy.  Must contain a salary column (see \code{\link{simulate_hiring}}).}
+policy.  Must contain a numeric column with the same name as
+\code{salary_col}.}
 
 \item{movement_group_cols}{Character vector or \code{NULL}.  Columns that
 define mobility states for the movement baseline (e.g.

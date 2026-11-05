@@ -21,7 +21,8 @@ siblings than to \code{eligibility_age()}/\code{pension_flat()}.
 The constructors:
 \itemize{
 \item \code{\link{design_hiring_policy_flow}} -- replace a fraction of
-exits (e.g. \code{replacement_rate = 1} rehires everyone who left).
+the people who left: retirees and other exits
+(\code{replacement_rate = 1} holds headcount).
 \item \code{\link{design_hiring_policy_stock}} -- hire (or downsize)
 toward a target headcount.
 \item \code{\link{design_hiring_policy_status_quo}} -- reproduce
@@ -30,10 +31,6 @@ recently observed hiring rates, calibrated from historical panel data.
 rates, usually the historical rates with some groups edited: status
 quo for most groups and a reform for others.
 }
-\code{"combined"} mode (flow + stock simultaneously) has no constructor
-here -- it has no clean policy interpretation of its own and is expected
-to see negligible real use; hand-write the list directly for that case.
-
 Every constructor returns a \strong{plain list} -- the same shape a
 hand-written \code{hiring_policy} already has.  Nothing is hidden behind a
 class: anything not reachable through these constructors remains reachable

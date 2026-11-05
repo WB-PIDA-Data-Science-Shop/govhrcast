@@ -33,11 +33,12 @@ name falls back to random.
 \item \code{active_types} -- which \code{contract_type} values can exit.
 Default \code{c("permanent", "fixed-term", "short-term")}, the
 harmonized \code{govhr} values.  These must match the values actually
-in your data -- if none match, nobody exits.
+in your data -- if none match, nobody exits.  A blank contract type is
+missing data, so those staff can always exit.
 }
 
 Every constructor returns a \strong{plain list}, the same shape as a
-hand-written \code{exit_policy}; anything not covered here (e.g.
-\code{defaults$exited_type}) can be set by editing the list directly.
+hand-written \code{exit_policy}; anything not covered here can be set by
+editing the list directly.
 }
 \keyword{internal}

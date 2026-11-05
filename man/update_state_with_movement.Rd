@@ -11,8 +11,7 @@ update_state_with_movement(
   policy_params,
   salary_scale_dt = NULL,
   ref_date,
-  personnel_id_col = "personnel_id",
-  salary_col = "gross_salary_lcu"
+  column_spec_args = .column_spec()
 )
 }
 \arguments{
@@ -37,18 +36,14 @@ accepted.}
 }}
 
 \item{salary_scale_dt}{data.table or \code{NULL}. Salary scale keyed on
-\code{group_cols}, one row per group. The salary value is read from a
-numeric column whose name matches
-\code{salary|wage|pay|compensation|allowance} -- \code{gross_salary_lcu}
-if present, otherwise the first match (not matched to
-\code{salary_col} by name).}
+\code{group_cols}, one row per group, with the pay in a column named
+\code{salary_col}.}
 
 \item{ref_date}{Date or character. Reference date}
 
-\item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
-
-\item{salary_col}{Character. Salary column in \code{contract_dt} to
-update (default: "gross_salary_lcu")}
+\item{column_spec_args}{Complete column specification from
+\code{.column_spec()}.  \code{salary_col} is the pay column, in
+\code{contract_dt} and in the salary scale.}
 }
 \value{
 List containing:
@@ -63,7 +58,9 @@ added (pre-move salary summed across the mover's contracts)}
 The ONLY function that modifies state in the promotions/transfers module.
 Updates \code{contract_dt} to reflect new group assignments (the
 \code{group_cols} columns) and, when \code{salary_update_rule = "scale"},
-re-assigns salary from the salary scale for all selected movers.
+re-assigns salary from the salary scale for all selected movers.  A mover moves
+on their main contract only (see \code{\link{get_primary_contract}}): a second
+job, a closed contract or a pension row stays as it is.
 }
 \section{Data Integrity}{
 

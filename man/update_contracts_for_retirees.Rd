@@ -30,8 +30,7 @@ produced by \code{\link{prepare_retiree_data}}.  Only the
 \code{0} to prevent double-counting: pension cost is tracked separately
 via \code{pension_amount} in the pensioner register);
 \code{contract_type_col} (set to \code{"pensioner"} for closing
-contracts; contracts already in \code{c("inactive", "pensioner",
-  "closed_due_to_retirement", "terminated")} are skipped).}
+contracts; contracts already off the payroll are skipped).}
 }
 \value{
 \code{contract_dt} (invisibly; the same object, modified in place).

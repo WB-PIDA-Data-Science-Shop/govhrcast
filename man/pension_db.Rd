@@ -4,16 +4,11 @@
 \alias{pension_db}
 \title{Defined-Benefit (DB) Pension}
 \usage{
-pension_db(accrual_rate, ref_wage_col, max_years = NA, replacement_cap = NA)
+pension_db(accrual_rate, max_years = NA, replacement_cap = NA)
 }
 \arguments{
 \item{accrual_rate}{Numeric.  Annual accrual rate (e.g. \code{0.02} = 2\%
 of wage per year of service).}
-
-\item{ref_wage_col}{Character.  Name of the salary column to use as the
-pension reference wage (e.g. \code{"base_salary_lcu"}) -- this is a
-column-name pointer, not checked for existence here since it can only be
-verified once real workforce data is supplied at simulation time.}
 
 \item{max_years}{Numeric or \code{NA} (default).  Service cap in years;
 \code{NA} = uncapped.}
@@ -29,12 +24,11 @@ preset), or as \code{\link{pension_hybrid}}'s \code{db} argument.
 \description{
 Builds the pension half of a retirement policy for a final-salary
 defined-benefit formula.  See \code{\link{compute_db_pension}} for the
-exact formula (accrual rate x capped service x reference wage, itself
-optionally capped as a replacement rate).
+exact formula (accrual rate x capped service x pay, itself
+optionally capped as a replacement rate).  Pay is the run's \code{salary_col}.
 }
 \examples{
-pension_db(accrual_rate = 0.02, ref_wage_col = "base_salary_lcu",
-           max_years = 35, replacement_cap = 0.80)
+pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80)
 }
 \seealso{
 \code{\link{design_retirement_policy}}, \code{\link{compute_db_pension}}

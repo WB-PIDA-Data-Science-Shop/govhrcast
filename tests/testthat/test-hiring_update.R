@@ -351,7 +351,8 @@ test_that("update_state_with_adjustment handles downsizing (negative net_change)
   )
   
   initial_n_active <- test_data$personnel_dt[employment_status == "active", .N]
-  
+  n_inactive_before <- test_data$contract_dt[contract_type == "inactive", .N]
+
   result <- update_state_with_adjustment(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
@@ -359,7 +360,7 @@ test_that("update_state_with_adjustment handles downsizing (negative net_change)
     policy_params = policy_params,
     ref_date = as.Date("2024-06-01")
   )
-  
+
   # Check no new hires
   expect_equal(nrow(result$new_personnel_dt), 0)
   expect_equal(nrow(result$new_contracts_dt), 0)
@@ -368,9 +369,8 @@ test_that("update_state_with_adjustment handles downsizing (negative net_change)
   final_n_active <- test_data$personnel_dt[employment_status == "active", .N]
   expect_equal(final_n_active, initial_n_active - 2)
   
-  # Verify contracts were terminated
-  n_terminated <- test_data$contract_dt[contract_type == "terminated", .N]
-  expect_equal(n_terminated, 2)
+  # Verify the contracts left the payroll: 2 more inactive contracts than before
+  expect_equal(result$contract_dt[contract_type == "inactive", .N] - n_inactive_before, 2)
 })
 
 test_that("update_state_with_adjustment handles multiple groups", {

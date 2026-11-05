@@ -10,8 +10,7 @@ simulate_retirement(
   ref_date,
   policy_params = list(group_cols = NULL, policy_table = NULL, defaults =
     list(eligibility_type = "age_and_tenure", pension_type = "db", min_age = 60,
-    min_tenure = 10, accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu", max_years =
-    35, replacement_cap = 0.8)),
+    min_tenure = 10, accrual_rate = 0.02, max_years = 35, replacement_cap = 0.8)),
   column_spec_args = list()
 )
 }
@@ -88,10 +87,9 @@ The following fields are recognized:\tabular{ll}{
    \code{eligibility_type} \tab \code{"age_only"}, \code{"tenure_only"}, \code{"age_and_tenure"}, \code{"custom"} or \code{"hazard_rate"} \cr
    \code{min_age} \tab Minimum retirement age.  For \code{"hazard_rate"}, a mandatory ceiling instead (everyone at or above it retires with certainty) rather than a threshold that turns the hazard mechanism on \cr
    \code{min_tenure} \tab Minimum years of service \cr
-   \code{active_types} \tab Contract types considered active \cr
+   \code{active_types} \tab Contract types the policy covers: only people on these types can retire, though a retiree leaves every contract they hold. A blank type counts as staff. Default: everyone on the payroll \cr
    \code{retire_strategy} \tab \code{"hazard_rate"} only: \code{"random"} (default) or a rank-by-column name, used to select which individuals retire within each group once the group's retiree count is determined \cr
    \code{pension_type} \tab \code{"db"}, \code{"dc"}, \code{"rate"}, \code{"flat"} or \code{"hybrid"} \cr
-   \code{ref_wage_col} \tab Salary column used as the pension reference wage \cr
    \code{accrual_rate} \tab Annual DB accrual rate \cr
    \code{max_years} \tab Maximum years counted toward DB accrual \cr
    \code{replacement_cap} \tab Maximum pension replacement rate \cr
@@ -108,7 +106,8 @@ group-level rate rather than a fixed threshold: \code{group_cols} must include
 \code{"age_yr_int"}, and \code{policy_table} must supply a \code{hazard_rate} column keyed
 by \code{group_cols} (see \code{\link[=estimate_retirement_hazard_rates]{estimate_retirement_hazard_rates()}} to estimate one
 from historical panel data). Within each group,
-\code{round(n_active * hazard_rate)} individuals are selected to retire via
+\code{n_active * hazard_rate} individuals (rounded up or down at random, see
+\code{\link[=stochastic_round]{stochastic_round()}}) are selected to retire via
 \code{retire_strategy}, after anyone at or above \code{min_age} (if set) is
 force-retired first.}
 
@@ -117,7 +116,7 @@ so the function can read your data as it is. List only the names that
 differ from the \strong{govhr} harmonized defaults; for example
 \code{list(personnel_id_col = "pid", age_col = "idade")}. Your names are used
 throughout, so the returned tables keep them, and you write the same names
-in \code{group_cols}, \code{policy_table}, \code{retire_strategy}, \code{ref_wage_col} and
+in \code{group_cols}, \code{policy_table}, \code{retire_strategy} and
 inside \code{eligibility_rule} / \code{pension_formula}. The same list can be passed
 to every \strong{govhrcast} function; keys a function does not use are ignored,
 and an unknown key is an error.
@@ -134,11 +133,11 @@ contract dates, used for tenure and to find active contracts. Open
 contracts have \code{NA} end dates; retiring employees' contracts get
 \code{ref_date}.
 \item \code{salary_col} (\code{"gross_salary_lcu"}): pay column. Picks each retiree's
-main contract, is set to 0 on contracts that close, and is the pension
-wage base unless \code{ref_wage_col} names another column.
+main contract, is set to 0 on contracts that close, and is what
+wage-based pensions are calculated from.
 \item \code{contract_type_col} (\code{"contract_type"}): only types in \code{active_types}
 can retire; closing contracts become \code{"pensioner"}.
-\item \code{status_col} (\code{"employment_status"}): set to \code{"inactive"} for retirees.
+\item \code{status_col} (\code{"employment_status"}): set to \code{"pensioner"} for retirees.
 \item \code{birth_date_col} (\code{"birth_date"}): used to calculate age when no age
 column is available.
 \item \code{age_col}, \code{tenure_col} (\code{"age"}, \code{"personnel_tenure"}): pre-computed
@@ -171,12 +170,14 @@ where applicable).
 
 The updated personnel register after retirement has been processed.
 
-Employees who retire during the current simulation period are marked
-as inactive.
+Employees who retire during the current simulation period get the status
+\code{"pensioner"}.
 \item \strong{retirees_dt}
 
 A \code{data.table} containing one row for every employee retiring during
-the current simulation period.
+the current simulation period. Its \code{salary_col} is their pay on all their
+contracts added up: that is the wage the pension is calculated on, and
+what leaves the wage bill. Their other columns come from their main contract.
 
 This table includes the variables required for pension calculation,
 the resolved retirement policy parameters applied to each retiree,
@@ -308,8 +309,7 @@ policy_params <- list(
       "fixed-term"
     ),
     pension_type = "rate",
-    pension_rate = 0.15,
-    ref_wage_col = "gross_salary_lcu"
+    pension_rate = 0.15
   )
 )
 
@@ -343,7 +343,6 @@ policy_params <- list(
     active_types = c("permanent", "fixed-term"),
     pension_type = "db",
     accrual_rate = 0.02,
-    ref_wage_col = "gross_salary_lcu",
     max_years = 35,
     replacement_cap = 0.80
   )

@@ -148,12 +148,7 @@
 #'
 #' * `"scale"` (default) — the mover's salary (`salary_col` in
 #'   `contract_dt`) is replaced with the value from `salary_scale_dt` for
-#'   their new `to_group`. The value is read from a numeric column of
-#'   `salary_scale_dt` whose name matches
-#'   `salary|wage|pay|compensation|allowance`: `gross_salary_lcu` if
-#'   present, otherwise the first such column. It is \emph{not} matched to
-#'   `salary_col` by name, so keep only one salary column in
-#'   `salary_scale_dt` to avoid picking the wrong one.
+#'   their new `to_group`, read from the column of the same name.
 #' * `"keep"` — the mover retains their current salary. Use this when
 #'   salary adjustments are handled separately, for example through a
 #'   merit increment applied after movement.
@@ -213,7 +208,7 @@
 #' |:----------|:------------|
 #' | `movement_rate` | Scalar movement rate (share of each group's stock that moves per period). Used only as a fallback when `policy_table = NULL` and estimation from a multi-snapshot panel fails or finds zero transitions. Not applied to single-snapshot data (see **Transition baseline**) |
 #' | `movement_strategy` | Mover selection rule: `"tenure"` (used when omitted), `"wage_based"`, `"reverse_tenure"`, or `"random"` |
-#' | `active_types` | Accepted but **currently not applied** by this module: every contract whose type is not `"inactive"` or `"pensioner"` is eligible to move, regardless of this value |
+#' | `active_types` | Contract types the policy covers: only contracts of these types (or a blank type, which counts as staff) can move. Default: every contract whose type is not `"inactive"` or `"pensioner"` |
 #' | `salary_update_rule` | `"scale"` (default; assign destination salary from `salary_scale_dt`) or `"keep"` (retain current salary) |
 #' | `movement_type` | `"promotion"` (default) or `"transfer"`. Not used by this function; tells [simulate_horizon()] which column to report this policy's movers under |
 #'
@@ -245,7 +240,7 @@
 #' `salary_update_rule = "scale"`.
 #'
 #' Must have exactly one row per group — duplicate keys will cause an
-#' error. Must contain a numeric salary column matching `salary_col`.
+#' error. Must contain a numeric column with the same name as `salary_col`.
 #'
 #' @param ref_date A `Date` giving the simulation date for the current
 #' projection period. Used to select the workforce snapshot, compute
@@ -814,8 +809,7 @@ simulate_promotions_transfers <- function(contract_dt,
     policy_params     = policy_params,
     salary_scale_dt   = salary_scale_dt,
     ref_date          = selected_ref_date,
-    personnel_id_col  = personnel_id_col,
-    salary_col        = cols$salary_col
+    column_spec_args  = cols
   )
 
   snap_contract_dt  <- update_result$contract_dt

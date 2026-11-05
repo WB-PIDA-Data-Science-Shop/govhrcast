@@ -8,7 +8,7 @@ estimate_hiring_demand(
   contract_dt,
   personnel_dt,
   policy_params,
-  retirees_dt = NULL,
+  leavers_dt = NULL,
   ref_date,
   column_spec_args = .column_spec()
 )
@@ -20,11 +20,12 @@ estimate_hiring_demand(
 
 \item{policy_params}{List. Must contain:
 \itemize{
-\item mode: \code{"flow"}, \code{"stock"}, \code{"combined"}, or \code{"status_quo"}
+\item mode: \code{"flow"}, \code{"stock"} or \code{"status_quo"}
 \item Other parameters depending on mode (see specific functions)
 }}
 
-\item{retirees_dt}{data.table. Optional. Output from simulate_retirement (default: NULL)}
+\item{leavers_dt}{data.table or \code{NULL}. The people who left this period,
+for flow hiring: see \code{\link{compute_flow_demand}}.}
 
 \item{ref_date}{Date. Reference date}
 
@@ -36,7 +37,7 @@ data.table with group_cols (if specified) and total_hires column
 }
 \description{
 Wrapper function that routes to appropriate demand calculation based on
-policy mode: \code{"flow"}, \code{"stock"}, \code{"combined"}, or
-\code{"status_quo"}. Pure function — no state modification.
+policy mode: \code{"flow"}, \code{"stock"} or \code{"status_quo"}. Pure
+function — no state modification.
 }
 \keyword{internal}

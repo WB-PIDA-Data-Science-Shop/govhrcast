@@ -26,9 +26,9 @@
 #' Every constructor returns a \strong{plain list} -- the same shape a
 #' hand-written \code{movement_policy} already has.  Anything not reachable
 #' through these constructors (e.g. a flat \code{defaults$movement_rate}
-#' fallback, or \code{promotion_order_col}) remains reachable by editing the
-#' returned list directly.  \code{defaults$active_types} is deliberately not
-#' offered: the movement module does not apply it yet.
+#' fallback, \code{promotion_order_col}, or \code{defaults$active_types} to cover
+#' only some contract types) remains reachable by editing the returned list
+#' directly.
 #'
 #' @import data.table
 #' @name movement_policy_helpers

@@ -240,7 +240,7 @@ resolve_allowance_amounts <- function(contract_dt,
          "'allowance_type' -- the multiplier is resolved per contract, ",
          "not per type.", call. = FALSE)
 
-  active_dt <- contract_dt[!get(contract_type_col) %in% c("pensioner", "inactive")]
+  active_dt <- contract_dt[.on_payroll(get(contract_type_col))]
 
   base_cols <- unique(c(contract_id_col, personnel_id_col,
                         policy_params$group_cols, policy_params$multiplier_group_cols))

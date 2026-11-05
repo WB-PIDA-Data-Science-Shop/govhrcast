@@ -23,7 +23,8 @@ and \code{defaults} -- directly usable as \code{simulate_horizon()}'s
 }
 \description{
 Builds an exit policy where the same share of active staff leaves each
-period, everywhere: \code{round(active staff x exit_rate)} people exit.
+period, everywhere: active staff x \code{exit_rate} people exit, rounded up or
+down at random (see \code{\link{stochastic_round}}).
 Useful when you only have one snapshot of data (so no history to
 estimate from), or to test a simple assumption such as "5\% attrition a
 year".

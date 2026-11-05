@@ -698,7 +698,8 @@ test_that("prepare_retiree_data handles multiple contracts per retiree", {
   expect_equal(nrow(result), 1)
   expect_equal(result$personnel_id, "P001")
   expect_equal(result$contract_id, "C002")
-  expect_equal(result$gross_salary_lcu, 7000)
+  # Its pay is added up across the retiree's contracts (decision on B-15)
+  expect_equal(result$gross_salary_lcu, 12000)
 })
 
 test_that("prepare_retiree_data filters inactive contracts", {

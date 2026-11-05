@@ -33,7 +33,7 @@ Shortcut for
 \examples{
 design_retirement_policy_age_tenure(
   min_age = 60, min_tenure = 10,
-  pension = pension_db(accrual_rate = 0.02, ref_wage_col = "base_salary_lcu")
+  pension = pension_db(accrual_rate = 0.02)
 )
 }
 \seealso{

@@ -18,15 +18,15 @@ create_test_data_for_hiring <- function() {
     gross_salary_lcu = rep(c(50000, 60000, 70000, 80000), 5),
     department = rep(c("HR", "IT"), each = 10),
     paygrade = rep(c("G5", "G6"), 10),
-    contract_type = c(rep("permanent", 15), rep("terminated", 5))
+    contract_type = c(rep("permanent", 15), rep("inactive", 5))
   )
-  
+
   personnel_dt <- data.table(
     personnel_id = paste0("P", 1:20),
     birth_date = as.Date("1980-01-01"),
     employment_status = c(rep("active", 15), rep("inactive", 5))
   )
-  
+
   list(contract_dt = contract_dt, personnel_dt = personnel_dt)
 }
 
@@ -36,14 +36,14 @@ create_test_data_for_hiring <- function() {
 
 test_that("compute_current_stock calculates overall headcount correctly", {
   test_data <- create_test_data_for_hiring()
-  
+
   result <- compute_current_stock(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     ref_date = as.Date("2024-06-01"),
     group_cols = NULL
   )
-  
+
   expect_s3_class(result, "data.table")
   expect_equal(nrow(result), 1)
   expect_true("current_stock" %in% names(result))
@@ -52,19 +52,19 @@ test_that("compute_current_stock calculates overall headcount correctly", {
 
 test_that("compute_current_stock aggregates by group_cols", {
   test_data <- create_test_data_for_hiring()
-  
+
   result <- compute_current_stock(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     ref_date = as.Date("2024-06-01"),
     group_cols = c("department")
   )
-  
+
   expect_s3_class(result, "data.table")
   expect_true("department" %in% names(result))
   expect_true("current_stock" %in% names(result))
   expect_equal(nrow(result), 2)  # HR and IT
-  
+
   # Check counts - 8 active in HR, 7 active in IT (5 terminated are in IT)
   hr_count <- result[department == "HR", current_stock]
   it_count <- result[department == "IT", current_stock]
@@ -73,14 +73,14 @@ test_that("compute_current_stock aggregates by group_cols", {
 
 test_that("compute_current_stock handles multiple grouping columns", {
   test_data <- create_test_data_for_hiring()
-  
+
   result <- compute_current_stock(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     ref_date = as.Date("2024-06-01"),
     group_cols = c("department", "paygrade")
   )
-  
+
   expect_s3_class(result, "data.table")
   expect_true(all(c("department", "paygrade", "current_stock") %in% names(result)))
   expect_true(nrow(result) <= 4)  # Max 4 combinations
@@ -92,28 +92,28 @@ test_that("compute_current_stock handles multiple grouping columns", {
 
 test_that("compute_flow_demand works with retirees_dt provided", {
   test_data <- create_test_data_for_hiring()
-  
+
   # Simulate 3 retirees
   retirees_dt <- data.table(
     personnel_id = paste0("P", 1:3),
     department = "HR",
     paygrade = "G5"
   )
-  
+
   policy_params <- list(
     mode = "flow",
     group_cols = c("department"),
     replacement_rate = 1.0
   )
-  
+
   result <- compute_flow_demand(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    retirees_dt = retirees_dt,
+    leavers_dt = retirees_dt,
     ref_date = as.Date("2024-06-01")
   )
-  
+
   expect_s3_class(result, "data.table")
   expect_true("total_hires" %in% names(result))
   expect_true("department" %in% names(result))
@@ -122,60 +122,61 @@ test_that("compute_flow_demand works with retirees_dt provided", {
 
 test_that("compute_flow_demand handles scalar replacement_rate", {
   test_data <- create_test_data_for_hiring()
-  
+
   retirees_dt <- data.table(
     personnel_id = paste0("P", 1:5)
   )
-  
+
   policy_params <- list(
     mode = "flow",
     group_cols = NULL,
     replacement_rate = 0.5
   )
-  
+
   result <- compute_flow_demand(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    retirees_dt = retirees_dt,
+    leavers_dt = retirees_dt,
     ref_date = as.Date("2024-06-01")
   )
-  
+
   expect_s3_class(result, "data.table")
   expect_equal(nrow(result), 1)
-  expect_equal(result$total_hires, 2)  # 5 × 0.5 = 2.5, rounded to 2
+  # 5 x 0.5 = 2.5 is rounded up or down at random (D6)
+  expect_true(result$total_hires %in% 2:3)
 })
 
 test_that("compute_flow_demand handles data.table replacement_rate", {
   test_data <- create_test_data_for_hiring()
-  
+
   retirees_dt <- data.table(
     personnel_id = paste0("P", 1:4),
     department = c("HR", "HR", "IT", "IT")
   )
-  
+
   replacement_rates <- data.table(
     department = c("HR", "IT"),
     replacement_rate = c(1.0, 0.5)
   )
-  
+
   policy_params <- list(
     mode = "flow",
     group_cols = c("department"),
     replacement_rate = replacement_rates
   )
-  
+
   result <- compute_flow_demand(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    retirees_dt = retirees_dt,
+    leavers_dt = retirees_dt,
     ref_date = as.Date("2024-06-01")
   )
-  
+
   expect_s3_class(result, "data.table")
   expect_equal(nrow(result), 2)
-  
+
   # HR: 2 exits × 1.0 = 2 hires
   # IT: 2 exits × 0.5 = 1 hire
   expect_equal(result[department == "HR", total_hires], 2)
@@ -188,55 +189,55 @@ test_that("compute_flow_demand handles data.table replacement_rate", {
 
 test_that("compute_stock_demand calculates demand correctly", {
   test_data <- create_test_data_for_hiring()
-  
+
   stock_targets <- data.table(
     department = c("HR", "IT"),
     target_stock = c(10, 20)
   )
-  
+
   policy_params <- list(
     mode = "stock",
     group_cols = c("department"),
     stock_targets = stock_targets
   )
-  
+
   result <- compute_stock_demand(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
     ref_date = as.Date("2024-06-01")
   )
-  
+
   expect_s3_class(result, "data.table")
   expect_true("total_hires" %in% names(result))
   expect_equal(nrow(result), 2)
-  
+
   # Check calculations (current stock will vary based on test data setup)
   expect_true(all(is.finite(result$total_hires)))
 })
 
 test_that("compute_stock_demand allows negative values for downsizing", {
   test_data <- create_test_data_for_hiring()
-  
+
   # Set targets below current stock
   stock_targets <- data.table(
     department = c("HR", "IT"),
     target_stock = c(2, 3)  # Current is much higher
   )
-  
+
   policy_params <- list(
     mode = "stock",
     group_cols = c("department"),
     stock_targets = stock_targets
   )
-  
+
   result <- compute_stock_demand(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
     ref_date = as.Date("2024-06-01")
   )
-  
+
   expect_s3_class(result, "data.table")
   # Should have negative values (downsizing needed)
   expect_true(any(result$total_hires < 0))
@@ -244,62 +245,28 @@ test_that("compute_stock_demand allows negative values for downsizing", {
 
 test_that("compute_stock_demand handles overall target (no grouping)", {
   test_data <- create_test_data_for_hiring()
-  
+
   stock_targets <- data.table(
     target_stock = 20
   )
-  
+
   policy_params <- list(
     mode = "stock",
     group_cols = NULL,
     stock_targets = stock_targets
   )
-  
+
   result <- compute_stock_demand(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
     ref_date = as.Date("2024-06-01")
   )
-  
+
   expect_s3_class(result, "data.table")
   expect_equal(nrow(result), 1)
   expect_true("total_hires" %in% names(result))
   expect_equal(result$total_hires, 5)  # 20 target - 15 current = 5
-})
-
-# =============================================================================
-# Test compute_combined_demand()
-# =============================================================================
-
-test_that("compute_combined_demand combines flow and stock", {
-  test_data <- create_test_data_for_hiring()
-  
-  stock_targets <- data.table(
-    department = c("HR", "IT"),
-    target_stock = c(10, 10)
-  )
-  
-  policy_params <- list(
-    mode = "combined",
-    group_cols = c("department"),
-    replacement_rate = 0.1,  # 10% flow
-    stock_targets = stock_targets
-  )
-  
-  result <- compute_combined_demand(
-    contract_dt = test_data$contract_dt,
-    personnel_dt = test_data$personnel_dt,
-    policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
-  )
-  
-  expect_s3_class(result, "data.table")
-  expect_true("total_hires" %in% names(result))
-  expect_equal(nrow(result), 2)
-  
-  # Total demand = flow (current × rate) + stock (target - current)
-  expect_true(all(is.finite(result$total_hires)))
 })
 
 # =============================================================================
@@ -308,51 +275,50 @@ test_that("compute_combined_demand combines flow and stock", {
 
 test_that("estimate_hiring_demand routes to correct function based on mode", {
   test_data <- create_test_data_for_hiring()
-  
+
   # Test flow mode
   policy_params_flow <- list(
     mode = "flow",
     group_cols = NULL,
     replacement_rate = 1.0,
-    eligibility_type = "age_only",
-    min_age = 60
+    defaults = list(eligibility_type = "age_only", min_age = 60)
   )
-  
+
   result_flow <- estimate_hiring_demand(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params_flow,
     ref_date = as.Date("2024-06-01")
   )
-  
+
   expect_s3_class(result_flow, "data.table")
   expect_true("total_hires" %in% names(result_flow))
-  
+
   # Test stock mode
   policy_params_stock <- list(
     mode = "stock",
     group_cols = NULL,
     stock_targets = data.table(target_stock = 20)
   )
-  
+
   result_stock <- estimate_hiring_demand(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params_stock,
     ref_date = as.Date("2024-06-01")
   )
-  
+
   expect_s3_class(result_stock, "data.table")
   expect_true("total_hires" %in% names(result_stock))
 })
 
 test_that("estimate_hiring_demand fails with invalid mode", {
   test_data <- create_test_data_for_hiring()
-  
+
   policy_params <- list(
     mode = "invalid_mode"
   )
-  
+
   expect_error(
     estimate_hiring_demand(
       contract_dt = test_data$contract_dt,
@@ -373,20 +339,20 @@ test_that("compute_hiring_summary calculates statistics correctly", {
     department = c("HR", "IT"),
     net_change = c(5, -2)
   )
-  
+
   new_contracts_dt <- data.table(
     contract_id = paste0("C", 1:5),
     personnel_id = paste0("P", 1:5),
     gross_salary_lcu = rep(50000, 5)
   )
-  
+
   result <- compute_hiring_summary(
     adjustment_dt = adjustment_dt,
     new_hires_dt = data.table(personnel_id = paste0("P", 1:5)),
     new_contracts_dt = new_contracts_dt,
     total_headcount = 100
   )
-  
+
   expect_s3_class(result, "data.table")
   expect_equal(result$n_new_hires, 5)
   expect_equal(result$net_headcount_change, 3)  # 5 - 2
@@ -399,14 +365,14 @@ test_that("compute_hiring_summary handles no adjustments", {
     department = character(0),
     net_change = numeric(0)
   )
-  
+
   result <- compute_hiring_summary(
     adjustment_dt = adjustment_dt,
     new_hires_dt = NULL,
     new_contracts_dt = NULL,
     total_headcount = 100
   )
-  
+
   expect_s3_class(result, "data.table")
   expect_equal(result$n_new_hires, 0)
   expect_equal(result$net_headcount_change, 0)

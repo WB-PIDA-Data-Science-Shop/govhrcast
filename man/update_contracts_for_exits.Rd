@@ -11,8 +11,7 @@ update_contracts_for_exits(
   personnel_id_col = "personnel_id",
   contract_type_col = "contract_type",
   end_date_col = "end_date",
-  active_types = c("permanent", "fixed-term", "short-term"),
-  exited_type = "inactive"
+  active_types = .exit_types()
 )
 }
 \arguments{
@@ -30,18 +29,13 @@ update_contracts_for_exits(
 \item{end_date_col}{Character.  Default \code{"end_date"}.}
 
 \item{active_types}{Character vector.  Contract type values to update.
-Default \code{c("permanent", "fixed-term", "short-term")} — the
-non-terminal \code{contract_type} values per the \code{govhr} harmonized
-dictionary.}
-
-\item{exited_type}{Character.  Value to write into \code{contract_type_col}.
-Default \code{"inactive"}.}
+Default: the \code{govhr} dictionary's working types, plus a blank.}
 }
 \value{
 \code{contract_dt} (invisibly; modified by reference in place).
 }
 \description{
-Marks ALL active contracts for each exiting person as \code{exited_type}
+Marks ALL active contracts for each exiting person as \code{"inactive"}
 and sets \code{end_date_col} to \code{ref_date}.  Uses a plain membership
 filter on \code{personnel_id} so that multi-contract persons are handled
 correctly in one pass.

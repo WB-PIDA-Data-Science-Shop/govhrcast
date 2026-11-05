@@ -55,9 +55,9 @@ in the group they join; a group with no staff at the start of an
 interval has no base, so its hires in that interval are not counted.}
 \item{Administrative hire date (\code{hire_date_col} supplied)}{
 Uses a person-level hire-date column (e.g. \code{"first_employment_date"})
-read directly from \code{panel_personnel_dt}.  Hire events are counted
-within the \code{[min(panel_dates), max(panel_dates)]} window.  This
-method avoids left-censoring bias and is preferred when the column is
-available.}
+read directly from \code{panel_personnel_dt}.  A hire belongs to the
+interval their hire date falls in, and is counted in the group they are in
+at the first snapshot after it.  The rate is pooled in the same way, over
+the same starting stock.}
 }
 }

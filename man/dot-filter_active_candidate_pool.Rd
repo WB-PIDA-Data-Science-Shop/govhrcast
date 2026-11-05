@@ -8,7 +8,8 @@
   contract_dt,
   personnel_dt,
   ref_date,
-  column_spec_args = .column_spec()
+  column_spec_args = .column_spec(),
+  policy_params = list()
 )
 }
 \arguments{
@@ -22,6 +23,9 @@
 (\code{.column_spec()}). Keys read: \code{personnel_id_col},
 \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
 \code{status_col}.}
+
+\item{policy_params}{List. Retirement policy; \code{defaults$active_types},
+if set, limits the pool to people on those contract types.}
 }
 \value{
 Named list with \code{personnel_dt}, \code{all_pid}, and

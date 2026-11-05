@@ -10,7 +10,8 @@ compute_hiring_summary(
   new_contracts_dt = NULL,
   terminated_contracts_dt = NULL,
   total_headcount = NA_integer_,
-  salary_col = "gross_salary_lcu"
+  salary_col = "gross_salary_lcu",
+  personnel_id_col = "personnel_id"
 )
 }
 \arguments{
@@ -25,9 +26,13 @@ compute_hiring_summary(
 \item{total_headcount}{Integer. Current total headcount after adjustment}
 
 \item{salary_col}{Character. Pay column (default: "gross_salary_lcu")}
+
+\item{personnel_id_col}{Character. Person ID column, to count the people let
+go (default: "personnel_id")}
 }
 \value{
-data.table with summary statistics
+data.table with summary statistics, including \code{n_downsized} (people
+let go) and \code{downsizing_savings} (their pay, as a positive number)
 }
 \description{
 Aggregates key statistics about hiring including new hires count,

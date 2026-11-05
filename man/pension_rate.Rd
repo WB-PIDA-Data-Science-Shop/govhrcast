@@ -4,14 +4,10 @@
 \alias{pension_rate}
 \title{Rate-of-Wage Pension}
 \usage{
-pension_rate(pension_rate, ref_wage_col)
+pension_rate(pension_rate)
 }
 \arguments{
-\item{pension_rate}{Numeric.  Proportion of reference wage paid (e.g.
-\code{0.15}).}
-
-\item{ref_wage_col}{Character.  Name of the salary column to use as the
-reference wage -- a column-name pointer, not checked for existence here.}
+\item{pension_rate}{Numeric.  Proportion of pay paid (e.g. \code{0.15}).}
 }
 \value{
 A list with a single \code{defaults} element -- pass this as the
@@ -20,11 +16,11 @@ preset).
 }
 \description{
 Builds the pension half of a retirement policy that pays a fixed
-proportion of the retiree's reference wage (e.g. a scheme paying a flat
-15\% of final salary). See \code{\link{compute_rate_pension}}.
+proportion of the retiree's pay, the run's \code{salary_col} (e.g. a scheme
+paying a flat 15\% of final salary). See \code{\link{compute_rate_pension}}.
 }
 \examples{
-pension_rate(pension_rate = 0.15, ref_wage_col = "base_salary_lcu")
+pension_rate(pension_rate = 0.15)
 }
 \seealso{
 \code{\link{design_retirement_policy}}, \code{\link{compute_rate_pension}}

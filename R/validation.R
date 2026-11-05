@@ -559,6 +559,12 @@ check_retirement_inputs <- function(contract_dt,
   if (!is.list(policy_params)) {
     stop("policy_params must be a list", call. = FALSE)
   }
+  # An old hand-written policy would otherwise be ignored without a word
+  if (!is.null(policy_params$defaults$ref_wage_col) ||
+      "ref_wage_col" %in% names(policy_params$policy_table)) {
+    stop("ref_wage_col is no longer used: pensions are always calculated from ",
+         "salary_col. Remove it from the retirement policy.", call. = FALSE)
+  }
   # A hazard_rate policy with no rate table (NULL, or 0 rows because the
   # panel showed no retirements) is valid: every group's rate resolves to 0
   # in compute_status_quo_retirements(), so only a mandatory age (min_age)
@@ -813,18 +819,13 @@ check_hiring_inputs <- function(contract_dt,
     stop("policy_params must contain 'mode'", call. = FALSE)
   }
 
-  valid_modes <- c("flow", "stock", "combined", "status_quo")
+  valid_modes <- c("flow", "stock", "status_quo")
   validate_choice(policy_params$mode, valid_modes, "mode")
 
   # Validate mode-specific parameters
-  if (policy_params$mode %in% c("flow", "combined")) {
+  if (policy_params$mode == "flow") {
     if (is.null(policy_params$replacement_rate)) {
-      stop(
-        "replacement_rate is required for mode '",
-        policy_params$mode,
-        "'",
-        call. = FALSE
-      )
+      stop("replacement_rate is required for mode 'flow'", call. = FALSE)
     }
 
     # If replacement_rate is data.table, validate structure
@@ -862,14 +863,9 @@ check_hiring_inputs <- function(contract_dt,
     }
   }
 
-  if (policy_params$mode %in% c("stock", "combined")) {
+  if (policy_params$mode == "stock") {
     if (is.null(policy_params$stock_targets)) {
-      stop(
-        "stock_targets is required for mode '",
-        policy_params$mode,
-        "'",
-        call. = FALSE
-      )
+      stop("stock_targets is required for mode 'stock'", call. = FALSE)
     }
 
     if (!data.table::is.data.table(policy_params$stock_targets)) {
@@ -912,18 +908,6 @@ check_hiring_inputs <- function(contract_dt,
     if (!data.table::is.data.table(policy_params$salary_scale)) {
       stop("salary_scale must be a data.table", call. = FALSE)
     }
-
-    # Check for the configured salary column (not always literally
-    # "gross_salary_lcu" -- e.g. simulate_allowances() explicitly recommends
-    # a base-salary column like "base_salary_lcu" when allowances are also
-    # being modeled, to avoid double-counting).
-    if (!salary_col %in% names(policy_params$salary_scale)) {
-      warning(
-        "salary_scale does not contain '", salary_col, "' column. ",
-        "Ensure it contains the appropriate salary column.",
-        call. = FALSE
-      )
-    }
   }
 
   # Validate group_cols exist in contract_dt if specified
@@ -939,6 +923,10 @@ check_hiring_inputs <- function(contract_dt,
                      "end_date_col", "salary_col", "contract_type_col"),
     personnel_dt = c("personnel_id_col", "status_col")
   ))
+
+  if (!is.null(policy_params$salary_scale)) {
+    .check_pay_column(policy_params$salary_scale, salary_col, "salary_scale")
+  }
 
   # For flow mode, validate retirement eligibility parameters if retirees_dt not provided
   # (these are needed if compute_flow_demand needs to calculate retirements internally)
@@ -1065,21 +1053,6 @@ check_movement_inputs <- function(
     )
   }
 
-  # salary_scale_dt must contain a salary column
-  salary_pattern <- "salary|wage|compensation|remuneration"
-  salary_candidates <- grep(
-    salary_pattern,
-    names(salary_scale_dt),
-    value = TRUE,
-    ignore.case = TRUE
-  )
-  if (length(salary_candidates) == 0) {
-    stop(
-      "salary_scale_dt must contain a salary column matching 'salary|wage|compensation|remuneration'",
-      call. = FALSE
-    )
-  }
-
   # Validate group_cols exist in contract_dt
   if (!is.null(policy_params$group_cols)) {
     validate_columns_exist(contract_dt, policy_params$group_cols, "contract_dt")
@@ -1091,6 +1064,8 @@ check_movement_inputs <- function(
                      "end_date_col", "salary_col", "contract_type_col"),
     personnel_dt = c("personnel_id_col", "status_col")
   ))
+
+  .check_pay_column(salary_scale_dt, column_spec_args$salary_col, "salary_scale_dt")
 
   return(invisible(TRUE))
 }
@@ -1191,9 +1166,10 @@ check_allowance_inputs <- function(contract_dt,
   age_col           = "age",
   tenure_col        = "personnel_tenure",
   birth_date_col    = "birth_date",
-  hire_date_col     = NULL
+  hire_date_col     = NULL,
+  gender_col        = "gender"
 )
-.COLUMN_SPEC_OPTIONAL <- c("age_col", "tenure_col", "birth_date_col", "hire_date_col")
+.COLUMN_SPEC_OPTIONAL <- c("age_col", "tenure_col", "birth_date_col", "hire_date_col", "gender_col")
 
 .OUTPUT_CONTROL_DEFAULTS <- list(
   scenario_name    = NULL,
@@ -1292,6 +1268,28 @@ check_allowance_inputs <- function(contract_dt,
              call. = FALSE)
       }
     }
+  }
+  invisible(TRUE)
+}
+
+#' Check That a Pay Table Holds the Pay Column
+#'
+#' A pay table gives the pay for each group in a column with the same name as
+#' \code{salary_col}. There is one salary column, for the table and the data.
+#'
+#' @param pay_table data.table.  The pay table.
+#' @param salary_col Character.  The pay column.
+#' @param table_name Character.  The table's name, for the error message.
+#' @return \code{invisible(TRUE)}; stops if the column is missing or not numeric.
+#' @noRd
+.check_pay_column <- function(pay_table, salary_col, table_name) {
+  if (!salary_col %in% names(pay_table)) {
+    stop(table_name, " must have a column named '", salary_col,
+         "', the same as salary_col, holding the pay for each group. ",
+         "It has: ", paste(names(pay_table), collapse = ", "), ".", call. = FALSE)
+  }
+  if (!is.numeric(pay_table[[salary_col]])) {
+    stop(table_name, ": column '", salary_col, "' must be numeric.", call. = FALSE)
   }
   invisible(TRUE)
 }

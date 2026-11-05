@@ -68,8 +68,7 @@ test_that("simulate_exits: fixed_rate mode returns correct structure", {
     defaults = list(
       exit_rate     = 0.5,
       exit_strategy = "random",
-      active_types  = "permanent",
-      exited_type   = "inactive"
+      active_types  = "permanent"
     )
   )
 
@@ -125,8 +124,7 @@ test_that("simulate_exits: fixed_rate = 0 → no exits", {
     defaults = list(
       exit_rate     = 0,
       exit_strategy = "random",
-      active_types  = "permanent",
-      exited_type   = "inactive"
+      active_types  = "permanent"
     )
   )
 
@@ -151,8 +149,7 @@ test_that("simulate_exits: exiting personnel contracts are marked inactive", {
     defaults = list(
       exit_rate     = 1.0,
       exit_strategy = "random",
-      active_types  = "permanent",
-      exited_type   = "inactive"
+      active_types  = "permanent"
     )
   )
 
@@ -176,8 +173,7 @@ test_that("simulate_exits: exit_savings equals sum of exited salaries", {
     defaults = list(
       exit_rate     = 1.0,
       exit_strategy = "random",
-      active_types  = "permanent",
-      exited_type   = "inactive"
+      active_types  = "permanent"
     )
   )
 
@@ -224,8 +220,7 @@ test_that("simulate_exits: status_quo mode with pre-supplied rates works", {
     defaults = list(
       exit_rate     = 0.25,         # 25% of 4 = 1 exit
       exit_strategy = "random",
-      active_types  = "permanent",
-      exited_type   = "inactive"
+      active_types  = "permanent"
     )
   )
 
@@ -277,8 +272,7 @@ test_that("update_contracts_for_exits: salary column is NOT zeroed on inactive r
     contract_dt       = d$contract_dt,
     exits_dt          = d$contract_dt[1:2, .(personnel_id)],
     ref_date          = as.Date("2025-01-01"),
-    active_types      = "permanent",
-    exited_type       = "inactive"
+    active_types      = "permanent"
   )
 
   inactive_rows <- d$contract_dt[contract_type == "inactive"]
@@ -315,8 +309,7 @@ test_that("wage_bill_end excludes inactive (exited) workers' salaries", {
     defaults = list(
       exit_rate     = 1.0,
       exit_strategy = "random",
-      active_types  = "permanent",
-      exited_type   = "inactive"
+      active_types  = "permanent"
     )
   )
 
@@ -365,8 +358,7 @@ test_that("Phase 3c: simulate_horizon with exit_policy reduces n_headcount_end",
     defaults = list(
       exit_rate     = 0.2,     # 2 of 10 exit per period
       exit_strategy = "random",
-      active_types  = "permanent",
-      exited_type   = "inactive"
+      active_types  = "permanent"
     )
   )
 

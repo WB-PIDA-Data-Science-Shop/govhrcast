@@ -24,7 +24,7 @@ entirely to its two arguments -- see \code{\link{compute_hybrid_pension}}.
 }
 \examples{
 pension_hybrid(
-  db = pension_db(accrual_rate = 0.015, ref_wage_col = "base_salary_lcu"),
+  db = pension_db(accrual_rate = 0.015),
   dc = pension_dc(balance_col = "dc_balance", annuity_factor = 12)
 )
 }

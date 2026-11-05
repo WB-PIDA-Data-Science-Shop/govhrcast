@@ -12,18 +12,23 @@
 NULL
 
 
-#' Stochastic Round a Single Number
+#' Stochastic Round
 #'
 #' @description
-#' Rounds a fractional number stochastically: always at least floor(x),
-#' with probability (x - floor(x)) of rounding up by one.
+#' Turns an expected number of people into a whole number: always at least
+#' floor(x), with probability (x - floor(x)) of rounding up by one.  A group
+#' expecting 0.3 people gets one person three years in ten, so small groups are
+#' not stuck at zero and totals match what the rates imply.  This is the one
+#' rounding rule for exits, retirements, moves and hires, and it is reproducible
+#' under \code{seed}.  It draws one random number per value whatever the value is,
+#' so a reform that changes one group's rate leaves the other groups' draws alone.
 #'
-#' @param x Numeric scalar.
-#' @return Integer scalar.
+#' @param x Numeric vector.
+#' @return Integer vector, the same length as \code{x}.
 #' @keywords internal
 stochastic_round <- function(x) {
   floor_x <- floor(x)
-  as.integer(floor_x + stats::rbinom(1L, 1L, x - floor_x))
+  as.integer(floor_x + (stats::runif(length(x)) < x - floor_x))
 }
 
 
@@ -99,13 +104,13 @@ identify_movers <- function(contract_dt,
   # ------------------------------------------------------------------
   # Build active workforce view with all needed ranking columns
   # ------------------------------------------------------------------
-  active_contracts <- get_active_contracts(
+  active_contracts <- .covered_by_policy(get_active_contracts(
     contract_dt = contract_dt,
     ref_date = ref_date,
     start_date_col = start_date_col,
     end_date_col = end_date_col,
     contract_type_col = contract_type_col
-  )
+  ), policy_params, contract_type_col)
 
   # One row per active person (primary contract)
   workforce <- active_contracts[
@@ -284,7 +289,9 @@ identify_movers <- function(contract_dt,
 #' The ONLY function that modifies state in the promotions/transfers module.
 #' Updates \code{contract_dt} to reflect new group assignments (the
 #' \code{group_cols} columns) and, when \code{salary_update_rule = "scale"},
-#' re-assigns salary from the salary scale for all selected movers.
+#' re-assigns salary from the salary scale for all selected movers.  A mover moves
+#' on their main contract only (see \code{\link{get_primary_contract}}): a second
+#' job, a closed contract or a pension row stays as it is.
 #'
 #' @param contract_dt data.table. Current contract data (modified in place,
 #'   see Data Integrity)
@@ -303,15 +310,12 @@ identify_movers <- function(contract_dt,
 #'       \code{salary_scale_dt} is \code{NULL}.}
 #'   }
 #' @param salary_scale_dt data.table or \code{NULL}. Salary scale keyed on
-#'   \code{group_cols}, one row per group. The salary value is read from a
-#'   numeric column whose name matches
-#'   \code{salary|wage|pay|compensation|allowance} -- \code{gross_salary_lcu}
-#'   if present, otherwise the first match (not matched to
-#'   \code{salary_col} by name).
+#'   \code{group_cols}, one row per group, with the pay in a column named
+#'   \code{salary_col}.
 #' @param ref_date Date or character. Reference date
-#' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
-#' @param salary_col Character. Salary column in \code{contract_dt} to
-#'   update (default: "gross_salary_lcu")
+#' @param column_spec_args Complete column specification from
+#'   \code{.column_spec()}.  \code{salary_col} is the pay column, in
+#'   \code{contract_dt} and in the salary scale.
 #'
 #' @return List containing:
 #'   \describe{
@@ -331,8 +335,9 @@ update_state_with_movement <- function(contract_dt,
                                        policy_params,
                                        salary_scale_dt = NULL,
                                        ref_date,
-                                       personnel_id_col = "personnel_id",
-                                       salary_col = "gross_salary_lcu") {
+                                       column_spec_args = .column_spec()) {
+  personnel_id_col <- column_spec_args$personnel_id_col
+  salary_col       <- column_spec_args$salary_col
 
   ref_date <- validate_date_format(ref_date, "ref_date")
 
@@ -378,23 +383,8 @@ update_state_with_movement <- function(contract_dt,
     stop("policy_params$salary_scale must be a data.table", call. = FALSE)
   }
 
-  # Detect salary column in salary_scale (only needed when rule = "scale")
-  scale_salary_col <- NULL
   if (salary_update_rule == "scale") {
-    salary_pattern    <- "salary|wage|pay|compensation|allowance"
-    salary_candidates <- grep(salary_pattern, names(salary_scale),
-                              value = TRUE, ignore.case = TRUE)
-    # Only keep numeric candidates to avoid matching non-salary columns (e.g. "paygrade")
-    salary_candidates <- salary_candidates[
-      vapply(salary_scale[, salary_candidates, with = FALSE], is.numeric, logical(1))
-    ]
-    if (length(salary_candidates) == 0) {
-      stop("Could not detect a numeric salary column in salary_scale. ",
-           "Ensure it contains a numeric column matching 'salary|wage|pay|compensation|allowance'.",
-           call. = FALSE)
-    }
-    scale_salary_col <- if ("gross_salary_lcu" %in% salary_candidates) "gross_salary_lcu"
-                        else salary_candidates[1]
+    .check_pay_column(salary_scale, salary_col, "salary_scale")
 
     if (anyDuplicated(salary_scale, by = group_cols)) {
       stop("Duplicate keys found in salary_scale for group_cols: ",
@@ -428,16 +418,33 @@ update_state_with_movement <- function(contract_dt,
     update_lookup <- unique(update_lookup, by = personnel_id_col, fromLast = TRUE)
   }
 
-  # Perform update on contract_dt by reference
-  # Find rows in contract_dt belonging to movers
   mover_pids <- update_lookup[[personnel_id_col]]
 
+  # A mover moves on their main contract only, the one they were selected on. A
+  # second job, a closed contract or a pension row stays as it is.
+  main_contracts <- get_primary_contract(
+    contract_dt = .covered_by_policy(get_active_contracts(
+      contract_dt = contract_dt[get(personnel_id_col) %in% mover_pids],
+      ref_date = ref_date,
+      start_date_col = column_spec_args$start_date_col,
+      end_date_col = column_spec_args$end_date_col,
+      contract_type_col = column_spec_args$contract_type_col
+    ), policy_params, column_spec_args$contract_type_col),
+    personnel_id_col = personnel_id_col,
+    contract_id_col = column_spec_args$contract_id_col,
+    start_date_col = column_spec_args$start_date_col,
+    salary_col = salary_col
+  )
+  is_main <- contract_dt[[column_spec_args$contract_id_col]] %in%
+    main_contracts[[column_spec_args$contract_id_col]]
+
   for (gc in group_cols) {
+    # The new values come out of the group key as text: give them the column's type
     new_vals <- update_lookup[[gc]]
+    if (!is.factor(contract_dt[[gc]])) storage.mode(new_vals) <- storage.mode(contract_dt[[gc]])
     names(new_vals) <- mover_pids
 
-    contract_dt[get(personnel_id_col) %in% mover_pids,
-                (gc) := new_vals[get(personnel_id_col)]]
+    contract_dt[is_main, (gc) := new_vals[get(personnel_id_col)]]
   }
 
   # ------------------------------------------------------------------
@@ -445,7 +452,7 @@ update_state_with_movement <- function(contract_dt,
   # ------------------------------------------------------------------
   if (salary_update_rule == "scale") {
     # Build salary lookup: group_col values -> salary
-    scale_subset <- unique(salary_scale[, c(group_cols, scale_salary_col), with = FALSE])
+    scale_subset <- unique(salary_scale[, c(group_cols, salary_col), with = FALSE])
 
     # Add group key to scale_subset
     scale_subset[, .group_key := do.call(paste, c(.SD, sep = "||")), .SDcols = group_cols]
@@ -453,7 +460,7 @@ update_state_with_movement <- function(contract_dt,
     # Build a personnel_id -> new salary lookup via to_group key
     salary_lookup <- movers_dt[, c(personnel_id_col, "to_group"), with = FALSE]
     data.table::setnames(salary_lookup, "to_group", ".group_key")
-    salary_lookup <- scale_subset[, .(.group_key, .new_salary = get(scale_salary_col))][
+    salary_lookup <- scale_subset[, .(.group_key, .new_salary = get(salary_col))][
       salary_lookup, on = ".group_key"
     ]
     salary_lookup <- salary_lookup[!is.na(.new_salary)]
@@ -467,7 +474,7 @@ update_state_with_movement <- function(contract_dt,
         contract_dt[, (salary_col) := NA_real_]
       }
 
-      contract_dt[get(personnel_id_col) %in% names(new_salary_vec),
+      contract_dt[is_main & get(personnel_id_col) %in% names(new_salary_vec),
                   (salary_col) := new_salary_vec[get(personnel_id_col)]]
     }
 

@@ -77,8 +77,8 @@ test_that("simulate_retirement works with age_only eligibility", {
   expect_equal(result$contract_dt[contract_id == "C004"]$contract_type, "perm")
 
   # Check personnel updates
-  expect_equal(result$personnel_dt[personnel_id == "P001"]$employment_status, "inactive")
-  expect_equal(result$personnel_dt[personnel_id == "P002"]$employment_status, "inactive")
+  expect_equal(result$personnel_dt[personnel_id == "P001"]$employment_status, "pensioner")
+  expect_equal(result$personnel_dt[personnel_id == "P002"]$employment_status, "pensioner")
   expect_equal(result$personnel_dt[personnel_id == "P003"]$employment_status, "active")
   expect_equal(result$personnel_dt[personnel_id == "P004"]$employment_status, "active")
 })
@@ -163,7 +163,6 @@ test_that("simulate_retirement works with DB pension", {
       pension_type     = "db",
       min_tenure       = 20,
       accrual_rate     = 0.02,
-      ref_wage_col     = "gross_salary_lcu",
       max_years        = 30,
       replacement_cap  = 0.70
     )
@@ -244,7 +243,6 @@ test_that("simulate_retirement works with hybrid pension", {
       min_tenure       = 20,
       # DB component
       accrual_rate     = 0.01,
-      ref_wage_col     = "gross_salary_lcu",
       # DC component
       balance_col      = "account_balance",
       annuity_factor   = 25
@@ -433,7 +431,6 @@ test_that("simulate_retirement works with package data", {
       pension_type     = "db",
       min_tenure       = 20,
       accrual_rate     = 0.02,
-      ref_wage_col     = "gross_salary_lcu",
       max_years        = 35,
       replacement_cap  = 0.80
     )
@@ -485,7 +482,6 @@ test_that("simulate_retirement: group-level accrual_rate via policy_table produc
       pension_type     = "db",
       min_age          = 60,
       accrual_rate     = 0.02,
-      ref_wage_col     = "gross_salary_lcu",
       replacement_cap  = 1.0
     )
   )
@@ -534,8 +530,7 @@ test_that("simulate_retirement works with hazard_rate eligibility end-to-end", {
       min_age          = 70,
       retire_strategy  = "random",
       pension_type     = "rate",
-      pension_rate     = 0.15,
-      ref_wage_col     = "gross_salary_lcu"
+      pension_rate     = 0.15
     )
   )
 
@@ -565,7 +560,7 @@ test_that("simulate_retirement works with hazard_rate eligibility end-to-end", {
   ))
   expect_true(all(
     result$personnel_dt[personnel_id %in% result$retirees_dt$personnel_id]$employment_status
-    == "inactive"
+    == "pensioner"
   ))
 })
 

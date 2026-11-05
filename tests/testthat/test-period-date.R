@@ -58,7 +58,7 @@ test_that("compute_flow_demand(): a retiree hired after the start snapshot still
     ct, pt,
     policy_params = list(group_cols = "est_id", replacement_rate = 1,
                          defaults = list(eligibility_type = "age_only", min_age = 60)),
-    retirees_dt = NULL, ref_date = this_year
+    leavers_dt = NULL, ref_date = this_year
   )
   expect_equal(demand[est_id == "E1", total_hires], 1L)
 })
@@ -70,14 +70,14 @@ test_that("downsizing ends contracts on this year's date, with and without group
     policy_params = list(mode = "stock", group_cols = "est_id", salary_scale = scale,
                          stock_targets = data.table(est_id = "E1", target_stock = 2L))
   )
-  expect_equal(grouped$contract_dt[contract_type == "terminated", unique(end_date)], this_year)
+  expect_equal(grouped$contract_dt[contract_type == "inactive", unique(end_date)], this_year)
 
   ungrouped <- simulate_hiring(
     frozen_contracts(), frozen_personnel(), ref_date = this_year,
     policy_params = list(mode = "stock", group_cols = NULL, salary_scale = scale,
                          stock_targets = data.table(target_stock = 2L))
   )
-  expect_equal(ungrouped$contract_dt[contract_type == "terminated", unique(end_date)], this_year)
+  expect_equal(ungrouped$contract_dt[contract_type == "inactive", unique(end_date)], this_year)
 })
 
 test_that("simulate_horizon(): hires from year 2 on count as staff, and leavers get their own year", {

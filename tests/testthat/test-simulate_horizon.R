@@ -53,7 +53,7 @@ make_salary_scale <- function() {
 # status-quo default needs a multi-snapshot panel to estimate retirement rates.
 rule_retirement_policy <- design_retirement_policy_age_tenure(
   min_age = 60, min_tenure = 10,
-  pension = pension_db(accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu",
+  pension = pension_db(accrual_rate = 0.02,
                        max_years = 35, replacement_cap = 0.80)
 )
 
@@ -251,7 +251,7 @@ test_that("simulate_scenario: returns a list with required named elements", {
   expect_setequal(
     names(r),
     c("summary", "contract_dt", "personnel_dt", "salary_scale_dt", "pensioner_register",
-      "allowance_dt", "allowance_policy")
+      "allowance_dt", "allowance_policy", "hiring_policy")
   )
 })
 
@@ -1138,7 +1138,7 @@ test_that("simulate_horizon: default status-quo retirement works when the panel 
 })
 
 test_that("simulate_horizon: status-quo retirement respects column_spec_args$age_col", {
-  pen <- pension_db(accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu")
+  pen <- pension_db(accrual_rate = 0.02)
   res <- run_hazard_horizon(
     make_hazard_panel(age_name = "age_years"),
     retirement_policy = design_retirement_policy_status_quo(pension = pen),
@@ -1157,7 +1157,7 @@ test_that("simulate_horizon: a panel with no retirements gives no status-quo ret
 
 test_that("simulate_horizon: with no observed retirements, a mandatory age still applies", {
   # At 2020-01-01 the staff are aged 56-61; mandatory age 60 retires the two aged 60+.
-  pen <- pension_db(accrual_rate = 0.02, ref_wage_col = "gross_salary_lcu")
+  pen <- pension_db(accrual_rate = 0.02)
   expect_message(
     res <- run_hazard_horizon(
       make_hazard_panel(with_pensioner = FALSE),
@@ -1170,11 +1170,11 @@ test_that("simulate_horizon: with no observed retirements, a mandatory age still
 
 test_that("make_status_quo_policies: exit active_types match the harmonized contract_type values", {
   p <- make_panel_state()
-  pol <- make_status_quo_policies(
+  pol <- suppressWarnings(make_status_quo_policies(
     contract_dt     = p$contract_panel,
     personnel_dt    = p$personnel_panel,
     salary_scale_dt = data.table::data.table(est_id = c("E1", "E2"), gross_salary_lcu = 10000)
-  )
+  ))
   expect_equal(pol$exit$defaults$active_types, c("permanent", "fixed-term", "short-term"))
 })
 
@@ -1832,8 +1832,7 @@ test_that("Block F: canonical 3-slot exit_policy (flat rate) produces exits", {
     defaults = list(
       exit_rate     = 1.0,          # 100% → all active workers exit
       exit_strategy = "random",
-      active_types  = "permanent",
-      exited_type   = "inactive"
+      active_types  = "permanent"
     )
   )
   res <- simulate_horizon(
@@ -1869,8 +1868,7 @@ test_that("Block F: exit_rate = 0 produces no non-retirement exits", {
     defaults = list(
       exit_rate     = 0,
       exit_strategy = "random",
-      active_types  = "permanent",
-      exited_type   = "inactive"
+      active_types  = "permanent"
     )
   )
   res <- simulate_horizon(
@@ -1909,8 +1907,7 @@ test_that("Block F: canonical exit_policy with group_cols + policy_table", {
     defaults = list(
       exit_rate     = 0,
       exit_strategy = "random",
-      active_types  = "permanent",
-      exited_type   = "inactive"
+      active_types  = "permanent"
     )
   )
   res <- simulate_horizon(
@@ -2156,7 +2153,7 @@ test_that("Block F: all 3 canonical policies active simultaneously — no error"
     group_cols   = NULL,
     policy_table = NULL,
     defaults = list(exit_rate = 0.1, exit_strategy = "random",
-                    active_types = "permanent", exited_type = "inactive")
+                    active_types = "permanent")
   )
   mov_policy <- list(
     group_cols   = "paygrade",
@@ -2196,7 +2193,7 @@ test_that("Block F: non-retirement exits remove the leavers' salaries before COL
     group_cols   = NULL,
     policy_table = NULL,
     defaults = list(exit_rate = 0.5, exit_strategy = "gross_salary_lcu",
-                    active_types = "permanent", exited_type = "inactive")
+                    active_types = "permanent")
   )
   res <- simulate_horizon(
     contract_dt        = d$contract_dt,
@@ -2365,7 +2362,7 @@ test_that("Block G: a contract that never changes group grows its allowance at a
   )
   led <- res$allowance_dt[contract_id == "C1" & allowance_type == "hazard"][order(period_date)]
   expect_equal(nrow(led), 3L)
-  expect_equal(led$amount, 100 * 1.10^(0:2))
+  expect_equal(led$amount, 100 * 1.10^(1:3))
 })
 
 test_that("Block G: allowance_dt is gated behind return_microdata", {
@@ -2457,8 +2454,8 @@ test_that("simulate_horizon: hazard_rate auto-estimates policy_table from the pa
   )
 
   # 4 active candidates (P3-P6) at snap2, estimated hazard_rate = 2/6 ->
-  # round(4 * 1/3) = 1 retiree.
-  expect_equal(res$comparison$n_exits[1], 1L)
+  # 4 * 1/3 = 1.33 expected, so 1 or 2 retirees (rounded at random, D6).
+  expect_true(res$comparison$n_exits[1] %in% 1:2)
 })
 
 test_that("simulate_horizon: hazard_rate errors on a single-snapshot panel", {
@@ -2551,7 +2548,7 @@ test_that("simulate_horizon: different seeds can produce different retiree selec
 
   selections <- lapply(1:3, function(seed) {
     res <- run_with_seed(seed)
-    sort(res$personnel_dt[employment_status == "inactive"]$personnel_id)
+    sort(res$personnel_dt[employment_status == "pensioner"]$personnel_id)
   })
 
   expect_true(length(unique(selections)) > 1L)

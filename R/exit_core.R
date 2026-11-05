@@ -197,8 +197,7 @@ compute_status_quo_exits <- function(
 
   .defaults     <- policy_params$defaults %||% list()
   exit_strategy <- .defaults$exit_strategy %||% "random"
-  active_types  <- .defaults$active_types  %||%
-    c("permanent", "fixed-term", "short-term")
+  active_types  <- .exit_types(.defaults)
   group_cols    <- policy_params$group_cols
 
   if (!data.table::is.data.table(contract_dt))
@@ -239,7 +238,7 @@ compute_status_quo_exits <- function(
     eff_rate <- s_rate * s_mult
 
     n_active <- data.table::uniqueN(active_dt[[personnel_id_col]])
-    n_exit   <- min(round(n_active * eff_rate), n_active)
+    n_exit   <- min(stochastic_round(n_active * eff_rate), n_active)
     if (n_exit <= 0L) return(data.table::data.table())
 
     pool_ids     <- unique(active_dt[[personnel_id_col]])
@@ -281,7 +280,7 @@ compute_status_quo_exits <- function(
                                     resolved_g$exit_multiplier)]
   }
 
-  groups_dt[, n_exit := pmin(as.integer(round(n_active * exit_rate)), n_active)]
+  groups_dt[, n_exit := pmin(stochastic_round(n_active * exit_rate), n_active)]
 
   # Sample from each group's pool — no .SD copy, no [, by =] overhead
   selected_ids <- unlist(
@@ -339,8 +338,7 @@ compute_fixed_rate_exits <- function(
   .defaults     <- policy_params$defaults %||% list()
   exit_rate     <- .defaults$exit_rate
   exit_strategy <- .defaults$exit_strategy %||% "random"
-  active_types  <- .defaults$active_types  %||%
-    c("permanent", "fixed-term", "short-term")
+  active_types  <- .exit_types(.defaults)
 
   if (is.null(exit_rate) || !is.numeric(exit_rate) || length(exit_rate) != 1L)
     stop(
@@ -363,7 +361,7 @@ compute_fixed_rate_exits <- function(
   if (nrow(active_dt) == 0L) return(data.table::data.table())
 
   n_active <- data.table::uniqueN(active_dt[[personnel_id_col]])
-  n_exit   <- min(round(n_active * exit_rate), n_active)
+  n_exit   <- min(stochastic_round(n_active * exit_rate), n_active)
 
   if (n_exit <= 0L) return(data.table::data.table())
 

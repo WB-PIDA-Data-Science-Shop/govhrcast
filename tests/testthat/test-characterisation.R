@@ -2,8 +2,8 @@
 #
 # These tests record what the package CURRENTLY produces for two complete
 # status-quo projections on the bundled data. They are not evidence that the
-# numbers are right -- some known bugs are baked in (e.g. run A's new hires
-# are unpaid, backlog B-11). Their job is to make any change to the outputs
+# numbers are right -- known bugs on the errors list are baked in until fixed. Their
+# job is to make any change to the outputs
 # visible during refactoring: a refactor must leave the snapshots unchanged; a
 # fix that changes numbers on purpose updates the snapshot in the same change,
 # with the reason recorded in the commit and the backlog.
@@ -24,7 +24,7 @@ characterisation_run <- function(salary_col, explicit_hiring_scale) {
     contract_dt = hc, personnel_dt = hp, salary_scale_dt = scale,
     n_periods = 5L, ref_date = start,
     retirement_policy = design_retirement_policy_status_quo(
-      pension = pension_db(0.02, salary_col, 35, 0.80), mandatory_age = 75),
+      pension = pension_db(0.02, 35, 0.80), mandatory_age = 75),
     exit_policy     = design_exit_policy_status_quo(group_cols = "est_id"),
     movement_policy = design_movement_policy_status_quo(
       group_cols = "est_id", movement_type = "transfer", salary_update_rule = "keep"),

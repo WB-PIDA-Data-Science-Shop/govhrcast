@@ -32,7 +32,7 @@ Shortcut for
 \examples{
 design_retirement_policy_status_quo(
   mandatory_age = 75,
-  pension       = pension_rate(pension_rate = 0.15, ref_wage_col = "base_salary_lcu")
+  pension       = pension_rate(pension_rate = 0.15)
 )
 }
 \seealso{

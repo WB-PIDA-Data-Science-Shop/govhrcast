@@ -15,7 +15,7 @@ design_hiring_policy_flow(
 \item{replacement_rate}{Numeric scalar, or data.table with \code{group_cols}
 and a \code{replacement_rate} column for group-varying rates (e.g. IT
 replaces 100\% of leavers, HR replaces 50\%).  \code{1.0} replaces every
-exit; \code{0} hires no replacements. A data.table here requires
+leaver; \code{0} hires no replacements. A data.table here requires
 \code{group_cols} to be set.}
 
 \item{group_cols}{Character vector or \code{NULL} (default).  Columns
@@ -23,11 +23,14 @@ defining hiring groups (e.g. \code{"est_id"}).  \code{NULL} for an
 overall (ungrouped) policy.}
 
 \item{salary_scale}{data.table or \code{NULL} (default).  Salary scale
-for new hires, keyed on \code{group_cols} plus a numeric salary column.
+for new hires, keyed on \code{group_cols} plus a numeric column with the
+same name as \code{salary_col}.  With no \code{group_cols}, one row.
 When \code{NULL} and called through \code{\link{simulate_horizon}},
 automatically derived from its \code{salary_scale_dt} argument -- this
 only happens inside \code{simulate_horizon()}; standalone
-\code{\link{simulate_hiring}} calls need it supplied directly.}
+\code{\link{simulate_hiring}} calls need it supplied directly.  Give pay
+at the start of the projection: \code{simulate_horizon()} grows it each
+year by \code{salary_growth_rate}, the same as \code{salary_scale_dt}.}
 
 \item{unmatched_rate}{Number, 0 or more.  Replacement rate for groups that
 have leavers but no row in a \code{replacement_rate} table.  Default
@@ -39,11 +42,12 @@ usable as \code{simulate_hiring()}'s or \code{simulate_horizon()}'s
 \code{hiring_policy} argument.
 }
 \description{
-Builds a hiring policy that replaces a fraction of exits each period:
-\code{demand = n_exits x replacement_rate}, where \code{n_exits} comes
-from \code{simulate_retirement()}'s output for that period (supplied
-automatically when called through \code{\link{simulate_scenario}}/
-\code{\link{simulate_horizon}}).  See \code{\link{compute_flow_demand}}.
+Builds a hiring policy that replaces a fraction of the people who left each
+period: \code{demand = leavers x replacement_rate}.  Leavers are retirees and
+other exits, supplied automatically when called through
+\code{\link{simulate_scenario}}/\code{\link{simulate_horizon}}, so
+\code{replacement_rate = 1} holds headcount.  See
+\code{\link{compute_flow_demand}}.
 }
 \examples{
 design_hiring_policy_flow(replacement_rate = 1.0)

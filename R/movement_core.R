@@ -211,8 +211,6 @@ compute_time_in_grade <- function(contract_dt,
   # Persons present at both snapshots
   transitions <- state_t0[state_t1[, .(.pid, to_group)], on = ".pid", nomatch = NULL]
 
-  if (nrow(transitions) == 0L) return(NULL)
-
   movement_counts <- transitions[, .(n_moves = .N), by = .(from_group, to_group)]
   pop_t0          <- state_t0[, .(n_pop = .N), by = from_group]
 
@@ -230,8 +228,9 @@ compute_time_in_grade <- function(contract_dt,
 #' @description
 #' Analyzes longitudinal panel data to compute empirical transition probabilities
 #' for promotions and transfers. Compares consecutive snapshots (T0->T1, T1->T2,
-#' etc.) and calculates the average probability P_ij = (sum of movements i->j) /
-#' (sum of total population in state i at start of each period).
+#' etc.) and calculates the pooled probability P_ij = (sum of movements i->j) /
+#' (sum of total population in state i at start of each period).  Every pair of
+#' snapshots counts, including pairs with no move from i to j.
 #'
 #' States are defined by the concatenated values of \code{group_cols}. Only
 #' actual transitions (\code{from_group != to_group}) are returned; stay rows
@@ -253,8 +252,8 @@ compute_time_in_grade <- function(contract_dt,
 #'     \item{to_group}{Character. State at period end (concatenated
 #'       group_cols). Always different from \code{from_group} -- stay rows
 #'       are dropped.}
-#'     \item{movement_rate}{Numeric. Average transition probability across
-#'       all snapshot pairs}
+#'     \item{movement_rate}{Numeric. Pooled transition probability over all
+#'       snapshot pairs}
 #'     \item{n_periods}{Integer. Number of snapshot pairs in which this
 #'       transition was observed}
 #'   }
@@ -322,11 +321,19 @@ estimate_historical_movement_rates <- function(contract_dt,
     ))
   }
 
-  # Average probabilities across periods
-  baseline_matrix <- all_periods[, .(
-    movement_rate = mean(period_prob, na.rm = TRUE),
-    n_periods     = data.table::uniqueN(period_key)
+  # Pooled rate: all moves over everyone exposed, in every pair of snapshots, so
+  # a pair of snapshots with no move counts too (same pooling as the exit and
+  # hiring rates).
+  exposed <- unique(all_periods[, .(from_group, period_key, n_pop)])[
+    , .(n_exposed = sum(n_pop)), by = from_group
+  ]
+  baseline_matrix <- all_periods[!is.na(to_group), .(
+    n_moved   = sum(n_moves),
+    n_periods = data.table::uniqueN(period_key)
   ), by = .(from_group, to_group)]
+  baseline_matrix <- exposed[baseline_matrix, on = "from_group"]
+  baseline_matrix[, movement_rate := n_moved / n_exposed]
+  baseline_matrix <- baseline_matrix[, .(from_group, to_group, movement_rate, n_periods)]
 
   # Drop stay rows (from_group == to_group): we only want actual transitions
   baseline_matrix <- baseline_matrix[from_group != to_group]
@@ -392,19 +399,18 @@ compute_movement_demand <- function(contract_dt,
 
   ref_date <- validate_date_format(ref_date, "ref_date")
 
-  group_cols   <- policy_params$group_cols
-  active_types <- policy_params$defaults$active_types %||% "active"
+  group_cols <- policy_params$group_cols
 
   # ------------------------------------------------------------------
   # 1. Compute current stock per from_group
   # ------------------------------------------------------------------
-  active_contracts <- get_active_contracts(
+  active_contracts <- .covered_by_policy(get_active_contracts(
     contract_dt = contract_dt,
     ref_date = ref_date,
     start_date_col = column_spec_args$start_date_col,
     end_date_col = column_spec_args$end_date_col,
     contract_type_col = column_spec_args$contract_type_col
-  )
+  ), policy_params, column_spec_args$contract_type_col)
 
   # Deduplicate to one row per person (panel data has one row per snapshot).
   # We only need group_cols here, so take the unique person × group combination.
@@ -492,11 +498,7 @@ compute_movement_demand <- function(contract_dt,
   # 6. Stochastic rounding: n_movers = floor(N) + Bernoulli(N - floor(N))
   # ------------------------------------------------------------------
   demand_dt[, expected_n := current_stock * movement_rate]
-  demand_dt[, n_movers := {
-    floor_n    <- floor(expected_n)
-    fractional <- expected_n - floor_n
-    as.integer(floor_n + stats::rbinom(n = .N, size = 1L, prob = fractional))
-  }]
+  demand_dt[, n_movers := stochastic_round(expected_n)]
 
   # Remove zero-mover rows
   demand_dt <- demand_dt[n_movers > 0]
@@ -599,13 +601,13 @@ compute_fixed_rate_movements <- function(contract_dt,
     contract_dt <- data.table::as.data.table(contract_dt)
 
   # Active workforce
-  active_contracts <- get_active_contracts(
+  active_contracts <- .covered_by_policy(get_active_contracts(
     contract_dt       = contract_dt,
     ref_date          = ref_date,
     start_date_col    = column_spec_args$start_date_col,
     end_date_col      = column_spec_args$end_date_col,
     contract_type_col = column_spec_args$contract_type_col
-  )
+  ), policy_params, column_spec_args$contract_type_col)
 
   person_groups <- unique(active_contracts[, c(personnel_id_col, group_cols), with = FALSE])
   person_groups <- stats::na.omit(person_groups, cols = group_cols)
@@ -638,11 +640,7 @@ compute_fixed_rate_movements <- function(contract_dt,
   demand_dt[, n_dest         := .N, by = from_group]
   demand_dt[, rate_per_dest  := movement_rate / n_dest]
   demand_dt[, expected_n     := current_stock * rate_per_dest]
-  demand_dt[, n_movers := {
-    floor_n    <- floor(expected_n)
-    fractional <- expected_n - floor_n
-    as.integer(floor_n + stats::rbinom(n = .N, size = 1L, prob = fractional))
-  }]
+  demand_dt[, n_movers := stochastic_round(expected_n)]
   demand_dt <- demand_dt[n_movers > 0]
 
   if (nrow(demand_dt) == 0L) return(data.table::data.table())

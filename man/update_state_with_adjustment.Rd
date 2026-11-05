@@ -25,6 +25,9 @@ update_state_with_adjustment(
 \item salary_scale: data.table with salary information
 \item removal_strategy: Character for downsizing (default: "last_hired_first")
 \item group_cols: Character vector of grouping columns (can be NULL)
+\item new_hire_profile, new_hire_profile_overall: Optional. What new hires
+start with: see \code{\link{estimate_new_hire_profile}}.  Without a
+profile, hires are \code{"permanent"} with a blank age and gender.
 }}
 
 \item{ref_date}{Date. Reference date for adjustments}

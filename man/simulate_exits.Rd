@@ -66,7 +66,6 @@ fields are recognised:\tabular{ll}{
    \code{exit_multiplier} \tab Scales the resolved exit rate in either mode (default \code{1}, no change). An \code{exit_multiplier} column in \code{policy_table} overrides it per group \cr
    \code{exit_strategy} \tab \code{"random"} or a numeric column name in \code{contract_dt} to rank employees for exit selection \cr
    \code{active_types} \tab Contract type values in \code{contract_type_col} treated as eligible for exit. Must match actual \code{contract_type} values, not \code{employment_status} values. Default \code{c("permanent", "fixed-term", "short-term")} — the non-terminal \code{contract_type} values per the \code{govhr} harmonized dictionary \cr
-   \code{exited_type} \tab Value written to \code{contract_type_col} after exit. Default \code{"inactive"} \cr
 }}
 
 \item{ref_date}{A \code{Date} giving the simulation date for the current
@@ -84,8 +83,9 @@ ignored, and an unknown key is an error.
 Keys used here (default in brackets):
 \itemize{
 \item \code{personnel_id_col} (\code{"personnel_id"}): person identifier, in both tables.
-\item \code{contract_type_col} (\code{"contract_type"}): only types in \code{active_types} can
-exit; their contracts become \code{exited_type} (default \code{"inactive"}).
+\item \code{contract_type_col} (\code{"contract_type"}): only types in \code{active_types}, or
+a blank type (which is missing data), can exit; their contracts become
+\code{"inactive"}.
 \item \code{salary_col} (\code{"gross_salary_lcu"}): pay column, added up per person to
 give the savings from exits.
 \item \code{end_date_col} (\code{"end_date"}): contract end date. Exiting employees'
@@ -109,7 +109,7 @@ simulation period, containing:\tabular{ll}{
 \item \strong{contract_dt}
 
 The updated contract register after exits have been processed.
-Exited contracts have \code{contract_type_col} set to \code{exited_type} and
+Exited contracts have \code{contract_type_col} set to \code{"inactive"} and
 \code{end_date_col} set to \code{ref_date}.
 \item \strong{personnel_dt}
 
@@ -159,7 +159,8 @@ Non-retirement exit simulation proceeds through the following stages:
 \item Resolve exit rates from \code{policy_params} — either a scalar rate applied
 uniformly or group-specific rates joined from \code{policy_table}.
 \item Compute the number of exits per group as
-\code{round(n_active * exit_rate)}.
+\code{n_active * exit_rate}, rounded up or down at random so that small groups
+are not stuck at zero (see \code{\link[=stochastic_round]{stochastic_round()}}).
 \item Select which employees exit using the chosen \code{exit_strategy}.
 \item Attach pre-exit salaries to compute savings.
 \item Update contract and personnel registers in place.
@@ -244,8 +245,7 @@ exit_policy <- list(
   defaults = list(
     exit_rate     = 0.05,
     exit_strategy = "random",
-    active_types  = c("permanent", "short-term", "fixed-term"),
-    exited_type   = "inactive"
+    active_types  = c("permanent", "short-term", "fixed-term")
   )
 )
 
@@ -281,8 +281,7 @@ exit_policy <- list(
   defaults = list(
     exit_rate     = mean(rates_dt$exit_rate, na.rm = TRUE),
     exit_strategy = "personnel_tenure",
-    active_types  = c("permanent", "short-term", "fixed-term"),
-    exited_type   = "inactive"
+    active_types  = c("permanent", "short-term", "fixed-term")
   )
 )
 

@@ -17,7 +17,7 @@ create_complete_test_data <- function() {
     gross_salary_lcu = rep(c(50000, 60000, 70000), 10),
     department = rep(c("HR", "IT", "Finance"), 10),
     paygrade = rep(c("G5", "G6"), 15),
-    contract_type = c(rep("permanent", 25), rep("terminated", 5))
+    contract_type = c(rep("permanent", 25), rep("inactive", 5))
   )
   
   personnel_dt <- data.table(
@@ -99,7 +99,7 @@ test_that("simulate_hiring works with flow mode", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    retirees_dt = retirees_dt,
+    leavers_dt = retirees_dt,
     ref_date = as.Date("2024-06-01")
   )
   
@@ -108,39 +108,6 @@ test_that("simulate_hiring works with flow mode", {
   
   # Should hire to replace retirees
   expect_true(results$summary$n_new_hires > 0)
-})
-
-test_that("simulate_hiring works with combined mode", {
-  test_data <- create_complete_test_data()
-  
-  stock_targets <- data.table(
-    department = c("HR", "IT", "Finance"),
-    target_stock = c(10, 15, 10)
-  )
-  
-  salary_scale <- data.table(
-    department = c("HR", "IT", "Finance"),
-    gross_salary_lcu = c(50000, 60000, 55000)
-  )
-  
-  policy_params <- list(
-    mode = "combined",
-    group_cols = c("department"),
-    replacement_rate = 0.1,
-    stock_targets = stock_targets,
-    salary_scale = salary_scale
-  )
-  
-  results <- simulate_hiring(
-    contract_dt = test_data$contract_dt,
-    personnel_dt = test_data$personnel_dt,
-    policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
-  )
-  
-  expect_type(results, "list")
-  expect_s3_class(results$summary, "data.table")
-  expect_true(all(is.finite(results$summary$n_new_hires)))
 })
 
 test_that("simulate_hiring handles no adjustments needed", {
@@ -304,7 +271,7 @@ test_that("simulate_hiring integrates with retirement module output", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    retirees_dt = retirees_dt,
+    leavers_dt = retirees_dt,
     ref_date = as.Date("2024-06-01")
   )
   
@@ -497,7 +464,7 @@ test_that("flow hiring leaves the caller's retirees table unchanged (custom ID c
                  salary_scale = data.table(gross_salary_lcu = 1000))
 
   res <- simulate_hiring(contract_dt, personnel_dt, policy_params = policy,
-                         retirees_dt = retirees_dt, ref_date = as.Date("2025-01-01"),
+                         leavers_dt = retirees_dt, ref_date = as.Date("2025-01-01"),
                          column_spec_args = list(personnel_id_col = "pid"))
 
   expect_identical(retirees_dt, retirees_before)   # still keyed by "pid"

@@ -53,13 +53,13 @@ editing the returned list directly (e.g. \code{policy$policy_table <- ...}).
 \examples{
 design_retirement_policy(
   eligibility = eligibility_age(min_age = 60),
-  pension     = pension_rate(pension_rate = 0.15, ref_wage_col = "base_salary_lcu")
+  pension     = pension_rate(pension_rate = 0.15)
 )
 
 # group-varying accrual_rate by grade
 design_retirement_policy(
   eligibility  = eligibility_age(min_age = 60),
-  pension      = pension_db(accrual_rate = 0.02, ref_wage_col = "base_salary_lcu"),
+  pension      = pension_db(accrual_rate = 0.02),
   group_cols   = "grade",
   policy_table = data.table::data.table(grade = c("A", "B"), accrual_rate = c(0.02, 0.03))
 )

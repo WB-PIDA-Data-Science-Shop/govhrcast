@@ -30,12 +30,13 @@
 #'   \item \code{active_types} -- which \code{contract_type} values can exit.
 #'     Default \code{c("permanent", "fixed-term", "short-term")}, the
 #'     harmonized \code{govhr} values.  These must match the values actually
-#'     in your data -- if none match, nobody exits.
+#'     in your data -- if none match, nobody exits.  A blank contract type is
+#'     missing data, so those staff can always exit.
 #' }
 #'
 #' Every constructor returns a \strong{plain list}, the same shape as a
-#' hand-written \code{exit_policy}; anything not covered here (e.g.
-#' \code{defaults$exited_type}) can be set by editing the list directly.
+#' hand-written \code{exit_policy}; anything not covered here can be set by
+#' editing the list directly.
 #'
 #' @import data.table
 #' @name exit_policy_helpers
@@ -101,7 +102,8 @@ NULL
 #'
 #' @description
 #' Builds an exit policy where the same share of active staff leaves each
-#' period, everywhere: \code{round(active staff x exit_rate)} people exit.
+#' period, everywhere: active staff x \code{exit_rate} people exit, rounded up or
+#' down at random (see \code{\link{stochastic_round}}).
 #' Useful when you only have one snapshot of data (so no history to
 #' estimate from), or to test a simple assumption such as "5% attrition a
 #' year".
@@ -150,8 +152,8 @@ design_exit_policy_flat <- function(exit_rate,
 #'
 #' \strong{Use this with \code{simulate_horizon()} and panel data} (at least
 #' two \code{ref_date} snapshots).  With single-snapshot data there is
-#' nothing to estimate from: \code{simulate_horizon()} warns and models no
-#' exits -- use \code{\link{design_exit_policy_flat}} instead.  Passed to
+#' nothing to estimate from: \code{simulate_horizon()} stops with an error
+#' -- use \code{\link{design_exit_policy_flat}} instead.  Passed to
 #' \code{\link{simulate_exits}} directly, this policy stops with an error,
 #' since that function never estimates rates itself; estimate them with
 #' \code{\link{estimate_historical_exit_rates}} and use

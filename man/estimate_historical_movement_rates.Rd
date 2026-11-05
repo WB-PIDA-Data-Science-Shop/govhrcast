@@ -30,8 +30,8 @@ data.table with columns:
 \item{to_group}{Character. State at period end (concatenated
 group_cols). Always different from \code{from_group} -- stay rows
 are dropped.}
-\item{movement_rate}{Numeric. Average transition probability across
-all snapshot pairs}
+\item{movement_rate}{Numeric. Pooled transition probability over all
+snapshot pairs}
 \item{n_periods}{Integer. Number of snapshot pairs in which this
 transition was observed}
 }
@@ -41,8 +41,9 @@ observed.
 \description{
 Analyzes longitudinal panel data to compute empirical transition probabilities
 for promotions and transfers. Compares consecutive snapshots (T0->T1, T1->T2,
-etc.) and calculates the average probability P_ij = (sum of movements i->j) /
-(sum of total population in state i at start of each period).
+etc.) and calculates the pooled probability P_ij = (sum of movements i->j) /
+(sum of total population in state i at start of each period).  Every pair of
+snapshots counts, including pairs with no move from i to j.
 
 States are defined by the concatenated values of \code{group_cols}. Only
 actual transitions (\code{from_group != to_group}) are returned; stay rows

@@ -32,12 +32,12 @@ when filling \code{NA} values.}
 (\code{.column_spec()}), in the caller's column names. Keys read:
 \code{personnel_id_col}, \code{birth_date_col}, \code{contract_id_col},
 \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
-and \code{salary_col} (picks the primary contract; the pension wage base
-unless \code{policy_params$defaults$ref_wage_col} overrides it).}
+and \code{salary_col} (picks the primary contract; the pension wage base).}
 }
 \value{
-data.table.  One row per retiree with all primary contract columns
-(including \code{salary_col}) plus \code{age} and \code{tenure_years}.
+data.table.  One row per retiree with all primary contract columns,
+\code{salary_col} holding their pay on all contracts added up (blank only if
+every contract is blank), plus \code{age} and \code{tenure_years}.
 Returns an empty \code{data.table()} (zero rows, no columns) when
 \code{eligibility_dt} contains no retirees.
 }
@@ -47,7 +47,9 @@ salary and contract information required for pension formula evaluation.
 Fills any \code{NA} age or tenure values left by the eligibility stage
 (e.g. when \code{eligibility_type = "tenure_only"} left \code{age} as
 \code{NA}) and selects one primary contract per retiree via
-\code{\link{get_primary_contract}}.
+\code{\link{get_primary_contract}}.  Their \code{salary_col} is then replaced
+by their pay on all their active contracts added up, because a retiree leaves
+every job they hold.  Their other columns come from the main contract.
 }
 \details{
 \strong{Fill logic for missing metrics:}

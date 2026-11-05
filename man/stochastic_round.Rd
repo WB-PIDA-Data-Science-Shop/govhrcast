@@ -2,18 +2,23 @@
 % Please edit documentation in R/movement_update.R
 \name{stochastic_round}
 \alias{stochastic_round}
-\title{Stochastic Round a Single Number}
+\title{Stochastic Round}
 \usage{
 stochastic_round(x)
 }
 \arguments{
-\item{x}{Numeric scalar.}
+\item{x}{Numeric vector.}
 }
 \value{
-Integer scalar.
+Integer vector, the same length as \code{x}.
 }
 \description{
-Rounds a fractional number stochastically: always at least floor(x),
-with probability (x - floor(x)) of rounding up by one.
+Turns an expected number of people into a whole number: always at least
+floor(x), with probability (x - floor(x)) of rounding up by one.  A group
+expecting 0.3 people gets one person three years in ten, so small groups are
+not stuck at zero and totals match what the rates imply.  This is the one
+rounding rule for exits, retirements, moves and hires, and it is reproducible
+under \code{seed}.  It draws one random number per value whatever the value is,
+so a reform that changes one group's rate leaves the other groups' draws alone.
 }
 \keyword{internal}

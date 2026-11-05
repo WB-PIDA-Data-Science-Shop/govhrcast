@@ -28,6 +28,7 @@ data.table with new personnel records
 }
 \description{
 Creates new personnel records for new hires. Generates unique personnel IDs
-and sets status to "active".
+and sets status to "active". Their age, tenure and gender are set afterwards,
+from the policy's new hire profile.
 }
 \keyword{internal}
