@@ -4,6 +4,8 @@
 library(data.table)
 
 start <- as.Date("2020-01-01")
+# Each simulated year is dated at its end: a year after the one before
+a_year_after <- function(d) seq(d, by = "year", length.out = 2L)[2L]
 
 small_run_data <- function() {
   list(
@@ -45,11 +47,11 @@ test_that("a baseline_date between snapshots stops, and says which snapshots the
   )
 })
 
-test_that("the start of a projection is baseline_date, and the date a module works at is as_of_date", {
+test_that("a projection starts at baseline_date: its first year is dated a year later; a module works at as_of_date", {
   d <- two_snapshots()
   earlier <- start - 366
   run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = earlier, retirement_policy = NULL)
-  expect_equal(run$comparison$period_date, earlier)
+  expect_equal(run$comparison$period_date, a_year_after(earlier))
 
   s <- small_run_data()
   module <- simulate_exits(s$c, s$p, as_of_date = start,
@@ -57,21 +59,21 @@ test_that("the start of a projection is baseline_date, and the date a module wor
   expect_equal(module$summary$n_exits, 0L)
 })
 
-test_that("people already retired are on the register as of baseline_date, at their age then", {
+test_that("people already retired are on the register from the first year, with their pension", {
   d <- small_run_data()
   d$c[personnel_id == "P1", contract_type := "pensioner"]
   d$p[personnel_id == "P1", employment_status := "pensioner"]
   run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL)
   seeded <- run$pensioner_register[personnel_id == "P1"]
-  expect_equal(seeded$period_date, start)
-  # birth_date in the fixture is 70 years before the start
-  expect_equal(seeded$age_at_retirement, 70, tolerance = 0.001)
+  expect_equal(seeded$ref_date, a_year_after(start))
+  expect_equal(seeded$pension_amount, 100)
+  expect_equal(seeded$contract_id, "C1")
 })
 
 test_that("with no baseline_date given, the projection starts from the latest snapshot", {
   d <- two_snapshots()
   run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, retirement_policy = NULL)
-  expect_equal(run$comparison$period_date, start)
+  expect_equal(run$comparison$period_date, a_year_after(start))
   named <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL)
   expect_equal(run$comparison, named$comparison)
 })
@@ -81,11 +83,11 @@ test_that("with no baseline_date given, the start is the latest snapshot both ta
   later <- function(x) rbind(x, copy(x[ref_date == start])[, ref_date := start + 365])
 
   personnel_later <- simulate_horizon(d$c, later(d$p), d$s, n_periods = 1L, retirement_policy = NULL)
-  expect_equal(personnel_later$comparison$period_date, start)
+  expect_equal(personnel_later$comparison$period_date, a_year_after(start))
   expect_equal(personnel_later$comparison$n_headcount_start, 4L)
 
   contracts_later <- simulate_horizon(later(d$c), d$p, d$s, n_periods = 1L, retirement_policy = NULL)
-  expect_equal(contracts_later$comparison$period_date, start)
+  expect_equal(contracts_later$comparison$period_date, a_year_after(start))
   expect_equal(contracts_later$comparison$n_headcount_start, 4L)
 })
 
@@ -134,7 +136,8 @@ test_that("the year's pension total matches the register after pension growth", 
                           pension_cola_rate = 0.10)
   expect_equal(run$comparison$pension_cost_new, c(2000, 0))
   expect_equal(run$comparison$pension_cost_total, c(2200, 2420))
-  expect_equal(run$comparison$pension_cost_total[2], sum(run$pensioner_register$pension_amount))
+  by_year <- run$pensioner_register[, .(total = sum(pension_amount)), keyby = ref_date]$total
+  expect_equal(run$comparison$pension_cost_total, by_year)
 })
 
 # -- Who a policy covers -----------------------------------------------------

@@ -374,6 +374,24 @@ compute_tenure_panel <- function(contract_dt,
   if (all(is.na(pay))) NA_real_ else sum(as.numeric(pay), na.rm = TRUE)
 }
 
+# Internal helper: payroll total.
+# Wage bill definition: sum of the pay on every contract row on the payroll (see
+# .on_payroll()), per person, then across persons.  A person with two contracts
+# contributes both salaries.  Pensions are excluded: their cost is tracked in
+# pensioner_register.
+# Used by simulate_scenario() (wage bill at start, before COLA and at end) and
+# by the allowance module. No roxygen: internal only, not exported.
+.active_wage_bill <- function(contract_dt,
+                              contract_type_col,
+                              salary_col,
+                              personnel_id_col) {
+  contract_dt[
+    .on_payroll(get(contract_type_col)) & !is.na(get(salary_col)),
+    .(salary = sum(get(salary_col), na.rm = TRUE)),
+    by = c(personnel_id_col)
+  ][, sum(salary, na.rm = TRUE)]
+}
+
 # The contracts a policy covers, from those already known to be active. With no
 # defaults$active_types it covers them all. A blank type is missing data and still
 # counts as staff.

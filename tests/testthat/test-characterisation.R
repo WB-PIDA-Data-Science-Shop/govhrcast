@@ -42,12 +42,12 @@ characterisation_run <- function(salary_col, explicit_hiring_scale) {
 characterise <- function(res) {
   cmp <- as.data.frame(res$comparison)
   cmp$period_date <- as.character(cmp$period_date)
-  reg <- res$pensioner_register
+  # The register holds every year; its last year is everyone's final pension
+  reg <- res$pensioner_register[ref_date == max(ref_date)]
   list(
     comparison = cmp,
-    register = list(rows = nrow(reg),
-                    pension_total = sum(reg$pension_amount, na.rm = TRUE),
-                    final_salary_total = sum(reg$final_salary, na.rm = TRUE))
+    register = list(people = data.table::uniqueN(reg$personnel_id),
+                    pension_total = sum(reg$pension_amount, na.rm = TRUE))
   )
 }
 

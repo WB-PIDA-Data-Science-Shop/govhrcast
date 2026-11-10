@@ -36,15 +36,16 @@ the tables passed in (\code{contract_dt}, \code{personnel_dt},
 \code{salary_scale_dt}, \code{pensioner_register}) is changed; the updated
 versions are returned.}
 
-\item{period_date}{Date.  The reference date for this simulation period.
-Stored in \code{pensioner_register} for cohort auditing and used as the
-\code{period_date} column in the returned summary row.}
+\item{period_date}{Date.  The date the period's rules run at (ages, tenure,
+end dates), and the \code{period_date} column of the returned summary row.
+\code{\link{simulate_horizon}()} passes the start of each year, then dates
+the year's results at its end.}
 
-\item{pensioner_register}{data.table or \code{NULL}.  Accumulated pensioner
-ledger from prior periods.  Must contain the person ID column (under the
-name \code{personnel_id_col} gives), \code{pension_amount} and
-\code{period_date}.  Pass \code{NULL} (default) for the first period --
-an empty register is initialised internally.}
+\item{pensioner_register}{data.table or \code{NULL}.  The pensions carried
+from earlier periods: one row per pension contract, with the person and
+contract ID columns (under the names \code{column_spec_args} gives) and
+\code{pension_amount}, this year's pension.  Pass \code{NULL} (default) for
+the first period -- an empty register is initialised internally.}
 
 \item{retirement_policy, exit_policy, movement_policy, hiring_policy, allowance_policy}{Lists, or \code{NULL} to switch that module off (the default here for
 all five).  Build them with the same helper functions as
@@ -124,8 +125,9 @@ Named list:
 \item{contract_dt}{Updated contract snapshot.}
 \item{personnel_dt}{Updated personnel snapshot.}
 \item{salary_scale_dt}{Updated pay table (post-COLA).}
-\item{pensioner_register}{Accumulated pensioner ledger including new
-retirees from this period.}
+\item{pensioner_register}{The pensions after this period: every earlier
+pension grown by \code{pension_cola_rate}, plus this period's retirees,
+one row each on their main contract.}
 \item{allowance_dt}{Accumulated allowance ledger including this
 period's rows, or unchanged/\code{NULL} when \code{allowance_policy}
 is \code{NULL}.}
@@ -153,9 +155,14 @@ applied in this order:
 \item \strong{Other exits} -- resignations, dismissals, contracts not renewed.
 \item \strong{Movements} -- apply promotions and transfers.
 \item \strong{Hiring} -- fill vacancies.
-\item \strong{Allowances} -- assign allowance amounts to active contracts.
 \item \strong{Aging} -- increment \code{age_col} and \code{tenure_col}.
-\item \strong{COLA} -- scale salary table, contract salaries and pensions.
+\item \strong{COLA} -- grow the salary table, contract salaries, a pay table passed
+to the hiring policy (by \code{salary_growth_rate}) and the allowance
+amounts (by \code{allowance_growth_rate}).
+\item \strong{Allowances} -- assign this year's grown allowance amounts to the
+contracts, after movements and hiring have settled who is in which group.
+\item \strong{Pension COLA} -- grow the pensions on the register by
+\code{pension_cola_rate}.
 \item \strong{Snapshot B} -- record \code{wage_bill_end} and \code{n_headcount_end}.
 }
 }

@@ -10,9 +10,11 @@ wage-bill dynamics from HRMIS microdata (contract- and personnel-level). It
 is used by World Bank country teams to model retirement, hiring,
 promotion/transfer, and attrition policy scenarios and to project their
 fiscal impact. Companion package `govhr` (not in this repo, listed under
-`Remotes:` in `DESCRIPTION`, a `Suggests` dependency used only in
-examples/vignettes) produces the source-data harmonization step that
-generates this package's expected input schema. Deployment target is Posit
+`Remotes:` in `DESCRIPTION`) produces the source-data harmonization step that
+generates this package's expected input schema. It is an `Imports`
+dependency: the rate estimators in the `*_core.R` files call `govhr` to detect
+events (exits, hires, retirements, movements) in the panel, and
+`R/govhr_adapters.R` holds the thin adapters around it. Deployment target is Posit
 Connect on World Bank infrastructure. Not yet published — currently
 single-user.
 
@@ -93,7 +95,7 @@ Project specifics:
 
 ## Architecture
 
-### The four-module simulation pipeline
+### The five-module simulation pipeline
 The package's entire purpose is expressed through one call chain:
 
 ```
@@ -104,8 +106,15 @@ simulate_horizon()          # multi-period orchestrator (loops n_periods times)
        3. simulate_promotions_transfers()
        4. simulate_hiring()
        5. aging (age_col / tenure_col += period_fraction)
-       6. COLA (salary_scale_dt and contract salaries scaled by growth rate)
+       6. COLA (salary_scale_dt, contract salaries and a hiring pay table by
+          salary_growth_rate; allowance amounts by allowance_growth_rate)
+       7. simulate_allowances()           (this year's grown amounts, after
+                                           movements and hiring settle groups)
+       8. pension COLA on pensioner_register (pension_cola_rate)
 ```
+
+These numbers follow the `STEP n` banners in `simulate_scenario()`'s code; its
+roxygen counts the two snapshots too, so the same steps are numbered 2–9 there.
 
 Each module is optional — pass its policy list as `NULL` to hold that
 process at zero/inactive and isolate the fiscal effect of reforming only
@@ -119,7 +128,7 @@ Every simulation module is split into three files following the same
 pattern — look here first when tracing a bug in one process:
 - `*_core.R` — pure computation: eligibility/demand estimation, rate
   estimation from historical panels (`estimate_historical_exit_rates`,
-  `estimate_movement_baseline`, `estimate_historical_hiring_rates`),
+  `estimate_historical_movement_rates`, `estimate_historical_hiring_rates`),
   selection logic. No mutation of input tables.
 - `*_update.R` — state mutation: applies the selected changes to
   `contract_dt`/`personnel_dt` (e.g. `update_contracts_for_retirees`,
@@ -134,6 +143,30 @@ holds `compute_pension()` dispatching to `compute_db_pension`,
 `compute_dc_pension`, `compute_flat_pension`, `compute_hybrid_pension`,
 `compute_rate_pension`, and `compute_custom_pension` (user-supplied formula
 string).
+
+The orchestrators follow the same idea:
+- `simulate_horizon.R` — only the two exported orchestrators,
+  `simulate_scenario()` and `simulate_horizon()`.
+- `horizon_core.R` — the wage-bill decomposition pieces
+  (`compute_exit_effect`, `compute_movement_effect`, `compute_hiring_effect`,
+  `compute_inflation_effect`, `.leavers_this_period`), and the setup that
+  runs before `simulate_horizon()`'s period loop: `prepare_horizon_inputs`
+  (returns only what the loop and the result need), which in turn fills in
+  status-quo rates from the full panel before cutting it to the baseline date
+  (`precompute_movement_rates`, `precompute_exit_rates`,
+  `precompute_retirement_rates`, `precompute_hiring_rates`,
+  `precompute_new_hire_profile`; each takes a policy and returns it, filled
+  in or unchanged).
+- `horizon_utils.R` — small internal helpers only the orchestrators use
+  (`.latest_snapshot`, `.empty_pensioner_register`,
+  `.report_groups_without_rate`, `.advance_period`).
+- `horizon_class.R` — the S3 `horizon` class.
+- No `horizon_update.R`: aging and COLA are still inline in
+  `simulate_scenario()`; they would go there if pulled out.
+
+Place a function by what it does, not by whether its name starts with a dot:
+a dot helper that computes part of the model goes in `*_core.R`, and a helper
+used by more than one module goes in the package-wide `R/utils.R`.
 
 ### The three-slot policy pattern
 Every module's policy argument (`retirement_policy`, `exit_policy`,
@@ -152,8 +185,8 @@ list(
 repeat, or left-join against `policy_table` with `defaults` filling
 unmatched rows/missing columns); `resolve_policy_table()` resolves an entire
 `defaults` list at once. `hiring_policy` does not use this exact 3-slot
-shape — it takes a `mode` (`"status_quo"`, `"flow"`, `"stock"`,
-`"combined"`) plus mode-specific keys (see `simulate_hiring.R` roxygen).
+shape — it takes a `mode` (`"status_quo"`, `"flow"`, `"stock"`) plus
+mode-specific keys (see `simulate_hiring.R` roxygen).
 `make_status_quo_policies()` (`R/utils.R`) is a convenience constructor that
 estimates baseline policies for all four modules directly from panel data.
 
@@ -175,14 +208,26 @@ new formula/rule features, extend the allow-list deliberately rather than
 loosening the AST walk.
 
 ### Wage bill accounting invariant
-`.active_wage_bill()` (internal, `R/simulate_horizon.R`) is the single
+`.active_wage_bill()` (internal, `R/utils.R`, beside `.on_payroll()`; used
+by `simulate_scenario()` and the allowance module) is the single
 source of truth for what counts as payroll: sum of `salary_col` over
 contract rows where `contract_type_col` is not `"pensioner"`/`"inactive"`
 and salary is non-NA. Pensioner costs live only in `pensioner_register` (a
-separate ledger tracking `pension_amount`, keyed by
-`personnel_id`/`period_date`) and must never be folded into wage-bill
-totals. Preserve this separation in any change that touches wage-bill
-computation — it's asserted throughout the test suite.
+separate ledger tracking `pension_amount`, one row per pension contract,
+keyed by the person and contract ID columns; returned with one row per
+contract per year) and must never be folded into wage-bill totals. Preserve
+this separation in any change that touches wage-bill computation — it's
+asserted throughout the test suite.
+
+### Returned tables continue the input (ADR 0017)
+With `return_microdata = TRUE`, `$contract_dt`/`$personnel_dt` are the caller's
+own rows up to `baseline_date`, unchanged, then one govhr-style snapshot per
+simulated year, built after the year runs (outside the working tables): staff,
+every pensioner with that year's pension in `salary_col`, and nobody who has
+left (absent, as govhr detects exits). Year *t* is dated `baseline_date` + *t*
+years; its rules still run as of the year's start. Tests in
+`test-output-continuity.R` check this against govhr itself
+(`compute_wagebill_analytics()`, `detect_movement()`); keep them passing.
 
 ### Validation layer
 `R/validation.R` centralizes input checking: generic helpers

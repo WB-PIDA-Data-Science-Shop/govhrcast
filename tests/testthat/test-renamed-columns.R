@@ -1100,16 +1100,18 @@ test_that("simulate_horizon(): the pay table hiring derives for itself works on 
 })
 
 test_that("simulate_horizon(): the panel is cut to the starting snapshot", {
-  # Returned microdata holds each person once per projected year, not their
-  # history. All modules off, since each module also cuts the tables it reads.
+  # Returned microdata holds your history up to the start, then each person once
+  # per projected year. All modules off, since each module also cuts the tables it reads.
   d <- history_fixture()
   scale <- to_user_names(start_pay_table(d))
   run <- simulate_horizon(d$hc_user, d$hp_user, scale, n_periods = 2L, baseline_date = d$ref_date,
                           retirement_policy = NULL, column_spec_args = user_spec,
                           output_control_args = define_output_control(return_microdata = TRUE))
-  expect_equal(uniqueN(run$personnel_dt$snap), 2L)
-  expect_equal(anyDuplicated(run$personnel_dt, by = c("pid", "snap")), 0L)
-  expect_equal(anyDuplicated(run$contract_dt, by = c("cid", "snap")), 0L)
+  history <- uniqueN(d$hp_user[snap <= d$ref_date, snap])
+  expect_equal(uniqueN(run$personnel_dt$snap), history + 2L)
+  expect_equal(uniqueN(run$personnel_dt[snap > d$ref_date, snap]), 2L)
+  expect_equal(anyDuplicated(run$personnel_dt[snap > d$ref_date], by = c("pid", "snap")), 0L)
+  expect_equal(anyDuplicated(run$contract_dt[snap > d$ref_date], by = c("cid", "snap")), 0L)
 })
 
 test_that("simulate_horizon(): movers paid from the pay table on renamed columns", {
@@ -1146,8 +1148,8 @@ test_that("simulate_horizon(): staff already pensioned at the start seed the reg
   user_run <- horizon_run(d, user_spec, to_user_names(hc), d$hp_user, allowance_user(d),
                           n_periods = 1L)
   seeded <- user_run$pensioner_register[pid %in% already]
-  expect_equal(nrow(seeded), 5L)
-  expect_false(anyNA(seeded$age_at_retirement))
+  expect_equal(uniqueN(seeded$pid), 5L)
+  expect_identical(names(user_run$pensioner_register), c("pid", "cid", "snap", "pension_amount"))
   expect_same_horizon(user_run, default_run)
 })
 
@@ -1175,7 +1177,9 @@ test_that("simulate_horizon(): a snapshot without a date column is stamped in th
   expect_true("snap" %in% names(run$contract_dt))
   expect_true("snap" %in% names(run$personnel_dt))
   expect_false("ref_date" %in% names(run$contract_dt))
-  expect_equal(uniqueN(run$contract_dt$snap), 2L)
+  # The snapshot itself, dated at the start, then the two simulated years
+  expect_equal(sort(unique(run$contract_dt$snap)),
+               seq(d$ref_date, by = "year", length.out = 3L))
 })
 
 test_that("simulate_scenario(): one period on renamed columns gives the default-name results", {

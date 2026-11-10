@@ -192,3 +192,12 @@ test_that("status-quo hiring rates are the historical estimate from the input pa
                                             group_cols = "est_id")
   expect_equal(res$metadata$policy_args$hiring_policy$squorate_dt, fresh)
 })
+
+test_that("$metadata records the exit policy the run used, with its status-quo rates", {
+  start <- as.Date("2012-09-01")
+  res <- run_alagoas()
+  fresh <- estimate_historical_exit_rates(bra_hrmis_contract[ref_date <= start],
+                                          bra_hrmis_personnel[ref_date <= start],
+                                          group_cols = "est_id")
+  expect_equal(res$metadata$policy_args$exit_policy$policy_table, fresh)
+})

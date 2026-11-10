@@ -55,14 +55,13 @@ test_that("the payroll holds staff only, whichever way a pensioner is recorded",
 
 test_that("existing pensioners are seeded on the register, and several rows add up", {
   reg <- suppressMessages(horizon_run(state_fixture()))$pensioner_register
-  amount <- function(id) reg[personnel_id == id, pension_amount]
+  amount <- function(id) reg[personnel_id == id, sum(pension_amount)]
   expect_setequal(reg$personnel_id, c("two_rows", "both", "no_pay", "typed_row", "type_only"))
-  expect_equal(nrow(reg), 5L)
+  expect_equal(nrow(reg), 6L)             # one row per pension contract: two_rows has two
   expect_equal(amount("two_rows"), 600)   # 500 + 100, not the larger row
   expect_equal(amount("both"), 300)       # the pension row only
   expect_equal(amount("typed_row"), 400)  # status wins over a working type
   expect_equal(amount("type_only"), 250)  # type alone is enough
-  expect_equal(reg[personnel_id == "two_rows", final_salary], 600)
 })
 
 test_that("a pensioner with no pay stays on the register with a blank amount, and the user is told", {
@@ -79,19 +78,23 @@ test_that("no message when every pensioner has a pension amount", {
   expect_no_message(horizon_run(d), message = "existing pensioner")
 })
 
-test_that("someone with a pension and a working contract stays a person in the projection", {
+test_that("someone with a pension and a working contract keeps both; pure pensioners carry on off the payroll", {
   run <- suppressMessages(horizon_run(state_fixture()))
-  expect_true("both" %in% run$personnel_dt$personnel_id)
-  expect_equal(run$contract_dt[personnel_id == "both", contract_type], "permanent")
-  # Pure pensioners leave the working tables
-  gone <- c("two_rows", "no_pay", "typed_row", "type_only")
-  expect_false(any(gone %in% run$personnel_dt$personnel_id))
-  expect_false(any(gone %in% run$contract_dt$personnel_id))
+  later_c <- run$contract_dt[ref_date > start]
+  later_p <- run$personnel_dt[ref_date > start]
+  expect_true("both" %in% later_p$personnel_id)
+  expect_setequal(later_c[personnel_id == "both", contract_type], c("permanent", "pensioner"))
+  # Pure pensioners are not staff, but the returned tables carry them on, as in the data
+  pure <- c("two_rows", "no_pay", "typed_row", "type_only")
+  expect_setequal(intersect(pure, later_p$personnel_id), pure)
+  expect_setequal(intersect(pure, later_c$personnel_id), pure)
+  expect_equal(run$comparison$n_headcount_end, 3L)
 })
 
-test_that("a blank contract type on someone who is not active is off the payroll", {
+test_that("a blank contract type on someone who is not active is off the payroll, and absent later", {
   run <- suppressMessages(horizon_run(state_fixture()))
-  expect_equal(run$contract_dt[personnel_id == "inactive_blank", contract_type], "inactive")
+  expect_equal(run$comparison$n_headcount_start, 3L)
+  expect_false("inactive_blank" %in% run$contract_dt[ref_date > start, personnel_id])
 })
 
 test_that("the caller's tables keep their blank types", {
@@ -106,7 +109,7 @@ test_that("the caller's tables keep their blank types", {
 test_that("staff with a blank contract type get salary growth", {
   run <- suppressMessages(horizon_run(state_fixture(), salary_growth_rate = 0.05))
   expect_equal(run$comparison$wage_bill_end, 2500 * 1.05)
-  expect_equal(run$contract_dt[personnel_id == "blank_type", gross_salary_lcu], 800 * 1.05)
+  expect_equal(run$contract_dt[ref_date > start & personnel_id == "blank_type", gross_salary_lcu], 800 * 1.05)
 })
 
 test_that("staff with a blank contract type can exit", {
@@ -116,7 +119,8 @@ test_that("staff with a blank contract type can exit", {
   expect_equal(run$comparison$non_ret_exit_savings, 2500)
   expect_equal(run$comparison$n_headcount_end, 0L)
   expect_equal(run$comparison$wage_bill_end, 0)
-  expect_equal(run$contract_dt[personnel_id == "blank_type", contract_type], "inactive")
+  # Someone who leaves is absent from later years, as in government data
+  expect_false("blank_type" %in% run$contract_dt[ref_date > start, personnel_id])
 })
 
 test_that("staff with a blank contract type get allowances; pensioners and leavers do not", {
@@ -168,8 +172,10 @@ test_that("end dates are cleared for staff at the start of the projection", {
   run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, seed = 1L,
                           retirement_policy = NULL,
                           output_control_args = define_output_control(return_microdata = TRUE))
-  expect_true(all(is.na(run$contract_dt$end_date)))
+  expect_true(all(is.na(run$contract_dt[ref_date > start, end_date])))
   expect_equal(d$c[personnel_id == "ended", end_date], as.Date("2015-01-01"))  # caller's table untouched
+  # History keeps it as recorded
+  expect_equal(run$contract_dt[ref_date == start & personnel_id == "ended", end_date], as.Date("2015-01-01"))
 })
 
 # -- Downsizing ---------------------------------------------------------------
@@ -202,9 +208,8 @@ test_that("downsizing takes people off the payroll and the wage bill says so", {
   expect_equal(cmp$wage_bill_end, c(1900, 1900))
   expect_equal(cmp$n_hires, c(0L, 0L))
   expect_equal(cmp$hiring_effect, c(0, 0))
-  year1 <- run$contract_dt[ref_date == start & personnel_id %in% c("P3", "P4")]
-  expect_true(all(year1$contract_type == "inactive"))
-  expect_true(all(year1$end_date == start))
+  # The people let go are absent from the simulated years
+  expect_setequal(unique(run$contract_dt[ref_date > start, personnel_id]), c("P1", "P2"))
 })
 
 test_that("the wage bill decomposition adds up with downsizing and growth", {
@@ -250,16 +255,19 @@ test_that("downsizing leaves a person's pension row alone", {
 
 # -- Simulated retirees ------------------------------------------------------
 
-test_that("simulated retirees get the status pensioner and stop ageing", {
+test_that("simulated retirees get the status pensioner and keep ageing, as in real data", {
   d <- ended_fixture()
   d$p[, age := c(70, 30)]
   run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, seed = 1L,
                           retirement_policy = design_retirement_policy_age_tenure(
                             min_age = 60, min_tenure = 1, pension = pension_flat(100)),
                           output_control_args = define_output_control(return_microdata = TRUE))
-  expect_equal(run$personnel_dt[personnel_id == "ended", employment_status], "pensioner")
-  expect_equal(run$personnel_dt[personnel_id == "ended", age], 70)
-  expect_equal(run$personnel_dt[personnel_id == "open", employment_status], "active")
+  later <- run$personnel_dt[ref_date > start]
+  expect_equal(later[personnel_id == "ended", employment_status], "pensioner")
+  expect_equal(later[personnel_id == "ended", age], 71)
+  expect_equal(later[personnel_id == "open", employment_status], "active")
+  # Their pension is the pay on the contract they retired from
+  expect_equal(run$contract_dt[ref_date > start & personnel_id == "ended", gross_salary_lcu], 100)
 })
 
 test_that("simulate_retirement does not retire someone only because they hold a pension row", {

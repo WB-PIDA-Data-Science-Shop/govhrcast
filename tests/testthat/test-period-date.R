@@ -93,13 +93,15 @@ test_that("simulate_horizon(): hires from year 2 on count as staff, and leavers 
     hiring_policy = design_hiring_policy_status_quo(group_cols = "est_id"),
     output_control_args = define_output_control(return_microdata = TRUE), seed = 1L
   ))
-  last_year <- run$contract_dt[ref_date == max(ref_date)]
+  # Leavers are absent from later years, so a person's exit is the last year they are seen
+  people <- run$personnel_dt[ref_date > start]
+  last_year <- max(people$ref_date)
+  last_seen <- people[, .(last_seen = max(ref_date)), by = personnel_id]
+  hires <- setdiff(people$personnel_id, hp$personnel_id)
 
   # Someone hired after the start has since left: they were counted as staff
-  later_hires <- last_year[start_date > start]
-  expect_gt(nrow(later_hires[contract_type == "inactive"]), 0L)
+  expect_gt(last_seen[personnel_id %in% hires & last_seen < last_year, .N], 0L)
 
-  # Leavers end on the year they left, not all on the start date
-  expect_gt(uniqueN(last_year[contract_type == "inactive" & start_date <= start, end_date]), 1L)
-  expect_gt(last_year[contract_type == "inactive", max(end_date)], start)
+  # People leave in different years, not all at the start
+  expect_gt(uniqueN(last_seen[last_seen < last_year, last_seen]), 1L)
 })

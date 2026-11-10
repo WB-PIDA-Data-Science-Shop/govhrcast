@@ -520,8 +520,8 @@ test_that("simulate_horizon: period_date sequences annually from ref_date", {
     salary_growth_rate = 0,
     baseline_date           = as.Date("2020-01-01")
   )
-  expected_dates <- as.Date(c("2020-01-01", "2021-01-01", "2022-01-01"))
-  expect_equal(res$summary_dt$period_date, expected_dates)
+  # Each year is dated at its end, so year 1 is a year after the baseline
+  expect_equal(res$summary_dt$period_date, as.Date(c("2021-01-01", "2022-01-01", "2023-01-01")))
 })
 
 test_that("simulate_horizon: return_microdata = FALSE omits contract/personnel", {
@@ -1242,7 +1242,7 @@ test_that("Phase 1b: simulate_horizon() auto-computes age from birth_date_col", 
   # After the prologue the age column in personnel_dt should ≈ 40 and 30
   # (exact value is difftime in days / 365.25, so ~39.97 and ~29.97 for
   #  365-day approximations, but well above the initial 0)
-  final_pers <- res$personnel_dt
+  final_pers <- res$personnel_dt[ref_date > d$ref_date]   # the simulated year, not your history
   ages <- final_pers[order(personnel_id), age]
   expect_gt(ages[1], 39)  # P1 ~40 + 1 period increment
   expect_gt(ages[2], 29)  # P2 ~30 + 1 period increment
@@ -1268,7 +1268,7 @@ test_that("Phase 1b: simulate_horizon() auto-computes tenure from contract histo
   # P1 started 10 years before ref_date → tenure ≈ 10 + 1 period increment
   # P2 started  5 years before ref_date → tenure ≈  5 + 1 period increment
   # Written into the default tenure_col, personnel_tenure (govhr dictionary name).
-  final_pers <- res$personnel_dt
+  final_pers <- res$personnel_dt[ref_date > d$ref_date]   # the simulated year, not your history
   tenures <- final_pers[order(personnel_id), personnel_tenure]
   expect_gt(tenures[1], 9.5)   # P1
   expect_gt(tenures[2], 4.5)   # P2
@@ -1462,7 +1462,7 @@ test_that("Phase 2c: pension_cola_rate > 0 grows pension_cost_total each period"
   expect_equal(total_pensions[2] / total_pensions[1], 1.05, tolerance = 1e-6)
 })
 
-test_that("Phase 2c: pensioner_register has 5-column expanded schema", {
+test_that("Phase 2c: the pensioner register has one row per pension contract per year", {
   d <- make_phase2c_inputs_with_existing_pensioners()
 
   res <- simulate_horizon(
@@ -1476,9 +1476,7 @@ test_that("Phase 2c: pensioner_register has 5-column expanded schema", {
   )
 
   reg <- res$pensioner_register
-  expect_true(all(c("personnel_id", "pension_amount", "final_salary",
-                    "tenure_years_at_retirement", "age_at_retirement",
-                    "period_date") %in% names(reg)))
+  expect_identical(names(reg), c("personnel_id", "contract_id", "ref_date", "pension_amount"))
 })
 
 test_that("Phase 2c: pension_cola_rate as vector of length n_periods is accepted", {
@@ -2288,6 +2286,30 @@ test_that("Block G: total_wage_bill reconciles against wage_bill + allowance_cos
   dt <- res$comparison
   expect_equal(dt$total_wage_bill_start, dt$wage_bill_start + dt$allowance_cost_start)
   expect_equal(dt$total_wage_bill_end, dt$wage_bill_end + dt$allowance_cost_end)
+})
+
+test_that("Block G: $metadata records the allowance policy and growth rates as supplied, not as grown by the run", {
+  s <- make_horizon_state()
+  allowance_policy <- list(
+    group_cols = c("est_id", "allowance_type"), policy_table = make_allowance_scale(),
+    defaults = list(amount = 10)
+  )
+  res <- simulate_horizon(
+    contract_dt        = s$contract_dt,
+    personnel_dt       = s$personnel_dt,
+    salary_scale_dt    = make_salary_scale(),
+    n_periods          = 3L,
+    retirement_policy  = null_retirement_policy,
+    salary_growth_rate = 0.02,
+    pension_cola_rate  = 0.01,
+    allowance_policy   = allowance_policy,
+    allowance_growth_rate = 0.03,
+    baseline_date      = as.Date("2020-01-01")
+  )
+  # The run grows the amounts every year; the record keeps what was passed in
+  expect_equal(res$metadata$policy_args$allowance_policy, allowance_policy)
+  expect_equal(res$metadata$policy_args$allowance_growth_rate, 0.03)
+  expect_equal(res$metadata$policy_args$pension_cola_rate, 0.01)
 })
 
 test_that("Block G: allowance_cost_start[1] is the real baseline, not zero; later periods thread from allowance_cost_end", {

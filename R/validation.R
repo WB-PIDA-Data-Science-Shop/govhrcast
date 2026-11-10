@@ -1314,7 +1314,8 @@ define_column_spec <- function(personnel_id_col  = "personnel_id",
 #'   value. It says nothing about dates: where the projection starts is
 #'   `baseline_date` in [simulate_horizon()]. Default `FALSE`.
 #' @param return_microdata `TRUE` or `FALSE`. `TRUE` also returns `$contract_dt`
-#'   and `$personnel_dt`, with every projected year stacked, and `$allowance_dt`
+#'   and `$personnel_dt`: your own rows up to `baseline_date`, then one govhr-style
+#'   snapshot per projected year (see [simulate_horizon()]), and `$allowance_dt`
 #'   when allowances are modelled. These can be large, and they are person-level
 #'   data, so handle them like the input microdata before saving or sharing a
 #'   result. Default `FALSE`.

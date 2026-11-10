@@ -202,6 +202,7 @@ estimate_historical_movement_rates <- function(contract_dt,
     stop("group_cols must be specified for movement baseline estimation", call. = FALSE)
   }
 
+  # pull down the variables we need from the column spec 
   cols <- column_spec_args
   personnel_id_col <- cols$personnel_id_col
   ref_date_col <- cols$ref_date_col

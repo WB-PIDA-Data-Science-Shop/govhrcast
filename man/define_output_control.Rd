@@ -22,7 +22,8 @@ value. It says nothing about dates: where the projection starts is
 \code{baseline_date} in \code{\link[=simulate_horizon]{simulate_horizon()}}. Default \code{FALSE}.}
 
 \item{return_microdata}{\code{TRUE} or \code{FALSE}. \code{TRUE} also returns \verb{$contract_dt}
-and \verb{$personnel_dt}, with every projected year stacked, and \verb{$allowance_dt}
+and \verb{$personnel_dt}: your own rows up to \code{baseline_date}, then one govhr-style
+snapshot per projected year (see \code{\link[=simulate_horizon]{simulate_horizon()}}), and \verb{$allowance_dt}
 when allowances are modelled. These can be large, and they are person-level
 data, so handle them like the input microdata before saving or sharing a
 result. Default \code{FALSE}.}
