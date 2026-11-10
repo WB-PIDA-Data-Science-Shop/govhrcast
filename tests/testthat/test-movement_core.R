@@ -12,7 +12,7 @@ test_that("estimate_historical_movement_rates requires at least 2 snapshots", {
     paygrade          = c("G1", "G2"),
     start_date        = as.Date("2010-01-01"),
     end_date          = as.Date(NA),
-    contract_type = "permanent"
+    contract_type = "permanent", contract_id = "C1", gross_salary_lcu = 100
   )
   expect_error(
     estimate_historical_movement_rates(ct, group_cols = "paygrade"),
@@ -26,7 +26,7 @@ test_that("estimate_historical_movement_rates requires group_cols", {
     personnel_id = c("P1", "P1"),
     start_date = as.Date("2010-01-01"),
     end_date = as.Date(NA),
-    contract_type = "permanent"
+    contract_type = "permanent", contract_id = "C1", gross_salary_lcu = 100
   )
   expect_error(
     estimate_historical_movement_rates(ct, group_cols = NULL),
@@ -49,7 +49,7 @@ make_panel <- function() {
                  "G2", "G1", "G2", "G1"),   # P1: G1->G2, P4: G2->G1
     start_date = as.Date("2010-01-01"),
     end_date   = as.Date(NA),
-    contract_type = "permanent"
+    contract_type = "permanent", contract_id = "C1", gross_salary_lcu = 100
   )
 }
 
@@ -93,7 +93,7 @@ test_that("estimate_historical_movement_rates works with multi-column group_cols
     paygrade = c("G1", "G2", "G1", "G2"),
     start_date = as.Date("2010-01-01"),
     end_date   = as.Date(NA),
-    contract_type = "permanent"
+    contract_type = "permanent", contract_id = "C1", gross_salary_lcu = 100
   )
   bm <- estimate_historical_movement_rates(ct, group_cols = c("est_id", "paygrade"))
   expect_true(data.table::is.data.table(bm))
@@ -109,7 +109,7 @@ test_that("estimate_historical_movement_rates handles 3+ snapshots", {
       paygrade = c("G2", "G2", "G2", "G2"),
       start_date = as.Date("2010-01-01"),
       end_date = as.Date(NA),
-      contract_type = "permanent"
+      contract_type = "permanent", contract_id = "C1", gross_salary_lcu = 100
     )
   ))
   bm <- estimate_historical_movement_rates(ct, group_cols = "paygrade")
@@ -123,7 +123,7 @@ test_that("estimate_historical_movement_rates handles 3+ snapshots", {
 test_that("compute_time_in_grade returns correct columns", {
   tig <- compute_time_in_grade(
     contract_dt = make_panel(),
-    ref_date    = "2016-01-01",
+    as_of_date    = "2016-01-01",
     group_cols  = "paygrade"
   )
   expect_true(data.table::is.data.table(tig))
@@ -133,7 +133,7 @@ test_that("compute_time_in_grade returns correct columns", {
 test_that("compute_time_in_grade values are non-negative", {
   tig <- compute_time_in_grade(
     contract_dt = make_panel(),
-    ref_date    = "2016-01-01",
+    as_of_date    = "2016-01-01",
     group_cols  = "paygrade"
   )
   expect_true(all(tig$time_in_grade >= 0))
@@ -143,7 +143,7 @@ test_that("compute_time_in_grade accepts string ref_date", {
   expect_no_error(
     compute_time_in_grade(
       contract_dt = make_panel(),
-      ref_date    = "2016-01-01",
+      as_of_date    = "2016-01-01",
       group_cols  = "paygrade"
     )
   )
@@ -153,7 +153,7 @@ test_that("compute_time_in_grade errors on pre-data ref_date", {
   expect_error(
     compute_time_in_grade(
       contract_dt = make_panel(),
-      ref_date    = "2000-01-01",
+      as_of_date    = "2000-01-01",
       group_cols  = "paygrade"
     ),
     "No panel snapshots"
@@ -170,7 +170,7 @@ make_snapshot <- function() {
       paygrade          = c("G1", "G1", "G2", "G2"),
       start_date        = as.Date("2010-01-01"),
       end_date          = as.Date(NA),
-      contract_type = "permanent"
+      contract_type = "permanent", contract_id = "C1", gross_salary_lcu = 100
     ),
     personnel_dt = data.table::data.table(
       personnel_id = c("P1", "P2", "P3", "P4"),
@@ -201,7 +201,7 @@ test_that("compute_movement_demand returns correct columns", {
     baseline_matrix = s$baseline,
     policy_params   = pp,
     salary_scale_dt = s$salary_scale,
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
   expect_true(data.table::is.data.table(dm))
   expected_cols <- c("from_group", "to_group", "current_stock", "n_movers")
@@ -220,7 +220,7 @@ test_that("compute_movement_demand n_movers are non-negative integers", {
     baseline_matrix = s$baseline,
     policy_params   = pp,
     salary_scale_dt = s$salary_scale,
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
   expect_true(all(dm$n_movers >= 0L))
   expect_true(is.integer(dm$n_movers))
@@ -241,7 +241,7 @@ test_that("compute_movement_demand scrubs destinations not in salary_scale", {
       baseline_matrix = s$baseline,
       policy_params   = pp,
       salary_scale_dt = scale_no_g1,
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     ),
     "Scrubbed"
   )
@@ -268,7 +268,7 @@ test_that("compute_movement_demand caps total outflow at 1.0", {
     baseline_matrix = high_prob_baseline,
     policy_params   = pp,
     salary_scale_dt = s$salary_scale,
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
   # Total outflow per from_group must be <= 1
   dm[, total_out := sum(movement_rate), by = from_group]
@@ -297,7 +297,7 @@ test_that("compute_movement_demand returns empty dt when no active personnel", {
     baseline_matrix = s$baseline,
     policy_params   = pp,
     salary_scale_dt = s$salary_scale,
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
   expect_equal(nrow(dm), 0L)
 })
@@ -310,7 +310,7 @@ test_that("compute_movement_demand classifies movements correctly", {
     paygrade          = c("G1", "G2", "G1", "G2"),
     start_date        = as.Date("2010-01-01"),
     end_date          = as.Date(NA),
-    contract_type = "permanent"
+    contract_type = "permanent", contract_id = "C1", gross_salary_lcu = 100
   )
   pp_dt <- data.table::data.table(
     personnel_id = c("P1", "P2", "P3", "P4"),
@@ -336,7 +336,7 @@ test_that("compute_movement_demand classifies movements correctly", {
     baseline_matrix = bm,
     policy_params   = pp,
     salary_scale_dt = scale,
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
   expect_true(data.table::is.data.table(dm))
   if (nrow(dm) > 0) {
@@ -379,117 +379,6 @@ test_that("compute_movement_summary handles empty movers", {
 
 
 # =============================================================================
-# roll_snapshot_pairs() — unit tests (Block A)
-# =============================================================================
-
-make_two_period_panel <- function() {
-  data.table::data.table(
-    ref_date     = as.Date(c("2015-01-01", "2015-01-01",
-                             "2016-01-01", "2016-01-01")),
-    personnel_id = c("P1", "P2", "P1", "P2"),
-    paygrade     = c("G1", "G2", "G2", "G2")
-  )
-}
-
-make_three_period_panel <- function() {
-  data.table::data.table(
-    ref_date     = as.Date(c(
-      rep("2015-01-01", 2), rep("2016-01-01", 2), rep("2017-01-01", 2)
-    )),
-    personnel_id = c("P1","P2", "P1","P2", "P1","P2"),
-    value        = 1:6
-  )
-}
-
-test_that("roll_snapshot_pairs: returns empty data.table for < 2 dates", {
-  panel <- data.table::data.table(
-    ref_date = as.Date("2015-01-01"),
-    x        = 1L
-  )
-  result <- roll_snapshot_pairs(panel, "ref_date", function(a, b) data.table::data.table(n = 1L))
-  expect_s3_class(result, "data.table")
-  expect_equal(nrow(result), 0L)
-})
-
-test_that("roll_snapshot_pairs: calls f exactly n_dates-1 times", {
-  panel <- make_three_period_panel()   # 3 dates → 2 calls
-
-  call_count <- 0L
-  counter_f  <- function(a, b) {
-    call_count <<- call_count + 1L
-    data.table::data.table(pair = call_count)
-  }
-
-  result <- roll_snapshot_pairs(panel, "ref_date", counter_f)
-  expect_equal(call_count, 2L)
-  expect_equal(nrow(result), 2L)
-})
-
-test_that("roll_snapshot_pairs: snap_a and snap_b carry the correct dates", {
-  panel <- make_two_period_panel()
-
-  dates_seen <- list()
-  check_f <- function(a, b) {
-    dates_seen[[length(dates_seen) + 1L]] <<- list(
-      t0 = a$ref_date[1L],
-      t1 = b$ref_date[1L]
-    )
-    data.table::data.table(ok = TRUE)
-  }
-
-  roll_snapshot_pairs(panel, "ref_date", check_f)
-
-  expect_equal(length(dates_seen), 1L)
-  expect_equal(dates_seen[[1L]]$t0, as.Date("2015-01-01"))
-  expect_equal(dates_seen[[1L]]$t1, as.Date("2016-01-01"))
-})
-
-test_that("roll_snapshot_pairs: NA dates are dropped before iteration", {
-  panel <- data.table::data.table(
-    ref_date = as.Date(c(NA, "2015-01-01", "2016-01-01")),
-    x        = 1:3
-  )
-
-  call_count <- 0L
-  roll_snapshot_pairs(panel, "ref_date", function(a, b) {
-    call_count <<- call_count + 1L
-    data.table::data.table(n = 1L)
-  })
-  # Only 2 non-NA dates → exactly 1 pair
-  expect_equal(call_count, 1L)
-})
-
-test_that("roll_snapshot_pairs: NULL results from f are skipped", {
-  panel <- make_three_period_panel()
-
-  k <- 0L
-  skip_f <- function(a, b) {
-    k <<- k + 1L
-    if (k == 1L) return(NULL)   # skip first pair
-    data.table::data.table(pair = k)
-  }
-
-  result <- roll_snapshot_pairs(panel, "ref_date", skip_f)
-  expect_equal(nrow(result), 1L)
-  expect_equal(result$pair, 2L)
-})
-
-test_that("roll_snapshot_pairs: errors on missing date_col", {
-  panel <- data.table::data.table(x = 1:3)
-  expect_error(
-    roll_snapshot_pairs(panel, "not_a_col", function(a, b) NULL),
-    "not_a_col"
-  )
-})
-
-test_that("roll_snapshot_pairs: errors on non-data.table input", {
-  expect_error(
-    roll_snapshot_pairs(list(x = 1), "ref_date", function(a, b) NULL),
-    "data.table"
-  )
-})
-
-# =============================================================================
 # estimate_historical_movement_rates() output-identity check after Block A refactor
 # =============================================================================
 
@@ -515,7 +404,7 @@ test_that("estimate_historical_movement_rates: 3-period panel averages correctly
       paygrade           = c("G1","G1","G2","G2"),   # reverse of 2016 → new movements
       start_date         = as.Date("2010-01-01"),
       end_date           = as.Date(NA),
-      contract_type = "permanent"
+      contract_type = "permanent", contract_id = "C1", gross_salary_lcu = 100
     )
   ))
 
@@ -523,4 +412,150 @@ test_that("estimate_historical_movement_rates: 3-period panel averages correctly
   # G1→G2 occurred in both periods: period-1 prob = 0.5, period-2 prob = 0.5 → avg = 0.5
   expect_equal(bm3[from_group == "G1" & to_group == "G2", movement_rate], 0.5, tolerance = 1e-10)
   expect_equal(bm3[from_group == "G1" & to_group == "G2", n_periods], 2L)
+})
+
+# =============================================================================
+# Which group a person with several contracts counts in: their main contract
+# =============================================================================
+
+contract_row <- function(person, date, est, contract, start = "2000-01-01", pay = 100) {
+  data.table::data.table(
+    personnel_id = person, ref_date = as.Date(date), est_id = est, contract_id = contract,
+    start_date = as.Date(start), end_date = as.Date(NA), contract_type = "permanent",
+    gross_salary_lcu = pay
+  )
+}
+
+test_that("row order does not change the movement rates", {
+  panel <- rbind(
+    contract_row("a", "2019-01-01", "E1", "C1", start = "2000-01-01"),
+    contract_row("a", "2019-01-01", "E2", "C2", start = "2010-01-01"),
+    contract_row("a", "2020-01-01", "E3", "C3", start = "2019-06-01"),
+    contract_row("b", "2019-01-01", "E1", "C4"),
+    contract_row("b", "2020-01-01", "E1", "C4")
+  )
+  expect_identical(
+    as.data.frame(estimate_historical_movement_rates(data.table::copy(panel), "est_id")),
+    as.data.frame(estimate_historical_movement_rates(panel[.N:1L], "est_id"))
+  )
+})
+
+test_that("a person with several contracts counts in the group of their newest", {
+  panel <- rbind(
+    contract_row("a", "2019-01-01", "E1", "C1", start = "2000-01-01"),
+    contract_row("a", "2019-01-01", "E2", "C2", start = "2010-01-01"),
+    contract_row("a", "2020-01-01", "E3", "C3", start = "2019-06-01"),
+    contract_row("b", "2019-01-01", "E2", "C4"),
+    contract_row("b", "2020-01-01", "E2", "C4")
+  )
+  rates <- estimate_historical_movement_rates(panel, "est_id")
+  # a's main contract is in E2, so E2 holds a and b, and one of the two moved
+  expect_equal(rates$from_group, "E2")
+  expect_equal(rates$to_group, "E3")
+  expect_equal(rates$movement_rate, 0.5)
+})
+
+test_that("with the same start date, the higher salary decides the main contract", {
+  panel <- rbind(
+    contract_row("a", "2019-01-01", "E1", "C1", pay = 100),
+    contract_row("a", "2019-01-01", "E2", "C2", pay = 200),
+    contract_row("a", "2020-01-01", "E3", "C3", start = "2019-06-01")
+  )
+  rates <- estimate_historical_movement_rates(panel, "est_id")
+  expect_equal(rates$from_group, "E2")
+})
+
+test_that("with the same start date and salary, the lowest contract ID decides", {
+  panel <- rbind(
+    contract_row("a", "2019-01-01", "E1", "C2"),
+    contract_row("a", "2019-01-01", "E2", "C1"),
+    contract_row("a", "2020-01-01", "E3", "C3", start = "2019-06-01")
+  )
+  rates <- estimate_historical_movement_rates(panel, "est_id")
+  expect_equal(rates$from_group, "E2")
+})
+
+test_that("adding a newer contract in another group counts as a move, because the main contract moved", {
+  panel <- rbind(
+    contract_row("a", "2019-01-01", "E1", "C1", start = "2000-01-01"),
+    contract_row("a", "2020-01-01", "E1", "C1", start = "2000-01-01"),
+    contract_row("a", "2020-01-01", "E2", "C2", start = "2019-06-01")
+  )
+  rates <- estimate_historical_movement_rates(panel, "est_id")
+  expect_equal(rates$from_group, "E1")
+  expect_equal(rates$to_group, "E2")
+  expect_equal(rates$movement_rate, 1)
+})
+
+test_that("a blank group on the main contract leaves the person out, rather than using another contract", {
+  panel <- rbind(
+    contract_row("a", "2019-01-01", "E1", "C1", start = "2000-01-01"),
+    contract_row("a", "2019-01-01", NA, "C2", start = "2010-01-01"),
+    contract_row("a", "2020-01-01", "E3", "C3", start = "2019-06-01")
+  )
+  expect_equal(nrow(estimate_historical_movement_rates(panel, "est_id")), 0L)
+})
+
+test_that("the main contract rule reads the caller's own column names", {
+  panel <- rbind(
+    contract_row("a", "2019-01-01", "E1", "C1", start = "2000-01-01"),
+    contract_row("a", "2019-01-01", "E2", "C2", start = "2010-01-01"),
+    contract_row("a", "2020-01-01", "E3", "C3", start = "2019-06-01")
+  )
+  renamed <- data.table::copy(panel)
+  data.table::setnames(renamed,
+                       c("personnel_id", "ref_date", "contract_id", "start_date", "end_date",
+                         "contract_type", "gross_salary_lcu"),
+                       c("pid", "snap", "cid", "inicio", "fim", "tipo", "bruto"))
+  spec <- define_column_spec(personnel_id_col = "pid", ref_date_col = "snap", contract_id_col = "cid",
+                             start_date_col = "inicio", end_date_col = "fim",
+                             contract_type_col = "tipo", salary_col = "bruto")
+  expect_equal(estimate_historical_movement_rates(renamed, "est_id", spec)$from_group, "E2")
+})
+
+# Someone who stays in E1 throughout, so the panel always has two dates with staff
+stayer <- function() rbind(contract_row("s", "2019-01-01", "E1", "CS"),
+                           contract_row("s", "2020-01-01", "E1", "CS"))
+
+test_that("a contract that ended before the snapshot does not count as a move into its group", {
+  ended <- contract_row("a", "2020-01-01", "E2", "C2")
+  ended[, end_date := as.Date("2019-06-01")]
+  panel <- rbind(stayer(), contract_row("a", "2019-01-01", "E1", "C1"), ended)
+  expect_equal(nrow(estimate_historical_movement_rates(panel, "est_id")), 0L)
+})
+
+test_that("a contract that starts after the snapshot does not count as a move into its group", {
+  panel <- rbind(stayer(), contract_row("a", "2019-01-01", "E1", "C1"),
+                 contract_row("a", "2020-01-01", "E2", "C2", start = "2025-01-01"))
+  expect_equal(nrow(estimate_historical_movement_rates(panel, "est_id")), 0L)
+})
+
+test_that("filling in a blank paygrade is not a move, with two group columns", {
+  # paste() would turn the blank into the text "E1||NA", a different group from "E1||G1"
+  panel <- rbind(stayer(), contract_row("a", "2019-01-01", "E1", "C1"),
+                 contract_row("a", "2020-01-01", "E1", "C1"))
+  panel[, paygrade := "G1"]
+  panel[personnel_id == "a" & ref_date == as.Date("2019-01-01"), paygrade := NA_character_]
+  expect_equal(nrow(estimate_historical_movement_rates(panel, c("est_id", "paygrade"))), 0L)
+})
+
+test_that("a group literally called NA is left out of the routes", {
+  panel <- rbind(
+    contract_row("a", "2019-01-01", "NA", "C1"), contract_row("a", "2020-01-01", "E2", "C1"),
+    contract_row("b", "2019-01-01", "E1", "C2"), contract_row("b", "2020-01-01", "NA", "C2"),
+    contract_row("c", "2019-01-01", "E1", "C3"), contract_row("c", "2020-01-01", "E2", "C3")
+  )
+  rates <- estimate_historical_movement_rates(panel, "est_id")
+  expect_equal(rates$from_group, "E1")
+  expect_equal(rates$to_group, "E2")
+  # b and c were both in E1 at the start, and one of the two reached E2
+  expect_equal(rates$movement_rate, 0.5)
+})
+
+test_that("movement_policy_template() names itself when a column it needs is missing", {
+  panel <- rbind(stayer(), contract_row("a", "2019-01-01", "E1", "C1"),
+                 contract_row("a", "2020-01-01", "E2", "C1"))
+  panel[, gross_salary_lcu := NULL]
+  expect_error(movement_policy_template(panel, group_cols = "est_id"),
+               "movement_policy_template.*gross_salary_lcu")
 })

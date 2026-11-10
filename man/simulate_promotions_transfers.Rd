@@ -9,8 +9,8 @@ simulate_promotions_transfers(
   personnel_dt,
   salary_scale_dt,
   policy_params,
-  ref_date,
-  column_spec_args = list()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -20,7 +20,7 @@ format.
 
 May be a single-period snapshot or a longitudinal panel containing
 multiple \code{ref_date} values. When multiple snapshots are present, the
-snapshot nearest (but not later than) \code{ref_date} is used for the
+snapshot nearest (but not later than) \code{as_of_date} is used for the
 simulation, while all snapshots are used for baseline estimation and
 time-in-grade calculation.
 
@@ -80,18 +80,18 @@ fields are recognised:\tabular{ll}{
    \code{movement_type} \tab \code{"promotion"} (default) or \code{"transfer"}. Not used by this function; tells \code{\link[=simulate_horizon]{simulate_horizon()}} which column to report this policy's movers under \cr
 }}
 
-\item{ref_date}{A \code{Date} giving the simulation date for the current
+\item{as_of_date}{A \code{Date} giving the simulation date for the current
 projection period. Used to select the workforce snapshot, compute
 time-in-grade, and compute overall tenure.}
 
-\item{column_spec_args}{A named list saying what your columns are called,
-so the function can read your data as it is. List only the names that
+\item{column_spec_args}{What your columns are called, from \code{\link[=define_column_spec]{define_column_spec()}},
+so the function can read your data as it is. Change only the names that
 differ from the \strong{govhr} harmonized defaults; for example
-\code{list(personnel_id_col = "pid", salary_col = "bruto")}. Your names are used
+\code{define_column_spec(personnel_id_col = "pid", salary_col = "bruto")}.
+Your names are used
 throughout, so the returned tables keep them, and you write the same names
-in \code{group_cols} and \code{promotion_order_col}. The same list can be passed to
-every \strong{govhrcast} function; keys a function does not use are ignored, and
-an unknown key is an error.
+in \code{group_cols} and \code{promotion_order_col}. The same spec can be passed to
+every \strong{govhrcast} function; columns a function does not use are ignored.
 
 Keys used here (default in brackets):
 \itemize{
@@ -200,7 +200,7 @@ Promotions and transfers simulation proceeds through the following stages:
 \item Validate all inputs.
 \item Estimate or load the transition baseline (see \strong{Transition baseline}
 below).
-\item Select the workforce snapshot nearest (but not later than) \code{ref_date}
+\item Select the workforce snapshot nearest (but not later than) \code{as_of_date}
 when panel data are supplied.
 \item Compute movement demand via \code{\link[=compute_movement_demand]{compute_movement_demand()}} when a
 transition baseline is available (supplied \code{policy_table} or a
@@ -356,7 +356,7 @@ library(govhrcast)
 
 contract_dt  <- copy(bra_hrmis_contract)
 personnel_dt <- copy(bra_hrmis_personnel)
-ref_date     <- as.Date("2017-09-01")
+as_of_date     <- as.Date("2017-09-01")
 
 salary_scale_dt <- contract_dt[
   ref_date == "2017-09-01",
@@ -389,8 +389,8 @@ results <- simulate_promotions_transfers(
   personnel_dt    = personnel_dt,
   salary_scale_dt = salary_scale_dt,
   policy_params   = movement_policy,
-  ref_date        = ref_date,
-  column_spec_args = list(salary_col = "gross_salary_cpi")
+  as_of_date        = as_of_date,
+  column_spec_args = define_column_spec(salary_col = "gross_salary_cpi")
 )
 
 results$summary
@@ -438,8 +438,8 @@ results_reform <- simulate_promotions_transfers(
   personnel_dt    = personnel_dt,
   salary_scale_dt = salary_scale_dt,
   policy_params   = movement_policy_reform,
-  ref_date        = ref_date,
-  column_spec_args = list(salary_col = "gross_salary_cpi")
+  as_of_date        = as_of_date,
+  column_spec_args = define_column_spec(salary_col = "gross_salary_cpi")
 )
 
 results_reform$summary
@@ -474,8 +474,8 @@ results_promotions <- simulate_promotions_transfers(
   personnel_dt    = personnel_dt,
   salary_scale_dt = salary_scale_grade,
   policy_params   = movement_policy_promotions,
-  ref_date        = ref_date,
-  column_spec_args = list(salary_col = "gross_salary_cpi")
+  as_of_date        = as_of_date,
+  column_spec_args = define_column_spec(salary_col = "gross_salary_cpi")
 )
 
 results_promotions$summary
@@ -510,8 +510,8 @@ results_transfers <- simulate_promotions_transfers(
   personnel_dt    = personnel_dt,
   salary_scale_dt = salary_scale_est,
   policy_params   = movement_policy_transfers,
-  ref_date        = ref_date,
-  column_spec_args = list(salary_col = "gross_salary_cpi")
+  as_of_date        = as_of_date,
+  column_spec_args = define_column_spec(salary_col = "gross_salary_cpi")
 )
 
 results_transfers$summary
@@ -542,8 +542,8 @@ results_keep <- simulate_promotions_transfers(
   personnel_dt    = personnel_dt,
   salary_scale_dt = salary_scale_dt,
   policy_params   = movement_policy_keep,
-  ref_date        = ref_date,
-  column_spec_args = list(salary_col = "gross_salary_cpi")
+  as_of_date        = as_of_date,
+  column_spec_args = define_column_spec(salary_col = "gross_salary_cpi")
 )
 
 # Confirm salaries unchanged: salary_before should equal

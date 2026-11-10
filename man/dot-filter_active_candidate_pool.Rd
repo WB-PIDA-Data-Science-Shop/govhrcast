@@ -7,8 +7,8 @@
 .filter_active_candidate_pool(
   contract_dt,
   personnel_dt,
-  ref_date,
-  column_spec_args = .column_spec(),
+  as_of_date,
+  column_spec_args = define_column_spec(),
   policy_params = list()
 )
 }
@@ -17,10 +17,10 @@
 
 \item{personnel_dt}{data.table. Personnel register.}
 
-\item{ref_date}{Date. Reference date for active-contract filtering.}
+\item{as_of_date}{Date. Reference date for active-contract filtering.}
 
 \item{column_spec_args}{Complete column specification
-(\code{.column_spec()}). Keys read: \code{personnel_id_col},
+(\code{define_column_spec()}). Keys read: \code{personnel_id_col},
 \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
 \code{status_col}.}
 
@@ -33,7 +33,7 @@ Named list with \code{personnel_dt}, \code{all_pid}, and
 }
 \description{
 Restricts the candidate pool to personnel who hold an active, non-pensioner
-contract at \code{ref_date}. Returns both the filtered table and identifier
+contract at \code{as_of_date}. Returns both the filtered table and identifier
 vectors used later to restore inactive personnel with \code{retire = 0}.
 }
 \keyword{internal}

@@ -6,7 +6,7 @@
 \usage{
 generate_new_personnel(
   n,
-  ref_date,
+  as_of_date,
   group_vals = NULL,
   personnel_id_col = "personnel_id",
   status_col = "employment_status"
@@ -15,7 +15,7 @@ generate_new_personnel(
 \arguments{
 \item{n}{Integer. Number of new personnel to generate}
 
-\item{ref_date}{Date. Reference date for ID generation}
+\item{as_of_date}{Date. Reference date for ID generation}
 
 \item{group_vals}{Named list. Values for grouping columns (e.g., list(department = "HR", grade = "G5"))}
 

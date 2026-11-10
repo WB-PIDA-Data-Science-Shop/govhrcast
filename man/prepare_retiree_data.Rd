@@ -8,8 +8,8 @@ prepare_retiree_data(
   eligibility_dt,
   contract_dt,
   personnel_dt,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -25,11 +25,11 @@ Active contracts are extracted internally via
 \item{personnel_dt}{data.table.  Personnel register.  Used to compute
 missing age values when \code{anyNA(eligibility_dt$age)} is \code{TRUE}.}
 
-\item{ref_date}{Date.  Reference date passed to age/tenure computations
+\item{as_of_date}{Date.  Reference date passed to age/tenure computations
 when filling \code{NA} values.}
 
 \item{column_spec_args}{Complete column specification
-(\code{.column_spec()}), in the caller's column names. Keys read:
+(\code{define_column_spec()}), in the caller's column names. Keys read:
 \code{personnel_id_col}, \code{birth_date_col}, \code{contract_id_col},
 \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
 and \code{salary_col} (picks the primary contract; the pension wage base).}

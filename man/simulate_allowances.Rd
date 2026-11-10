@@ -9,9 +9,9 @@ simulate_allowances(
   personnel_dt,
   allowance_dt = NULL,
   policy_params,
-  ref_date,
+  as_of_date,
   allowance_types = NULL,
-  column_spec_args = list()
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -26,7 +26,7 @@ prior periods. \code{NULL} for the first period.}
 \code{\link{resolve_allowance_amounts}} for the expected shape.
 \code{NULL} disables allowance modeling for this call.}
 
-\item{ref_date}{Date. The reference date for this period -- matches
+\item{as_of_date}{Date. The reference date for this period -- matches
 \code{simulate_retirement()}/\code{simulate_exits()}/
 \code{simulate_promotions_transfers()}/\code{simulate_hiring()}, which
 all receive \code{simulate_scenario()}'s \code{period_date} under this
@@ -39,14 +39,14 @@ types to resolve. When \code{NULL} (the default), derived from
 needs to be supplied explicitly for a purely scalar policy with no
 \code{policy_table}.}
 
-\item{column_spec_args}{A named list saying what your columns are called,
-so the function can read your data as it is. List only the names that
+\item{column_spec_args}{What your columns are called, from \code{\link{define_column_spec}()},
+so the function can read your data as it is. Change only the names that
 differ from the \strong{govhr} harmonized defaults; for example
-\code{list(personnel_id_col = "pid")}. Your names are used throughout, so
+\code{define_column_spec(personnel_id_col = "pid")}.
+Your names are used throughout, so
 the ledger keeps them, and you write the same names in \code{group_cols}
-and \code{multiplier_group_cols}. The same list can be passed to every
-\strong{govhrcast} function; keys a function does not use are ignored, and
-an unknown key is an error.
+and \code{multiplier_group_cols}. The same spec can be passed to every
+\strong{govhrcast} function; columns a function does not use are ignored.
 
 Keys used here (default in brackets):
 \itemize{
@@ -117,7 +117,7 @@ baseline_date <- as.Date("2017-09-01")
 
 ## Step 1: build a baseline allowance scale from real HRMIS data. The
 ## allowance panel and contract panel are both full multi-period panels --
-## estimate_baseline_allowance_scale() resolves ref_date to the nearest
+## estimate_baseline_allowance_scale() resolves baseline_date to the nearest
 ## available snapshot internally, so they don't need to be pre-filtered.
 ## group_cols here is the CONTRACT-level grouping dimension only --
 ## allowance_type is always added automatically, since it comes from
@@ -126,7 +126,7 @@ allowance_scale_dt <- estimate_baseline_allowance_scale(
   panel_allowance_dt = bra_hrmis_allowance,
   panel_contract_dt  = bra_hrmis_contract,
   group_cols          = "est_id",
-  ref_date            = baseline_date
+  baseline_date            = baseline_date
 )
 
 ## Step 2: a single-snapshot working population to assign allowances against.
@@ -149,7 +149,7 @@ result <- simulate_allowances(
   contract_dt   = contract_dt,
   personnel_dt  = personnel_dt,
   policy_params = policy_params,
-  ref_date      = baseline_date
+  as_of_date      = baseline_date
 )
 
 result$summary          # n_contracts, allowance_cost_total for this period
@@ -163,7 +163,7 @@ result2 <- simulate_allowances(
   personnel_dt  = personnel_dt,
   allowance_dt  = result$allowance_dt,
   policy_params = policy_params,
-  ref_date      = as.Date("2019-09-01")
+  as_of_date      = as.Date("2019-09-01")
 )
 }
 

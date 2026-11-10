@@ -7,7 +7,7 @@
 update_contracts_for_exits(
   contract_dt,
   exits_dt,
-  ref_date,
+  as_of_date,
   personnel_id_col = "personnel_id",
   contract_type_col = "contract_type",
   end_date_col = "end_date",
@@ -20,7 +20,7 @@ update_contracts_for_exits(
 \item{exits_dt}{data.table.  Table of exiting personnel — must contain
 \code{personnel_id_col}.}
 
-\item{ref_date}{Date.  Reference date; becomes the exit date.}
+\item{as_of_date}{Date.  Reference date; becomes the exit date.}
 
 \item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
 
@@ -36,7 +36,7 @@ Default: the \code{govhr} dictionary's working types, plus a blank.}
 }
 \description{
 Marks ALL active contracts for each exiting person as \code{"inactive"}
-and sets \code{end_date_col} to \code{ref_date}.  Uses a plain membership
+and sets \code{end_date_col} to \code{as_of_date}.  Uses a plain membership
 filter on \code{personnel_id} so that multi-contract persons are handled
 correctly in one pass.
 }

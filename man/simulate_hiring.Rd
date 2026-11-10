@@ -9,8 +9,8 @@ simulate_hiring(
   personnel_dt,
   policy_params,
   leavers_dt = NULL,
-  ref_date,
-  column_spec_args = list()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -44,28 +44,28 @@ person, with the person ID column, e.g. \code{retirees_dt} from \code{\link[=sim
 replaced in the group of their main contract. An empty table means nobody left, so nobody is hired.
 \code{NULL} (default) works out retirees from the rule in \code{policy_params$defaults}.}
 
-\item{ref_date}{Date. Reference date for hiring simulation}
+\item{as_of_date}{Date. Reference date for hiring simulation}
 
-\item{column_spec_args}{A named list saying what your columns are called,
-so the function can read your data as it is. List only the names that
+\item{column_spec_args}{What your columns are called, from \code{\link[=define_column_spec]{define_column_spec()}},
+so the function can read your data as it is. Change only the names that
 differ from the \strong{govhr} harmonized defaults; for example
-\code{list(personnel_id_col = "pid", salary_col = "bruto")}. Your names are used
+\code{define_column_spec(personnel_id_col = "pid", salary_col = "bruto")}.
+Your names are used
 throughout, so the returned tables keep them, and you write the same names
 in \code{group_cols}, \code{stock_targets}, \code{replacement_rate} and \code{salary_scale}.
-The same list can be passed to every \strong{govhrcast} function; keys a function
-does not use are ignored, and an unknown key is an error.
+The same spec can be passed to every \strong{govhrcast} function; columns a function does not use are ignored.
 
 Keys used here (default in brackets):
 \itemize{
 \item \code{ref_date_col} (\code{"ref_date"}): snapshot date of a panel. When the contract
 table holds several snapshots, the one nearest (but not later than)
-\code{ref_date} is used.
+\code{as_of_date} is used.
 \item \code{personnel_id_col} (\code{"personnel_id"}): person identifier, in both tables.
 \item \code{contract_id_col} (\code{"contract_id"}): contract identifier, generated for
 new contracts.
 \item \code{start_date_col}, \code{end_date_col} (\code{"start_date"}, \code{"end_date"}): contract
-dates, used to find active contracts. New hires start on \code{ref_date} with
-an open end date; contracts ended by downsizing get \code{ref_date}.
+dates, used to find active contracts. New hires start on \code{as_of_date} with
+an open end date; contracts ended by downsizing get \code{as_of_date}.
 \item \code{salary_col} (\code{"gross_salary_lcu"}): pay column. Picks each person's main
 contract and gives the pay saved by downsizing.
 \item \code{contract_type_col} (\code{"contract_type"}): new hires get the type in the new
@@ -131,7 +131,7 @@ results_flow <- simulate_hiring(
   contract_dt = contract_dt,
   personnel_dt = personnel_dt,
   policy_params = policy_params_flow,
-  ref_date = as.Date("2025-01-01")
+  as_of_date = as.Date("2025-01-01")
 )
 
 # Example 2: Stock-based hiring (target levels)
@@ -152,7 +152,7 @@ results_stock <- simulate_hiring(
   contract_dt = contract_dt,
   personnel_dt = personnel_dt,
   policy_params = policy_params_stock,
-  ref_date = as.Date("2025-01-01")
+  as_of_date = as.Date("2025-01-01")
 )
 
 # Example 3: Using retirement module output
@@ -166,7 +166,7 @@ retirement_results <- simulate_retirement(
     pension_type = "db",
     pension_params = list(accrual_rate = 0.02)
   ),
-  ref_date = as.Date("2025-01-01")
+  as_of_date = as.Date("2025-01-01")
 )
 
 hiring_results <- simulate_hiring(
@@ -174,7 +174,7 @@ hiring_results <- simulate_hiring(
   personnel_dt = retirement_results$personnel_dt,
   policy_params = policy_params_flow,
   leavers_dt = retirement_results$retirees_dt,
-  ref_date = as.Date("2025-01-01")
+  as_of_date = as.Date("2025-01-01")
 )
 
 # View results

@@ -6,21 +6,21 @@
 \usage{
 compute_time_in_grade(
   contract_dt,
-  ref_date,
+  as_of_date,
   group_cols,
-  column_spec_args = .column_spec()
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
 \item{contract_dt}{data.table. Contract data (full panel, long format)}
 
-\item{ref_date}{Date or character. Reference date for calculation}
+\item{as_of_date}{Date or character. Reference date for calculation}
 
 \item{group_cols}{Character vector. Columns defining the "grade" state
 (e.g., c("est_id", "paygrade") or just c("paygrade"))}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 data.table with two columns: the caller's personnel ID column and

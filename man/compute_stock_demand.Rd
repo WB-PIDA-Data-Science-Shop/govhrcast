@@ -8,8 +8,8 @@ compute_stock_demand(
   contract_dt,
   personnel_dt,
   policy_params,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -23,10 +23,10 @@ compute_stock_demand(
 \item group_cols: Character vector of grouping columns (can be NULL)
 }}
 
-\item{ref_date}{Date. Reference date}
+\item{as_of_date}{Date. Reference date}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 data.table with group_cols (if specified) and total_hires column

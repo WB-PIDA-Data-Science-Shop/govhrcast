@@ -9,8 +9,8 @@ compute_fixed_rate_movements(
   personnel_dt,
   salary_scale_dt,
   policy_params,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -23,10 +23,10 @@ compute_fixed_rate_movements(
 \item{policy_params}{List.  Canonical three-slot movement policy specification.
 Keys consumed: \code{group_cols}, \code{defaults$movement_rate}.}
 
-\item{ref_date}{Date.  Reference date.}
+\item{as_of_date}{Date.  Reference date.}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 data.table with columns \code{from_group}, \code{to_group},

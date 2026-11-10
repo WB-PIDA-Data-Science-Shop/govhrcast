@@ -8,10 +8,10 @@ estimate_baseline_allowance_scale(
   panel_allowance_dt,
   panel_contract_dt,
   group_cols,
-  ref_date,
+  baseline_date,
   allowance_type_col = "allowance_type",
   amount_col = "allowance_lcu",
-  column_spec_args = list()
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -24,7 +24,7 @@ that allowance -- the mean is not conditioned on the contract appearing
 here.}
 
 \item{panel_contract_dt}{data.table. Contract data covering at least
-\code{ref_date}. Defines the full population of contracts in each group
+\code{baseline_date}. Defines the full population of contracts in each group
 -- including contracts entirely absent from \code{panel_allowance_dt} --
 and supplies \code{group_cols}, since \code{panel_allowance_dt}
 typically carries no grouping columns of its own (e.g. \code{est_id}).}
@@ -33,8 +33,8 @@ typically carries no grouping columns of its own (e.g. \code{est_id}).}
 that define assignment groups (e.g. \code{"est_id"} or
 \code{c("est_id", "paygrade")}).}
 
-\item{ref_date}{Date. The baseline snapshot to build the scale from --
-typically the same \code{ref_date} passed to \code{\link{simulate_horizon}}.
+\item{baseline_date}{Date. The baseline snapshot to build the scale from --
+typically the same \code{baseline_date} passed to \code{\link{simulate_horizon}}.
 Resolved to the nearest available panel date on or before it; does not
 need to land exactly on a snapshot date.}
 
@@ -43,9 +43,9 @@ need to land exactly on a snapshot date.}
 \item{amount_col}{Character. Default \code{"allowance_lcu"}. Must already
 be numeric -- this function does not parse currency strings.}
 
-\item{column_spec_args}{Named list.  Column names, if your data use
-different names from the \code{govhr} defaults: give only the ones you
-need to change, e.g. \code{list(contract_id_col = "cid")}.  Keys read
+\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only
+the ones that differ from the \code{govhr} defaults, e.g.
+\code{define_column_spec(contract_id_col = "cid")}.  Keys read
 here: \code{contract_id_col}, \code{ref_date_col}, which name the same
 columns in both tables.}
 }
@@ -72,7 +72,7 @@ Unlike \code{\link{estimate_historical_movement_rates}} or
 calculation -- it does not compute anything over time. \code{panel_allowance_dt}/
 \code{panel_contract_dt} may be full multi-period panels (as
 \code{bra_hrmis_allowance}/\code{bra_hrmis_contract} are); this function
-resolves \code{ref_date} to the nearest available snapshot on or before it
+resolves \code{baseline_date} to the nearest available snapshot on or before it
 (via \code{select_nearest_ref_date()}) and subsets both tables to that
 snapshot before computing anything -- the same helper and pattern
 \code{simulate_retirement()}/\code{simulate_hiring()}/
@@ -92,7 +92,8 @@ ct <- data.table::data.table(
   est_id      = c("E1", "E1", "E1")
 )
 
-estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", ref_date = as.Date("2020-01-01"))
+estimate_baseline_allowance_scale(al, ct, group_cols = "est_id",
+                                  baseline_date = as.Date("2020-01-01"))
 # hazard: (100 + 0 + 0) / 3 = 33.3 -- C3's implicit zero pulls the mean down,
 # exactly as intended for a deterministic per-contract assignment scale.
 
@@ -102,7 +103,7 @@ scale_dt <- estimate_baseline_allowance_scale(
   panel_allowance_dt = bra_hrmis_allowance,
   panel_contract_dt  = bra_hrmis_contract,
   group_cols         = "est_id",
-  ref_date           = as.Date("2012-09-01")
+  baseline_date           = as.Date("2012-09-01")
 )
 head(scale_dt)
 

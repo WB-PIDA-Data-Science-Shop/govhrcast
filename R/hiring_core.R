@@ -19,24 +19,24 @@ NULL
 #'
 #' @param contract_dt data.table. Contract data
 #' @param personnel_dt data.table. Personnel data
-#' @param ref_date Date. Reference date for stock calculation
+#' @param as_of_date Date. Reference date for stock calculation
 #' @param group_cols Character vector. Columns to group by (default: NULL for overall count)
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.
+#'   \code{define_column_spec()}.
 #'
 #' @return data.table with group_cols (if specified) and current_stock column
 #' @keywords internal
 compute_current_stock <- function(contract_dt,
                                   personnel_dt,
-                                  ref_date,
+                                  as_of_date,
                                   group_cols = NULL,
-                                  column_spec_args = .column_spec()) {
+                                  column_spec_args = define_column_spec()) {
   personnel_id_col <- column_spec_args$personnel_id_col
 
-  # Get active contracts at ref_date
+  # Get active contracts at as_of_date
   active_contracts <- get_active_contracts(
     contract_dt = contract_dt,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     start_date_col = column_spec_args$start_date_col,
     end_date_col = column_spec_args$end_date_col,
     contract_type_col = column_spec_args$contract_type_col
@@ -45,7 +45,7 @@ compute_current_stock <- function(contract_dt,
   # Merge with personnel to get active personnel only.
   # NOTE: both contract_dt and personnel_dt must already be single-snapshot data.
   # The orchestrators (simulate_hiring, simulate_retirement) pre-filter to the
-  # nearest ref_date before calling this function. If calling directly with raw
+  # nearest as_of_date before calling this function. If calling directly with raw
   # panel data, subset to a single snapshot first.
   #
   # personnel_dt is expected to be unique at the personnel_id level. If it is not,
@@ -113,9 +113,9 @@ compute_current_stock <- function(contract_dt,
 #'   \code{NULL} means this is not known, so retirees are worked out from the rule
 #'   in \code{policy_params$defaults}.  \code{simulate_scenario()} always passes
 #'   a table.
-#' @param ref_date Date. Reference date for calculations
+#' @param as_of_date Date. Reference date for calculations
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.
+#'   \code{define_column_spec()}.
 #'
 #' @return data.table with group_cols (if specified) and total_hires column
 #' @keywords internal
@@ -123,8 +123,8 @@ compute_flow_demand <- function(contract_dt,
                                 personnel_dt,
                                 policy_params,
                                 leavers_dt = NULL,
-                                ref_date,
-                                column_spec_args = .column_spec()) {
+                                as_of_date,
+                                column_spec_args = define_column_spec()) {
   personnel_id_col <- column_spec_args$personnel_id_col
 
   group_cols <- policy_params$group_cols
@@ -143,7 +143,7 @@ compute_flow_demand <- function(contract_dt,
       contract_dt = contract_dt,
       personnel_dt = personnel_dt,
       policy_params = policy_params,
-      ref_date = ref_date,
+      as_of_date = as_of_date,
       column_spec_args = column_spec_args
     )[retire == 1]
   }
@@ -224,17 +224,17 @@ compute_flow_demand <- function(contract_dt,
 #'     \item stock_targets: data.table with group_cols + target_stock
 #'     \item group_cols: Character vector of grouping columns (can be NULL)
 #'   }
-#' @param ref_date Date. Reference date
+#' @param as_of_date Date. Reference date
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.
+#'   \code{define_column_spec()}.
 #'
 #' @return data.table with group_cols (if specified) and total_hires column
 #' @keywords internal
 compute_stock_demand <- function(contract_dt,
                                  personnel_dt,
                                  policy_params,
-                                 ref_date,
-                                 column_spec_args = .column_spec()) {
+                                 as_of_date,
+                                 column_spec_args = define_column_spec()) {
 
   group_cols <- policy_params$group_cols
   stock_targets <- policy_params$stock_targets
@@ -252,7 +252,7 @@ compute_stock_demand <- function(contract_dt,
   current_stock_dt <- compute_current_stock(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     group_cols = group_cols,
     column_spec_args = column_spec_args
   )
@@ -322,25 +322,26 @@ compute_stock_demand <- function(contract_dt,
 #' @param panel_personnel_dt data.table. Full panel of personnel data (all ref_dates).
 #' @param group_cols Character vector. Columns to group by (e.g. \code{"est_id"}).
 #'   Pass \code{NULL} for overall (ungrouped) rates.
-#' @param column_spec_args Named list.  Column names, if your data use
-#'   different names from the \code{govhr} defaults: give only the ones you
-#'   need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+#' @param column_spec_args Column names, from \code{\link{define_column_spec}()}.  Change only
+#'   the ones that differ from the \code{govhr} defaults, e.g.
+#'   \code{define_column_spec(personnel_id_col = "emp_id")}.  Keys read
 #'   here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
 #'   \code{end_date_col}, \code{contract_type_col}, \code{status_col}, and
 #'   \code{hire_date_col}: a person-level column in \code{panel_personnel_dt}
 #'   holding the true administrative hire date (e.g.
 #'   \code{"first_employment_date"}).  When given, hires are counted directly
 #'   from that column instead of from when people first appear in the panel.
-#'   See \code{\link{simulate_horizon}} for the defaults.
+#'   See \code{\link{define_column_spec}} for the defaults.
 #'
 #' @return data.table with \code{group_cols} (if specified) and \code{hiring_rate} column.
 #' @export
 estimate_historical_hiring_rates <- function(panel_contract_dt,
                                              panel_personnel_dt,
                                              group_cols,
-                                             column_spec_args = list()) {
+                                             column_spec_args = define_column_spec()) {
 
-  cols <- .column_spec(column_spec_args)
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
   .check_spec_columns(panel_contract_dt, panel_personnel_dt, cols, required = list(
     contract_dt  = c("personnel_id_col", "ref_date_col", "start_date_col",
                      "end_date_col", "contract_type_col"),
@@ -398,7 +399,7 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
     s <- compute_current_stock(
       contract_dt       = .panel_snapshot(panel_contract_dt, ref_date_col, snap),
       personnel_dt      = .panel_snapshot(panel_personnel_dt, ref_date_col, snap),
-      ref_date          = snap,
+      as_of_date          = snap,
       group_cols        = group_cols,
       column_spec_args  = cols
     )
@@ -481,8 +482,8 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
 #' @param panel_personnel_dt data.table. Full panel of personnel data (all snapshots).
 #' @param group_cols Character vector or \code{NULL}. The hiring groups, e.g.
 #'   \code{"est_id"}.  \code{NULL} gives one profile for all hires.
-#' @param column_spec_args Named list.  Column names, if your data use different
-#'   names from the \code{govhr} defaults: give only the ones you need to change.
+#' @param column_spec_args Column names, from \code{\link{define_column_spec}()}.  Change only the
+#'   ones that differ from the \code{govhr} defaults.
 #'   Keys read here: \code{personnel_id_col}, \code{ref_date_col}, \code{status_col},
 #'   \code{hire_date_col}, \code{contract_type_col}, \code{age_col},
 #'   \code{birth_date_col} and \code{gender_col}.  Age comes from \code{age_col}
@@ -504,8 +505,9 @@ estimate_historical_hiring_rates <- function(panel_contract_dt,
 estimate_new_hire_profile <- function(panel_contract_dt,
                                       panel_personnel_dt,
                                       group_cols = NULL,
-                                      column_spec_args = list()) {
-  cols <- .column_spec(column_spec_args)
+                                      column_spec_args = define_column_spec()) {
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
   .check_spec_columns(panel_contract_dt, panel_personnel_dt, cols, required = list(
     contract_dt  = c("personnel_id_col", "ref_date_col", "contract_type_col"),
     personnel_dt = c("personnel_id_col", "ref_date_col", "status_col")
@@ -594,17 +596,17 @@ estimate_new_hire_profile <- function(panel_contract_dt,
 #'       row in \code{squorate_dt}.
 #'     \item salary_scale: data.table used for salary assignment of new hires.
 #'   }
-#' @param ref_date Date. Reference date for current-period stock calculation.
+#' @param as_of_date Date. Reference date for current-period stock calculation.
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.
+#'   \code{define_column_spec()}.
 #'
 #' @return data.table with \code{group_cols} (if specified) and \code{total_hires} column.
 #' @keywords internal
 compute_status_quo_hiring <- function(contract_dt,
                                       personnel_dt,
                                       policy_params,
-                                      ref_date,
-                                      column_spec_args = .column_spec()) {
+                                      as_of_date,
+                                      column_spec_args = define_column_spec()) {
 
   group_cols     <- policy_params$group_cols
   rate_mult      <- policy_params$rate_mult %||% 1
@@ -615,7 +617,7 @@ compute_status_quo_hiring <- function(contract_dt,
   stock <- compute_current_stock(
     contract_dt       = contract_dt,
     personnel_dt      = personnel_dt,
-    ref_date          = ref_date,
+    as_of_date          = as_of_date,
     group_cols        = group_cols,
     column_spec_args  = column_spec_args
   )
@@ -659,9 +661,9 @@ compute_status_quo_hiring <- function(contract_dt,
 #'   }
 #' @param leavers_dt data.table or \code{NULL}. The people who left this period,
 #'   for flow hiring: see \code{\link{compute_flow_demand}}.
-#' @param ref_date Date. Reference date
+#' @param as_of_date Date. Reference date
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.
+#'   \code{define_column_spec()}.
 #'
 #' @return data.table with group_cols (if specified) and total_hires column
 #' @keywords internal
@@ -669,8 +671,8 @@ estimate_hiring_demand <- function(contract_dt,
                                    personnel_dt,
                                    policy_params,
                                    leavers_dt = NULL,
-                                   ref_date,
-                                   column_spec_args = .column_spec()) {
+                                   as_of_date,
+                                   column_spec_args = define_column_spec()) {
 
   mode <- policy_params$mode
 
@@ -682,7 +684,7 @@ estimate_hiring_demand <- function(contract_dt,
       personnel_dt = personnel_dt,
       policy_params = policy_params,
       leavers_dt = leavers_dt,
-      ref_date = ref_date,
+      as_of_date = as_of_date,
       column_spec_args = column_spec_args
     ),
 
@@ -690,7 +692,7 @@ estimate_hiring_demand <- function(contract_dt,
       contract_dt = contract_dt,
       personnel_dt = personnel_dt,
       policy_params = policy_params,
-      ref_date = ref_date,
+      as_of_date = as_of_date,
       column_spec_args = column_spec_args
     ),
 
@@ -698,7 +700,7 @@ estimate_hiring_demand <- function(contract_dt,
       contract_dt       = contract_dt,
       personnel_dt      = personnel_dt,
       policy_params     = policy_params,
-      ref_date          = ref_date,
+      as_of_date          = as_of_date,
       column_spec_args  = column_spec_args
     ),
 

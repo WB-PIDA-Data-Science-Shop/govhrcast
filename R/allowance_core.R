@@ -18,7 +18,7 @@
 #' calculation -- it does not compute anything over time. \code{panel_allowance_dt}/
 #' \code{panel_contract_dt} may be full multi-period panels (as
 #' \code{bra_hrmis_allowance}/\code{bra_hrmis_contract} are); this function
-#' resolves \code{ref_date} to the nearest available snapshot on or before it
+#' resolves \code{baseline_date} to the nearest available snapshot on or before it
 #' (via \code{select_nearest_ref_date()}) and subsets both tables to that
 #' snapshot before computing anything -- the same helper and pattern
 #' \code{simulate_retirement()}/\code{simulate_hiring()}/
@@ -33,23 +33,23 @@
 #'   that allowance -- the mean is not conditioned on the contract appearing
 #'   here.
 #' @param panel_contract_dt data.table. Contract data covering at least
-#'   \code{ref_date}. Defines the full population of contracts in each group
+#'   \code{baseline_date}. Defines the full population of contracts in each group
 #'   -- including contracts entirely absent from \code{panel_allowance_dt} --
 #'   and supplies \code{group_cols}, since \code{panel_allowance_dt}
 #'   typically carries no grouping columns of its own (e.g. \code{est_id}).
 #' @param group_cols Character vector. Columns in \code{panel_contract_dt}
 #'   that define assignment groups (e.g. \code{"est_id"} or
 #'   \code{c("est_id", "paygrade")}).
-#' @param ref_date Date. The baseline snapshot to build the scale from --
-#'   typically the same \code{ref_date} passed to \code{\link{simulate_horizon}}.
+#' @param baseline_date Date. The baseline snapshot to build the scale from --
+#'   typically the same \code{baseline_date} passed to \code{\link{simulate_horizon}}.
 #'   Resolved to the nearest available panel date on or before it; does not
 #'   need to land exactly on a snapshot date.
 #' @param allowance_type_col Character. Default \code{"allowance_type"}.
 #' @param amount_col Character. Default \code{"allowance_lcu"}. Must already
 #'   be numeric -- this function does not parse currency strings.
-#' @param column_spec_args Named list.  Column names, if your data use
-#'   different names from the \code{govhr} defaults: give only the ones you
-#'   need to change, e.g. \code{list(contract_id_col = "cid")}.  Keys read
+#' @param column_spec_args Column names, from \code{\link{define_column_spec}()}.  Change only
+#'   the ones that differ from the \code{govhr} defaults, e.g.
+#'   \code{define_column_spec(contract_id_col = "cid")}.  Keys read
 #'   here: \code{contract_id_col}, \code{ref_date_col}, which name the same
 #'   columns in both tables.
 #'
@@ -70,7 +70,8 @@
 #'   est_id      = c("E1", "E1", "E1")
 #' )
 #'
-#' estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", ref_date = as.Date("2020-01-01"))
+#' estimate_baseline_allowance_scale(al, ct, group_cols = "est_id",
+#'                                   baseline_date = as.Date("2020-01-01"))
 #' # hazard: (100 + 0 + 0) / 3 = 33.3 -- C3's implicit zero pulls the mean down,
 #' # exactly as intended for a deterministic per-contract assignment scale.
 #'
@@ -80,7 +81,7 @@
 #'   panel_allowance_dt = bra_hrmis_allowance,
 #'   panel_contract_dt  = bra_hrmis_contract,
 #'   group_cols         = "est_id",
-#'   ref_date           = as.Date("2012-09-01")
+#'   baseline_date           = as.Date("2012-09-01")
 #' )
 #' head(scale_dt)
 #'
@@ -88,19 +89,20 @@
 estimate_baseline_allowance_scale <- function(panel_allowance_dt,
                                               panel_contract_dt,
                                               group_cols,
-                                              ref_date,
+                                              baseline_date,
                                               allowance_type_col = "allowance_type",
                                               amount_col         = "allowance_lcu",
-                                              column_spec_args   = list()) {
+                                              column_spec_args   = define_column_spec()) {
 
   validate_datatable(panel_allowance_dt, "panel_allowance_dt")
   validate_datatable(panel_contract_dt, "panel_contract_dt")
   if (is.null(group_cols) || length(group_cols) == 0L)
     stop("group_cols must be specified for allowance scale estimation.", call. = FALSE)
 
-  ref_date <- validate_date_format(ref_date, "ref_date")
+  baseline_date <- validate_date_format(baseline_date, "baseline_date")
 
-  cols <- .column_spec(column_spec_args)
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
   contract_id_col <- cols$contract_id_col
   ref_date_col    <- cols$ref_date_col
 
@@ -118,13 +120,10 @@ estimate_baseline_allowance_scale <- function(panel_allowance_dt,
 
   # Select the baseline snapshot -- inputs may be full multi-period panels.
   # select_nearest_ref_date() (R/utils.R) finds the nearest available date on
-  # or before ref_date, the same helper simulate_retirement()/simulate_hiring()/
-  # simulate_promotions_transfers() use for this exact purpose -- so ref_date
-  # need not land exactly on a panel snapshot date. Resolving to a
-  # differently-named variable also sidesteps the classic data.table pitfall
-  # where a bare `ref_date` inside DT[...] would resolve to a same-named
-  # ref_date COLUMN instead of this function's parameter.
-  selected_ref_date <- select_nearest_ref_date(panel_contract_dt[[ref_date_col]], ref_date)
+  # or before baseline_date, the same helper simulate_retirement()/simulate_hiring()/
+  # simulate_promotions_transfers() use for this exact purpose -- so baseline_date
+  # need not land exactly on a panel snapshot date.
+  selected_ref_date <- select_nearest_ref_date(panel_contract_dt[[ref_date_col]], baseline_date)
   panel_contract_dt  <- panel_contract_dt[get(ref_date_col) == selected_ref_date]
   panel_allowance_dt <- panel_allowance_dt[get(ref_date_col) == selected_ref_date]
 

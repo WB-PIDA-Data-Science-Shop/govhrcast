@@ -18,10 +18,9 @@ simulate_horizon(
   salary_growth_rate = 0,
   pension_cola_rate = salary_growth_rate,
   allowance_growth_rate = 0,
-  base_year = as.integer(format(Sys.Date(), "\%Y")),
-  ref_date = Sys.Date(),
-  column_spec_args = list(),
-  output_control_args = list(),
+  baseline_date = NULL,
+  column_spec_args = define_column_spec(),
+  output_control_args = define_output_control(),
   seed = NULL
 )
 }
@@ -125,65 +124,24 @@ to pensions in \code{$pensioner_register}.  Defaults to
 allowance amounts.  Default \code{0}.  Staff who move to a new group pick
 up that group's current (already grown) amount.}
 
-\item{base_year}{Integer.  Calendar year label for the starting point.
-Default: the current year.}
+\item{baseline_date}{Date or \code{NULL}.  The snapshot the projection starts from;
+each year advances it by one year.  The default, \code{NULL}, uses the latest
+snapshot that both \code{contract_dt} and \code{personnel_dt} hold.  A date you
+give must match one of the snapshots in \code{contract_dt} exactly.  If your
+data have no snapshot date column, you must give the date they describe.  This is the
+date only: \code{is_baseline} in \code{\link{define_output_control}()} is a
+separate choice, which marks a run as the scenario others are compared with.}
 
-\item{ref_date}{Date.  The snapshot the projection starts from; each year
-advances it by one year.  With panel data it must equal one of the
-\code{ref_date} values in \code{contract_dt} exactly -- normally the
-latest one.  The default, \code{Sys.Date()}, only makes sense for
-single-snapshot data without a \code{ref_date} column.}
+\item{column_spec_args}{Which columns hold what, from
+\code{\link{define_column_spec}()}.  The default reads the \code{govhr}
+harmonized names, so harmonized data need nothing here.  Change only the
+ones that differ, e.g.
+\code{define_column_spec(salary_col = "base_salary_lcu")}.}
 
-\item{column_spec_args}{Named list.  Column names, if your data use
-different names from the \code{govhr} harmonized defaults.  Give only
-the ones you need to change, e.g. \code{list(salary_col =
-  "base_salary_lcu")}.  Recognized keys and defaults:
-\describe{
-\item{\code{personnel_id_col}}{\code{"personnel_id"}}
-\item{\code{contract_id_col}}{\code{"contract_id"}}
-\item{\code{ref_date_col}}{\code{"ref_date"}.  The snapshot date.  Also
-the column that stamps each year in the returned microdata.}
-\item{\code{start_date_col}}{\code{"start_date"}}
-\item{\code{end_date_col}}{\code{"end_date"}}
-\item{\code{salary_col}}{\code{"gross_salary_lcu"}.  The salary the
-wage bill is measured in.}
-\item{\code{contract_type_col}}{\code{"contract_type"}}
-\item{\code{status_col}}{\code{"employment_status"}}
-\item{\code{age_col}}{\code{NULL}, meaning \code{"age"}.  Age in years;
-calculated from \code{birth_date_col} when the column is missing or
-empty, then increased by 1 each year.}
-\item{\code{tenure_col}}{\code{NULL}, meaning \code{"personnel_tenure"}
-(the \code{govhr} dictionary name).  Years of service in the public
-sector; calculated from contract history when the column is missing
-or empty, then increased by 1 each year.  Custom retirement rules
-and pension formulas can refer to it as \code{tenure_years}, whatever
-this column is called.}
-\item{\code{birth_date_col}}{\code{"birth_date"}.  Used to calculate
-age.  \code{NULL} to skip, in which case \code{age_col} must already
-be filled in.}
-\item{\code{hire_date_col}}{\code{NULL}.  Optional column in
-\code{personnel_dt} with each person's original hire date (e.g.
-\code{"first_employment_date"}).  When given, status-quo hiring
-rates are estimated from it instead of from when people first
-appear in the panel.}
-\item{\code{gender_col}}{\code{"gender"}.  Used to give new hires a
-gender.  If your data have no such column, new hires have none.}
-}}
-
-\item{output_control_args}{Named list.  Labelling and output size.  Give
-only the ones you need to change.  Recognized keys and defaults:
-\describe{
-\item{\code{scenario_name}}{\code{NULL}.  A label for this run, e.g.
-\code{"Status quo"}.  When given, \code{$comparison} gets
-\code{scenario_id} and \code{scenario_label} columns, so runs can
-be stacked and told apart.}
-\item{\code{is_baseline}}{\code{FALSE}.  \code{TRUE} adds an
-\code{is_baseline} column to flag this run as the reference
-scenario.  Only used together with \code{scenario_name}.}
-\item{\code{return_microdata}}{\code{FALSE}.  \code{TRUE} also returns
-the final year's \code{contract_dt}, \code{personnel_dt} and the
-allowance ledger.  These can be large.}
-}}
+\item{output_control_args}{How to label this run and what to return, from
+\code{\link{define_output_control}()}.  The default leaves the run unlabelled
+and returns no person-level microdata.  Change only what differs, e.g.
+\code{define_output_control(scenario_name = "Status quo")}.}
 
 \item{seed}{Integer or \code{NULL}.  Makes random selections (e.g. who
 leaves when a strategy is \code{"random"}) reproducible.  Use the same
@@ -213,14 +171,14 @@ growth); allowances
 (\code{allowance_cost_start}, \code{allowance_cost_end}, both
 \code{0} when allowances are not modelled); and
 \code{total_wage_bill_start}/\code{total_wage_bill_end} (salaries
-plus allowances).  Also \code{period_date}, plus
-\code{scenario_id}, \code{scenario_label} and \code{is_baseline}
-when a \code{scenario_name} is given.}
+plus allowances).  Also \code{period_date} and \code{is_baseline},
+plus \code{scenario_id} and \code{scenario_label} when a
+\code{scenario_name} is given.}
 \item{\code{$summary_dt}}{The same table as \code{$comparison} (kept
 for backward compatibility).}
 \item{\code{$metadata}}{List recording the policies used (including the
 new hire profile, which can describe few people in small groups), plus
-\code{scenario_name} and \code{is_baseline} when given.}
+\code{scenario_name} and \code{is_baseline}.}
 \item{\code{$pensioner_register}}{data.table, one row per retiree per
 year: the person ID (under your name for that column),
 \code{pension_amount}, \code{period_date} and details at retirement.  Always present
@@ -289,7 +247,8 @@ several yearly snapshots stacked together, each row stamped with its
 snapshot date in a \code{ref_date} column, or the column named by
 \code{ref_date_col} (the \code{govhr} harmonized format, as in
 \code{\link{bra_hrmis_contract}}).  The projection starts
-from the snapshot whose date equals \code{ref_date}.  The earlier
+from the latest snapshot, or from the one whose date equals \code{baseline_date}
+if you give it.  The earlier
 snapshots are the history that status-quo policies are estimated from.
 At least two snapshots are needed for any status-quo policy, including
 the default retirement policy -- without history there are no trends
@@ -309,8 +268,8 @@ shows no retirements, or no moves, the status quo is that nobody
 retires or moves (a message says so).
 \item The new hire profile is estimated from the people hired during the
 panel (\code{\link{estimate_new_hire_profile}}).
-\item The data are cut to the starting snapshot at \code{ref_date}.  A
-\code{ref_date} that is not one of the snapshots stops with an error.
+\item The data are cut to the starting snapshot.  A \code{baseline_date} that is
+not one of the snapshots stops with an error.
 \item Age is calculated from \code{birth_date} when no age column is
 filled in, and tenure is calculated from contract history when no
 tenure column is filled in.
@@ -411,7 +370,7 @@ status_quo <- simulate_horizon(
   personnel_dt      = hist_p,
   salary_scale_dt   = salary_scale,
   n_periods         = 3L,
-  ref_date          = sim_start,
+  baseline_date          = sim_start,
   retirement_policy = design_retirement_policy_status_quo(
     pension = pension, mandatory_age = 75
   ),
@@ -422,11 +381,12 @@ status_quo <- simulate_horizon(
   ),
   hiring_policy     = design_hiring_policy_status_quo(group_cols = "est_id"),
   allowance_policy  = design_allowance_policy_status_quo(
-    bra_hrmis_allowance, hist_c, group_cols = "est_id", ref_date = sim_start
+    bra_hrmis_allowance, hist_c, group_cols = "est_id", baseline_date = sim_start
   ),
   salary_growth_rate  = 0.03,
-  column_spec_args    = list(salary_col = "base_salary_lcu"),
-  output_control_args = list(scenario_name = "Status quo", is_baseline = TRUE),
+  column_spec_args    = define_column_spec(salary_col = "base_salary_lcu"),
+  output_control_args = define_output_control(scenario_name = "Status quo",
+                                              is_baseline = TRUE),
   seed = 1L
 )
 status_quo$comparison
@@ -438,7 +398,7 @@ reform <- simulate_horizon(
   personnel_dt      = hist_p,
   salary_scale_dt   = salary_scale,
   n_periods         = 3L,
-  ref_date          = sim_start,
+  baseline_date          = sim_start,
   retirement_policy = design_retirement_policy_age_tenure(
     min_age = 65, min_tenure = 10, pension = pension
   ),
@@ -446,8 +406,10 @@ reform <- simulate_horizon(
   hiring_policy     = design_hiring_policy_flow(replacement_rate = 0.5,
                                                group_cols = "est_id"),
   salary_growth_rate  = 0.03,
-  column_spec_args    = list(salary_col = "base_salary_lcu"),
-  output_control_args = list(scenario_name = "Retire at 65, replace half"),
+  column_spec_args    = define_column_spec(salary_col = "base_salary_lcu"),
+  output_control_args = define_output_control(
+    scenario_name = "Retire at 65, replace half"
+  ),
   seed = 1L
 )
 

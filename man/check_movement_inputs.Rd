@@ -9,8 +9,8 @@ check_movement_inputs(
   personnel_dt,
   salary_scale_dt,
   policy_params,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -20,10 +20,10 @@ check_movement_inputs(
 
 \item{policy_params}{List. Policy parameters}
 
-\item{ref_date}{Date or character. Reference date}
+\item{as_of_date}{Date or character. Reference date}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 Invisible TRUE if valid, stops with error otherwise

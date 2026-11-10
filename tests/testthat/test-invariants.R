@@ -27,7 +27,7 @@ run_alagoas <- function(pension = pension_db(accrual_rate = 0.02,
     personnel_dt      = hist_p,
     salary_scale_dt   = scale,
     n_periods         = 3L,
-    ref_date          = start,
+    baseline_date          = start,
     retirement_policy = design_retirement_policy_status_quo(pension = pension),
     exit_policy       = design_exit_policy_status_quo(group_cols = "est_id"),
     movement_policy   = design_movement_policy_status_quo(
@@ -36,9 +36,9 @@ run_alagoas <- function(pension = pension_db(accrual_rate = 0.02,
                                                         salary_scale = scale),
     allowance_policy  = design_allowance_policy_status_quo(
       bra_hrmis_allowance, bra_hrmis_contract[ref_date <= start],
-      group_cols = "est_id", ref_date = start),
+      group_cols = "est_id", baseline_date = start),
     salary_growth_rate = 0.05,
-    column_spec_args   = list(salary_col = "base_salary_lcu"),
+    column_spec_args   = define_column_spec(salary_col = "base_salary_lcu"),
     seed               = seed
   )))
 }
@@ -137,7 +137,7 @@ test_that("a seeded simulate_horizon() run leaves the global random-number state
   d <- small_state()
   set.seed(42); invisible(runif(1))
   state_before <- .Random.seed
-  simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = as.Date("2025-01-01"),
+  simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = as.Date("2025-01-01"),
                    retirement_policy = NULL, seed = 1L)
   expect_identical(.Random.seed, state_before)
 })
@@ -158,7 +158,7 @@ test_that("a seeded run in a session with no random state leaves none behind", {
   tryCatch({
     if (!is.null(saved)) rm(".Random.seed", envir = globalenv())
     d <- small_state()
-    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = as.Date("2025-01-01"),
+    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = as.Date("2025-01-01"),
                      retirement_policy = NULL, seed = 1L)
     expect_false(exists(".Random.seed", envir = globalenv(), inherits = FALSE))
   }, finally = {

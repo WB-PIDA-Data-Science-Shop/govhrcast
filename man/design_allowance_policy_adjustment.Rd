@@ -66,7 +66,7 @@ design_allowance_policy_adjustment(
 # Reform workflow: baseline amounts, raise one type, cut totals in one establishment
 scale_dt <- estimate_baseline_allowance_scale(
   bra_hrmis_allowance, bra_hrmis_contract,
-  group_cols = "est_id", ref_date = as.Date("2012-09-01")
+  group_cols = "est_id", baseline_date = as.Date("2012-09-01")
 )
 scale_dt[, amount := amount * 1.1]   # 10\% rise across all types
 cut <- data.table::data.table(est_id = scale_dt$est_id[1], total_allowance_multiplier = 0.8)

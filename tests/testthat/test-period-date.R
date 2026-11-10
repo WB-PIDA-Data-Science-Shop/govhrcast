@@ -58,7 +58,7 @@ test_that("compute_flow_demand(): a retiree hired after the start snapshot still
     ct, pt,
     policy_params = list(group_cols = "est_id", replacement_rate = 1,
                          defaults = list(eligibility_type = "age_only", min_age = 60)),
-    leavers_dt = NULL, ref_date = this_year
+    leavers_dt = NULL, as_of_date = this_year
   )
   expect_equal(demand[est_id == "E1", total_hires], 1L)
 })
@@ -66,14 +66,14 @@ test_that("compute_flow_demand(): a retiree hired after the start snapshot still
 test_that("downsizing ends contracts on this year's date, with and without groups", {
   scale <- data.table(est_id = "E1", gross_salary_lcu = 100)
   grouped <- simulate_hiring(
-    frozen_contracts(), frozen_personnel(), ref_date = this_year,
+    frozen_contracts(), frozen_personnel(), as_of_date = this_year,
     policy_params = list(mode = "stock", group_cols = "est_id", salary_scale = scale,
                          stock_targets = data.table(est_id = "E1", target_stock = 2L))
   )
   expect_equal(grouped$contract_dt[contract_type == "inactive", unique(end_date)], this_year)
 
   ungrouped <- simulate_hiring(
-    frozen_contracts(), frozen_personnel(), ref_date = this_year,
+    frozen_contracts(), frozen_personnel(), as_of_date = this_year,
     policy_params = list(mode = "stock", group_cols = NULL, salary_scale = scale,
                          stock_targets = data.table(target_stock = 2L))
   )
@@ -87,11 +87,11 @@ test_that("simulate_horizon(): hires from year 2 on count as staff, and leavers 
   scale <- hc[ref_date == start & !is.na(gross_salary_lcu),
               .(gross_salary_lcu = mean(gross_salary_lcu)), by = est_id]
   run <- suppressMessages(simulate_horizon(
-    hc, hp, scale, n_periods = 5L, ref_date = start,
+    hc, hp, scale, n_periods = 5L, baseline_date = start,
     retirement_policy = NULL,
     exit_policy   = design_exit_policy_status_quo(group_cols = "est_id"),
     hiring_policy = design_hiring_policy_status_quo(group_cols = "est_id"),
-    output_control_args = list(return_microdata = TRUE), seed = 1L
+    output_control_args = define_output_control(return_microdata = TRUE), seed = 1L
   ))
   last_year <- run$contract_dt[ref_date == max(ref_date)]
 

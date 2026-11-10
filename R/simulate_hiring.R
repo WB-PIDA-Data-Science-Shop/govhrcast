@@ -35,27 +35,27 @@
 #'   person, with the person ID column, e.g. \code{retirees_dt} from [simulate_retirement()]. They are
 #'   replaced in the group of their main contract. An empty table means nobody left, so nobody is hired.
 #'   \code{NULL} (default) works out retirees from the rule in \code{policy_params$defaults}.
-#' @param ref_date Date. Reference date for hiring simulation
-#' @param column_spec_args A named list saying what your columns are called,
-#'   so the function can read your data as it is. List only the names that
+#' @param as_of_date Date. Reference date for hiring simulation
+#' @param column_spec_args What your columns are called, from [define_column_spec()],
+#'   so the function can read your data as it is. Change only the names that
 #'   differ from the **govhr** harmonized defaults; for example
-#'   `list(personnel_id_col = "pid", salary_col = "bruto")`. Your names are used
+#'   `define_column_spec(personnel_id_col = "pid", salary_col = "bruto")`.
+#'   Your names are used 
 #'   throughout, so the returned tables keep them, and you write the same names
 #'   in `group_cols`, `stock_targets`, `replacement_rate` and `salary_scale`.
-#'   The same list can be passed to every **govhrcast** function; keys a function
-#'   does not use are ignored, and an unknown key is an error.
+#'   The same spec can be passed to every **govhrcast** function; columns a function does not use are ignored.
 #'
 #'   Keys used here (default in brackets):
 #'
 #'   * `ref_date_col` (`"ref_date"`): snapshot date of a panel. When the contract
 #'     table holds several snapshots, the one nearest (but not later than)
-#'     `ref_date` is used.
+#'     `as_of_date` is used.
 #'   * `personnel_id_col` (`"personnel_id"`): person identifier, in both tables.
 #'   * `contract_id_col` (`"contract_id"`): contract identifier, generated for
 #'     new contracts.
 #'   * `start_date_col`, `end_date_col` (`"start_date"`, `"end_date"`): contract
-#'     dates, used to find active contracts. New hires start on `ref_date` with
-#'     an open end date; contracts ended by downsizing get `ref_date`.
+#'     dates, used to find active contracts. New hires start on `as_of_date` with
+#'     an open end date; contracts ended by downsizing get `as_of_date`.
 #'   * `salary_col` (`"gross_salary_lcu"`): pay column. Picks each person's main
 #'     contract and gives the pay saved by downsizing.
 #'   * `contract_type_col` (`"contract_type"`): new hires get the type in the new
@@ -112,7 +112,7 @@
 #'   contract_dt = contract_dt,
 #'   personnel_dt = personnel_dt,
 #'   policy_params = policy_params_flow,
-#'   ref_date = as.Date("2025-01-01")
+#'   as_of_date = as.Date("2025-01-01")
 #' )
 #'
 #' # Example 2: Stock-based hiring (target levels)
@@ -133,7 +133,7 @@
 #'   contract_dt = contract_dt,
 #'   personnel_dt = personnel_dt,
 #'   policy_params = policy_params_stock,
-#'   ref_date = as.Date("2025-01-01")
+#'   as_of_date = as.Date("2025-01-01")
 #' )
 #'
 #' # Example 3: Using retirement module output
@@ -147,7 +147,7 @@
 #'     pension_type = "db",
 #'     pension_params = list(accrual_rate = 0.02)
 #'   ),
-#'   ref_date = as.Date("2025-01-01")
+#'   as_of_date = as.Date("2025-01-01")
 #' )
 #'
 #' hiring_results <- simulate_hiring(
@@ -155,7 +155,7 @@
 #'   personnel_dt = retirement_results$personnel_dt,
 #'   policy_params = policy_params_flow,
 #'   leavers_dt = retirement_results$retirees_dt,
-#'   ref_date = as.Date("2025-01-01")
+#'   as_of_date = as.Date("2025-01-01")
 #' )
 #'
 #' # View results
@@ -168,20 +168,20 @@ simulate_hiring <- function(contract_dt,
                            personnel_dt,
                            policy_params,
                            leavers_dt = NULL,
-                           ref_date,
-                           column_spec_args = list()) {
+                           as_of_date,
+                           column_spec_args = define_column_spec()) {
 
   # ========================================
   # 1. Input Validation
   # ========================================
-  # The caller's column names, with defaults for any not given; the same
-  # list is passed to every step below
-  cols <- .column_spec(column_spec_args)
+  # Check the caller's column names; the same spec goes to every step below
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
   check_hiring_inputs(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
     policy_params = policy_params,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     column_spec_args = cols
   )
   ref_date_col <- cols$ref_date_col
@@ -203,10 +203,10 @@ simulate_hiring <- function(contract_dt,
   # ========================================
   # 2. Select Nearest Reference Date
   # ========================================
-  # Find the reference date in the data closest to (but not after) the specified ref_date
+  # Find the reference date in the data closest to (but not after) the specified as_of_date
   selected_ref_date <- NULL  # Track for later use
   if (ref_date_col %in% names(contract_dt)) {
-    selected_ref_date <- select_nearest_ref_date(contract_dt[[ref_date_col]], ref_date)
+    selected_ref_date <- select_nearest_ref_date(contract_dt[[ref_date_col]], as_of_date)
 
     # Subset both datasets to the selected reference date
     contract_dt <- contract_dt[get(ref_date_col) == selected_ref_date]
@@ -224,7 +224,7 @@ simulate_hiring <- function(contract_dt,
     personnel_dt = personnel_dt,
     policy_params = policy_params,
     leavers_dt = leavers_dt,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     column_spec_args = cols
   )
 
@@ -237,7 +237,7 @@ simulate_hiring <- function(contract_dt,
     current_headcount <- compute_current_stock(
       contract_dt = contract_dt,
       personnel_dt = personnel_dt,
-      ref_date = ref_date,
+      as_of_date = as_of_date,
       group_cols = NULL,  # Overall
       column_spec_args = cols
     )
@@ -270,7 +270,7 @@ simulate_hiring <- function(contract_dt,
     personnel_dt = personnel_dt,
     adjustment_dt = adjustment_dt,
     policy_params = policy_params,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     column_spec_args = cols
   )
 
@@ -308,7 +308,7 @@ simulate_hiring <- function(contract_dt,
   final_headcount <- compute_current_stock(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     group_cols = NULL,  # Overall
     column_spec_args = cols
   )

@@ -10,8 +10,8 @@ update_state_with_movement(
   movers_dt,
   policy_params,
   salary_scale_dt = NULL,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -39,10 +39,10 @@ accepted.}
 \code{group_cols}, one row per group, with the pay in a column named
 \code{salary_col}.}
 
-\item{ref_date}{Date or character. Reference date}
+\item{as_of_date}{Date or character. Reference date}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.  \code{salary_col} is the pay column, in
+\code{define_column_spec()}.  \code{salary_col} is the pay column, in
 \code{contract_dt} and in the salary scale.}
 }
 \value{

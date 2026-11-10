@@ -8,8 +8,8 @@ check_allowance_inputs(
   contract_dt,
   personnel_dt,
   policy_params,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -20,11 +20,11 @@ check_allowance_inputs(
 \item{policy_params}{List. See \code{\link{resolve_allowance_amounts}} for
 the expected shape.}
 
-\item{ref_date}{Date. The reference date for this period -- matches
+\item{as_of_date}{Date. The reference date for this period -- matches
 \code{check_retirement_inputs()}'s own parameter name.}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 Invisible \code{TRUE} if valid; stops with an informative error

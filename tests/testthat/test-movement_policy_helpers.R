@@ -258,7 +258,7 @@ test_that("an adjustment policy drives simulate_horizon() movements", {
     n_periods          = 1L,
     movement_policy    = mp,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01"),
+    baseline_date           = as.Date("2020-01-01"),
     seed               = 1L
   )
   expect_equal(res$summary_dt$n_promotions, 1L)
@@ -276,7 +276,7 @@ test_that("a status-quo policy runs through simulate_horizon() and reports under
     n_periods          = 2L,
     movement_policy    = mp,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01"),
+    baseline_date           = as.Date("2020-01-01"),
     seed               = 1L
   )
   expect_equal(nrow(res$summary_dt), 2L)

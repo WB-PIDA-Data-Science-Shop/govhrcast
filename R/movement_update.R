@@ -63,11 +63,11 @@ stochastic_round <- function(x) {
 #'       numeric column present in \code{contract_dt} or the merged
 #'       workforce view.  Default \code{NULL}.}
 #'   }
-#' @param ref_date Date or character. Reference date
+#' @param as_of_date Date or character. Reference date
 #' @param baseline_matrix data.table. Full baseline matrix (used to compute
 #'   max_salary per grade for wage_based strategy). Can be NULL.
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.
+#'   \code{define_column_spec()}.
 #'
 #' @return data.table with columns:
 #'   \describe{
@@ -80,9 +80,9 @@ identify_movers <- function(contract_dt,
                              personnel_dt,
                              demand_dt,
                              policy_params,
-                             ref_date,
+                             as_of_date,
                              baseline_matrix = NULL,
-                             column_spec_args = .column_spec()) {
+                             column_spec_args = define_column_spec()) {
   personnel_id_col  <- column_spec_args$personnel_id_col
   start_date_col    <- column_spec_args$start_date_col
   end_date_col      <- column_spec_args$end_date_col
@@ -90,7 +90,7 @@ identify_movers <- function(contract_dt,
   salary_col        <- column_spec_args$salary_col
   ref_date_col      <- column_spec_args$ref_date_col
 
-  ref_date <- validate_date_format(ref_date, "ref_date")
+  as_of_date <- validate_date_format(as_of_date, "as_of_date")
 
   if (is.null(demand_dt) || nrow(demand_dt) == 0) {
     return(.movers_table(character(0), character(0), character(0), personnel_id_col))
@@ -106,7 +106,7 @@ identify_movers <- function(contract_dt,
   # ------------------------------------------------------------------
   active_contracts <- .covered_by_policy(get_active_contracts(
     contract_dt = contract_dt,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     start_date_col = start_date_col,
     end_date_col = end_date_col,
     contract_type_col = contract_type_col
@@ -155,7 +155,7 @@ identify_movers <- function(contract_dt,
   if (needs_tenure) {
     tenure_dt <- compute_tenure(
       contract_dt = contract_dt,
-      ref_date = ref_date,
+      as_of_date = as_of_date,
       personnel_id_col = personnel_id_col,
       contract_id_col = column_spec_args$contract_id_col,
       start_date_col = start_date_col,
@@ -172,16 +172,15 @@ identify_movers <- function(contract_dt,
   if (needs_tig && ref_date_col %in% names(contract_dt)) {
     tig_dt <- compute_time_in_grade(
       contract_dt = contract_dt,
-      ref_date = ref_date,
+      as_of_date = as_of_date,
       group_cols = group_cols,
       column_spec_args = column_spec_args
     )
     workforce <- tig_dt[workforce, on = personnel_id_col]
   } else if (needs_tig) {
     # Fall back to start_date if no panel data
-    .as_of_date <- ref_date
     workforce[, time_in_grade := as.numeric(
-      difftime(.as_of_date, get(start_date_col), units = "days")
+      difftime(as_of_date, get(start_date_col), units = "days")
     ) / 365.25]
   }
 
@@ -312,9 +311,9 @@ identify_movers <- function(contract_dt,
 #' @param salary_scale_dt data.table or \code{NULL}. Salary scale keyed on
 #'   \code{group_cols}, one row per group, with the pay in a column named
 #'   \code{salary_col}.
-#' @param ref_date Date or character. Reference date
+#' @param as_of_date Date or character. Reference date
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.  \code{salary_col} is the pay column, in
+#'   \code{define_column_spec()}.  \code{salary_col} is the pay column, in
 #'   \code{contract_dt} and in the salary scale.
 #'
 #' @return List containing:
@@ -334,12 +333,12 @@ update_state_with_movement <- function(contract_dt,
                                        movers_dt,
                                        policy_params,
                                        salary_scale_dt = NULL,
-                                       ref_date,
-                                       column_spec_args = .column_spec()) {
+                                       as_of_date,
+                                       column_spec_args = define_column_spec()) {
   personnel_id_col <- column_spec_args$personnel_id_col
   salary_col       <- column_spec_args$salary_col
 
-  ref_date <- validate_date_format(ref_date, "ref_date")
+  as_of_date <- validate_date_format(as_of_date, "as_of_date")
 
   # Guard: no movers
   if (is.null(movers_dt) || nrow(movers_dt) == 0) {
@@ -425,7 +424,7 @@ update_state_with_movement <- function(contract_dt,
   main_contracts <- get_primary_contract(
     contract_dt = .covered_by_policy(get_active_contracts(
       contract_dt = contract_dt[get(personnel_id_col) %in% mover_pids],
-      ref_date = ref_date,
+      as_of_date = as_of_date,
       start_date_col = column_spec_args$start_date_col,
       end_date_col = column_spec_args$end_date_col,
       contract_type_col = column_spec_args$contract_type_col

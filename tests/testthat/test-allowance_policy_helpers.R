@@ -16,7 +16,7 @@ make_aph_personnel <- function() {
 }
 allowance_total <- function(policy, ct = make_aph_contracts()) {
   simulate_allowances(ct, make_aph_personnel(), policy_params = policy,
-                      ref_date = as.Date("2020-01-01"))$summary$allowance_cost_total
+                      as_of_date = as.Date("2020-01-01"))$summary$allowance_cost_total
 }
 
 # =============================================================================
@@ -118,28 +118,28 @@ test_that("design_allowance_policy_status_quo reproduces the actual allowance to
   d  <- as.Date("2012-09-01")
   ct <- bra_hrmis_contract[ref_date == d]
   ap <- design_allowance_policy_status_quo(bra_hrmis_allowance, bra_hrmis_contract,
-                                           group_cols = "est_id", ref_date = d)
+                                           group_cols = "est_id", baseline_date = d)
   expect_equal(ap$group_cols, c("est_id", "allowance_type"))
 
   modelled <- simulate_allowances(ct, bra_hrmis_personnel[ref_date == d],
-                                  policy_params = ap, ref_date = d)$summary$allowance_cost_total
+                                  policy_params = ap, as_of_date = d)$summary$allowance_cost_total
   active_ids <- ct[!contract_type %in% c("pensioner", "inactive"), contract_id]
   actual <- bra_hrmis_allowance[ref_date == d & contract_id %in% active_ids,
                                 sum(allowance_lcu, na.rm = TRUE)]
   expect_equal(modelled, actual)
 
   ap_cut <- design_allowance_policy_status_quo(bra_hrmis_allowance, bra_hrmis_contract,
-                                               group_cols = "est_id", ref_date = d,
+                                               group_cols = "est_id", baseline_date = d,
                                                total_multiplier = 0.9)
   modelled_cut <- simulate_allowances(ct, bra_hrmis_personnel[ref_date == d],
-                                      policy_params = ap_cut, ref_date = d)$summary$allowance_cost_total
+                                      policy_params = ap_cut, as_of_date = d)$summary$allowance_cost_total
   expect_equal(modelled_cut, 0.9 * actual)
 })
 
 test_that("design_allowance_policy_status_quo validates group_cols", {
   expect_error(
     design_allowance_policy_status_quo(bra_hrmis_allowance, bra_hrmis_contract,
-                                       group_cols = NULL, ref_date = as.Date("2012-09-01")),
+                                       group_cols = NULL, baseline_date = as.Date("2012-09-01")),
     regexp = "group_cols"
   )
 })
@@ -147,7 +147,7 @@ test_that("design_allowance_policy_status_quo validates group_cols", {
 test_that("an allowance policy from the helpers runs through simulate_horizon()", {
   d  <- as.Date("2012-09-01")
   ap <- design_allowance_policy_status_quo(bra_hrmis_allowance, bra_hrmis_contract,
-                                           group_cols = "est_id", ref_date = d)
+                                           group_cols = "est_id", baseline_date = d)
   ct <- bra_hrmis_contract[ref_date == d]
   res <- simulate_horizon(
     contract_dt      = ct,
@@ -157,8 +157,8 @@ test_that("an allowance policy from the helpers runs through simulate_horizon()"
     retirement_policy = NULL,   # single snapshot; this test is about allowances only
     allowance_policy = ap,
     salary_growth_rate = 0,
-    ref_date         = d,
-    column_spec_args = list(salary_col = "base_salary_lcu"),
+    baseline_date         = d,
+    column_spec_args = define_column_spec(salary_col = "base_salary_lcu"),
     seed             = 1L
   )
   expect_gt(res$summary_dt$allowance_cost_end, 0)

@@ -9,7 +9,7 @@ estimate_retirement_hazard_rates(
   group_cols = NULL,
   retire_status = "pensioner",
   smooth = FALSE,
-  column_spec_args = list()
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -41,12 +41,12 @@ most likely to bite when \code{group_cols} is granular (e.g. per
 establishment): consider \code{smooth = TRUE} whenever a group/age cell
 is likely to have thin exposure in the historical panel.}
 
-\item{column_spec_args}{Named list.  Column names, if your data use
-different names from the \code{govhr} defaults: give only the ones you
-need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only
+the ones that differ from the \code{govhr} defaults, e.g.
+\code{define_column_spec(personnel_id_col = "emp_id")}.  Keys read
 here: \code{age_col} (fractional age; \code{NULL} means \code{"age"}),
 \code{personnel_id_col}, \code{ref_date_col}, \code{status_col}.  See
-\code{\link{simulate_horizon}} for the defaults.}
+\code{\link{define_column_spec}} for the defaults.}
 }
 \value{
 data.table with \code{group_cols} and \code{hazard_rate}.  One row

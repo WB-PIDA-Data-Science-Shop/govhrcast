@@ -6,7 +6,7 @@
 \usage{
 get_active_contracts(
   contract_dt,
-  ref_date,
+  as_of_date,
   start_date_col = "start_date",
   end_date_col = "end_date",
   contract_type_col = "contract_type"
@@ -16,9 +16,9 @@ get_active_contracts(
 \item{contract_dt}{data.table.  Contract register.  Required columns:
 \code{start_date_col}, \code{end_date_col}, \code{contract_type_col}.}
 
-\item{ref_date}{Date.  The snapshot date.  A contract is included if
-\code{start_date <= ref_date} and
-(\code{is.na(end_date)} or \code{end_date >= ref_date}).}
+\item{as_of_date}{Date.  The snapshot date.  A contract is included if
+\code{start_date <= as_of_date} and
+(\code{is.na(end_date)} or \code{end_date >= as_of_date}).}
 
 \item{end_date_col}{Character.  Contract end date column; \code{NA} for
 open-ended contracts.  (default: \code{"end_date"}).}
@@ -31,7 +31,7 @@ excluded.  (default: \code{"contract_type"}).}
 }
 \value{
 data.table.  Subset of \code{contract_dt} containing only active
-contracts at \code{ref_date}.  All original columns are preserved.
+contracts at \code{as_of_date}.  All original columns are preserved.
 }
 \description{
 Returns the strictly active workforce subset of \code{contract_dt}:

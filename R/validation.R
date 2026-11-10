@@ -497,10 +497,10 @@ validate_policy_table <- function(policy_params) {
 #'       tenure.  May be omitted if \code{policy_table} carries a
 #'       \code{min_tenure} column.}
 #'   }
-#' @param ref_date Date or character convertible to Date.  Reference date for
+#' @param as_of_date Date or character convertible to Date.  Reference date for
 #'   the simulation period.
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}. Keys read: \code{personnel_id_col} (must exist in
+#'   \code{define_column_spec()}. Keys read: \code{personnel_id_col} (must exist in
 #'   both tables), \code{contract_id_col}, \code{start_date_col},
 #'   \code{end_date_col}, \code{contract_type_col} (in \code{contract_dt}),
 #'   \code{status_col} (in \code{personnel_dt}) and \code{birth_date_col}
@@ -513,7 +513,7 @@ validate_policy_table <- function(policy_params) {
 #' @section Error Conditions:
 #' \describe{
 #'   \item{Empty tables}{\code{contract_dt} or \code{personnel_dt} has 0 rows.}
-#'   \item{Invalid ref_date}{\code{ref_date} cannot be parsed as a Date, is NA,
+#'   \item{Invalid as_of_date}{\code{as_of_date} cannot be parsed as a Date, is NA,
 #'     or is not length 1.}
 #'   \item{Invalid policy structure}{\code{validate_policy_table()} fails — see
 #'     that function for sub-conditions.}
@@ -544,16 +544,16 @@ validate_policy_table <- function(policy_params) {
 check_retirement_inputs <- function(contract_dt,
                                     personnel_dt,
                                     policy_params,
-                                    ref_date,
-                                    column_spec_args = .column_spec()) {
+                                    as_of_date,
+                                    column_spec_args = define_column_spec()) {
   birth_date_col <- column_spec_args$birth_date_col
 
   # Validate data tables
   validate_datatable(contract_dt, "contract_dt")
   validate_datatable(personnel_dt, "personnel_dt")
 
-  # Validate ref_date
-  validate_date_format(ref_date, "ref_date")
+  # Validate as_of_date
+  validate_date_format(as_of_date, "as_of_date")
 
   # Validate top-level structure
   if (!is.list(policy_params)) {
@@ -789,25 +789,25 @@ check_retirement_inputs <- function(contract_dt,
 #' @param contract_dt data.table. Contract data
 #' @param personnel_dt data.table. Personnel data
 #' @param policy_params List. Policy parameters
-#' @param ref_date Date. Reference date
+#' @param as_of_date Date. Reference date
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.
+#'   \code{define_column_spec()}.
 #'
 #' @return Invisible TRUE if valid, stops with error otherwise
 #' @keywords internal
 check_hiring_inputs <- function(contract_dt,
                                 personnel_dt,
                                 policy_params,
-                                ref_date,
-                                column_spec_args = .column_spec()) {
+                                as_of_date,
+                                column_spec_args = define_column_spec()) {
   salary_col <- column_spec_args$salary_col
 
   # Validate data tables
   validate_datatable(contract_dt, "contract_dt")
   validate_datatable(personnel_dt, "personnel_dt")
 
-  # Validate ref_date
-  validate_date_format(ref_date, "ref_date")
+  # Validate as_of_date
+  validate_date_format(as_of_date, "as_of_date")
 
   # Validate policy_params is a list
   if (!is.list(policy_params)) {
@@ -953,9 +953,9 @@ check_hiring_inputs <- function(contract_dt,
 #' @param contract_dt data.table. Contract data
 #' @param personnel_dt data.table. Personnel data
 #' @param policy_params List. Policy parameters
-#' @param ref_date Date or character. Reference date
+#' @param as_of_date Date or character. Reference date
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.
+#'   \code{define_column_spec()}.
 #'
 #' @return Invisible TRUE if valid, stops with error otherwise
 #' @keywords internal
@@ -964,15 +964,15 @@ check_movement_inputs <- function(
   personnel_dt,
   salary_scale_dt,
   policy_params,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 ) {
   # Validate data tables
   validate_datatable(contract_dt, "contract_dt")
   validate_datatable(personnel_dt, "personnel_dt")
 
-  # Validate ref_date
-  validate_date_format(ref_date, "ref_date")
+  # Validate as_of_date
+  validate_date_format(as_of_date, "as_of_date")
 
   # Validate salary_scale_dt
   if (is.null(salary_scale_dt)) {
@@ -1084,10 +1084,10 @@ check_movement_inputs <- function(
 #' @param personnel_dt data.table. Current-period personnel snapshot.
 #' @param policy_params List. See \code{\link{resolve_allowance_amounts}} for
 #'   the expected shape.
-#' @param ref_date Date. The reference date for this period -- matches
+#' @param as_of_date Date. The reference date for this period -- matches
 #'   \code{check_retirement_inputs()}'s own parameter name.
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.
+#'   \code{define_column_spec()}.
 #'
 #' @return Invisible \code{TRUE} if valid; stops with an informative error
 #'   otherwise.
@@ -1095,12 +1095,12 @@ check_movement_inputs <- function(
 check_allowance_inputs <- function(contract_dt,
                                    personnel_dt,
                                    policy_params,
-                                   ref_date,
-                                   column_spec_args = .column_spec()) {
+                                   as_of_date,
+                                   column_spec_args = define_column_spec()) {
 
   validate_datatable(contract_dt, "contract_dt")
   validate_datatable(personnel_dt, "personnel_dt")
-  validate_date_format(ref_date, "ref_date")
+  validate_date_format(as_of_date, "as_of_date")
   .check_spec_columns(contract_dt, personnel_dt, column_spec_args, required = list(
     contract_dt = c("contract_id_col", "personnel_id_col", "contract_type_col")
   ))
@@ -1147,86 +1147,143 @@ check_allowance_inputs <- function(contract_dt,
 }
 
 
-## column-name specification and output options (ADR 0012)
+## column-name specification and output options (ADR 0012, 0013, 0014)
 
-# Default column names: the govhr harmonized names. The caller's names are
-# used as given all the way down; nothing is renamed. For the optional keys,
-# NULL means: age_col / tenure_col -- do not read a precomputed column, derive
-# the values (from birth dates / contract histories); birth_date_col /
-# hire_date_col -- not available.
-.COLUMN_SPEC_DEFAULTS <- list(
-  personnel_id_col  = "personnel_id",
-  contract_id_col   = "contract_id",
-  ref_date_col      = "ref_date",
-  start_date_col    = "start_date",
-  end_date_col      = "end_date",
-  salary_col        = "gross_salary_lcu",
-  contract_type_col = "contract_type",
-  status_col        = "employment_status",
-  age_col           = "age",
-  tenure_col        = "personnel_tenure",
-  birth_date_col    = "birth_date",
-  hire_date_col     = NULL,
-  gender_col        = "gender"
-)
+# The columns that may be set to NULL in define_column_spec().
 .COLUMN_SPEC_OPTIONAL <- c("age_col", "tenure_col", "birth_date_col", "hire_date_col", "gender_col")
 
-.OUTPUT_CONTROL_DEFAULTS <- list(
-  scenario_name    = NULL,
-  is_baseline      = FALSE,
-  return_microdata = FALSE
-)
-
-# Stop if `args` has keys outside `valid`, listing the valid keys.
-.reject_unknown_keys <- function(args, valid, arg_name) {
-  unknown <- setdiff(names(args), valid)
-  if (length(unknown) > 0L) {
-    stop(
-      arg_name, ": unknown key(s) ", paste0("'", unknown, "'", collapse = ", "),
-      ". Valid keys: ", paste(valid, collapse = ", "), ".",
-      call. = FALSE
-    )
-  }
-  invisible(TRUE)
+#' Say Which Column Holds What in Your Data
+#'
+#' Which column in your data holds each thing the simulation reads? Build the
+#' answer here and pass it as `column_spec_args` to any **govhrcast** function.
+#'
+#' Data harmonized with **govhr** already use the default names, so
+#' `define_column_spec()` with no arguments is all it needs, and it is the
+#' default everywhere. If your data differ, name only the columns that differ.
+#' Your names are used all the way through: nothing is renamed, so the tables
+#' that come back keep them.
+#'
+#' @param personnel_id_col String. The person ID, in both the contract and the
+#'   personnel table. Default `"personnel_id"`.
+#' @param contract_id_col String. The contract ID, in the contract table.
+#'   Default `"contract_id"`.
+#' @param ref_date_col String. The snapshot date. It also stamps each year in
+#'   the returned microdata. Default `"ref_date"`.
+#' @param start_date_col,end_date_col Strings. When a contract starts and ends.
+#'   Defaults `"start_date"` and `"end_date"`.
+#' @param salary_col String. The salary the wage bill is measured in. A pay table
+#'   such as `salary_scale_dt` must have a column of the same name. Default
+#'   `"gross_salary_lcu"`.
+#' @param contract_type_col String. The contract type, which says who is on the
+#'   payroll and who holds a pension. Default `"contract_type"`.
+#' @param status_col String. The person's employment status, in the personnel
+#'   table. Default `"employment_status"`.
+#' @param age_col String or `NULL`. Age in years, in the personnel table.
+#'   `simulate_horizon()` calculates it from `birth_date_col` when the column is
+#'   missing or empty, then adds 1 each year. Default `"age"`. See Details for
+#'   what `NULL` does.
+#' @param tenure_col String or `NULL`. Years of service in the public sector, in
+#'   the personnel table. `simulate_horizon()` calculates it from contract history
+#'   when the column is missing or empty, then adds 1 each year. Custom retirement
+#'   rules and pension formulas can call it `tenure_years`, whatever this column
+#'   is called. Default `"personnel_tenure"`. See Details for what `NULL` does.
+#' @param birth_date_col String or `NULL`. Date of birth, used to calculate age.
+#'   Use `NULL` if you have none, and then `age_col` must already be filled in.
+#'   Default `"birth_date"`.
+#' @param hire_date_col String or `NULL`. Each person's original hire date, in the
+#'   personnel table (for example `"first_employment_date"`). When given,
+#'   status-quo hiring rates are estimated from it. With the default `NULL`, they
+#'   are estimated from when people first appear in the panel.
+#' @param gender_col String or `NULL`. Used to give new hires a gender. If your
+#'   data have no such column, new hires have none. Default `"gender"`.
+#'
+#' @return A named list with one element per argument, in the order above. Pass
+#'   it as `column_spec_args`. The same list works for every function: columns a
+#'   function does not use are ignored.
+#'
+#' @details
+#' `NULL` for `age_col` and `tenure_col` does not mean the same everywhere.
+#' `simulate_retirement()` then ignores any such column and calculates the value
+#' itself. `simulate_horizon()` treats `NULL` as the default name, and
+#' `estimate_retirement_hazard_rates()` does the same for `age_col`, so an `age`
+#' column that is already filled in is still used. `simulate_scenario()` leaves
+#' the value as it is and does not add a year.
+#'
+#' This function checks the names only, not your data: it cannot tell whether a
+#' column exists. Each function checks the columns it reads when it runs.
+#'
+#' It stops with an error when an argument is misspelled, when a name is not one
+#' non-empty string, when `NULL` is given for a column that cannot be left out,
+#' or when two arguments name the same column. Other functions stop with an error
+#' if `column_spec_args` did not come from here, for example a plain `list()`.
+#'
+#' @seealso [simulate_horizon()], which takes this as `column_spec_args`.
+#'
+#' @examples
+#' # Harmonized data: nothing to name
+#' define_column_spec()$salary_col
+#'
+#' # Name only what differs; everything else keeps its default
+#' spec <- define_column_spec(salary_col = "base_salary_lcu")
+#' spec$salary_col
+#' spec$personnel_id_col
+#'
+#' # A table whose person ID has another name. The template has one row for each
+#' # pair of establishments that people moved between.
+#' contract <- data.table::copy(bra_hrmis_contract)
+#' data.table::setnames(contract, "personnel_id", "pid")
+#' template <- movement_policy_template(
+#'   contract,
+#'   group_cols = "est_id",
+#'   column_spec_args = define_column_spec(personnel_id_col = "pid")
+#' )
+#' names(template)
+#'
+#' @export
+define_column_spec <- function(personnel_id_col  = "personnel_id",
+                               contract_id_col   = "contract_id",
+                               ref_date_col      = "ref_date",
+                               start_date_col    = "start_date",
+                               end_date_col      = "end_date",
+                               salary_col        = "gross_salary_lcu",
+                               contract_type_col = "contract_type",
+                               status_col        = "employment_status",
+                               age_col           = "age",
+                               tenure_col        = "personnel_tenure",
+                               birth_date_col    = "birth_date",
+                               hire_date_col     = NULL,
+                               gender_col        = "gender") {
+  spec <- mget(names(formals()))   # all 13 arguments, as a named list
+  .check_column_spec(spec)
+  spec
 }
 
-#' Build and Validate the Column-Name Specification
+#' Check a Column Specification
 #'
-#' Fills the caller's \code{column_spec_args} with the govhr defaults and
-#' checks it: only known keys; each value a single column name (\code{NULL}
-#' allowed for the optional keys); no two keys naming the same column.
+#' Run by [define_column_spec()] and again by each exported function, so a plain
+#' list or a spec edited by hand cannot reach the modules.
 #'
-#' Every exported function that reads caller columns builds its spec here,
-#' and internal functions receive the complete spec (or, for small helpers,
-#' just the column names they read).
-#'
-#' @param column_spec_args Named list supplied by the caller (may be empty).
-#' @return The complete specification: a named list with every key in
-#'   \code{.COLUMN_SPEC_DEFAULTS}.
+#' @param spec The object passed as `column_spec_args`.
+#' @return `invisible(TRUE)`; stops if `spec` does not have exactly
+#'   [define_column_spec()]'s arguments, if a name is not one non-empty string
+#'   (`NULL` is allowed for `.COLUMN_SPEC_OPTIONAL`), or if two arguments name the
+#'   same column.
 #' @noRd
-.column_spec <- function(column_spec_args = list()) {
-  if (is.null(column_spec_args)) column_spec_args <- list()
-  if (!is.list(column_spec_args)) {
-    stop("column_spec_args must be a named list, e.g. list(salary_col = \"base_salary_lcu\").",
-         call. = FALSE)
+.check_column_spec <- function(spec) {
+  if (!identical(names(spec), names(formals(define_column_spec)))) {
+    stop("column_spec_args must come from define_column_spec(), e.g. ",
+         "define_column_spec(salary_col = \"base_salary_lcu\").", call. = FALSE)
   }
-  .reject_unknown_keys(column_spec_args, names(.COLUMN_SPEC_DEFAULTS), "column_spec_args")
 
-  # Each supplied value: one non-missing string, or NULL where optional
-  for (key in names(column_spec_args)) {
-    value <- column_spec_args[[key]]
+  for (key in names(spec)) {
+    value <- spec[[key]]
     if (is.null(value) && key %in% .COLUMN_SPEC_OPTIONAL) next
     if (!is.character(value) || length(value) != 1L || is.na(value) || !nzchar(value)) {
       stop(key, " must be a single column name (a string)", call. = FALSE)
     }
   }
 
-  # modifyList() drops NULL entries, so assign key by key to keep explicit NULLs
-  spec <- .COLUMN_SPEC_DEFAULTS
-  for (key in names(column_spec_args)) spec[key] <- list(column_spec_args[[key]])
-
-  # Two arguments must not name the same column
-  named <- unlist(Filter(Negate(is.null), spec))
+  named <- unlist(spec)
   dup <- named[duplicated(named) | duplicated(named, fromLast = TRUE)]
   if (length(dup) > 0L) {
     col <- dup[[1L]]
@@ -1236,7 +1293,91 @@ check_allowance_inputs <- function(contract_dt,
       call. = FALSE
     )
   }
-  spec
+  invisible(TRUE)
+}
+
+#' Say How to Label a Run and What It Returns
+#'
+#' How should this run be labelled, and should it return its person-level data?
+#' Build the answer here and pass it as `output_control_args` to
+#' [simulate_horizon()].
+#'
+#' With no arguments the run has no label and returns only its summary tables, and
+#' that is the default in [simulate_horizon()]. Name only what you want to change.
+#'
+#' @param scenario_name String or `NULL`. A label for this run, for example
+#'   `"Status quo"`. When given, `$comparison` gets `scenario_id` and
+#'   `scenario_label` columns, so several runs can be stacked and told apart.
+#'   Default `NULL`.
+#' @param is_baseline `TRUE` or `FALSE`. Whether this run is the one the others are
+#'   compared with. `$comparison` always has an `is_baseline` column holding this
+#'   value. It says nothing about dates: where the projection starts is
+#'   `baseline_date` in [simulate_horizon()]. Default `FALSE`.
+#' @param return_microdata `TRUE` or `FALSE`. `TRUE` also returns `$contract_dt`
+#'   and `$personnel_dt`, with every projected year stacked, and `$allowance_dt`
+#'   when allowances are modelled. These can be large, and they are person-level
+#'   data, so handle them like the input microdata before saving or sharing a
+#'   result. Default `FALSE`.
+#'
+#' @return A named list with one element per argument. Pass it as
+#'   `output_control_args`.
+#'
+#' @details
+#' It stops with an error when an argument is misspelled, when `scenario_name` is
+#' not one string or `NULL`, or when a switch is not a single `TRUE` or `FALSE`.
+#' [simulate_horizon()] stops with an error if `output_control_args` did not come
+#' from here, for example a plain `list()`.
+#'
+#' @seealso [simulate_horizon()], which takes this as `output_control_args`;
+#'   [define_column_spec()], which says which columns hold what.
+#'
+#' @examples
+#' # The default: no label and no person-level data
+#' define_output_control()$return_microdata
+#'
+#' # Name only what you want to change
+#' reform <- define_output_control(scenario_name = "Retire at 65")
+#' reform$scenario_name
+#' reform$is_baseline
+#'
+#' @export
+define_output_control <- function(scenario_name    = NULL,
+                                  is_baseline      = FALSE,
+                                  return_microdata = FALSE) {
+  output_control <- mget(names(formals()))   # all 3 arguments, as a named list
+  .check_output_control(output_control)
+  output_control
+}
+
+#' Check the Output Options
+#'
+#' Run by [define_output_control()] and again by [simulate_horizon()], so a plain
+#' list or options edited by hand cannot reach the run.
+#'
+#' @param output_control The object passed as `output_control_args`.
+#' @return `invisible(TRUE)`; stops if it does not have exactly
+#'   [define_output_control()]'s arguments, if `scenario_name` is not one string or
+#'   `NULL`, or if a switch is not a single `TRUE` or `FALSE`.
+#' @noRd
+.check_output_control <- function(output_control) {
+  if (!identical(names(output_control), names(formals(define_output_control)))) {
+    stop("output_control_args must come from define_output_control(), e.g. ",
+         "define_output_control(return_microdata = TRUE).", call. = FALSE)
+  }
+
+  # scenario_name labels the run; the switches are single TRUE/FALSE values
+  scenario_name <- output_control$scenario_name
+  if (!is.null(scenario_name) &&
+      (!is.character(scenario_name) || length(scenario_name) != 1L || is.na(scenario_name))) {
+    stop("scenario_name must be a single character string or NULL.", call. = FALSE)
+  }
+  for (key in c("is_baseline", "return_microdata")) {
+    value <- output_control[[key]]
+    if (!is.logical(value) || length(value) != 1L || is.na(value)) {
+      stop(key, " must be TRUE or FALSE.", call. = FALSE)
+    }
+  }
+  invisible(TRUE)
 }
 
 #' Check That the Specified Columns Exist in the Data
@@ -1245,7 +1386,7 @@ check_allowance_inputs <- function(contract_dt,
 #' reused across calls; keys set to \code{NULL} are skipped.
 #'
 #' @param contract_dt,personnel_dt The caller's tables.
-#' @param spec Complete specification from \code{.column_spec()}.
+#' @param spec Complete specification from \code{define_column_spec()}.
 #' @param required Named list: for each table, the spec keys whose columns
 #'   it must contain. The default is what \code{simulate_horizon()} needs.
 #' @return \code{invisible(TRUE)}; stops naming the argument and table of the
@@ -1292,36 +1433,6 @@ check_allowance_inputs <- function(contract_dt,
     stop(table_name, ": column '", salary_col, "' must be numeric.", call. = FALSE)
   }
   invisible(TRUE)
-}
-
-#' Build and Validate the Output Options
-#'
-#' @param output_control_args Named list supplied by the caller (may be empty).
-#' @return The complete options: \code{scenario_name}, \code{is_baseline},
-#'   \code{return_microdata}.
-#' @noRd
-.output_control <- function(output_control_args) {
-  if (is.null(output_control_args)) output_control_args <- list()
-  if (!is.list(output_control_args)) {
-    stop("output_control_args must be a named list.", call. = FALSE)
-  }
-  .reject_unknown_keys(output_control_args, names(.OUTPUT_CONTROL_DEFAULTS),
-                       "output_control_args")
-  out <- .OUTPUT_CONTROL_DEFAULTS
-  for (key in names(output_control_args)) out[key] <- list(output_control_args[[key]])
-
-  # scenario_name labels the run; the switches are single TRUE/FALSE values
-  if (!is.null(out$scenario_name) &&
-      (!is.character(out$scenario_name) || length(out$scenario_name) != 1L ||
-       is.na(out$scenario_name))) {
-    stop("scenario_name must be a single character string or NULL.", call. = FALSE)
-  }
-  for (key in c("is_baseline", "return_microdata")) {
-    if (!is.logical(out[[key]]) || length(out[[key]]) != 1L || is.na(out[[key]])) {
-      stop(key, " must be TRUE or FALSE.", call. = FALSE)
-    }
-  }
-  out
 }
 
 

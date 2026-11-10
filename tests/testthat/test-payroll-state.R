@@ -38,9 +38,9 @@ state_fixture <- function() {
 }
 
 horizon_run <- function(d, ..., n_periods = 1L) {
-  simulate_horizon(d$c, d$p, d$s, n_periods = n_periods, ref_date = start,
+  simulate_horizon(d$c, d$p, d$s, n_periods = n_periods, baseline_date = start,
                    retirement_policy = NULL, seed = 1L,
-                   output_control_args = list(return_microdata = TRUE), ...)
+                   output_control_args = define_output_control(return_microdata = TRUE), ...)
 }
 
 # -- Who is who at the start of a projection ---------------------------------
@@ -146,7 +146,7 @@ ended_fixture <- function() {
 
 test_that("someone whose contract end date has passed can still retire", {
   d <- ended_fixture()
-  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, seed = 1L,
+  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, seed = 1L,
                           retirement_policy = design_retirement_policy_age_tenure(
                             min_age = 60, min_tenure = 1, pension = pension_flat(100)))
   expect_equal(run$comparison$n_exits, 1L)
@@ -156,18 +156,18 @@ test_that("someone whose contract end date has passed can still retire", {
 
 test_that("someone whose contract end date has passed can still be moved out by exits", {
   d <- ended_fixture()
-  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, seed = 1L,
+  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, seed = 1L,
                           retirement_policy = NULL,
                           exit_policy = design_exit_policy_flat(exit_rate = 1),
-                          output_control_args = list(return_microdata = TRUE))
+                          output_control_args = define_output_control(return_microdata = TRUE))
   expect_equal(run$comparison$wage_bill_end, 0)
 })
 
 test_that("end dates are cleared for staff at the start of the projection", {
   d <- ended_fixture()
-  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, seed = 1L,
+  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, seed = 1L,
                           retirement_policy = NULL,
-                          output_control_args = list(return_microdata = TRUE))
+                          output_control_args = define_output_control(return_microdata = TRUE))
   expect_true(all(is.na(run$contract_dt$end_date)))
   expect_equal(d$c[personnel_id == "ended", end_date], as.Date("2015-01-01"))  # caller's table untouched
 })
@@ -191,9 +191,9 @@ cut_to <- function(target) design_hiring_policy_stock(
 
 test_that("downsizing takes people off the payroll and the wage bill says so", {
   d <- downsize_fixture()
-  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 2L, ref_date = start, seed = 1L,
+  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 2L, baseline_date = start, seed = 1L,
                           retirement_policy = NULL, hiring_policy = cut_to(2L),
-                          output_control_args = list(return_microdata = TRUE))
+                          output_control_args = define_output_control(return_microdata = TRUE))
   cmp <- run$comparison
   # The two most recent hires go in year 1, and nobody in year 2
   expect_equal(cmp$n_downsized, c(2L, 0L))
@@ -209,7 +209,7 @@ test_that("downsizing takes people off the payroll and the wage bill says so", {
 
 test_that("the wage bill decomposition adds up with downsizing and growth", {
   d <- downsize_fixture()
-  cmp <- simulate_horizon(d$c, d$p, d$s, n_periods = 2L, ref_date = start, seed = 1L,
+  cmp <- simulate_horizon(d$c, d$p, d$s, n_periods = 2L, baseline_date = start, seed = 1L,
                           retirement_policy = NULL, hiring_policy = cut_to(3L),
                           salary_growth_rate = 0.05)$comparison
   expect_equal(cmp$wage_bill_end,
@@ -224,13 +224,13 @@ test_that("simulate_hiring reports downsizing in its summary, with nothing to do
   d <- downsize_fixture()
   policy <- list(mode = "stock", group_cols = "est_id", salary_scale = d$s,
                  stock_targets = data.table(est_id = "E1", target_stock = 3L))
-  cut <- simulate_hiring(d$c, d$p, policy, ref_date = start)
+  cut <- simulate_hiring(d$c, d$p, policy, as_of_date = start)
   expect_equal(cut$summary$n_downsized, 1L)
   expect_equal(cut$summary$downsizing_savings, 700)
   expect_equal(cut$summary$total_headcount, 3L)
 
   policy$stock_targets[, target_stock := 4L]
-  nothing <- simulate_hiring(d$c, d$p, policy, ref_date = start)
+  nothing <- simulate_hiring(d$c, d$p, policy, as_of_date = start)
   expect_equal(nothing$summary$n_downsized, 0L)
   expect_equal(nothing$summary$downsizing_savings, 0)
 })
@@ -242,7 +242,7 @@ test_that("downsizing leaves a person's pension row alone", {
   d$c <- rbind(d$c, pension_row)
   policy <- list(mode = "stock", group_cols = "est_id", salary_scale = d$s,
                  stock_targets = data.table(est_id = "E1", target_stock = 3L))
-  cut <- simulate_hiring(d$c, d$p, policy, ref_date = start)
+  cut <- simulate_hiring(d$c, d$p, policy, as_of_date = start)
   expect_equal(cut$contract_dt[contract_id == "C4", contract_type], "inactive")
   expect_equal(cut$contract_dt[contract_id == "C5", contract_type], "pensioner")
   expect_equal(cut$summary$downsizing_savings, 700)  # the working contract only
@@ -253,10 +253,10 @@ test_that("downsizing leaves a person's pension row alone", {
 test_that("simulated retirees get the status pensioner and stop ageing", {
   d <- ended_fixture()
   d$p[, age := c(70, 30)]
-  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, seed = 1L,
+  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, seed = 1L,
                           retirement_policy = design_retirement_policy_age_tenure(
                             min_age = 60, min_tenure = 1, pension = pension_flat(100)),
-                          output_control_args = list(return_microdata = TRUE))
+                          output_control_args = define_output_control(return_microdata = TRUE))
   expect_equal(run$personnel_dt[personnel_id == "ended", employment_status], "pensioner")
   expect_equal(run$personnel_dt[personnel_id == "ended", age], 70)
   expect_equal(run$personnel_dt[personnel_id == "open", employment_status], "active")
@@ -270,7 +270,7 @@ test_that("simulate_retirement does not retire someone only because they hold a 
                                contract_type = "pensioner", gross_salary_lcu = 200))
   d$p[, age := c(70, 30)]
   d$p[, personnel_tenure := c(30, 10)]
-  res <- simulate_retirement(d$c, d$p, ref_date = start,
+  res <- simulate_retirement(d$c, d$p, as_of_date = start,
                              policy_params = design_retirement_policy_age_tenure(
                                min_age = 60, min_tenure = 1, pension = pension_flat(100)))
   expect_equal(res$personnel_dt[personnel_id == "ended", employment_status], "pensioner")
@@ -282,7 +282,7 @@ test_that("simulate_retirement does not retire someone only because they hold a 
 test_that("allowances grow in the same year as pay", {
   d <- downsize_fixture()
   allowance <- design_allowance_policy_adjustment(data.table(allowance_type = "a", amount = 10))
-  cmp <- simulate_horizon(d$c, d$p, d$s, n_periods = 3L, ref_date = start, seed = 1L,
+  cmp <- simulate_horizon(d$c, d$p, d$s, n_periods = 3L, baseline_date = start, seed = 1L,
                           retirement_policy = NULL, allowance_policy = allowance,
                           salary_growth_rate = 0.10, allowance_growth_rate = 0.10)$comparison
   expect_equal(cmp$allowance_cost_start[1], 40)
@@ -296,7 +296,7 @@ test_that("the amount for unmatched groups grows too", {
   allowance <- design_allowance_policy_adjustment(
     data.table(est_id = "E9", allowance_type = "a", amount = 10),
     group_cols = "est_id", unmatched_amount = 5)
-  cmp <- simulate_horizon(d$c, d$p, d$s, n_periods = 2L, ref_date = start, seed = 1L,
+  cmp <- simulate_horizon(d$c, d$p, d$s, n_periods = 2L, baseline_date = start, seed = 1L,
                           retirement_policy = NULL, allowance_policy = allowance,
                           allowance_growth_rate = 0.10)$comparison
   expect_equal(cmp$allowance_cost_end, 4 * 5 * 1.10^(1:2))

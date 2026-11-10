@@ -58,24 +58,24 @@ NULL
 #' @param panel_allowance_dt data.table.  Long-format allowance data, one row
 #'   per contract x snapshot x allowance type (e.g.
 #'   \code{bra_hrmis_allowance}).  May span many snapshots; only the one at
-#'   \code{ref_date} is used.
+#'   \code{baseline_date} is used.
 #' @param panel_contract_dt data.table.  Contract data covering
-#'   \code{ref_date}; supplies each contract's group.
+#'   \code{baseline_date}; supplies each contract's group.
 #' @param group_cols Character vector.  Contract-level columns that define
 #'   the groups amounts are averaged over (e.g. \code{"est_id"} or
 #'   \code{c("est_id", "paygrade")}).  Finer groups follow real pay more
 #'   closely but rest on fewer contracts each.
-#' @param ref_date Date.  The baseline snapshot -- normally the same
-#'   \code{ref_date} you pass to \code{simulate_horizon()}.  The nearest
+#' @param baseline_date Date.  The baseline snapshot -- normally the same
+#'   \code{baseline_date} you pass to \code{simulate_horizon()}.  The nearest
 #'   snapshot on or before it is used.
 #' @param total_multiplier,multiplier_group_cols See
 #'   \code{\link{allowance_policy_helpers}}.  Default \code{1}: no change.
 #' @param allowance_type_col,amount_col Character.  The allowance table's type
 #'   and amount columns, if they differ from the defaults.  \code{amount_col}
 #'   must already be numeric.
-#' @param column_spec_args Named list.  Column names, if your data use
-#'   different names from the \code{govhr} defaults: give only the ones you
-#'   need to change, e.g. \code{list(contract_id_col = "cid")}.  Keys read
+#' @param column_spec_args Column names, from \code{\link{define_column_spec}()}.  Change only
+#'   the ones that differ from the \code{govhr} defaults, e.g.
+#'   \code{define_column_spec(contract_id_col = "cid")}.  Keys read
 #'   here: \code{contract_id_col}, \code{ref_date_col}.
 #'
 #' @return A list with \code{group_cols} (your columns plus
@@ -90,25 +90,25 @@ NULL
 #'   panel_allowance_dt = bra_hrmis_allowance,
 #'   panel_contract_dt  = bra_hrmis_contract,
 #'   group_cols         = "est_id",
-#'   ref_date           = as.Date("2012-09-01")
+#'   baseline_date           = as.Date("2012-09-01")
 #' )
 #' head(ap$policy_table)
 #'
 #' # The same, with a 10% cut to everyone's total allowance
 #' ap_cut <- design_allowance_policy_status_quo(
 #'   bra_hrmis_allowance, bra_hrmis_contract, group_cols = "est_id",
-#'   ref_date = as.Date("2012-09-01"), total_multiplier = 0.9
+#'   baseline_date = as.Date("2012-09-01"), total_multiplier = 0.9
 #' )
 #' @export
 design_allowance_policy_status_quo <- function(panel_allowance_dt,
                                                panel_contract_dt,
                                                group_cols,
-                                               ref_date,
+                                               baseline_date,
                                                total_multiplier      = 1,
                                                multiplier_group_cols = NULL,
                                                allowance_type_col    = "allowance_type",
                                                amount_col            = "allowance_lcu",
-                                               column_spec_args      = list()) {
+                                               column_spec_args      = define_column_spec()) {
   fn <- "design_allowance_policy_status_quo"
   if (is.null(group_cols) || !is.character(group_cols) || length(group_cols) == 0L) {
     stop(fn, ": group_cols must be a non-empty character vector (e.g. \"est_id\").",
@@ -119,7 +119,7 @@ design_allowance_policy_status_quo <- function(panel_allowance_dt,
     panel_allowance_dt = panel_allowance_dt,
     panel_contract_dt  = panel_contract_dt,
     group_cols         = setdiff(group_cols, "allowance_type"),
-    ref_date           = ref_date,
+    baseline_date           = baseline_date,
     allowance_type_col = allowance_type_col,
     amount_col         = amount_col,
     column_spec_args   = column_spec_args
@@ -182,7 +182,7 @@ design_allowance_policy_status_quo <- function(panel_allowance_dt,
 #' # Reform workflow: baseline amounts, raise one type, cut totals in one establishment
 #' scale_dt <- estimate_baseline_allowance_scale(
 #'   bra_hrmis_allowance, bra_hrmis_contract,
-#'   group_cols = "est_id", ref_date = as.Date("2012-09-01")
+#'   group_cols = "est_id", baseline_date = as.Date("2012-09-01")
 #' )
 #' scale_dt[, amount := amount * 1.1]   # 10% rise across all types
 #' cut <- data.table::data.table(est_id = scale_dt$est_id[1], total_allowance_multiplier = 0.8)

@@ -12,14 +12,14 @@ make_resolved_amounts <- function(amount_val = 100) {
 
 test_that("update_allowance_register requires resolved_amounts_dt to be a data.table", {
   expect_error(
-    update_allowance_register(NULL, list(), ref_date = as.Date("2020-01-01")),
+    update_allowance_register(NULL, list(), as_of_date = as.Date("2020-01-01")),
     "data.table"
   )
 })
 
 test_that("update_allowance_register initializes the ledger when allowance_dt is NULL", {
   resolved <- make_resolved_amounts()
-  out <- update_allowance_register(NULL, resolved, ref_date = as.Date("2020-01-01"))
+  out <- update_allowance_register(NULL, resolved, as_of_date = as.Date("2020-01-01"))
 
   expect_equal(nrow(out), nrow(resolved))
   expect_true("period_date" %in% names(out))
@@ -29,17 +29,17 @@ test_that("update_allowance_register initializes the ledger when allowance_dt is
 test_that("update_allowance_register rejects a non-data.table allowance_dt", {
   resolved <- make_resolved_amounts()
   expect_error(
-    update_allowance_register(list(), resolved, ref_date = as.Date("2020-01-01")),
+    update_allowance_register(list(), resolved, as_of_date = as.Date("2020-01-01")),
     "data.table"
   )
 })
 
 test_that("update_allowance_register accumulates across periods without rewriting history", {
   resolved1 <- make_resolved_amounts(amount_val = 100)
-  ledger1   <- update_allowance_register(NULL, resolved1, ref_date = as.Date("2020-01-01"))
+  ledger1   <- update_allowance_register(NULL, resolved1, as_of_date = as.Date("2020-01-01"))
 
   resolved2 <- make_resolved_amounts(amount_val = 150)
-  ledger2   <- update_allowance_register(ledger1, resolved2, ref_date = as.Date("2021-01-01"))
+  ledger2   <- update_allowance_register(ledger1, resolved2, as_of_date = as.Date("2021-01-01"))
 
   expect_equal(nrow(ledger2), nrow(resolved1) + nrow(resolved2))
   expect_equal(data.table::uniqueN(ledger2$period_date), 2L)
@@ -53,6 +53,6 @@ test_that("update_allowance_register accumulates across periods without rewritin
 
 test_that("update_allowance_register stamps the ref_date value under the period_date column", {
   resolved <- make_resolved_amounts()
-  out <- update_allowance_register(NULL, resolved, ref_date = as.Date("2022-06-01"))
+  out <- update_allowance_register(NULL, resolved, as_of_date = as.Date("2022-06-01"))
   expect_true(all(out$period_date == as.Date("2022-06-01")))
 })

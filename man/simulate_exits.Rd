@@ -8,8 +8,8 @@ simulate_exits(
   contract_dt,
   personnel_dt,
   policy_params,
-  ref_date,
-  column_spec_args = list()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -68,17 +68,17 @@ fields are recognised:\tabular{ll}{
    \code{active_types} \tab Contract type values in \code{contract_type_col} treated as eligible for exit. Must match actual \code{contract_type} values, not \code{employment_status} values. Default \code{c("permanent", "fixed-term", "short-term")} — the non-terminal \code{contract_type} values per the \code{govhr} harmonized dictionary \cr
 }}
 
-\item{ref_date}{A \code{Date} giving the simulation date for the current
+\item{as_of_date}{A \code{Date} giving the simulation date for the current
 projection period. Used to stamp exit dates onto closed contracts.}
 
-\item{column_spec_args}{A named list saying what your columns are called,
-so the function can read your data as it is. List only the names that
+\item{column_spec_args}{What your columns are called, from \code{\link[=define_column_spec]{define_column_spec()}},
+so the function can read your data as it is. Change only the names that
 differ from the \strong{govhr} harmonized defaults; for example
-\code{list(personnel_id_col = "pid", salary_col = "bruto")}. Your names are used
+\code{define_column_spec(personnel_id_col = "pid", salary_col = "bruto")}.
+Your names are used
 throughout, so the returned tables keep them, and you write the same names
-in \code{group_cols}, \code{policy_table} and \code{exit_strategy}. The same list can be
-passed to every \strong{govhrcast} function; keys a function does not use are
-ignored, and an unknown key is an error.
+in \code{group_cols}, \code{policy_table} and \code{exit_strategy}. The same spec can be
+passed to every \strong{govhrcast} function; columns a function does not use are ignored.
 
 Keys used here (default in brackets):
 \itemize{
@@ -89,7 +89,7 @@ a blank type (which is missing data), can exit; their contracts become
 \item \code{salary_col} (\code{"gross_salary_lcu"}): pay column, added up per person to
 give the savings from exits.
 \item \code{end_date_col} (\code{"end_date"}): contract end date. Exiting employees'
-contracts get \code{ref_date}.
+contracts get \code{as_of_date}.
 \item \code{status_col} (\code{"employment_status"}): set to \code{"inactive"} for employees
 who exit.
 }}
@@ -110,7 +110,7 @@ simulation period, containing:\tabular{ll}{
 
 The updated contract register after exits have been processed.
 Exited contracts have \code{contract_type_col} set to \code{"inactive"} and
-\code{end_date_col} set to \code{ref_date}.
+\code{end_date_col} set to \code{as_of_date}.
 \item \strong{personnel_dt}
 
 The updated personnel register. Employees who exit during the current
@@ -233,7 +233,7 @@ library(govhrcast)
 
 contract_dt  <- copy(bra_hrmis_contract)
 personnel_dt <- copy(bra_hrmis_personnel)
-ref_date     <- as.Date("2014-01-01")
+as_of_date     <- as.Date("2014-01-01")
 
 ############################################################
 ## Example 1: Flat scalar attrition rate
@@ -253,7 +253,7 @@ results <- simulate_exits(
   contract_dt   = contract_dt,
   personnel_dt  = personnel_dt,
   policy_params = exit_policy,
-  ref_date      = ref_date
+  as_of_date      = as_of_date
 )
 
 results$summary
@@ -289,7 +289,7 @@ results <- simulate_exits(
   contract_dt   = contract_dt,
   personnel_dt  = personnel_dt,
   policy_params = exit_policy,
-  ref_date      = ref_date
+  as_of_date      = as_of_date
 )
 
 results$summary

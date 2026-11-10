@@ -76,7 +76,7 @@ test_that("simulate_exits: fixed_rate mode returns correct structure", {
     contract_dt   = d$contract_dt,
     personnel_dt  = d$personnel_dt,
     policy_params = exit_policy,
-    ref_date      = as.Date("2025-01-01")
+    as_of_date      = as.Date("2025-01-01")
   )
 
   expect_type(result, "list")
@@ -109,7 +109,7 @@ test_that("simulate_exits: omitting defaults$active_types uses the dictionary-gr
     contract_dt   = d$contract_dt,
     personnel_dt  = d$personnel_dt,
     policy_params = exit_policy,
-    ref_date      = as.Date("2025-01-01")
+    as_of_date      = as.Date("2025-01-01")
   )
 
   expect_equal(result$summary$n_exits, 4L)
@@ -132,7 +132,7 @@ test_that("simulate_exits: fixed_rate = 0 → no exits", {
     contract_dt   = d$contract_dt,
     personnel_dt  = d$personnel_dt,
     policy_params = exit_policy,
-    ref_date      = as.Date("2025-01-01")
+    as_of_date      = as.Date("2025-01-01")
   )
 
   expect_equal(result$summary$n_exits, 0L)
@@ -157,7 +157,7 @@ test_that("simulate_exits: exiting personnel contracts are marked inactive", {
     contract_dt   = d$contract_dt,
     personnel_dt  = d$personnel_dt,
     policy_params = exit_policy,
-    ref_date      = as.Date("2025-01-01")
+    as_of_date      = as.Date("2025-01-01")
   )
 
   expect_true(all(result$contract_dt$contract_type == "inactive"))
@@ -181,7 +181,7 @@ test_that("simulate_exits: exit_savings equals sum of exited salaries", {
     contract_dt   = d$contract_dt,
     personnel_dt  = d$personnel_dt,
     policy_params = exit_policy,
-    ref_date      = as.Date("2025-01-01")
+    as_of_date      = as.Date("2025-01-01")
   )
 
   expect_equal(result$summary$exit_savings,
@@ -205,7 +205,7 @@ test_that("simulate_exits: no policy_table and no exit_rate → error", {
       contract_dt   = d$contract_dt,
       personnel_dt  = d$personnel_dt,
       policy_params = exit_policy,
-      ref_date      = as.Date("2025-01-01")
+      as_of_date      = as.Date("2025-01-01")
     ),
     regexp = "exit_rate"
   )
@@ -228,7 +228,7 @@ test_that("simulate_exits: status_quo mode with pre-supplied rates works", {
     contract_dt   = d$contract_dt,
     personnel_dt  = d$personnel_dt,
     policy_params = exit_policy,
-    ref_date      = as.Date("2025-01-01")
+    as_of_date      = as.Date("2025-01-01")
   )
 
   expect_equal(result$summary$n_exits, 1L)
@@ -251,7 +251,7 @@ test_that("simulate_exits: group_cols set without policy_table → error", {
       contract_dt   = d$contract_dt,
       personnel_dt  = d$personnel_dt,
       policy_params = exit_policy,
-      ref_date      = as.Date("2025-01-01")
+      as_of_date      = as.Date("2025-01-01")
     ),
     regexp = "group_cols"
   )
@@ -271,7 +271,7 @@ test_that("update_contracts_for_exits: salary column is NOT zeroed on inactive r
   update_contracts_for_exits(
     contract_dt       = d$contract_dt,
     exits_dt          = d$contract_dt[1:2, .(personnel_id)],
-    ref_date          = as.Date("2025-01-01"),
+    as_of_date          = as.Date("2025-01-01"),
     active_types      = "permanent"
   )
 
@@ -323,7 +323,7 @@ test_that("wage_bill_end excludes inactive (exited) workers' salaries", {
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
 
   expect_equal(res$summary_dt$wage_bill_end, 0)
@@ -370,7 +370,7 @@ test_that("Phase 3c: simulate_horizon with exit_policy reduces n_headcount_end",
     retirement_policy  = NULL,
     exit_policy        = exit_policy,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
 
   expect_equal(res$comparison$n_non_ret_exits[1], 2L)
@@ -406,7 +406,7 @@ test_that("Phase 3c: n_non_ret_exits column present in comparison when exit_poli
     n_periods          = 1L,
     retirement_policy  = NULL,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
 
   expect_true("n_non_ret_exits" %in% names(res$comparison))
@@ -630,7 +630,7 @@ run_exits_100 <- function(policy_table, defaults) {
   d <- make_exit_test_data_100()
   simulate_exits(d$contract_dt, d$personnel_dt,
                  list(group_cols = NULL, policy_table = policy_table, defaults = defaults),
-                 ref_date = as.Date("2020-01-01"))$summary$n_exits
+                 as_of_date = as.Date("2020-01-01"))$summary$n_exits
 }
 
 test_that("simulate_exits: an ungrouped 1-row policy_table rate is used (not ignored)", {
@@ -723,7 +723,7 @@ test_that("estimate_historical_exit_rates: events are read from the caller's sta
   pt <- data.table::copy(p$pt)
   pt[, situacao := employment_status]
   pt[, employment_status := "pensioner"]
-  expect_equal(estimate_historical_exit_rates(p$ct, pt, column_spec_args = list(status_col = "situacao"))$exit_rate, 0.30)
+  expect_equal(estimate_historical_exit_rates(p$ct, pt, column_spec_args = define_column_spec(status_col = "situacao"))$exit_rate, 0.30)
 })
 
 test_that("estimate_historical_exit_rates: someone who later retires after a gap is not an exit", {

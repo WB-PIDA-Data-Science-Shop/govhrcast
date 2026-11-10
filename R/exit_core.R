@@ -58,12 +58,12 @@ NULL
 #' @param panel_personnel_dt data.table.  Full panel of personnel data.
 #' @param group_cols Character vector or \code{NULL}.  Columns to group by
 #'   (e.g. \code{"est_id"}).  Pass \code{NULL} for an overall (ungrouped) rate.
-#' @param column_spec_args Named list.  Column names, if your data use
-#'   different names from the \code{govhr} defaults: give only the ones you
-#'   need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+#' @param column_spec_args Column names, from \code{\link{define_column_spec}()}.  Change only
+#'   the ones that differ from the \code{govhr} defaults, e.g.
+#'   \code{define_column_spec(personnel_id_col = "emp_id")}.  Keys read
 #'   here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
 #'   \code{end_date_col}, \code{contract_type_col}, \code{status_col}.  See
-#'   \code{\link{simulate_horizon}} for the defaults.
+#'   \code{\link{define_column_spec}} for the defaults.
 #'
 #' @return data.table with \code{group_cols} (if specified) and
 #'   \code{exit_rate} column -- one row per group, or a single row when
@@ -73,14 +73,15 @@ NULL
 estimate_historical_exit_rates <- function(panel_contract_dt,
                                            panel_personnel_dt,
                                            group_cols       = NULL,
-                                           column_spec_args = list()) {
+                                           column_spec_args = define_column_spec()) {
 
   if (!data.table::is.data.table(panel_contract_dt))
     panel_contract_dt <- data.table::as.data.table(panel_contract_dt)
   if (!data.table::is.data.table(panel_personnel_dt))
     panel_personnel_dt <- data.table::as.data.table(panel_personnel_dt)
 
-  cols <- .column_spec(column_spec_args)
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
   .check_spec_columns(panel_contract_dt, panel_personnel_dt, cols, required = list(
     contract_dt  = c("personnel_id_col", "ref_date_col", "start_date_col",
                      "end_date_col", "contract_type_col"),
@@ -128,7 +129,7 @@ estimate_historical_exit_rates <- function(panel_contract_dt,
     s <- compute_current_stock(
       contract_dt       = .panel_snapshot(panel_contract_dt, ref_date_col, snap),
       personnel_dt      = .panel_snapshot(panel_personnel_dt, ref_date_col, snap),
-      ref_date          = snap,
+      as_of_date          = snap,
       group_cols        = group_cols,
       column_spec_args  = cols
     )

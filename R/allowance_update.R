@@ -14,22 +14,22 @@
 #'   rows.
 #' @param resolved_amounts_dt data.table. This period's resolved amounts, as
 #'   returned by \code{\link{resolve_allowance_amounts}}.
-#' @param ref_date Date. Stamped onto the new rows as \code{period_date},
+#' @param as_of_date Date. Stamped onto the new rows as \code{period_date},
 #'   matching \code{pensioner_register}'s column (the parameter itself is
-#'   named \code{ref_date} for consistency with
+#'   named \code{as_of_date} for consistency with
 #'   \code{simulate_retirement()}/\code{simulate_exits()}/
 #'   \code{simulate_promotions_transfers()}/\code{simulate_hiring()}, which
 #'   all take the current period's date under this same name).
 #'
 #' @return Updated \code{allowance_dt}.
 #' @keywords internal
-update_allowance_register <- function(allowance_dt, resolved_amounts_dt, ref_date) {
+update_allowance_register <- function(allowance_dt, resolved_amounts_dt, as_of_date) {
 
   if (!data.table::is.data.table(resolved_amounts_dt))
     stop("resolved_amounts_dt must be a data.table.", call. = FALSE)
 
   new_rows <- data.table::copy(resolved_amounts_dt)
-  new_rows[, period_date := ref_date]
+  new_rows[, period_date := as_of_date]
 
   if (is.null(allowance_dt)) return(new_rows)
 

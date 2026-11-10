@@ -32,11 +32,11 @@ test_that("estimate_baseline_allowance_scale requires data.table inputs", {
   ct <- make_contract_panel()
   al <- make_allowance_panel()
   expect_error(
-    estimate_baseline_allowance_scale(list(), ct, group_cols = "est_id", ref_date = as.Date("2020-01-01")),
+    estimate_baseline_allowance_scale(list(), ct, group_cols = "est_id", baseline_date = as.Date("2020-01-01")),
     "data.table"
   )
   expect_error(
-    estimate_baseline_allowance_scale(al, list(), group_cols = "est_id", ref_date = as.Date("2020-01-01")),
+    estimate_baseline_allowance_scale(al, list(), group_cols = "est_id", baseline_date = as.Date("2020-01-01")),
     "data.table"
   )
 })
@@ -45,7 +45,7 @@ test_that("estimate_baseline_allowance_scale requires group_cols", {
   ct <- make_contract_panel()
   al <- make_allowance_panel()
   expect_error(
-    estimate_baseline_allowance_scale(al, ct, group_cols = NULL, ref_date = as.Date("2020-01-01")),
+    estimate_baseline_allowance_scale(al, ct, group_cols = NULL, baseline_date = as.Date("2020-01-01")),
     "group_cols"
   )
 })
@@ -55,7 +55,7 @@ test_that("estimate_baseline_allowance_scale requires amount_col to be numeric",
   al <- make_allowance_panel()
   al[, allowance_lcu := as.character(allowance_lcu)]
   expect_error(
-    estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", ref_date = as.Date("2020-01-01")),
+    estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", baseline_date = as.Date("2020-01-01")),
     "numeric"
   )
 })
@@ -64,7 +64,7 @@ test_that("estimate_baseline_allowance_scale computes the unconditional mean, in
   ct <- make_contract_panel()
   al <- make_allowance_panel()
 
-  scale_dt <- estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", ref_date = as.Date("2020-01-01"))
+  scale_dt <- estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", baseline_date = as.Date("2020-01-01"))
 
   # E1 = {C1, C2, C4}; C4 has no allowance rows at all -> counts as 0 for both types
   expect_equal(scale_dt[est_id == "E1" & allowance_type == "hazard"]$amount, (100 + 0 + 0) / 3)
@@ -80,7 +80,7 @@ test_that("estimate_baseline_allowance_scale computes the unconditional mean, in
 test_that("estimate_baseline_allowance_scale does NOT silently compute a conditional mean", {
   ct <- make_contract_panel()
   al <- make_allowance_panel()
-  scale_dt <- estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", ref_date = as.Date("2020-01-01"))
+  scale_dt <- estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", baseline_date = as.Date("2020-01-01"))
 
   # Conditional mean (only over contracts appearing in the allowance table) would give
   # 100/2 = 50 for E1 x hazard -- the correct unconditional mean must differ from this.
@@ -106,7 +106,7 @@ test_that("estimate_baseline_allowance_scale resolves ref_date to the nearest pr
 
   # ref_date falls after the 2020-01-01 snapshot but should snap to it, not to
   # 2019-01-01, and must not blend the two periods together.
-  scale_dt <- estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", ref_date = as.Date("2020-06-01"))
+  scale_dt <- estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", baseline_date = as.Date("2020-06-01"))
   expect_equal(scale_dt$amount, (100 + 0) / 2)
 })
 
@@ -114,7 +114,7 @@ test_that("estimate_baseline_allowance_scale errors when no snapshot exists on o
   ct <- make_contract_panel()
   al <- make_allowance_panel()
   expect_error(
-    estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", ref_date = as.Date("1999-01-01")),
+    estimate_baseline_allowance_scale(al, ct, group_cols = "est_id", baseline_date = as.Date("1999-01-01")),
     "No dates found"
   )
 })

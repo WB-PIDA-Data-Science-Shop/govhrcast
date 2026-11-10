@@ -10,8 +10,8 @@ select_personnel_to_remove(
   n_remove,
   strategy = "last_hired_first",
   group_vals = NULL,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -26,10 +26,10 @@ Options: "last_hired_first", "random"}
 
 \item{group_vals}{Named list. Values for grouping columns to filter on}
 
-\item{ref_date}{Date. Reference date}
+\item{as_of_date}{Date. Reference date}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 Character vector of personnel_ids to remove

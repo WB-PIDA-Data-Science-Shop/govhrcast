@@ -43,12 +43,9 @@ test_that("package code never writes files, calls the network or changes global 
 })
 
 test_that("a bare ref_date never appears inside data.table brackets (B-86)", {
-  # There it reads a column called ref_date when the table has one, which stays
-  # at the start date during a projection, instead of the date passed in. Use a
-  # local alias such as .as_of_date. Listed here: `[` on a plain vector, or a
-  # table made in the function that holds no such column.
-  safe <- c("compute_age", "compute_time_in_grade", "select_nearest_ref_date",
-            "update_allowance_register")
+  # There it reads the column called ref_date, which stays at the start date during
+  # a projection. No argument has this name: use as_of_date or baseline_date, and
+  # get(ref_date_col) for the column.
   names_in <- function(e) {
     if (is.name(e)) return(as.character(e))
     if (!is.call(e)) return(character(0))
@@ -62,7 +59,7 @@ test_that("a bare ref_date never appears inside data.table brackets (B-86)", {
     in_brackets || any(vapply(parts, function(a) !missing(a) && uses_it(a), logical(1)))
   }
   fns <- package_functions()
-  hits <- Filter(function(n) !n %in% safe && !is.primitive(fns[[n]]) && uses_it(body(fns[[n]])),
+  hits <- Filter(function(n) !is.primitive(fns[[n]]) && uses_it(body(fns[[n]])),
                  names(fns))
   expect_identical(hits, character(0))
 })
@@ -83,7 +80,7 @@ test_that("a 5-year status-quo projection on the bundled data runs within 10 sec
               .(base_salary_lcu = mean(base_salary_lcu)), by = est_id]
   elapsed <- system.time(suppressMessages(suppressWarnings(simulate_horizon(
     contract_dt = hc, personnel_dt = hp, salary_scale_dt = scale,
-    n_periods = 5L, ref_date = start,
+    n_periods = 5L, baseline_date = start,
     retirement_policy = design_retirement_policy_status_quo(
       pension = pension_db(0.02, 35, 0.80)),
     exit_policy     = design_exit_policy_status_quo(group_cols = "est_id"),
@@ -92,9 +89,9 @@ test_that("a 5-year status-quo projection on the bundled data runs within 10 sec
     hiring_policy   = design_hiring_policy_status_quo(group_cols = "est_id",
                                                       salary_scale = scale),
     allowance_policy = design_allowance_policy_status_quo(
-      bra_hrmis_allowance, hc, group_cols = "est_id", ref_date = start),
+      bra_hrmis_allowance, hc, group_cols = "est_id", baseline_date = start),
     salary_growth_rate = 0.05,
-    column_spec_args   = list(salary_col = "base_salary_lcu"),
+    column_spec_args   = define_column_spec(salary_col = "base_salary_lcu"),
     seed = 1L
   ))))[["elapsed"]]
   expect_lt(elapsed, 10)

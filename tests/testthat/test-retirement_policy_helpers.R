@@ -314,10 +314,10 @@ test_that("a constructed policy produces identical output to the equivalent hand
                      pension_type = "rate", pension_rate = 0.15)
   )
 
-  res_constructed <- simulate_retirement(contract_dt, personnel_dt, ref_date = ref_date,
-                                         policy_params = constructed, column_spec_args = list(salary_col = "base_salary_lcu"))
-  res_handwritten <- simulate_retirement(contract_dt, personnel_dt, ref_date = ref_date,
-                                         policy_params = handwritten, column_spec_args = list(salary_col = "base_salary_lcu"))
+  res_constructed <- simulate_retirement(contract_dt, personnel_dt, as_of_date = ref_date,
+                                         policy_params = constructed, column_spec_args = define_column_spec(salary_col = "base_salary_lcu"))
+  res_handwritten <- simulate_retirement(contract_dt, personnel_dt, as_of_date = ref_date,
+                                         policy_params = handwritten, column_spec_args = define_column_spec(salary_col = "base_salary_lcu"))
 
   expect_identical(res_constructed$retirees_dt, res_handwritten$retirees_dt)
   expect_equal(res_constructed$summary$n_retired, 1L)
@@ -357,8 +357,8 @@ test_that("design_retirement_policy_status_quo works end-to-end through simulate
   res <- simulate_horizon(
     contract_dt = contract_panel, personnel_dt = personnel_panel, salary_scale_dt = salary_scale,
     n_periods = 1, retirement_policy = policy,
-    column_spec_args = list(salary_col = "base_salary_lcu"),
-    ref_date = snap2, seed = 1
+    column_spec_args = define_column_spec(salary_col = "base_salary_lcu"),
+    baseline_date = snap2, seed = 1
   )
 
   # 4 active candidates (P3-P6) at snap2, estimated hazard_rate = 2/6:

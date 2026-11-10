@@ -22,14 +22,14 @@ NULL
 #'
 #' @description
 #' Marks ALL active contracts for each exiting person as \code{"inactive"}
-#' and sets \code{end_date_col} to \code{ref_date}.  Uses a plain membership
+#' and sets \code{end_date_col} to \code{as_of_date}.  Uses a plain membership
 #' filter on \code{personnel_id} so that multi-contract persons are handled
 #' correctly in one pass.
 #'
 #' @param contract_dt data.table.  Contract data (modified by reference).
 #' @param exits_dt data.table.  Table of exiting personnel — must contain
 #'   \code{personnel_id_col}.
-#' @param ref_date Date.  Reference date; becomes the exit date.
+#' @param as_of_date Date.  Reference date; becomes the exit date.
 #' @param personnel_id_col Character.  Default \code{"personnel_id"}.
 #' @param contract_type_col Character.  Default \code{"contract_type"}.
 #' @param end_date_col Character.  Default \code{"end_date"}.
@@ -44,7 +44,7 @@ NULL
 #' @keywords internal
 update_contracts_for_exits <- function(contract_dt,
                                        exits_dt,
-                                       ref_date,
+                                       as_of_date,
                                        personnel_id_col  = "personnel_id",
                                        contract_type_col = "contract_type",
                                        end_date_col      = "end_date",
@@ -53,11 +53,11 @@ update_contracts_for_exits <- function(contract_dt,
 
   exiting_ids <- unique(exits_dt[[personnel_id_col]])
 
-  .as_of_date <- as.Date(ref_date)
+  as_of_date <- as.Date(as_of_date)
   contract_dt[
     get(personnel_id_col) %in% exiting_ids &
       get(contract_type_col) %in% active_types,
-    c(contract_type_col, end_date_col) := list("inactive", .as_of_date)
+    c(contract_type_col, end_date_col) := list("inactive", as_of_date)
   ]
 
   invisible(contract_dt)

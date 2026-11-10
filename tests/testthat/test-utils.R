@@ -349,6 +349,41 @@ test_that("get_primary_contract uses contract_id as tiebreaker", {
   expect_equal(result$contract_id, "C001")
 })
 
+test_that("get_primary_contract does not let a blank value win", {
+  blank_salary <- data.table(
+    contract_id = c("C1", "C2"), personnel_id = "P1",
+    start_date = as.Date("2020-01-01"), gross_salary_lcu = c(100, NA)
+  )
+  expect_equal(get_primary_contract(blank_salary)$contract_id, "C1")
+
+  blank_start <- data.table(
+    contract_id = c("C1", "C2"), personnel_id = "P1",
+    start_date = as.Date(c("2020-01-01", NA)), gross_salary_lcu = 100
+  )
+  expect_equal(get_primary_contract(blank_start)$contract_id, "C1")
+})
+
+test_that("get_primary_contract gives one main contract per snapshot when asked", {
+  contract_dt <- data.table(
+    contract_id = c("C1", "C2", "C1"), personnel_id = "P1",
+    ref_date = as.Date(c("2019-01-01", "2019-01-01", "2020-01-01")),
+    start_date = as.Date(c("2000-01-01", "2010-01-01", "2000-01-01")),
+    gross_salary_lcu = 100
+  )
+  result <- get_primary_contract(contract_dt, snapshot_col = "ref_date")
+  expect_equal(result[order(ref_date), contract_id], c("C2", "C1"))
+})
+
+test_that("get_primary_contract leaves the caller's table as it was", {
+  contract_dt <- data.table(
+    contract_id = c("C1", "C2"), personnel_id = "P1",
+    start_date = as.Date(c("2000-01-01", "2010-01-01")), gross_salary_lcu = 100
+  )
+  before <- copy(contract_dt)
+  get_primary_contract(contract_dt)
+  expect_identical(contract_dt, before)
+})
+
 
 test_that("generate_new_ids creates unique IDs", {
   ids <- generate_new_ids(5, as.Date("2025-01-15"))

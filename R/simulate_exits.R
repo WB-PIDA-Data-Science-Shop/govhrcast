@@ -153,17 +153,17 @@
 #' Must contain at least the columns identified by `personnel_id_col`
 #' and `status_col` in `column_spec_args`.
 #'
-#' @param ref_date A `Date` giving the simulation date for the current
+#' @param as_of_date A `Date` giving the simulation date for the current
 #' projection period. Used to stamp exit dates onto closed contracts.
 #'
-#' @param column_spec_args A named list saying what your columns are called,
-#' so the function can read your data as it is. List only the names that
+#' @param column_spec_args What your columns are called, from [define_column_spec()],
+#' so the function can read your data as it is. Change only the names that
 #' differ from the **govhr** harmonized defaults; for example
-#' `list(personnel_id_col = "pid", salary_col = "bruto")`. Your names are used
+#' `define_column_spec(personnel_id_col = "pid", salary_col = "bruto")`.
+#' Your names are used 
 #' throughout, so the returned tables keep them, and you write the same names
-#' in `group_cols`, `policy_table` and `exit_strategy`. The same list can be
-#' passed to every **govhrcast** function; keys a function does not use are
-#' ignored, and an unknown key is an error.
+#' in `group_cols`, `policy_table` and `exit_strategy`. The same spec can be
+#' passed to every **govhrcast** function; columns a function does not use are ignored.
 #'
 #' Keys used here (default in brackets):
 #'
@@ -174,7 +174,7 @@
 #' * `salary_col` (`"gross_salary_lcu"`): pay column, added up per person to
 #'   give the savings from exits.
 #' * `end_date_col` (`"end_date"`): contract end date. Exiting employees'
-#'   contracts get `ref_date`.
+#'   contracts get `as_of_date`.
 #' * `status_col` (`"employment_status"`): set to `"inactive"` for employees
 #'   who exit.
 #'
@@ -195,7 +195,7 @@
 #'
 #'   The updated contract register after exits have been processed.
 #'   Exited contracts have `contract_type_col` set to `"inactive"` and
-#'   `end_date_col` set to `ref_date`.
+#'   `end_date_col` set to `as_of_date`.
 #'
 #' * **personnel_dt**
 #'
@@ -216,7 +216,7 @@
 #'
 #' contract_dt  <- copy(bra_hrmis_contract)
 #' personnel_dt <- copy(bra_hrmis_personnel)
-#' ref_date     <- as.Date("2014-01-01")
+#' as_of_date     <- as.Date("2014-01-01")
 #'
 #' ############################################################
 #' ## Example 1: Flat scalar attrition rate
@@ -236,7 +236,7 @@
 #'   contract_dt   = contract_dt,
 #'   personnel_dt  = personnel_dt,
 #'   policy_params = exit_policy,
-#'   ref_date      = ref_date
+#'   as_of_date      = as_of_date
 #' )
 #'
 #' results$summary
@@ -272,7 +272,7 @@
 #'   contract_dt   = contract_dt,
 #'   personnel_dt  = personnel_dt,
 #'   policy_params = exit_policy,
-#'   ref_date      = ref_date
+#'   as_of_date      = as_of_date
 #' )
 #'
 #' results$summary
@@ -299,16 +299,17 @@
 simulate_exits <- function(contract_dt,
                            personnel_dt,
                            policy_params,
-                           ref_date,
-                           column_spec_args = list()) {
+                           as_of_date,
+                           column_spec_args = define_column_spec()) {
 
   # ------------------------------------------------------------------
   # 0. Validate & copy
   # ------------------------------------------------------------------
-  ref_date <- validate_date_format(ref_date, "ref_date")
+  as_of_date <- validate_date_format(as_of_date, "as_of_date")
 
-  # The caller's column names, with defaults for any not given
-  cols <- .column_spec(column_spec_args)
+  # Check the caller's column names
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
   .check_spec_columns(contract_dt, personnel_dt, cols, required = list(
     contract_dt  = c("personnel_id_col", "contract_type_col", "salary_col", "end_date_col"),
     personnel_dt = c("personnel_id_col", "status_col")
@@ -403,7 +404,7 @@ simulate_exits <- function(contract_dt,
     update_contracts_for_exits(
       contract_dt       = contract_dt,
       exits_dt          = exits_dt,
-      ref_date          = ref_date,
+      as_of_date          = as_of_date,
       personnel_id_col  = personnel_id_col,
       contract_type_col = contract_type_col,
       end_date_col      = cols$end_date_col,

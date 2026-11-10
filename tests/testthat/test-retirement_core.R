@@ -97,7 +97,7 @@ test_that(".filter_active_candidate_pool keeps active non-pensioner personnel", 
   result <- filter_active_candidate_pool(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
-    ref_date = as.Date("2025-01-01")
+    as_of_date = as.Date("2025-01-01")
   )
 
   expect_setequal(result$all_pid, c("P1", "P2", "P3"))
@@ -126,7 +126,7 @@ test_that(".enrich_working_table adds needed columns from both sources", {
     needed_cols = c("grade", "region"),
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
-    ref_date = as.Date("2025-01-01")
+    as_of_date = as.Date("2025-01-01")
   )
 
   expect_equal(working_dt[personnel_id == "P1", grade], "A")
@@ -819,7 +819,7 @@ test_that("identify_eligibility: group-level min_age via policy_table dispatches
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2025-01-01")
+    as_of_date = as.Date("2025-01-01")
   )
   expect_equal(result[personnel_id == "P001"]$retire, 1L)
   expect_equal(result[personnel_id == "P002"]$retire, 0L)
@@ -855,7 +855,7 @@ test_that("identify_eligibility: group-level min_tenure via policy_table dispatc
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2025-01-01")
+    as_of_date = as.Date("2025-01-01")
   )
   expect_equal(result[personnel_id == "P001"]$retire, 1L)
   expect_equal(result[personnel_id == "P002"]$retire, 0L)
@@ -889,7 +889,7 @@ test_that("identify_eligibility: unmatched grade uses default min_age from defau
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2025-01-01")
+    as_of_date = as.Date("2025-01-01")
   )
   expect_equal(result[personnel_id == "P001"]$retire, 1L) # grade A, min_age 60
   expect_equal(result[personnel_id == "P002"]$retire, 1L) # grade C, default 62
@@ -927,7 +927,7 @@ test_that("compute_status_quo_retirements: mandatory min_age force-retires regar
   )
 
   result <- compute_status_quo_retirements(
-    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+    contract_dt, personnel_dt, policy_params, as_of_date = as.Date("2024-01-01")
   )
 
   expect_setequal(result$personnel_id, c("p2", "p3"))
@@ -950,7 +950,7 @@ test_that("compute_status_quo_retirements: group-count rounding selects the exac
   )
 
   result <- compute_status_quo_retirements(
-    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+    contract_dt, personnel_dt, policy_params, as_of_date = as.Date("2024-01-01")
   )
 
   expect_equal(sum(result$personnel_id %in% c("p1", "p2")), 1L)
@@ -973,7 +973,7 @@ test_that("compute_status_quo_retirements: unmatched age groups zero-fill rather
   )
 
   result <- compute_status_quo_retirements(
-    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+    contract_dt, personnel_dt, policy_params, as_of_date = as.Date("2024-01-01")
   )
 
   expect_equal(nrow(result), 0L)
@@ -997,7 +997,7 @@ test_that("compute_status_quo_retirements: rank-based strategy selects determini
   )
 
   result <- compute_status_quo_retirements(
-    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+    contract_dt, personnel_dt, policy_params, as_of_date = as.Date("2024-01-01")
   )
 
   expect_setequal(result$personnel_id, c("p2", "p4"))
@@ -1019,11 +1019,11 @@ test_that("compute_status_quo_retirements: random strategy is reproducible under
 
   set.seed(42)
   result1 <- compute_status_quo_retirements(
-    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+    contract_dt, personnel_dt, policy_params, as_of_date = as.Date("2024-01-01")
   )
   set.seed(42)
   result2 <- compute_status_quo_retirements(
-    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+    contract_dt, personnel_dt, policy_params, as_of_date = as.Date("2024-01-01")
   )
 
   expect_identical(sort(result1$personnel_id), sort(result2$personnel_id))
@@ -1045,7 +1045,7 @@ test_that("compute_status_quo_retirements: group_cols missing age_yr_int errors"
 
   expect_error(
     compute_status_quo_retirements(
-      contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+      contract_dt, personnel_dt, policy_params, as_of_date = as.Date("2024-01-01")
     ),
     regexp = "age_yr_int"
   )
@@ -1070,7 +1070,7 @@ test_that("compute_status_quo_retirements: NA age is excluded, not force-retired
   )
 
   result <- compute_status_quo_retirements(
-    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+    contract_dt, personnel_dt, policy_params, as_of_date = as.Date("2024-01-01")
   )
 
   expect_false(anyNA(result$personnel_id))
@@ -1096,7 +1096,7 @@ test_that("compute_status_quo_retirements: computes age from birth_date when age
 
   result <- compute_status_quo_retirements(
     # age_col defaults to "age": not present on personnel_dt -> falls back to compute_age()
-    contract_dt, personnel_dt, policy_params, ref_date = as.Date("2024-01-01")
+    contract_dt, personnel_dt, policy_params, as_of_date = as.Date("2024-01-01")
   )
 
   expect_setequal(result$personnel_id, c("p1", "p2"))

@@ -83,12 +83,13 @@ NULL
 #'   transfers, \code{c("est_id", "paygrade")} for both at once.  Must be the
 #'   same \code{group_cols} you later pass to
 #'   \code{\link{design_movement_policy_adjustment}}.
-#' @param column_spec_args Named list.  Column names, if your data use
-#'   different names from the \code{govhr} defaults: give only the ones you
-#'   need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+#' @param column_spec_args Column names, from \code{\link{define_column_spec}()}.  Change only
+#'   the ones that differ from the \code{govhr} defaults, e.g.
+#'   \code{define_column_spec(personnel_id_col = "emp_id")}.  Keys read
 #'   here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
-#'   \code{end_date_col}, \code{contract_type_col}.  See
-#'   \code{\link{simulate_horizon}} for the defaults.
+#'   \code{end_date_col}, \code{contract_type_col},
+#'   \code{contract_id_col}, \code{salary_col}.  See
+#'   \code{\link{define_column_spec}} for the defaults.
 #'
 #' @return A data.table with one row per observed move and columns:
 #'   \describe{
@@ -125,8 +126,9 @@ NULL
 #' @export
 movement_policy_template <- function(contract_dt,
                                      group_cols,
-                                     column_spec_args = list()) {
-  cols <- .column_spec(column_spec_args)
+                                     column_spec_args = define_column_spec()) {
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
   if (is.null(group_cols) || !is.character(group_cols) || length(group_cols) == 0L) {
     stop("movement_policy_template: group_cols must be a non-empty character vector.",
          call. = FALSE)
@@ -144,10 +146,8 @@ movement_policy_template <- function(contract_dt,
          call. = FALSE)
   }
 
-  # Pass a column subset (a new table), not contract_dt itself:
-  # roll_snapshot_pairs() re-keys its input by reference, which would silently
-  # re-sort the caller's panel.
   .needed  <- c(cols$ref_date_col, cols$personnel_id_col, group_cols,
+                cols$contract_id_col, cols$salary_col,
                 cols$start_date_col, cols$end_date_col, cols$contract_type_col)
   .missing <- setdiff(.needed, names(contract_dt))
   if (length(.missing) > 0L) {
@@ -156,7 +156,7 @@ movement_policy_template <- function(contract_dt,
   }
 
   est <- estimate_historical_movement_rates(
-    contract_dt       = contract_dt[, .needed, with = FALSE],
+    contract_dt       = contract_dt,
     group_cols        = group_cols,
     column_spec_args  = cols
   )

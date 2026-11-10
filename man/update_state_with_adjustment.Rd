@@ -9,8 +9,8 @@ update_state_with_adjustment(
   personnel_dt,
   adjustment_dt,
   policy_params,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -30,10 +30,10 @@ start with: see \code{\link{estimate_new_hire_profile}}.  Without a
 profile, hires are \code{"permanent"} with a blank age and gender.
 }}
 
-\item{ref_date}{Date. Reference date for adjustments}
+\item{as_of_date}{Date. Reference date for adjustments}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 List containing:

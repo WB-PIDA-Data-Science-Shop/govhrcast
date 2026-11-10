@@ -9,8 +9,8 @@ compute_flow_demand(
   personnel_dt,
   policy_params,
   leavers_dt = NULL,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -34,10 +34,10 @@ are read from \code{contract_dt}).  An empty table means nobody left.
 in \code{policy_params$defaults}.  \code{simulate_scenario()} always passes
 a table.}
 
-\item{ref_date}{Date. Reference date for calculations}
+\item{as_of_date}{Date. Reference date for calculations}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 data.table with group_cols (if specified) and total_hires column

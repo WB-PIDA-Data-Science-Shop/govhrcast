@@ -10,8 +10,8 @@ compute_movement_demand(
   baseline_matrix,
   policy_params,
   salary_scale_dt,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -29,10 +29,10 @@ read here.}
 
 \item{salary_scale_dt}{data.table. Valid destinations. Must contain group_cols columns.}
 
-\item{ref_date}{Date or character. Reference date}
+\item{as_of_date}{Date or character. Reference date}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 data.table with columns:

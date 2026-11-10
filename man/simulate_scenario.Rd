@@ -19,7 +19,7 @@ simulate_scenario(
   salary_growth_rate = 0,
   pension_cola_rate = 0,
   allowance_growth_rate = 0,
-  column_spec_args = list(),
+  column_spec_args = define_column_spec(),
   period_fraction = 1,
   seed = NULL
 )
@@ -84,10 +84,10 @@ Default \code{0}.}
 amounts in \code{allowance_policy} this period, before they are assigned,
 so allowances grow in the same year as pay.  Default \code{0}.}
 
-\item{column_spec_args}{Named list.  Column names, if your data use
-different names from the \code{govhr} defaults: give only the ones you
-need to change, e.g. \code{list(salary_col = "base_salary_lcu")}.  See
-\code{\link{simulate_horizon}} for the keys and defaults.  Here,
+\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only
+the ones that differ from the \code{govhr} defaults, e.g.
+\code{define_column_spec(salary_col = "base_salary_lcu")}.  See
+\code{\link{define_column_spec}} for the keys and defaults.  Here,
 \code{age_col} and \code{tenure_col} are the columns aged each period;
 \code{NULL} leaves that column as it is.}
 

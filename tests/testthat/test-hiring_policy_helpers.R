@@ -157,8 +157,8 @@ test_that("a constructed flow policy produces identical output to the equivalent
   handwritten <- list(mode = "flow", group_cols = NULL, replacement_rate = 1.0,
                       salary_scale = data.table(gross_salary_lcu = 5000))
 
-  res_c <- simulate_hiring(contract_dt, personnel_dt, policy_params = constructed, leavers_dt = retirees_dt, ref_date = ref_date)
-  res_h <- simulate_hiring(contract_dt, personnel_dt, policy_params = handwritten, leavers_dt = retirees_dt, ref_date = ref_date)
+  res_c <- simulate_hiring(contract_dt, personnel_dt, policy_params = constructed, leavers_dt = retirees_dt, as_of_date = ref_date)
+  res_h <- simulate_hiring(contract_dt, personnel_dt, policy_params = handwritten, leavers_dt = retirees_dt, as_of_date = ref_date)
 
   expect_identical(res_c$new_hire_contracts_dt, res_h$new_hire_contracts_dt)
   expect_equal(res_c$summary$n_new_hires, 2L)
@@ -173,7 +173,7 @@ test_that("design_hiring_policy_stock triggers downsizing correctly", {
   personnel_dt <- data.table(personnel_id = paste0("P", 1:5), employment_status = "active")
 
   policy <- design_hiring_policy_stock(stock_targets = data.table(target_stock = 3), removal_strategy = "random")
-  res <- simulate_hiring(contract_dt, personnel_dt, policy_params = policy, ref_date = as.Date("2025-01-01"))
+  res <- simulate_hiring(contract_dt, personnel_dt, policy_params = policy, as_of_date = as.Date("2025-01-01"))
 
   expect_equal(res$summary$n_new_hires, 0L)
   expect_equal(res$summary$net_headcount_change, -2L)
@@ -196,7 +196,7 @@ test_that("design_hiring_policy_status_quo works end-to-end through simulate_hor
   policy <- design_hiring_policy_status_quo(group_cols = "est_id")
   res <- simulate_horizon(
     contract_dt = contract_panel, personnel_dt = personnel_panel, salary_scale_dt = salary_scale,
-    n_periods = 1, retirement_policy = NULL, hiring_policy = policy, ref_date = snap2
+    n_periods = 1, retirement_policy = NULL, hiring_policy = policy, baseline_date = snap2
   )
 
   expect_gt(res$comparison$n_hires[1], 0L)
@@ -223,7 +223,7 @@ three_groups <- function() {
 
 hires_by_group <- function(policy) {
   d <- three_groups()
-  res <- simulate_hiring(d$ct, d$pt, policy_params = policy, ref_date = as.Date("2020-01-01"))
+  res <- simulate_hiring(d$ct, d$pt, policy_params = policy, as_of_date = as.Date("2020-01-01"))
   counts <- res$new_hire_contracts_dt[, .N, by = est_id]
   vapply(c("E1", "E2", "E3"), function(g) sum(counts[est_id == g, N]), integer(1))
 }
@@ -288,8 +288,8 @@ adjusted_horizon <- function(policy, n_periods = 2L) {
     bra_hrmis_contract[ref_date <= start], bra_hrmis_personnel[ref_date <= start],
     bra_hrmis_contract[ref_date == start & !is.na(gross_salary_lcu),
                        .(gross_salary_lcu = mean(gross_salary_lcu)), by = est_id],
-    n_periods = n_periods, ref_date = start, retirement_policy = NULL, hiring_policy = policy,
-    output_control_args = list(return_microdata = TRUE), seed = 1L
+    n_periods = n_periods, baseline_date = start, retirement_policy = NULL, hiring_policy = policy,
+    output_control_args = define_output_control(return_microdata = TRUE), seed = 1L
   ))
 }
 historical_rates <- function() {
@@ -332,7 +332,7 @@ test_that("simulate_horizon still stops when there is no panel and no table", {
   start <- as.Date("2012-09-01")
   expect_error(
     simulate_horizon(bra_hrmis_contract[ref_date == start], bra_hrmis_personnel[ref_date == start],
-                     data.table(est_id = "E1", gross_salary_lcu = 100), n_periods = 1L, ref_date = start,
+                     data.table(est_id = "E1", gross_salary_lcu = 100), n_periods = 1L, baseline_date = start,
                      retirement_policy = NULL,
                      hiring_policy = design_hiring_policy_status_quo(group_cols = "est_id")),
     "status-quo hiring needs a panel"
@@ -351,7 +351,7 @@ test_that("flow hiring: a group with leavers but no rate replaces nobody by defa
   rates <- data.table(est_id = "E1", replacement_rate = 1)
   policy <- design_hiring_policy_flow(rates, group_cols = "est_id", salary_scale = d$scale)
   res <- simulate_hiring(d$ct, d$pt, policy_params = policy, leavers_dt = flow_retirees,
-                         ref_date = as.Date("2020-01-01"))
+                         as_of_date = as.Date("2020-01-01"))
   expect_equal(res$new_hire_contracts_dt[, .N, keyby = est_id], data.table(est_id = "E1", N = 1L, key = "est_id"))
 })
 
@@ -360,7 +360,7 @@ test_that("flow hiring: unmatched_rate sets the rate for groups not in the table
   rates <- data.table(est_id = "E1", replacement_rate = 0)
   policy <- design_hiring_policy_flow(rates, group_cols = "est_id", salary_scale = d$scale, unmatched_rate = 1)
   res <- simulate_hiring(d$ct, d$pt, policy_params = policy, leavers_dt = flow_retirees,
-                         ref_date = as.Date("2020-01-01"))
+                         as_of_date = as.Date("2020-01-01"))
   expect_equal(res$new_hire_contracts_dt[, .N, keyby = est_id], data.table(est_id = "E2", N = 1L, key = "est_id"))
 })
 

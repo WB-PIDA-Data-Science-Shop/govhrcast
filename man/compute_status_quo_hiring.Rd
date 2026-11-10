@@ -8,8 +8,8 @@ compute_status_quo_hiring(
   contract_dt,
   personnel_dt,
   policy_params,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -29,10 +29,10 @@ row in \code{squorate_dt}.
 \item salary_scale: data.table used for salary assignment of new hires.
 }}
 
-\item{ref_date}{Date. Reference date for current-period stock calculation.}
+\item{as_of_date}{Date. Reference date for current-period stock calculation.}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 data.table with \code{group_cols} (if specified) and \code{total_hires} column.

@@ -9,8 +9,8 @@
   needed_cols,
   contract_dt,
   personnel_dt,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -22,10 +22,10 @@
 
 \item{personnel_dt}{data.table. Personnel source table.}
 
-\item{ref_date}{Date. Reference date for active contract extraction.}
+\item{as_of_date}{Date. Reference date for active contract extraction.}
 
 \item{column_spec_args}{Complete column specification
-(\code{.column_spec()}). Keys read: \code{personnel_id_col},
+(\code{define_column_spec()}). Keys read: \code{personnel_id_col},
 \code{contract_id_col}, \code{start_date_col}, \code{end_date_col},
 \code{contract_type_col}, \code{salary_col} (picks the primary contract).}
 }

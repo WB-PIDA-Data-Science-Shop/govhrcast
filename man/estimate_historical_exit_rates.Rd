@@ -8,7 +8,7 @@ estimate_historical_exit_rates(
   panel_contract_dt,
   panel_personnel_dt,
   group_cols = NULL,
-  column_spec_args = list()
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -20,12 +20,12 @@ estimate_historical_exit_rates(
 \item{group_cols}{Character vector or \code{NULL}.  Columns to group by
 (e.g. \code{"est_id"}).  Pass \code{NULL} for an overall (ungrouped) rate.}
 
-\item{column_spec_args}{Named list.  Column names, if your data use
-different names from the \code{govhr} defaults: give only the ones you
-need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only
+the ones that differ from the \code{govhr} defaults, e.g.
+\code{define_column_spec(personnel_id_col = "emp_id")}.  Keys read
 here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
 \code{end_date_col}, \code{contract_type_col}, \code{status_col}.  See
-\code{\link{simulate_horizon}} for the defaults.}
+\code{\link{define_column_spec}} for the defaults.}
 }
 \value{
 data.table with \code{group_cols} (if specified) and

@@ -429,7 +429,7 @@ test_that("simulate_horizon: returns a list with summary_dt", {
     movement_policy    = null_movement_policy,
     hiring_policy      = null_hiring_policy,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   expect_true(is.list(res))
   expect_true("summary_dt" %in% names(res))
@@ -447,7 +447,7 @@ test_that("simulate_horizon: summary_dt has n_periods rows", {
     movement_policy    = null_movement_policy,
     hiring_policy      = null_hiring_policy,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   expect_equal(nrow(res$summary_dt), 3L)
 })
@@ -461,7 +461,7 @@ test_that("simulate_horizon: summary_dt has new-API column names", {
     n_periods          = 1L,
     retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   required <- c("period_date", "n_headcount_start", "wage_bill_start",
                 "n_exits", "exit_savings", "pension_cost_new", "pension_cost_total",
@@ -480,7 +480,7 @@ test_that("simulate_horizon: does NOT have old-API column names", {
     n_periods          = 1L,
     retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   old_cols <- c("base_bill", "total_wage_bill", "n_active", "total_change",
                 "exit_savings_pct", "promotion_effect_pct")
@@ -499,7 +499,7 @@ test_that("simulate_horizon: summary_dt has _pct_of_end_bill share columns", {
     n_periods          = 1L,
     retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0.05,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   pct_cols <- c("exit_savings_pct_of_end_bill",
                 "promotion_effect_pct_of_end_bill",
@@ -518,7 +518,7 @@ test_that("simulate_horizon: period_date sequences annually from ref_date", {
     n_periods          = 3L,
     retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   expected_dates <- as.Date(c("2020-01-01", "2021-01-01", "2022-01-01"))
   expect_equal(res$summary_dt$period_date, expected_dates)
@@ -533,8 +533,8 @@ test_that("simulate_horizon: return_microdata = FALSE omits contract/personnel",
     n_periods          = 1L,
     retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01"),
-    output_control_args = list(return_microdata = FALSE)
+    baseline_date           = as.Date("2020-01-01"),
+    output_control_args = define_output_control(return_microdata = FALSE)
   )
   expect_false("contract_dt"  %in% names(res))
   expect_false("personnel_dt" %in% names(res))
@@ -549,8 +549,8 @@ test_that("simulate_horizon: return_microdata = TRUE includes contract/personnel
     n_periods          = 1L,
     retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01"),
-    output_control_args = list(return_microdata = TRUE)
+    baseline_date           = as.Date("2020-01-01"),
+    output_control_args = define_output_control(return_microdata = TRUE)
   )
   expect_true("contract_dt"  %in% names(res))
   expect_true("personnel_dt" %in% names(res))
@@ -566,7 +566,7 @@ test_that("simulate_horizon: errors on invalid n_periods", {
       personnel_dt    = s$personnel_dt,
       salary_scale_dt = make_salary_scale(),
       n_periods       = 0L,
-      ref_date        = as.Date("2020-01-01")
+      baseline_date        = as.Date("2020-01-01")
     ),
     "positive integer"
   )
@@ -581,7 +581,7 @@ test_that("simulate_horizon: errors when salary_growth_rate length mismatches n_
       salary_scale_dt    = make_salary_scale(),
       n_periods          = 3L,
       salary_growth_rate = c(0.02, 0.03),   # length 2, not 3
-      ref_date           = as.Date("2020-01-01")
+      baseline_date           = as.Date("2020-01-01")
     ),
     "length n_periods"
   )
@@ -597,7 +597,7 @@ test_that("simulate_horizon: accepts vector salary_growth_rate", {
       n_periods          = 3L,
       retirement_policy  = rule_retirement_policy,
       salary_growth_rate = c(0.02, 0.03, 0.04),
-      ref_date           = as.Date("2020-01-01")
+      baseline_date           = as.Date("2020-01-01")
     )
   )
 })
@@ -619,7 +619,7 @@ test_that("period 2 wage_bill_start == period 1 wage_bill_end", {
     movement_policy    = null_movement_policy,
     hiring_policy      = null_hiring_policy,
     salary_growth_rate = 0.05,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   dt <- res$summary_dt
   expect_equal(dt$wage_bill_start[2], dt$wage_bill_end[1], tolerance = 1e-6)
@@ -645,7 +645,7 @@ test_that("pension_cost_total >= pension_cost_new from period 2 onwards", {
     movement_policy    = null_movement_policy,
     hiring_policy      = null_hiring_policy,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   dt <- res$summary_dt
   # Period 1: two retirees → pension_cost_total == pension_cost_new == 2000
@@ -671,7 +671,7 @@ test_that("simulate_horizon works with all modules set to NULL", {
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   expect_equal(nrow(res$summary_dt), 2L)
   expect_true(all(res$summary_dt$exit_savings     == 0))
@@ -693,7 +693,7 @@ test_that("simulate_horizon with only inflation (all modules NULL)", {
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = growth,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   dt <- res$summary_dt
   expect_equal(dt$inflation_effect, n * sal * growth, tolerance = 1e-6)
@@ -721,7 +721,7 @@ test_that("inflation_effect equals payroll * growth when no other changes", {
     movement_policy    = null_movement_policy,
     hiring_policy      = null_hiring_policy,
     salary_growth_rate = growth,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   # null policies → no exits / moves / net hiring changes → pre-COLA bill = n*sal
   expect_equal(res$summary_dt$inflation_effect, n * sal * growth)
@@ -740,7 +740,7 @@ test_that("wage_bill_end compounds over periods with pure inflation", {
     movement_policy    = null_movement_policy,
     hiring_policy      = null_hiring_policy,
     salary_growth_rate = growth,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   dt <- res$summary_dt
   # 40,000 grown by 10% once per period: 44,000, 48,400, 53,240
@@ -766,7 +766,7 @@ test_that("with 0 growth and locked-out policies, all effects are zero", {
     movement_policy    = null_movement_policy,
     hiring_policy      = null_hiring_policy,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   dt <- res$summary_dt
   expect_equal(dt$inflation_effect, 0,             tolerance = 1e-6)
@@ -790,8 +790,8 @@ test_that("simulate_horizon increments age each period", {
     n_periods          = 2L,
     retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01"),
-    output_control_args = list(return_microdata = TRUE)
+    baseline_date           = as.Date("2020-01-01"),
+    output_control_args = define_output_control(return_microdata = TRUE)
   )
   # The fixture supplies an age column (40, 50), which the package uses as
   # given (it derives age from birth_date only when the column is missing or
@@ -824,7 +824,7 @@ test_that("n_headcount_start excludes pensioner rows", {
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   # No one retires (age 30 < min_age 65), headcount should stay constant
   expect_equal(res$summary_dt$n_headcount_start[1], n_active)
@@ -850,7 +850,7 @@ test_that("n_headcount_end decreases after retirements (pensioners excluded)", {
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   # All retired → n_headcount_end should be 0
   expect_equal(res$summary_dt$n_headcount_end, 0L)
@@ -875,7 +875,7 @@ test_that("wage_bill_start is 0 after all workers become pensioners", {
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   # Period 2: no active workers → wage_bill_start == 0
   expect_equal(res$summary_dt$wage_bill_start[2], 0)
@@ -899,7 +899,7 @@ test_that("exit_savings equals pre-retirement salary bill when all workers retir
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   expect_equal(res$summary_dt$exit_savings, n * sal)
 })
@@ -1013,7 +1013,7 @@ test_that("simulate_horizon: status_quo mode produces hires close to historical 
     movement_policy    = NULL,
     hiring_policy      = hire_policy_sq,
     salary_growth_rate = 0,
-    ref_date           = snap2
+    baseline_date           = snap2
   )
 
   expect_true(data.table::is.data.table(res$summary_dt))
@@ -1056,7 +1056,7 @@ test_that("simulate_horizon: movement_policy without movement_rate on a panel wi
       movement_policy    = mov_policy,
       hiring_policy      = NULL,
       salary_growth_rate = 0,
-      ref_date           = as.Date("2020-01-01")
+      baseline_date           = as.Date("2020-01-01")
     ),
     "no defaults\\$movement_rate"
   )
@@ -1091,7 +1091,7 @@ test_that("simulate_horizon: ungrouped status-quo exits use the rate estimated f
     n_periods          = 1L,
     exit_policy        = exit_policy,
     salary_growth_rate = 0,
-    ref_date           = as.Date("2020-01-01"),
+    baseline_date           = as.Date("2020-01-01"),
     seed               = 1L
   )
   expect_gte(res$summary_dt$n_non_ret_exits, 1L)
@@ -1126,7 +1126,7 @@ run_hazard_horizon <- function(p, ...) {
     contract_dt = p$ct, personnel_dt = p$pt,
     salary_scale_dt = data.table::data.table(gross_salary_lcu = 1000),
     n_periods = 1L, salary_growth_rate = 0,
-    ref_date = as.Date("2020-01-01"), seed = 1L, ...
+    baseline_date = as.Date("2020-01-01"), seed = 1L, ...
   )
 }
 
@@ -1142,7 +1142,7 @@ test_that("simulate_horizon: status-quo retirement respects column_spec_args$age
   res <- run_hazard_horizon(
     make_hazard_panel(age_name = "age_years"),
     retirement_policy = design_retirement_policy_status_quo(pension = pen),
-    column_spec_args  = list(age_col = "age_years", birth_date_col = NULL)
+    column_spec_args  = define_column_spec(age_col = "age_years", birth_date_col = NULL)
   )
   expect_equal(nrow(res$summary_dt), 1L)
 })
@@ -1234,9 +1234,9 @@ test_that("Phase 1b: simulate_horizon() auto-computes age from birth_date_col", 
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date,
-    output_control_args = list(return_microdata = TRUE),
-    column_spec_args   = list(birth_date_col = "birth_date")
+    baseline_date           = d$ref_date,
+    output_control_args = define_output_control(return_microdata = TRUE),
+    column_spec_args   = define_column_spec(birth_date_col = "birth_date")
   )
 
   # After the prologue the age column in personnel_dt should ≈ 40 and 30
@@ -1260,9 +1260,9 @@ test_that("Phase 1b: simulate_horizon() auto-computes tenure from contract histo
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date,
-    output_control_args = list(return_microdata = TRUE),
-    column_spec_args   = list(birth_date_col = "birth_date")
+    baseline_date           = d$ref_date,
+    output_control_args = define_output_control(return_microdata = TRUE),
+    column_spec_args   = define_column_spec(birth_date_col = "birth_date")
   )
 
   # P1 started 10 years before ref_date → tenure ≈ 10 + 1 period increment
@@ -1287,9 +1287,9 @@ test_that("Phase 1b: birth_date_col = NULL skips age auto-compute", {
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date,
-    output_control_args = list(return_microdata = TRUE),
-    column_spec_args   = list(birth_date_col = NULL)   # ← skip age auto-compute
+    baseline_date           = d$ref_date,
+    output_control_args = define_output_control(return_microdata = TRUE),
+    column_spec_args   = define_column_spec(birth_date_col = NULL)   # ← skip age auto-compute
   )
 
   # age was initialised to 0; after 1 period it should be ~1 (incremented once)
@@ -1317,7 +1317,7 @@ test_that("Phase 1b: missing birth_date column is silently ignored", {
       movement_policy    = NULL,
       hiring_policy      = NULL,
       salary_growth_rate = 0,
-      ref_date           = d$ref_date
+      baseline_date           = d$ref_date
     )
   )
 })
@@ -1410,7 +1410,7 @@ test_that("Phase 2c: pre-existing pensioners seed pension_cost_total in period 1
     n_periods          = 2L,
     retirement_policy  = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
 
   # R1 and R2 have pension_amount = 20000 and 18000 respectively
@@ -1431,7 +1431,7 @@ test_that("Phase 2c: pension_cola_rate = 0 keeps pension_cost_total constant", {
     retirement_policy  = NULL,
     salary_growth_rate = 0.05,
     pension_cola_rate  = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
 
   # salary_growth_rate raises active wages but pension amounts should be unchanged
@@ -1451,7 +1451,7 @@ test_that("Phase 2c: pension_cola_rate > 0 grows pension_cost_total each period"
     retirement_policy  = NULL,
     salary_growth_rate = 0,
     pension_cola_rate  = 0.05,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
 
   total_pensions <- res$comparison$pension_cost_total
@@ -1472,7 +1472,7 @@ test_that("Phase 2c: pensioner_register has 5-column expanded schema", {
     n_periods          = 1L,
     retirement_policy  = rule_retirement_policy,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
 
   reg <- res$pensioner_register
@@ -1493,7 +1493,7 @@ test_that("Phase 2c: pension_cola_rate as vector of length n_periods is accepted
       retirement_policy  = rule_retirement_policy,
       salary_growth_rate = 0,
       pension_cola_rate  = c(0.02, 0.03, 0.04),
-      ref_date           = d$ref_date
+      baseline_date           = d$ref_date
     )
   )
 })
@@ -1509,7 +1509,7 @@ test_that("Phase 2c: pension_cola_rate wrong length raises error", {
       n_periods          = 3L,
       salary_growth_rate = 0,
       pension_cola_rate  = c(0.02, 0.03),  # length 2, not 3
-      ref_date           = d$ref_date
+      baseline_date           = d$ref_date
     ),
     regexp = "pension_cola_rate"
   )
@@ -1556,8 +1556,8 @@ test_that("Block E: scenario_name stamps scenario_id and scenario_label columns"
     n_periods          = 2L,
     retirement_policy  = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date,
-    output_control_args = list(scenario_name = "Baseline")
+    baseline_date           = d$ref_date,
+    output_control_args = define_output_control(scenario_name = "Baseline")
   )
 
   expect_true("scenario_id"    %in% names(res$comparison))
@@ -1576,8 +1576,8 @@ test_that("Block E: is_baseline = TRUE stamps TRUE in is_baseline column", {
     n_periods          = 1L,
     retirement_policy  = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date,
-    output_control_args = list(scenario_name = "BAU", is_baseline = TRUE)
+    baseline_date           = d$ref_date,
+    output_control_args = define_output_control(scenario_name = "BAU", is_baseline = TRUE)
   )
 
   expect_true("is_baseline" %in% names(res$comparison))
@@ -1594,8 +1594,8 @@ test_that("Block E: is_baseline = FALSE (default) stamps FALSE", {
     n_periods          = 1L,
     retirement_policy  = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date,
-    output_control_args = list(scenario_name = "Alt")
+    baseline_date           = d$ref_date,
+    output_control_args = define_output_control(scenario_name = "Alt")
   )
 
   expect_true(all(res$comparison$is_baseline == FALSE))
@@ -1611,7 +1611,7 @@ test_that("Block E: scenario_name = NULL omits scenario_id and scenario_label", 
     n_periods          = 1L,
     retirement_policy  = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
     # scenario_name omitted (defaults to NULL)
   )
 
@@ -1632,8 +1632,8 @@ test_that("Block E: scenario_name and is_baseline stored in metadata", {
     n_periods          = 1L,
     retirement_policy  = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date,
-    output_control_args = list(scenario_name = "Scenario A", is_baseline = TRUE)
+    baseline_date           = d$ref_date,
+    output_control_args = define_output_control(scenario_name = "Scenario A", is_baseline = TRUE)
   )
 
   expect_equal(res$metadata$scenario_name, "Scenario A")
@@ -1651,8 +1651,8 @@ test_that("Block E: non-character scenario_name raises error", {
       n_periods          = 1L,
       retirement_policy  = NULL,
       salary_growth_rate = 0,
-      ref_date           = d$ref_date,
-      output_control_args = list(scenario_name = 42L)    # must be character
+      baseline_date           = d$ref_date,
+      output_control_args = define_output_control(scenario_name = 42L)    # must be character
     ),
     regexp = "scenario_name"
   )
@@ -1668,8 +1668,8 @@ test_that("Block E: scenario_id and scenario_label are first columns when scenar
     n_periods          = 1L,
     retirement_policy  = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date,
-    output_control_args = list(scenario_name = "Test")
+    baseline_date           = d$ref_date,
+    output_control_args = define_output_control(scenario_name = "Test")
   )
 
   col_positions <- match(c("scenario_id", "scenario_label", "is_baseline"),
@@ -1743,7 +1743,7 @@ test_that("Block F: canonical 3-slot retirement_policy (scalar defaults) works",
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
   expect_equal(res$summary_dt$n_exits, 0L)
 })
@@ -1776,7 +1776,7 @@ test_that("Block F: canonical 3-slot retirement_policy with group_cols + policy_
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
   # All 3 G2 workers (approx 44.97, 49.97, 54.97) are >= 44 → all retire; G1 none
   expect_equal(res$summary_dt$n_exits, 3L)
@@ -1809,7 +1809,7 @@ test_that("Block F: retirement policy_table overrides defaults per group", {
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
   # G1: no retirements; G2 (ages 45, 50, 55 all >= 40): 3 retirements
   expect_equal(res$summary_dt$n_exits, 3L)
@@ -1845,7 +1845,7 @@ test_that("Block F: canonical 3-slot exit_policy (flat rate) produces exits", {
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
   # With exit_rate = 1.0 all 6 active workers should exit
   expect_equal(res$summary_dt$n_non_ret_exits %||%
@@ -1881,7 +1881,7 @@ test_that("Block F: exit_rate = 0 produces no non-retirement exits", {
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
   # Headcount should be unchanged
   expect_equal(res$summary_dt$n_headcount_end, res$summary_dt$n_headcount_start)
@@ -1920,7 +1920,7 @@ test_that("Block F: canonical exit_policy with group_cols + policy_table", {
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
   # 3 G1 workers exit; 3 G2 stay.
   # n_headcount_end counts non-pensioner rows — exited workers are stamped
@@ -1960,7 +1960,7 @@ test_that("Block F: canonical 3-slot movement_policy (flat rate = 0) gives no mo
     movement_policy    = mov_policy,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
   expect_equal(res$summary_dt$n_promotions, 0L)
   expect_equal(res$summary_dt$promotion_effect, 0)
@@ -1996,7 +1996,7 @@ test_that("Block F: canonical 3-slot movement_policy (flat rate > 0) produces mo
     movement_policy    = mov_policy,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
   # With rate = 0.5 across 6 workers some movement should occur
   expect_gte(res$summary_dt$n_promotions, 0L)
@@ -2038,7 +2038,7 @@ test_that("Block F: movement_type defaults to promotion when unset", {
     movement_policy    = mov_policy,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
   # All 3 people in G1 (P1-P3) move to G2 -- rate 1.0, no rounding ambiguity.
   expect_equal(res$summary_dt$n_promotions, 3L)
@@ -2081,7 +2081,7 @@ test_that("Block F: movement_type = 'transfer' reports under n_transfers, not n_
     movement_policy    = mov_policy,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
   # All 3 people in E1 (P1, P3, P5) move to E2 -- rate 1.0, no rounding ambiguity.
   expect_equal(res$summary_dt$n_transfers, 3L)
@@ -2105,7 +2105,7 @@ test_that("check_movement_inputs validates movement_type", {
     check_movement_inputs(
       contract_dt = contract_dt, personnel_dt = personnel_dt,
       salary_scale_dt = salary_scale_dt, policy_params = policy_params,
-      ref_date = as.Date("2020-01-01")
+      as_of_date = as.Date("2020-01-01")
     ),
     regexp = "movement_type"
   )
@@ -2130,7 +2130,7 @@ test_that("Block F: movement_policy NULL gives zero promotion and transfer effec
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
   expect_equal(res$summary_dt$promotion_effect, 0)
   expect_equal(res$summary_dt$transfer_effect,  0)
@@ -2172,7 +2172,7 @@ test_that("Block F: all 3 canonical policies active simultaneously — no error"
       movement_policy    = mov_policy,
       hiring_policy      = NULL,
       salary_growth_rate = 0.02,
-      ref_date           = d$ref_date
+      baseline_date           = d$ref_date
     )
   )
 })
@@ -2205,7 +2205,7 @@ test_that("Block F: non-retirement exits remove the leavers' salaries before COL
     movement_policy    = NULL,
     hiring_policy      = NULL,
     salary_growth_rate = 0.05,
-    ref_date           = d$ref_date
+    baseline_date           = d$ref_date
   )
   dt <- res$summary_dt
 
@@ -2243,7 +2243,7 @@ test_that("Block G: allowance_policy = NULL leaves existing wage_bill columns un
     n_periods          = 3L,
     retirement_policy  = null_retirement_policy,
     salary_growth_rate = 0.02,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   dt <- res$comparison
   expect_true(all(c("allowance_cost_start", "allowance_cost_end",
@@ -2260,7 +2260,7 @@ test_that("Block G: existing summary columns are byte-for-byte identical with al
     contract_dt = s$contract_dt, personnel_dt = s$personnel_dt,
     salary_scale_dt = make_salary_scale(), n_periods = 3L,
     retirement_policy = null_retirement_policy, salary_growth_rate = 0.02,
-    ref_date = as.Date("2020-01-01")
+    baseline_date = as.Date("2020-01-01")
   )
   before <- do.call(simulate_horizon, args)
   after  <- do.call(simulate_horizon, c(args, list(allowance_policy = NULL)))
@@ -2283,7 +2283,7 @@ test_that("Block G: total_wage_bill reconciles against wage_bill + allowance_cos
     salary_growth_rate = 0.02,
     allowance_policy   = allowance_policy,
     allowance_growth_rate = 0.03,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   dt <- res$comparison
   expect_equal(dt$total_wage_bill_start, dt$wage_bill_start + dt$allowance_cost_start)
@@ -2303,7 +2303,7 @@ test_that("Block G: allowance_cost_start[1] is the real baseline, not zero; late
     n_periods          = 4L,
     retirement_policy  = null_retirement_policy,
     allowance_policy   = allowance_policy,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   dt <- res$comparison
 
@@ -2333,7 +2333,7 @@ test_that("Block G: allowance_cost_start does NOT double-count next period's own
     retirement_policy  = null_retirement_policy,
     allowance_policy   = allowance_policy,
     allowance_growth_rate = 0.05,
-    ref_date           = as.Date("2020-01-01")
+    baseline_date           = as.Date("2020-01-01")
   )
   dt <- res$comparison
   # allowance_cost_start[2] must equal allowance_cost_end[1] EXACTLY -- if it
@@ -2357,8 +2357,8 @@ test_that("Block G: a contract that never changes group grows its allowance at a
     retirement_policy  = null_retirement_policy,
     allowance_policy   = allowance_policy,
     allowance_growth_rate = 0.10,
-    ref_date           = as.Date("2020-01-01"),
-    output_control_args = list(return_microdata = TRUE)
+    baseline_date           = as.Date("2020-01-01"),
+    output_control_args = define_output_control(return_microdata = TRUE)
   )
   led <- res$allowance_dt[contract_id == "C1" & allowance_type == "hazard"][order(period_date)]
   expect_equal(nrow(led), 3L)
@@ -2375,13 +2375,13 @@ test_that("Block G: allowance_dt is gated behind return_microdata", {
     contract_dt = s$contract_dt, personnel_dt = s$personnel_dt,
     salary_scale_dt = make_salary_scale(), n_periods = 2L,
     retirement_policy = null_retirement_policy, allowance_policy = allowance_policy,
-    ref_date = as.Date("2020-01-01"), output_control_args = list(return_microdata = FALSE)
+    baseline_date = as.Date("2020-01-01"), output_control_args = define_output_control(return_microdata = FALSE)
   )
   res_micro <- simulate_horizon(
     contract_dt = s$contract_dt, personnel_dt = s$personnel_dt,
     salary_scale_dt = make_salary_scale(), n_periods = 2L,
     retirement_policy = null_retirement_policy, allowance_policy = allowance_policy,
-    ref_date = as.Date("2020-01-01"), output_control_args = list(return_microdata = TRUE)
+    baseline_date = as.Date("2020-01-01"), output_control_args = define_output_control(return_microdata = TRUE)
   )
   expect_null(res_no_micro$allowance_dt)
   expect_true(nrow(res_micro$allowance_dt) > 0L)
@@ -2448,8 +2448,8 @@ test_that("simulate_horizon: hazard_rate auto-estimates policy_table from the pa
     salary_scale_dt      = make_salary_scale(),
     n_periods            = 1L,
     retirement_policy    = make_hazard_retirement_policy(),
-    ref_date             = snap2,
-    output_control_args = list(return_microdata = FALSE),
+    baseline_date             = snap2,
+    output_control_args = define_output_control(return_microdata = FALSE),
     seed                 = 1
   )
 
@@ -2469,7 +2469,7 @@ test_that("simulate_horizon: hazard_rate errors on a single-snapshot panel", {
       contract_dt = single_ct, personnel_dt = single_pt,
       salary_scale_dt = make_salary_scale(), n_periods = 1L,
       retirement_policy = make_hazard_retirement_policy(),
-      ref_date = snap2, output_control_args = list(return_microdata = FALSE)
+      baseline_date = snap2, output_control_args = define_output_control(return_microdata = FALSE)
     ),
     regexp = "requires panel data"
   )
@@ -2486,8 +2486,8 @@ test_that("simulate_horizon: seed produces identical retiree sets across repeate
       salary_scale_dt      = make_salary_scale(),
       n_periods            = 2L,
       retirement_policy    = make_hazard_retirement_policy(),
-      ref_date             = snap2,
-      output_control_args = list(return_microdata = TRUE),
+      baseline_date             = snap2,
+      output_control_args = define_output_control(return_microdata = TRUE),
       seed                 = 7
     )
   }
@@ -2540,8 +2540,8 @@ test_that("simulate_horizon: different seeds can produce different retiree selec
       salary_scale_dt      = make_salary_scale(),
       n_periods            = 1L,
       retirement_policy    = make_hazard_retirement_policy(),
-      ref_date             = snap2,
-      output_control_args = list(return_microdata = TRUE),
+      baseline_date             = snap2,
+      output_control_args = define_output_control(return_microdata = TRUE),
       seed                 = seed
     )
   }
@@ -2572,8 +2572,8 @@ sq_hiring_inputs <- function() {
 run_sq_hiring <- function(contract_dt, personnel_dt, hiring_policy, d) {
   suppressMessages(simulate_horizon(
     contract_dt, personnel_dt, salary_scale_dt = d$scale, n_periods = 2L,
-    ref_date = d$start, retirement_policy = NULL, hiring_policy = hiring_policy,
-    column_spec_args = list(salary_col = "base_salary_lcu")))
+    baseline_date = d$start, retirement_policy = NULL, hiring_policy = hiring_policy,
+    column_spec_args = define_column_spec(salary_col = "base_salary_lcu")))
 }
 
 test_that("status-quo hiring stops with a clear error when its rates cannot be estimated", {

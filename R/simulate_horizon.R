@@ -230,6 +230,25 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
   invisible(NULL)
 }
 
+# Internal helper: the latest snapshot date that both tables hold, which is where
+# a projection starts when the caller names no date. Personnel may have no date
+# column, in which case the contract table decides. Stops if no date is found.
+.latest_snapshot <- function(contract_dt, personnel_dt, ref_date_col) {
+  dates <- contract_dt[[ref_date_col]]
+  if (ref_date_col %in% names(personnel_dt)) {
+    dates <- dates[dates %in% personnel_dt[[ref_date_col]]]
+  }
+  if (all(is.na(dates))) {
+    stop(
+      "simulate_horizon: found no snapshot date in '", ref_date_col, "' that both ",
+      "contract_dt and personnel_dt hold, so the projection has no starting point. ",
+      "Pass baseline_date, the date your data describe.",
+      call. = FALSE
+    )
+  }
+  as.Date(max(dates, na.rm = TRUE))
+}
+
 # Internal helper: the pensioner register before anyone is on it, keyed by the
 # caller's person ID column.
 .empty_pensioner_register <- function(personnel_id_col) {
@@ -328,10 +347,10 @@ compute_inflation_effect <- function(pre_cola_wage_bill, growth_rate) {
 #' @param allowance_growth_rate Numeric scalar.  Growth rate applied to the
 #'   amounts in \code{allowance_policy} this period, before they are assigned,
 #'   so allowances grow in the same year as pay.  Default \code{0}.
-#' @param column_spec_args Named list.  Column names, if your data use
-#'   different names from the \code{govhr} defaults: give only the ones you
-#'   need to change, e.g. \code{list(salary_col = "base_salary_lcu")}.  See
-#'   \code{\link{simulate_horizon}} for the keys and defaults.  Here,
+#' @param column_spec_args Column names, from \code{\link{define_column_spec}()}.  Change only
+#'   the ones that differ from the \code{govhr} defaults, e.g.
+#'   \code{define_column_spec(salary_col = "base_salary_lcu")}.  See
+#'   \code{\link{define_column_spec}} for the keys and defaults.  Here,
 #'   \code{age_col} and \code{tenure_col} are the columns aged each period;
 #'   \code{NULL} leaves that column as it is.
 #' @param period_fraction Numeric.  Fraction of a year each period represents
@@ -427,7 +446,7 @@ simulate_scenario <- function(contract_dt,
                                salary_growth_rate  = 0,
                                pension_cola_rate   = 0,
                                allowance_growth_rate = 0,
-                               column_spec_args    = list(),
+                               column_spec_args    = define_column_spec(),
                                period_fraction     = 1,
                                seed                = NULL) {
 
@@ -443,7 +462,7 @@ simulate_scenario <- function(contract_dt,
 
   period_date <- validate_date_format(period_date, "period_date")
 
-  column_spec_args <- .column_spec(column_spec_args)
+  .check_column_spec(column_spec_args)
   .check_spec_columns(contract_dt, personnel_dt, column_spec_args, required = list(
     contract_dt = c("personnel_id_col", "contract_type_col", "salary_col")
   ))
@@ -495,7 +514,7 @@ simulate_scenario <- function(contract_dt,
       contract_dt             = contract_dt,
       personnel_dt            = personnel_dt,
       policy_params           = retirement_policy,
-      ref_date                = period_date,
+      as_of_date                = period_date,
       column_spec_args        = column_spec_args
     )
     retirees_dt  <- ret_result$retirees_dt
@@ -540,7 +559,7 @@ simulate_scenario <- function(contract_dt,
       contract_dt      = contract_dt,
       personnel_dt     = personnel_dt,
       policy_params    = exit_policy,
-      ref_date         = period_date,
+      as_of_date         = period_date,
       column_spec_args = column_spec_args
     )
     contract_dt          <- exit_result$contract_dt
@@ -564,7 +583,7 @@ simulate_scenario <- function(contract_dt,
       personnel_dt      = personnel_dt,
       salary_scale_dt   = data.table::copy(salary_scale_dt),
       policy_params     = movement_policy,
-      ref_date          = period_date,
+      as_of_date          = period_date,
       column_spec_args  = column_spec_args
     )
 
@@ -636,7 +655,7 @@ simulate_scenario <- function(contract_dt,
       policy_params     = hiring_this_year,
       leavers_dt        = .leavers_this_period(retirees_dt, exits_dt, contract_dt,
                                                hiring_policy$group_cols, column_spec_args),
-      ref_date          = period_date,
+      as_of_date          = period_date,
       column_spec_args  = column_spec_args
     )
 
@@ -723,7 +742,7 @@ simulate_scenario <- function(contract_dt,
       personnel_dt  = personnel_dt,
       allowance_dt  = allowance_dt,
       policy_params = allowance_policy,
-      ref_date      = period_date,
+      as_of_date      = period_date,
       column_spec_args = column_spec_args
     )
     allowance_dt       <- alw_result$allowance_dt
@@ -851,7 +870,8 @@ simulate_scenario <- function(contract_dt,
 #' snapshot date in a \code{ref_date} column, or the column named by
 #' \code{ref_date_col} (the \code{govhr} harmonized format, as in
 #' \code{\link{bra_hrmis_contract}}).  The projection starts
-#' from the snapshot whose date equals \code{ref_date}.  The earlier
+#' from the latest snapshot, or from the one whose date equals \code{baseline_date}
+#' if you give it.  The earlier
 #' snapshots are the history that status-quo policies are estimated from.
 #' At least two snapshots are needed for any status-quo policy, including
 #' the default retirement policy -- without history there are no trends
@@ -870,8 +890,8 @@ simulate_scenario <- function(contract_dt,
 #'     retires or moves (a message says so).
 #'   \item The new hire profile is estimated from the people hired during the
 #'     panel (\code{\link{estimate_new_hire_profile}}).
-#'   \item The data are cut to the starting snapshot at \code{ref_date}.  A
-#'     \code{ref_date} that is not one of the snapshots stops with an error.
+#'   \item The data are cut to the starting snapshot.  A \code{baseline_date} that is
+#'     not one of the snapshots stops with an error.
 #'   \item Age is calculated from \code{birth_date} when no age column is
 #'     filled in, and tenure is calculated from contract history when no
 #'     tenure column is filled in.
@@ -1030,62 +1050,22 @@ simulate_scenario <- function(contract_dt,
 #' @param allowance_growth_rate Number, or one per year.  Annual increase in
 #'   allowance amounts.  Default \code{0}.  Staff who move to a new group pick
 #'   up that group's current (already grown) amount.
-#' @param base_year Integer.  Calendar year label for the starting point.
-#'   Default: the current year.
-#' @param ref_date Date.  The snapshot the projection starts from; each year
-#'   advances it by one year.  With panel data it must equal one of the
-#'   \code{ref_date} values in \code{contract_dt} exactly -- normally the
-#'   latest one.  The default, \code{Sys.Date()}, only makes sense for
-#'   single-snapshot data without a \code{ref_date} column.
-#' @param column_spec_args Named list.  Column names, if your data use
-#'   different names from the \code{govhr} harmonized defaults.  Give only
-#'   the ones you need to change, e.g. \code{list(salary_col =
-#'   "base_salary_lcu")}.  Recognized keys and defaults:
-#'   \describe{
-#'     \item{\code{personnel_id_col}}{\code{"personnel_id"}}
-#'     \item{\code{contract_id_col}}{\code{"contract_id"}}
-#'     \item{\code{ref_date_col}}{\code{"ref_date"}.  The snapshot date.  Also
-#'       the column that stamps each year in the returned microdata.}
-#'     \item{\code{start_date_col}}{\code{"start_date"}}
-#'     \item{\code{end_date_col}}{\code{"end_date"}}
-#'     \item{\code{salary_col}}{\code{"gross_salary_lcu"}.  The salary the
-#'       wage bill is measured in.}
-#'     \item{\code{contract_type_col}}{\code{"contract_type"}}
-#'     \item{\code{status_col}}{\code{"employment_status"}}
-#'     \item{\code{age_col}}{\code{NULL}, meaning \code{"age"}.  Age in years;
-#'       calculated from \code{birth_date_col} when the column is missing or
-#'       empty, then increased by 1 each year.}
-#'     \item{\code{tenure_col}}{\code{NULL}, meaning \code{"personnel_tenure"}
-#'       (the \code{govhr} dictionary name).  Years of service in the public
-#'       sector; calculated from contract history when the column is missing
-#'       or empty, then increased by 1 each year.  Custom retirement rules
-#'       and pension formulas can refer to it as \code{tenure_years}, whatever
-#'       this column is called.}
-#'     \item{\code{birth_date_col}}{\code{"birth_date"}.  Used to calculate
-#'       age.  \code{NULL} to skip, in which case \code{age_col} must already
-#'       be filled in.}
-#'     \item{\code{hire_date_col}}{\code{NULL}.  Optional column in
-#'       \code{personnel_dt} with each person's original hire date (e.g.
-#'       \code{"first_employment_date"}).  When given, status-quo hiring
-#'       rates are estimated from it instead of from when people first
-#'       appear in the panel.}
-#'     \item{\code{gender_col}}{\code{"gender"}.  Used to give new hires a
-#'       gender.  If your data have no such column, new hires have none.}
-#'   }
-#' @param output_control_args Named list.  Labelling and output size.  Give
-#'   only the ones you need to change.  Recognized keys and defaults:
-#'   \describe{
-#'     \item{\code{scenario_name}}{\code{NULL}.  A label for this run, e.g.
-#'       \code{"Status quo"}.  When given, \code{$comparison} gets
-#'       \code{scenario_id} and \code{scenario_label} columns, so runs can
-#'       be stacked and told apart.}
-#'     \item{\code{is_baseline}}{\code{FALSE}.  \code{TRUE} adds an
-#'       \code{is_baseline} column to flag this run as the reference
-#'       scenario.  Only used together with \code{scenario_name}.}
-#'     \item{\code{return_microdata}}{\code{FALSE}.  \code{TRUE} also returns
-#'       the final year's \code{contract_dt}, \code{personnel_dt} and the
-#'       allowance ledger.  These can be large.}
-#'   }
+#' @param baseline_date Date or \code{NULL}.  The snapshot the projection starts from;
+#'   each year advances it by one year.  The default, \code{NULL}, uses the latest
+#'   snapshot that both \code{contract_dt} and \code{personnel_dt} hold.  A date you
+#'   give must match one of the snapshots in \code{contract_dt} exactly.  If your
+#'   data have no snapshot date column, you must give the date they describe.  This is the
+#'   date only: \code{is_baseline} in \code{\link{define_output_control}()} is a
+#'   separate choice, which marks a run as the scenario others are compared with.
+#' @param column_spec_args Which columns hold what, from
+#'   \code{\link{define_column_spec}()}.  The default reads the \code{govhr}
+#'   harmonized names, so harmonized data need nothing here.  Change only the
+#'   ones that differ, e.g.
+#'   \code{define_column_spec(salary_col = "base_salary_lcu")}.
+#' @param output_control_args How to label this run and what to return, from
+#'   \code{\link{define_output_control}()}.  The default leaves the run unlabelled
+#'   and returns no person-level microdata.  Change only what differs, e.g.
+#'   \code{define_output_control(scenario_name = "Status quo")}.
 #' @param seed Integer or \code{NULL}.  Makes random selections (e.g. who
 #'   leaves when a strategy is \code{"random"}) reproducible.  Use the same
 #'   seed across scenarios you want to compare.  Your own random-number
@@ -1113,14 +1093,14 @@ simulate_scenario <- function(contract_dt,
 #'       (\code{allowance_cost_start}, \code{allowance_cost_end}, both
 #'       \code{0} when allowances are not modelled); and
 #'       \code{total_wage_bill_start}/\code{total_wage_bill_end} (salaries
-#'       plus allowances).  Also \code{period_date}, plus
-#'       \code{scenario_id}, \code{scenario_label} and \code{is_baseline}
-#'       when a \code{scenario_name} is given.}
+#'       plus allowances).  Also \code{period_date} and \code{is_baseline},
+#'       plus \code{scenario_id} and \code{scenario_label} when a
+#'       \code{scenario_name} is given.}
 #'     \item{\code{$summary_dt}}{The same table as \code{$comparison} (kept
 #'       for backward compatibility).}
 #'     \item{\code{$metadata}}{List recording the policies used (including the
 #'       new hire profile, which can describe few people in small groups), plus
-#'       \code{scenario_name} and \code{is_baseline} when given.}
+#'       \code{scenario_name} and \code{is_baseline}.}
 #'     \item{\code{$pensioner_register}}{data.table, one row per retiree per
 #'       year: the person ID (under your name for that column),
 #'       \code{pension_amount}, \code{period_date} and details at retirement.  Always present
@@ -1167,7 +1147,7 @@ simulate_scenario <- function(contract_dt,
 #'   personnel_dt      = hist_p,
 #'   salary_scale_dt   = salary_scale,
 #'   n_periods         = 3L,
-#'   ref_date          = sim_start,
+#'   baseline_date          = sim_start,
 #'   retirement_policy = design_retirement_policy_status_quo(
 #'     pension = pension, mandatory_age = 75
 #'   ),
@@ -1178,11 +1158,12 @@ simulate_scenario <- function(contract_dt,
 #'   ),
 #'   hiring_policy     = design_hiring_policy_status_quo(group_cols = "est_id"),
 #'   allowance_policy  = design_allowance_policy_status_quo(
-#'     bra_hrmis_allowance, hist_c, group_cols = "est_id", ref_date = sim_start
+#'     bra_hrmis_allowance, hist_c, group_cols = "est_id", baseline_date = sim_start
 #'   ),
 #'   salary_growth_rate  = 0.03,
-#'   column_spec_args    = list(salary_col = "base_salary_lcu"),
-#'   output_control_args = list(scenario_name = "Status quo", is_baseline = TRUE),
+#'   column_spec_args    = define_column_spec(salary_col = "base_salary_lcu"),
+#'   output_control_args = define_output_control(scenario_name = "Status quo",
+#'                                               is_baseline = TRUE),
 #'   seed = 1L
 #' )
 #' status_quo$comparison
@@ -1194,7 +1175,7 @@ simulate_scenario <- function(contract_dt,
 #'   personnel_dt      = hist_p,
 #'   salary_scale_dt   = salary_scale,
 #'   n_periods         = 3L,
-#'   ref_date          = sim_start,
+#'   baseline_date          = sim_start,
 #'   retirement_policy = design_retirement_policy_age_tenure(
 #'     min_age = 65, min_tenure = 10, pension = pension
 #'   ),
@@ -1202,8 +1183,10 @@ simulate_scenario <- function(contract_dt,
 #'   hiring_policy     = design_hiring_policy_flow(replacement_rate = 0.5,
 #'                                                group_cols = "est_id"),
 #'   salary_growth_rate  = 0.03,
-#'   column_spec_args    = list(salary_col = "base_salary_lcu"),
-#'   output_control_args = list(scenario_name = "Retire at 65, replace half"),
+#'   column_spec_args    = define_column_spec(salary_col = "base_salary_lcu"),
+#'   output_control_args = define_output_control(
+#'     scenario_name = "Retire at 65, replace half"
+#'   ),
 #'   seed = 1L
 #' )
 #'
@@ -1228,22 +1211,19 @@ simulate_horizon <- function(contract_dt,
                              salary_growth_rate = 0,
                              pension_cola_rate  = salary_growth_rate,
                              allowance_growth_rate = 0,
-                             base_year          = as.integer(format(Sys.Date(), "%Y")),
-                             ref_date           = Sys.Date(),
-                             column_spec_args   = list(),
-                             output_control_args = list(),
+                             baseline_date           = NULL,
+                             column_spec_args   = define_column_spec(),
+                             output_control_args = define_output_control(),
                              seed               = NULL) {
 
   # ====================================================================
   # 0. Validate and set up
   # ====================================================================
 
-  # column_spec_args / output_control_args: the caller supplies only the keys
-  # they want to override, e.g. column_spec_args = list(age_col = "age_yrs");
-  # every other name keeps its govhr default. Unknown keys, malformed values,
-  # two keys naming one column, and mapped columns missing from the data all
-  # stop the run here, before any work starts.
-  column_spec_args <- .column_spec(column_spec_args)
+  # column_spec_args comes from define_column_spec(). A malformed spec, or a
+  # mapped column missing from the data, stops the run here, before any work
+  # starts.
+  .check_column_spec(column_spec_args)
   .check_spec_columns(contract_dt, personnel_dt, column_spec_args)
 
   # Resolve NULL age_col / tenure_col to standard column names.
@@ -1261,7 +1241,8 @@ simulate_horizon <- function(contract_dt,
   tenure_col        <- column_spec_args$tenure_col
   birth_date_col    <- column_spec_args$birth_date_col
 
-  output_control_args <- .output_control(output_control_args)
+  # output_control_args comes from define_output_control()
+  .check_output_control(output_control_args)
   scenario_name    <- output_control_args$scenario_name
   is_baseline      <- output_control_args$is_baseline
   return_microdata <- output_control_args$return_microdata
@@ -1271,7 +1252,9 @@ simulate_horizon <- function(contract_dt,
     stop("n_periods must be a positive integer.", call. = FALSE)
   }
 
-  ref_date <- validate_date_format(ref_date, "ref_date")
+  # The projection starts from the date the caller names, or else the latest snapshot
+  if (is.null(baseline_date)) baseline_date <- .latest_snapshot(contract_dt, personnel_dt, ref_date_col)
+  baseline_date <- validate_date_format(baseline_date, "baseline_date")
 
   # Capture original value for metadata before expanding to per-period vector
   salary_growth_rate_input <- salary_growth_rate
@@ -1305,10 +1288,10 @@ simulate_horizon <- function(contract_dt,
 
   # The projection starts from a snapshot in the data. Between snapshots there is
   # nobody to project.
-  if (ref_date_col %in% names(contract_dt) && !ref_date %in% contract_dt[[ref_date_col]]) {
+  if (ref_date_col %in% names(contract_dt) && !baseline_date %in% contract_dt[[ref_date_col]]) {
     snapshots <- sort(unique(contract_dt[[ref_date_col]]))
     stop(
-      "simulate_horizon: ref_date (", format(ref_date), ") is not a snapshot in contract_dt. ",
+      "simulate_horizon: baseline_date (", format(baseline_date), ") is not a snapshot in contract_dt. ",
       "Pass one of its dates, normally the latest. It has ", length(snapshots),
       " snapshot(s) from ", format(min(snapshots)), " to ", format(max(snapshots)), ".",
       call. = FALSE
@@ -1416,8 +1399,6 @@ simulate_horizon <- function(contract_dt,
   # If data contains a ref_date panel column, subset to the starting snapshot
   # before stripping so that sub-modules see a single-period snapshot.
 
-  start_ref <- ref_date   # capture before any column could shadow it
-
   # Status-quo hiring: unless the policy already holds a rate table (the
   # user's own, from design_hiring_policy_adjustment()), estimate the historical
   # hiring rates from the full panel now, before it is cut to the starting
@@ -1480,10 +1461,10 @@ simulate_horizon <- function(contract_dt,
   }
 
   if (ref_date_col %in% names(contract_dt)) {
-    contract_dt <- contract_dt[get(ref_date_col) == start_ref]
+    contract_dt <- contract_dt[get(ref_date_col) == baseline_date]
   }
   if (ref_date_col %in% names(personnel_dt)) {
-    personnel_dt <- personnel_dt[get(ref_date_col) == start_ref]
+    personnel_dt <- personnel_dt[get(ref_date_col) == baseline_date]
   }
 
   # Pension rows: the contract type says so, or the person's status does. Every
@@ -1534,11 +1515,10 @@ simulate_horizon <- function(contract_dt,
   # Initialise pensioner register with expanded schema
   pensioner_register <- .empty_pensioner_register(personnel_id_col)
 
-  # Seed the register from people already retired at ref_date, so their pensions
+  # Seed the register from people already retired at baseline_date, so their pensions
   # appear in period 1's pension_cost_total. Pensions sit in salary_col; several
   # rows add up, and a pensioner with no pay at all has a blank amount.
   if (nrow(existing_pensioners) > 0L) {
-    .ref_date_seed_ <- ref_date  # alias \u2014 avoid data.table column shadowing
     seed_reg <- existing_pensioners[, {
       pension <- .total_pay(get(salary_col))
       list(
@@ -1546,7 +1526,7 @@ simulate_horizon <- function(contract_dt,
         final_salary               = pension,
         tenure_years_at_retirement = NA_real_,
         age_at_retirement          = NA_real_,
-        period_date                = .ref_date_seed_
+        period_date                = baseline_date
       )
     }, by = c(personnel_id_col)]
 
@@ -1558,9 +1538,8 @@ simulate_horizon <- function(contract_dt,
         get(personnel_id_col) %in% seed_reg[[personnel_id_col]],
         c(personnel_id_col, birth_date_col), with = FALSE
       ]
-      .ref_seed_age_ <- ref_date
       age_lookup[, age_at_ret := as.numeric(
-        difftime(.ref_seed_age_, get(birth_date_col), units = "days")
+        difftime(baseline_date, get(birth_date_col), units = "days")
       ) / 365.25]
       seed_reg[age_lookup, age_at_retirement := i.age_at_ret,
                on = personnel_id_col]
@@ -1603,9 +1582,8 @@ simulate_horizon <- function(contract_dt,
   if (.age_missing_ && !is.null(birth_date_col) &&
       !is.null(age_col) &&
       birth_date_col %in% names(personnel_dt)) {
-    .ref_date_p1b_ <- ref_date
     personnel_dt[, (age_col) := as.numeric(
-      difftime(.ref_date_p1b_, get(birth_date_col), units = "days")
+      difftime(baseline_date, get(birth_date_col), units = "days")
     ) / 365.25]
   }
 
@@ -1618,7 +1596,7 @@ simulate_horizon <- function(contract_dt,
   if (!is.null(tenure_col) && .tenure_missing_) {    
     tenure_init <- compute_tenure(
       contract_dt       = contract_dt,
-      ref_date          = ref_date,
+      as_of_date          = baseline_date,
       personnel_id_col  = personnel_id_col,
       contract_id_col   = column_spec_args$contract_id_col,
       start_date_col    = column_spec_args$start_date_col,
@@ -1659,7 +1637,7 @@ simulate_horizon <- function(contract_dt,
       personnel_dt  = personnel_dt,
       allowance_dt  = NULL,
       policy_params = allowance_policy,
-      ref_date      = ref_date,
+      as_of_date      = baseline_date,
       column_spec_args = column_spec_args
     )
     period0_allowance_cost <- alw0$summary$allowance_cost_total
@@ -1687,7 +1665,7 @@ simulate_horizon <- function(contract_dt,
     growth        <- salary_growth_rate[t]
     cola_rate     <- pension_cola_rate[t]
     allow_growth  <- allowance_growth_rate[t]
-    cur_date      <- .advance_period(ref_date, t - 1L, unit = "year")
+    cur_date      <- .advance_period(baseline_date, t - 1L, unit = "year")
 
     scenario_result <- simulate_scenario(
       contract_dt             = contract_dt,
@@ -1794,7 +1772,7 @@ simulate_horizon <- function(contract_dt,
     allowance_policy   = allowance_policy,
     salary_growth_rate = salary_growth_rate_input,
     n_periods          = n_periods,
-    ref_date           = ref_date
+    baseline_date           = baseline_date
   )
 
   out <- new_horizon(

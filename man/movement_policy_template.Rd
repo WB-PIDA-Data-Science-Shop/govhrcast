@@ -4,7 +4,11 @@
 \alias{movement_policy_template}
 \title{Editable Table of Historical Movement Rates}
 \usage{
-movement_policy_template(contract_dt, group_cols, column_spec_args = list())
+movement_policy_template(
+  contract_dt,
+  group_cols,
+  column_spec_args = define_column_spec()
+)
 }
 \arguments{
 \item{contract_dt}{data.table.  Contract data with at least two
@@ -18,12 +22,13 @@ transfers, \code{c("est_id", "paygrade")} for both at once.  Must be the
 same \code{group_cols} you later pass to
 \code{\link{design_movement_policy_adjustment}}.}
 
-\item{column_spec_args}{Named list.  Column names, if your data use
-different names from the \code{govhr} defaults: give only the ones you
-need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only
+the ones that differ from the \code{govhr} defaults, e.g.
+\code{define_column_spec(personnel_id_col = "emp_id")}.  Keys read
 here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
-\code{end_date_col}, \code{contract_type_col}.  See
-\code{\link{simulate_horizon}} for the defaults.}
+\code{end_date_col}, \code{contract_type_col},
+\code{contract_id_col}, \code{salary_col}.  See
+\code{\link{define_column_spec}} for the defaults.}
 }
 \value{
 A data.table with one row per observed move and columns:

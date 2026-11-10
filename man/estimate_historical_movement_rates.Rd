@@ -7,7 +7,7 @@
 estimate_historical_movement_rates(
   contract_dt,
   group_cols,
-  column_spec_args = list()
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -17,11 +17,12 @@ Must contain ref_date_col for panel identification.}
 \item{group_cols}{Character vector. Columns defining movement states
 (e.g., c("est_id", "paygrade") or c("paygrade"))}
 
-\item{column_spec_args}{Named list.  Column names, if your data use
-different names from the \code{govhr} defaults: give only the ones you
-need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only
+the ones that differ from the \code{govhr} defaults, e.g.
+\code{define_column_spec(personnel_id_col = "emp_id")}.  Keys read
 here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
-\code{end_date_col}, \code{contract_type_col}.}
+\code{end_date_col}, \code{contract_type_col},
+\code{contract_id_col}, \code{salary_col}.}
 }
 \value{
 data.table with columns:
@@ -48,5 +49,10 @@ snapshots counts, including pairs with no move from i to j.
 States are defined by the concatenated values of \code{group_cols}. Only
 actual transitions (\code{from_group != to_group}) are returned; stay rows
 and rows with NA in any group_col are dropped.
+
+Someone with several contracts counts once, in the group of their main contract
+on that date (see \code{\link{get_primary_contract}}), so the result does not
+depend on the order of the rows.  Because the main contract is the newest, adding
+a newer contract in another group counts as a move, even if the older one is kept.
 }
 \keyword{internal}

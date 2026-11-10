@@ -46,7 +46,7 @@ everyone_moves <- function(rule = "scale") {
 
 test_that("a retiree with two contracts: savings equal what leaves the wage bill", {
   d <- two_jobs()
-  cmp <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start,
+  cmp <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start,
                           retirement_policy = retire_at_60(), seed = 1L)$comparison
   expect_equal(cmp$wage_bill_start, 2300)
   expect_equal(cmp$exit_savings, 1500)
@@ -64,7 +64,7 @@ test_that("the pension wage of a retiree with two contracts is both added up", {
 
 test_that("the register records the pension and final salary on both contracts", {
   d <- two_jobs()
-  reg <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start,
+  reg <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start,
                           retirement_policy = retire_at_60(), seed = 1L)$pensioner_register
   expect_equal(reg$final_salary, 1500)
   expect_equal(reg$pension_amount, 750)
@@ -89,7 +89,7 @@ test_that("a retiree's other columns still come from the main contract", {
 # -- Movers ------------------------------------------------------------------
 
 mover_run <- function(d, policy = everyone_moves()) {
-  simulate_promotions_transfers(d$c, d$p, d$s, policy_params = policy, ref_date = start)
+  simulate_promotions_transfers(d$c, d$p, d$s, policy_params = policy, as_of_date = start)
 }
 
 test_that("a mover with two contracts moves on the main one only", {
@@ -103,7 +103,7 @@ test_that("a mover with two contracts moves on the main one only", {
 
 test_that("the cost of moving a person with two contracts is the main contract's change", {
   d <- two_jobs()
-  cmp <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start,
+  cmp <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start,
                           retirement_policy = NULL, movement_policy = everyone_moves(),
                           seed = 1L)$comparison
   # P1: 1000 to 2200. P2: 800 to 2200.
@@ -147,7 +147,7 @@ test_that("the decomposition holds on the bundled data, with two-contract staff"
   scale <- hc[ref_date == sim_start & !is.na(gross_salary_lcu),
               .(gross_salary_lcu = mean(gross_salary_lcu)), by = est_id]
   cmp <- suppressMessages(suppressWarnings(simulate_horizon(
-    hc, hp, scale, n_periods = 5L, ref_date = sim_start,
+    hc, hp, scale, n_periods = 5L, baseline_date = sim_start,
     retirement_policy = design_retirement_policy_status_quo(
       pension = pension_db(0.02, 35, 0.80), mandatory_age = 75
     ),

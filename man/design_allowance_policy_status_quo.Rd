@@ -8,30 +8,30 @@ design_allowance_policy_status_quo(
   panel_allowance_dt,
   panel_contract_dt,
   group_cols,
-  ref_date,
+  baseline_date,
   total_multiplier = 1,
   multiplier_group_cols = NULL,
   allowance_type_col = "allowance_type",
   amount_col = "allowance_lcu",
-  column_spec_args = list()
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
 \item{panel_allowance_dt}{data.table.  Long-format allowance data, one row
 per contract x snapshot x allowance type (e.g.
 \code{bra_hrmis_allowance}).  May span many snapshots; only the one at
-\code{ref_date} is used.}
+\code{baseline_date} is used.}
 
 \item{panel_contract_dt}{data.table.  Contract data covering
-\code{ref_date}; supplies each contract's group.}
+\code{baseline_date}; supplies each contract's group.}
 
 \item{group_cols}{Character vector.  Contract-level columns that define
 the groups amounts are averaged over (e.g. \code{"est_id"} or
 \code{c("est_id", "paygrade")}).  Finer groups follow real pay more
 closely but rest on fewer contracts each.}
 
-\item{ref_date}{Date.  The baseline snapshot -- normally the same
-\code{ref_date} you pass to \code{simulate_horizon()}.  The nearest
+\item{baseline_date}{Date.  The baseline snapshot -- normally the same
+\code{baseline_date} you pass to \code{simulate_horizon()}.  The nearest
 snapshot on or before it is used.}
 
 \item{total_multiplier, multiplier_group_cols}{See
@@ -41,9 +41,9 @@ snapshot on or before it is used.}
 and amount columns, if they differ from the defaults.  \code{amount_col}
 must already be numeric.}
 
-\item{column_spec_args}{Named list.  Column names, if your data use
-different names from the \code{govhr} defaults: give only the ones you
-need to change, e.g. \code{list(contract_id_col = "cid")}.  Keys read
+\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only
+the ones that differ from the \code{govhr} defaults, e.g.
+\code{define_column_spec(contract_id_col = "cid")}.  Keys read
 here: \code{contract_id_col}, \code{ref_date_col}.}
 }
 \value{
@@ -70,14 +70,14 @@ ap <- design_allowance_policy_status_quo(
   panel_allowance_dt = bra_hrmis_allowance,
   panel_contract_dt  = bra_hrmis_contract,
   group_cols         = "est_id",
-  ref_date           = as.Date("2012-09-01")
+  baseline_date           = as.Date("2012-09-01")
 )
 head(ap$policy_table)
 
 # The same, with a 10\% cut to everyone's total allowance
 ap_cut <- design_allowance_policy_status_quo(
   bra_hrmis_allowance, bra_hrmis_contract, group_cols = "est_id",
-  ref_date = as.Date("2012-09-01"), total_multiplier = 0.9
+  baseline_date = as.Date("2012-09-01"), total_multiplier = 0.9
 )
 }
 \seealso{

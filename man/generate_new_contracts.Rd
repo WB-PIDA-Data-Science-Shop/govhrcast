@@ -6,27 +6,27 @@
 \usage{
 generate_new_contracts(
   personnel_ids,
-  ref_date,
+  as_of_date,
   group_vals = NULL,
-  column_spec_args = .column_spec()
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
 \item{personnel_ids}{Character vector. Personnel IDs for new hires}
 
-\item{ref_date}{Date. Contract start date}
+\item{as_of_date}{Date. Contract start date}
 
 \item{group_vals}{Named list. Values for grouping columns}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 data.table with new contract records
 }
 \description{
 Creates new contract records for new hires. Generates unique contract IDs
-and sets start_date to ref_date. The type is "permanent" until set from the
+and sets start_date to as_of_date. The type is "permanent" until set from the
 policy's new hire profile.
 }
 \keyword{internal}

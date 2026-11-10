@@ -38,7 +38,7 @@ utils::globalVariables(c(
 #' Retirement simulation proceeds through the following stages:
 #'
 #' 1. Validate all inputs.
-#' 2. Select the workforce snapshot nearest (but not later than) `ref_date`
+#' 2. Select the workforce snapshot nearest (but not later than) `as_of_date`
 #'    when historical panel data are supplied.
 #' 3. Determine retirement eligibility using the policy specified in
 #'    `policy_params`.
@@ -164,7 +164,7 @@ utils::globalVariables(c(
 #' * a longitudinal panel containing multiple `ref_date` values.
 #'
 #' When multiple snapshots are present, the snapshot nearest (but not later
-#' than) `ref_date` is selected automatically.
+#' than) `as_of_date` is selected automatically.
 #'
 #' @param personnel_dt A `data.table` (or object coercible to a
 #' `data.table`) containing the personnel register in **govhr**
@@ -176,7 +176,7 @@ utils::globalVariables(c(
 #' If pre-computed age and tenure variables are supplied, they are used
 #' directly to avoid unnecessary recalculation.
 #'
-#' @param ref_date A `Date` giving the simulation date for the current
+#' @param as_of_date A `Date` giving the simulation date for the current
 #' projection period.
 #'
 #' This date is used to:
@@ -187,15 +187,15 @@ utils::globalVariables(c(
 #' * select the appropriate workforce snapshot, and
 #' * stamp retirement dates onto closed contracts.
 #'
-#' @param column_spec_args A named list saying what your columns are called,
-#' so the function can read your data as it is. List only the names that
+#' @param column_spec_args What your columns are called, from [define_column_spec()],
+#' so the function can read your data as it is. Change only the names that
 #' differ from the **govhr** harmonized defaults; for example
-#' `list(personnel_id_col = "pid", age_col = "idade")`. Your names are used
+#' `define_column_spec(personnel_id_col = "pid", age_col = "idade")`.
+#' Your names are used 
 #' throughout, so the returned tables keep them, and you write the same names
 #' in `group_cols`, `policy_table`, `retire_strategy` and
-#' inside `eligibility_rule` / `pension_formula`. The same list can be passed
-#' to every **govhrcast** function; keys a function does not use are ignored,
-#' and an unknown key is an error.
+#' inside `eligibility_rule` / `pension_formula`. The same spec can be passed
+#' to every **govhrcast** function; columns a function does not use are ignored.
 #'
 #' Keys used here (default in brackets):
 #'
@@ -203,11 +203,11 @@ utils::globalVariables(c(
 #' * `contract_id_col` (`"contract_id"`): contract identifier.
 #' * `ref_date_col` (`"ref_date"`): snapshot date of a panel. When the
 #'   contract table holds several snapshots, the one nearest (but not later
-#'   than) `ref_date` is used.
+#'   than) `as_of_date` is used.
 #' * `start_date_col`, `end_date_col` (`"start_date"`, `"end_date"`):
 #'   contract dates, used for tenure and to find active contracts. Open
 #'   contracts have `NA` end dates; retiring employees' contracts get
-#'   `ref_date`.
+#'   `as_of_date`.
 #' * `salary_col` (`"gross_salary_lcu"`): pay column. Picks each retiree's
 #'   main contract, is set to 0 on contracts that close, and is what
 #'   wage-based pensions are calculated from.
@@ -272,7 +272,7 @@ utils::globalVariables(c(
 #' contract_dt  <- copy(bra_hrmis_contract)
 #' personnel_dt <- copy(bra_hrmis_personnel)
 #'
-#' ref_date <- as.Date("2014-01-01")
+#' as_of_date <- as.Date("2014-01-01")
 #'
 #' ############################################################
 #' ## Example 1: Uniform age-based retirement with a
@@ -298,7 +298,7 @@ utils::globalVariables(c(
 #' results <- simulate_retirement(
 #'   contract_dt = contract_dt,
 #'   personnel_dt = personnel_dt,
-#'   ref_date = ref_date,
+#'   as_of_date = as_of_date,
 #'   policy_params = policy_params
 #' )
 #'
@@ -333,7 +333,7 @@ utils::globalVariables(c(
 #' results <- simulate_retirement(
 #'   contract_dt = contract_dt,
 #'   personnel_dt = personnel_dt,
-#'   ref_date = ref_date,
+#'   as_of_date = as_of_date,
 #'   policy_params = policy_params
 #' )
 #'
@@ -365,7 +365,7 @@ utils::globalVariables(c(
 
 simulate_retirement <- function(contract_dt,
                                 personnel_dt,
-                                ref_date,
+                                as_of_date,
                                 policy_params = list(
                                   group_cols   = NULL,
                                   policy_table = NULL,
@@ -379,19 +379,19 @@ simulate_retirement <- function(contract_dt,
                                     replacement_cap  = 0.80
                                   )
                                 ),
-                                column_spec_args = list()) {
+                                column_spec_args = define_column_spec()) {
 
   # ========================================
   # 1. Input Validation
   # ========================================
-  # The caller's column names, with defaults for any not given; the same
-  # list is passed to every step below
-  cols <- .column_spec(column_spec_args)
+  # Check the caller's column names; the same spec goes to every step below
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
   check_retirement_inputs(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
     policy_params = policy_params,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     column_spec_args = cols
   )
   personnel_id_col <- cols$personnel_id_col
@@ -414,9 +414,9 @@ simulate_retirement <- function(contract_dt,
   # ========================================
   # 2. Select Nearest Reference Date
   # ========================================
-  # Find the reference date in the data closest to (but not after) the specified ref_date
+  # Find the reference date in the data closest to (but not after) the specified as_of_date
   if (ref_date_col %in% names(contract_dt)) {
-    selected_ref_date <- select_nearest_ref_date(contract_dt[[ref_date_col]], ref_date)
+    selected_ref_date <- select_nearest_ref_date(contract_dt[[ref_date_col]], as_of_date)
     
     # Subset both datasets to the selected reference date
     contract_dt <- contract_dt[get(ref_date_col) == selected_ref_date]
@@ -445,7 +445,7 @@ simulate_retirement <- function(contract_dt,
       contract_dt = contract_dt,
       personnel_dt = personnel_dt,
       policy_params = policy_params,
-      ref_date = ref_date,  # Use user's ref_date for age calculation
+      as_of_date = as_of_date,  # Use user's ref_date for age calculation
       column_spec_args = cols
     )
     eligibility_dt[, c("retire", "tenure_years") := list(rep(1L, .N), rep(NA_real_, .N))]
@@ -455,7 +455,7 @@ simulate_retirement <- function(contract_dt,
       contract_dt = contract_dt,
       personnel_dt = personnel_dt,
       policy_params = policy_params,
-      ref_date = ref_date,  # Use user's ref_date for age/tenure calculation
+      as_of_date = as_of_date,  # Use user's ref_date for age/tenure calculation
       column_spec_args = cols
     )
   }
@@ -467,7 +467,7 @@ simulate_retirement <- function(contract_dt,
     eligibility_dt    = eligibility_dt,
     contract_dt       = contract_dt,
     personnel_dt      = personnel_dt,
-    ref_date          = ref_date,  # Use user's ref_date
+    as_of_date          = as_of_date,  # Use user's ref_date
     column_spec_args  = cols
   )
   
@@ -533,7 +533,7 @@ simulate_retirement <- function(contract_dt,
   update_contracts_for_retirees(
     contract_dt = contract_dt,
     retirees_dt = retirees_dt,
-    ref_date = ref_date,  # Use user's ref_date
+    as_of_date = as_of_date,  # Use user's ref_date
     column_spec_args = cols
   )
   

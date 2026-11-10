@@ -117,7 +117,7 @@ test_that("the same seed gives the same people and the same totals", {
   policy <- design_exit_policy_flat(exit_rate = 0.05)
   scale <- data.table(est_id = unique(d$c$est_id), gross_salary_lcu = 100)
   run <- function() {
-    simulate_horizon(d$c, d$p, scale, n_periods = 3L, ref_date = start,
+    simulate_horizon(d$c, d$p, scale, n_periods = 3L, baseline_date = start,
                      retirement_policy = NULL, exit_policy = policy, seed = 7L)$comparison
   }
   expect_equal(run(), run())
@@ -130,7 +130,7 @@ one_move_in_three_pairs <- function() {
   dates <- as.Date(c("2015-01-01", "2016-01-01", "2017-01-01", "2018-01-01"))
   rbindlist(lapply(seq_along(dates), function(i) {
     data.table(
-      ref_date = dates[i],
+      ref_date = dates[i], contract_id = "C1", gross_salary_lcu = 100,
       personnel_id = paste0("P", 1:10),
       paygrade = c(if (i <= 2L) "A" else "B", rep("A", 9L)),
       start_date = as.Date("2010-01-01"),
@@ -183,7 +183,7 @@ test_that("a hire-date rate is hires over the staff at the start of each interva
   hc <- hp[, .(personnel_id, ref_date, contract_id = paste0("C", personnel_id),
                start_date = as.Date("2010-01-01"), end_date = as.Date(NA),
                contract_type = "permanent", est_id = "E1")]
-  spec <- list(hire_date_col = "first_employment_date")
+  spec <- define_column_spec(hire_date_col = "first_employment_date")
   # 2 hires, on 10 and then 11 people at the start of the intervals
   expect_equal(estimate_historical_hiring_rates(hc, hp, NULL, spec)$hiring_rate, 2 / 21)
   expect_equal(estimate_historical_hiring_rates(hc, hp, "est_id", spec)$hiring_rate, 2 / 21)
@@ -202,7 +202,7 @@ test_that("a person shown before their hire date is dated to the first snapshot 
                contract_type = "permanent")]
   # Dated to the first snapshot instead, it would fall outside every interval
   expect_equal(
-    estimate_historical_hiring_rates(hc, hp, NULL, list(hire_date_col = "first_employment_date"))$hiring_rate,
+    estimate_historical_hiring_rates(hc, hp, NULL, define_column_spec(hire_date_col = "first_employment_date"))$hiring_rate,
     1 / 20
   )
 })
@@ -212,7 +212,7 @@ test_that("on the bundled data the two hiring estimators agree within 10%", {
   hc <- bra_hrmis_contract[ref_date <= panel_end]
   hp <- bra_hrmis_personnel[ref_date <= panel_end]
   from_hire_date <- estimate_historical_hiring_rates(
-    hc, hp, NULL, list(hire_date_col = "first_employment_date")
+    hc, hp, NULL, define_column_spec(hire_date_col = "first_employment_date")
   )$hiring_rate
   from_appearance <- estimate_historical_hiring_rates(hc, hp, NULL)$hiring_rate
   expect_lt(abs(from_hire_date / from_appearance - 1), 0.10)

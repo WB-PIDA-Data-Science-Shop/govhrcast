@@ -8,8 +8,8 @@ check_retirement_inputs(
   contract_dt,
   personnel_dt,
   policy_params,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -33,11 +33,11 @@ tenure.  May be omitted if \code{policy_table} carries a
 \code{min_tenure} column.}
 }}
 
-\item{ref_date}{Date or character convertible to Date.  Reference date for
+\item{as_of_date}{Date or character convertible to Date.  Reference date for
 the simulation period.}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}. Keys read: \code{personnel_id_col} (must exist in
+\code{define_column_spec()}. Keys read: \code{personnel_id_col} (must exist in
 both tables), \code{contract_id_col}, \code{start_date_col},
 \code{end_date_col}, \code{contract_type_col} (in \code{contract_dt}),
 \code{status_col} (in \code{personnel_dt}) and \code{birth_date_col}
@@ -59,7 +59,7 @@ offending argument.
 
 \describe{
 \item{Empty tables}{\code{contract_dt} or \code{personnel_dt} has 0 rows.}
-\item{Invalid ref_date}{\code{ref_date} cannot be parsed as a Date, is NA,
+\item{Invalid as_of_date}{\code{as_of_date} cannot be parsed as a Date, is NA,
 or is not length 1.}
 \item{Invalid policy structure}{\code{validate_policy_table()} fails — see
 that function for sub-conditions.}

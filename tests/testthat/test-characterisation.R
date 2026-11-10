@@ -22,7 +22,7 @@ characterisation_run <- function(salary_col, explicit_hiring_scale) {
   setnames(scale, "pay", salary_col)
   suppressMessages(suppressWarnings(simulate_horizon(
     contract_dt = hc, personnel_dt = hp, salary_scale_dt = scale,
-    n_periods = 5L, ref_date = start,
+    n_periods = 5L, baseline_date = start,
     retirement_policy = design_retirement_policy_status_quo(
       pension = pension_db(0.02, 35, 0.80), mandatory_age = 75),
     exit_policy     = design_exit_policy_status_quo(group_cols = "est_id"),
@@ -31,9 +31,9 @@ characterisation_run <- function(salary_col, explicit_hiring_scale) {
     hiring_policy   = design_hiring_policy_status_quo(
       group_cols = "est_id", salary_scale = if (explicit_hiring_scale) scale),
     allowance_policy = design_allowance_policy_status_quo(
-      bra_hrmis_allowance, hc, group_cols = "est_id", ref_date = start),
+      bra_hrmis_allowance, hc, group_cols = "est_id", baseline_date = start),
     salary_growth_rate = 0.05,
-    column_spec_args   = list(salary_col = salary_col),
+    column_spec_args   = define_column_spec(salary_col = salary_col),
     seed = 1L
   )))
 }

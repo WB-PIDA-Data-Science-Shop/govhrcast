@@ -41,10 +41,10 @@ leave_e2 <- function() {
 
 flow_run <- function(d, replacement_rate = 1, retirement = retire_at_60(), exits = leave_e2(),
                      n_periods = 1L, group_cols = "est_id") {
-  simulate_horizon(d$c, d$p, d$s, n_periods = n_periods, ref_date = start,
+  simulate_horizon(d$c, d$p, d$s, n_periods = n_periods, baseline_date = start,
                    retirement_policy = retirement, exit_policy = exits,
                    hiring_policy = design_hiring_policy_flow(replacement_rate, group_cols = group_cols),
-                   seed = 1L, output_control_args = list(return_microdata = TRUE))
+                   seed = 1L, output_control_args = define_output_control(return_microdata = TRUE))
 }
 
 test_that("flow hiring replaces retirees and other exits, each in their own group", {
@@ -82,7 +82,7 @@ test_that("a year when nobody leaves is a year with nothing to replace", {
   out <- simulate_hiring(d$c, d$p, list(mode = "flow", group_cols = "est_id", replacement_rate = 1,
                                         defaults = list(eligibility_type = "age_only", min_age = 60),
                                         salary_scale = d$s),
-                         leavers_dt = data.table(), ref_date = start)
+                         leavers_dt = data.table(), as_of_date = start)
   expect_equal(out$summary$n_new_hires, 0L)
 })
 
@@ -91,12 +91,12 @@ test_that("with no table of leavers, flow hiring needs an eligibility rule in de
   policy <- list(mode = "flow", group_cols = "est_id", replacement_rate = 1, salary_scale = d$s)
   # At the top level, where the old help page said to put them, they do nothing
   expect_error(
-    simulate_hiring(d$c, d$p, c(policy, list(eligibility_type = "age_only", min_age = 60)), ref_date = start),
+    simulate_hiring(d$c, d$p, c(policy, list(eligibility_type = "age_only", min_age = 60)), as_of_date = start),
     "defaults\\$eligibility_type"
   )
   out <- simulate_hiring(d$c, d$p,
                          c(policy, list(defaults = list(eligibility_type = "age_only", min_age = 60))),
-                         ref_date = start)
+                         as_of_date = start)
   expect_equal(out$summary$n_new_hires, 1L)
 })
 
@@ -106,7 +106,7 @@ test_that("a stock target for a group with no staff yet hires up to the target",
   policy <- list(mode = "stock", group_cols = "est_id",
                  stock_targets = data.table(est_id = c("E1", "E3"), target_stock = c(3L, 4L)),
                  salary_scale = d$s)
-  out <- simulate_hiring(d$c, d$p, policy, ref_date = start)
+  out <- simulate_hiring(d$c, d$p, policy, as_of_date = start)
   expect_equal(out$new_hire_contracts_dt[, .N, by = est_id], data.table(est_id = "E3", N = 4L))
   # E2 has no target, so stays as it is
   expect_equal(out$summary$n_downsized, 0L)
@@ -117,7 +117,7 @@ test_that("the combined mode is gone", {
   expect_error(
     simulate_hiring(d$c, d$p, list(mode = "combined", group_cols = "est_id", replacement_rate = 0.1,
                                    stock_targets = data.table(est_id = "E1", target_stock = 3L),
-                                   salary_scale = d$s), ref_date = start),
+                                   salary_scale = d$s), as_of_date = start),
     "mode"
   )
   expect_false(exists("compute_combined_demand", envir = asNamespace("govhrcast"), inherits = FALSE))

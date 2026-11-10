@@ -57,7 +57,7 @@ test_that("simulate_hiring works with stock mode", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(results, "list")
@@ -100,7 +100,7 @@ test_that("simulate_hiring works with flow mode", {
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
     leavers_dt = retirees_dt,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(results, "list")
@@ -135,7 +135,7 @@ test_that("simulate_hiring handles no adjustments needed", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(results, "list")
@@ -166,7 +166,7 @@ test_that("simulate_hiring handles downsizing", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(results, "list")
@@ -203,7 +203,7 @@ test_that("simulate_hiring preserves input data (copy-once pattern)", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   # Original data should be unchanged
@@ -237,7 +237,7 @@ test_that("simulate_hiring works without grouping (overall)", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(results, "list")
@@ -272,7 +272,7 @@ test_that("simulate_hiring integrates with retirement module output", {
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
     leavers_dt = retirees_dt,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(results, "list")
@@ -313,8 +313,8 @@ test_that("simulate_hiring handles panel data with ref_date_col", {
     contract_dt = contract_panel,
     personnel_dt = personnel_panel,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01"),
-    column_spec_args = list(ref_date_col = "ref_date")
+    as_of_date = as.Date("2024-06-01"),
+    column_spec_args = define_column_spec(ref_date_col = "ref_date")
   )
   
   expect_type(results, "list")
@@ -341,7 +341,7 @@ test_that("simulate_hiring validates inputs correctly", {
       contract_dt = test_data$contract_dt,
       personnel_dt = test_data$personnel_dt,
       policy_params = policy_params_invalid,
-      ref_date = as.Date("2024-06-01")
+      as_of_date = as.Date("2024-06-01")
     ),
     "must contain 'mode'"
   )
@@ -356,7 +356,7 @@ test_that("simulate_hiring validates inputs correctly", {
       contract_dt = test_data$contract_dt,
       personnel_dt = test_data$personnel_dt,
       policy_params = policy_params_invalid2,
-      ref_date = as.Date("2024-06-01")
+      as_of_date = as.Date("2024-06-01")
     ),
     "Invalid mode"
   )
@@ -376,7 +376,7 @@ test_that("simulate_hiring requires stock_targets for stock mode", {
       contract_dt = test_data$contract_dt,
       personnel_dt = test_data$personnel_dt,
       policy_params = policy_params,
-      ref_date = as.Date("2024-06-01")
+      as_of_date = as.Date("2024-06-01")
     ),
     "stock_targets is required"
   )
@@ -396,7 +396,7 @@ test_that("simulate_hiring requires replacement_rate for flow mode", {
       contract_dt = test_data$contract_dt,
       personnel_dt = test_data$personnel_dt,
       policy_params = policy_params,
-      ref_date = as.Date("2024-06-01")
+      as_of_date = as.Date("2024-06-01")
     ),
     "replacement_rate is required"
   )
@@ -430,7 +430,7 @@ test_that("status-quo hiring applies rate_mult once, however many periods reuse 
   d <- make_status_quo_hiring_fixture()
   hires <- vapply(1:3, function(i) {
     simulate_hiring(d$contract_dt, d$personnel_dt, policy_params = d$policy,
-                    ref_date = d$ref_date)$summary$n_new_hires
+                    as_of_date = d$ref_date)$summary$n_new_hires
   }, integer(1))
   # 100 staff x 0.10 historical rate x 0.5 = 5 hires in every period
   expect_identical(hires, c(5L, 5L, 5L))
@@ -439,7 +439,7 @@ test_that("status-quo hiring applies rate_mult once, however many periods reuse 
 test_that("status-quo hiring leaves the policy's historical rates unchanged", {
   d <- make_status_quo_hiring_fixture()
   simulate_hiring(d$contract_dt, d$personnel_dt, policy_params = d$policy,
-                  ref_date = d$ref_date)
+                  as_of_date = d$ref_date)
   expect_identical(d$policy$squorate_dt$hiring_rate, 0.10)
 })
 
@@ -447,7 +447,7 @@ test_that("simulate_hiring() in status-quo mode requires the historical rate tab
   d <- make_status_quo_hiring_fixture()
   d$policy$squorate_dt <- NULL
   expect_error(simulate_hiring(d$contract_dt, d$personnel_dt, policy_params = d$policy,
-                               ref_date = d$ref_date),
+                               as_of_date = d$ref_date),
                "squorate_dt .* is required for mode 'status_quo'")
 })
 
@@ -464,8 +464,8 @@ test_that("flow hiring leaves the caller's retirees table unchanged (custom ID c
                  salary_scale = data.table(gross_salary_lcu = 1000))
 
   res <- simulate_hiring(contract_dt, personnel_dt, policy_params = policy,
-                         leavers_dt = retirees_dt, ref_date = as.Date("2025-01-01"),
-                         column_spec_args = list(personnel_id_col = "pid"))
+                         leavers_dt = retirees_dt, as_of_date = as.Date("2025-01-01"),
+                         column_spec_args = define_column_spec(personnel_id_col = "pid"))
 
   expect_identical(retirees_dt, retirees_before)   # still keyed by "pid"
   expect_identical(res$summary$n_new_hires, 2L)    # 2 retirees x replacement rate 1

@@ -40,7 +40,7 @@ test_that("a hand-written policy with a disallowed pension_formula is rejected b
   Sys.unsetenv(probe_var); on.exit(Sys.unsetenv(probe_var), add = TRUE)
   d <- sandbox_fixture()
   expect_error(
-    simulate_retirement(d$contract_dt, d$personnel_dt, ref_date = d$ref_date,
+    simulate_retirement(d$contract_dt, d$personnel_dt, as_of_date = d$ref_date,
                         policy_params = custom_pension_policy(harmful)),
     "pension_formula.*Sys.setenv"
   )
@@ -53,7 +53,7 @@ test_that("a disallowed pension_formula in a policy_table column is rejected bef
   pt <- data.table(est_id = c("E1", "E2"),
                    pension_formula = c(harmful, "gross_salary_lcu * 0.5"))
   expect_error(
-    simulate_retirement(d$contract_dt, d$personnel_dt, ref_date = d$ref_date,
+    simulate_retirement(d$contract_dt, d$personnel_dt, as_of_date = d$ref_date,
                         policy_params = custom_pension_policy("gross_salary_lcu * 0.5",
                                                               policy_table = pt,
                                                               group_cols = "est_id")),
@@ -69,7 +69,7 @@ test_that("every supplied pension_formula is checked, even for a group with no r
   pt <- data.table(est_id = c("E1", "E2"),
                    pension_formula = c("gross_salary_lcu * 0.5", harmful))
   expect_error(
-    simulate_retirement(d$contract_dt, d$personnel_dt, ref_date = d$ref_date,
+    simulate_retirement(d$contract_dt, d$personnel_dt, as_of_date = d$ref_date,
                         policy_params = custom_pension_policy("gross_salary_lcu * 0.5",
                                                               policy_table = pt,
                                                               group_cols = "est_id")),
@@ -88,7 +88,7 @@ test_that("a disallowed eligibility_rule reached through flow hiring is rejected
                                  eligibility_rule = paste("age >= 60 |", harmful)))
   expect_error(
     simulate_hiring(d$contract_dt, d$personnel_dt, policy_params = hiring,
-                    ref_date = d$ref_date),
+                    as_of_date = d$ref_date),
     "eligibility_rule.*Sys.setenv"
   )
   expect_identical(Sys.getenv(probe_var), "")
@@ -109,7 +109,7 @@ test_that("namespaced and anonymous calls are rejected with a clear message", {
 
 test_that("an allowed custom pension_formula still computes the pension", {
   d <- sandbox_fixture()
-  res <- simulate_retirement(d$contract_dt, d$personnel_dt, ref_date = d$ref_date,
+  res <- simulate_retirement(d$contract_dt, d$personnel_dt, as_of_date = d$ref_date,
                              policy_params = custom_pension_policy("gross_salary_lcu * 0.5"))
   # P1 (born 1955, age 70) retires; half of a 1,000 salary
   expect_identical(res$retirees_dt$personnel_id, "P1")

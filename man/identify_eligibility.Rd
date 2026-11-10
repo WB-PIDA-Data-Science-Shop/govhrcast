@@ -8,8 +8,8 @@ identify_eligibility(
   contract_dt,
   personnel_dt,
   policy_params,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -36,10 +36,10 @@ Eligibility-relevant keys in \code{defaults}:
 \code{"age_and_tenure"}.
 }}
 
-\item{ref_date}{Date.  Reference date for age and tenure computation.}
+\item{as_of_date}{Date.  Reference date for age and tenure computation.}
 
 \item{column_spec_args}{Complete column specification
-(\code{.column_spec()}), in the caller's column names. Keys read:
+(\code{define_column_spec()}), in the caller's column names. Keys read:
 \code{personnel_id_col}, \code{contract_id_col}, \code{birth_date_col},
 \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
 \code{status_col}, and \code{age_col} / \code{tenure_col}: columns in
@@ -58,11 +58,11 @@ caller's column name.  All IDs from \code{personnel_dt} are present
 — inactive personnel are not dropped.}
 \item{\code{retire}}{Integer (0/1).  1 = eligible and assumed to retire;
 0 = not eligible, already inactive, or a threshold was \code{NA}.}
-\item{\code{age}}{Numeric.  Age in years at \code{ref_date}.
-\code{NA} for personnel inactive at \code{ref_date} or when age
+\item{\code{age}}{Numeric.  Age in years at \code{as_of_date}.
+\code{NA} for personnel inactive at \code{as_of_date} or when age
 computation was skipped (tenure-only eligibility).}
 \item{\code{tenure_years}}{Numeric.  Cumulative service in years at
-\code{ref_date}.  \code{NA} analogously to \code{age}.}
+\code{as_of_date}.  \code{NA} analogously to \code{age}.}
 }
 }
 \description{

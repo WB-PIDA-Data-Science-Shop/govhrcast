@@ -1,11 +1,11 @@
 # Calls into govhr functions that fix the names of two columns.
 #
 # ADR 0012 keeps the caller's column names throughout the package and renames
-# nothing. These two wrappers are the only exception: govhr::detect_movement()
-# and govhr::add_contract_to_event() always look for columns called
-# `personnel_id` and `ref_date`, and take no argument to say otherwise. So each
+# nothing. These wrappers are the only exception: govhr::detect_movement() and
+# govhr::add_contract_to_event() always look for columns called `personnel_id`
+# and `ref_date`, and they take no argument to say otherwise. So each
 # wrapper hands govhr a small copy of just the columns it reads, under govhr's
-# names, and renames the two columns back on the way out. The caller's tables
+# names, and renames the columns back on the way out. The caller's tables
 # are never touched.
 #
 # Delete this file once govhr takes the two names as arguments.

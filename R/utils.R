@@ -59,7 +59,7 @@ compute_years <- function(start_date, end_date) {
 #'
 #' @param personnel_dt data.table.  Personnel register.  Required columns:
 #'   \code{personnel_id_col}, \code{birth_date_col}.
-#' @param ref_date Date.  The reference date used as the \emph{end} date for
+#' @param as_of_date Date.  The reference date used as the \emph{end} date for
 #'   the age interval.  Typically the simulation period close date.
 #' @param birth_date_col Character.  Date of birth column in
 #'   \code{personnel_dt}.  (default: \code{"birth_date"}).
@@ -70,7 +70,7 @@ compute_years <- function(start_date, end_date) {
 #'   \describe{
 #'     \item{\emph{\code{personnel_id_col}}}{Personnel identifier, under the
 #'       caller's column name.}
-#'     \item{\code{age}}{Numeric.  Age in fractional years at \code{ref_date}.}
+#'     \item{\code{age}}{Numeric.  Age in fractional years at \code{as_of_date}.}
 #'   }
 #' @keywords internal
 #'
@@ -78,19 +78,19 @@ compute_years <- function(start_date, end_date) {
 #' \dontrun{
 #' age_dt <- compute_age(
 #'   personnel_dt = personnel_data,
-#'   ref_date = as.Date("2025-01-01"),
+#'   as_of_date = as.Date("2025-01-01"),
 #'   birth_date_col = "birth_date"
 #' )
 #' }
 compute_age <- function(personnel_dt,
-                        ref_date,
+                        as_of_date,
                         birth_date_col = "birth_date",
                         personnel_id_col = "personnel_id") {
   
-  # One row per person: the caller's ID column and age at ref_date (the
+  # One row per person: the caller's ID column and age at as_of_date (the
   # input table is not modified)
   age_dt <- personnel_dt[, c(personnel_id_col, birth_date_col), with = FALSE]
-  age_dt[, age := compute_years(start_date = get(birth_date_col), end_date = ref_date)]
+  age_dt[, age := compute_years(start_date = get(birth_date_col), end_date = as_of_date)]
   age_dt[, (birth_date_col) := NULL]
 
   return(age_dt)
@@ -120,7 +120,7 @@ compute_age <- function(personnel_dt,
 #'   personnel identifiers, contract identifiers, contract start and end
 #'   dates, contract types, and any grouping variables supplied in
 #'   \code{group_cols}.
-#' @param ref_date Date. Reference date at which tenure is calculated.
+#' @param as_of_date Date. Reference date at which tenure is calculated.
 #' @param personnel_id_col Character. Name of the personnel identifier column.
 #'   Default is \code{"personnel_id"}.
 #' @param contract_id_col Character. Name of the contract identifier column.
@@ -150,11 +150,11 @@ compute_age <- function(personnel_dt,
 #' \dontrun{
 #' tenure_dt <- compute_tenure(
 #'   contract_dt = contract_data,
-#'   ref_date = as.Date("2025-01-01")
+#'   as_of_date = as.Date("2025-01-01")
 #' )
 #' }
 compute_tenure <- function(contract_dt,
-                           ref_date,
+                           as_of_date,
                            personnel_id_col = "personnel_id",
                            contract_id_col = "contract_id",
                            start_date_col = "start_date",
@@ -173,20 +173,16 @@ compute_tenure <- function(contract_dt,
   }
 
   
-  # Alias ref_date to a name that cannot be shadowed by a column named 'ref_date'
-  # in panel data.tables (data.table resolves column names before env variables).
-  .ref_date_ <- ref_date
-
   # 1. Filter inactive types — subset returns a new object, no copy() needed
   dt <- contract_dt[.on_payroll(get(contract_type_col))]
 
-  # 2. Keep only contracts that started on or before ref_date
-  dt <- dt[get(start_date_col) <= .ref_date_]
+  # 2. Keep only contracts that started on or before as_of_date
+  dt <- dt[get(start_date_col) <= as_of_date]
 
-  # 3. Cap open-ended / future contracts at ref_date
+  # 3. Cap open-ended / future contracts at as_of_date
   dt[, .eff_end := data.table::fifelse(
-    is.na(get(end_date_col)) | get(end_date_col) > .ref_date_,
-    .ref_date_,
+    is.na(get(end_date_col)) | get(end_date_col) > as_of_date,
+    as_of_date,
     get(end_date_col)
   )]
 
@@ -401,9 +397,9 @@ compute_tenure_panel <- function(contract_dt,
 #'
 #' @param contract_dt data.table.  Contract register.  Required columns:
 #'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col}.
-#' @param ref_date Date.  The snapshot date.  A contract is included if
-#'   \code{start_date <= ref_date} and
-#'   (\code{is.na(end_date)} or \code{end_date >= ref_date}).
+#' @param as_of_date Date.  The snapshot date.  A contract is included if
+#'   \code{start_date <= as_of_date} and
+#'   (\code{is.na(end_date)} or \code{end_date >= as_of_date}).
 #' @param start_date Date the contract level start date
 #' @param end_date_col Character.  Contract end date column; \code{NA} for
 #'   open-ended contracts.  (default: \code{"end_date"}).
@@ -412,22 +408,19 @@ compute_tenure_panel <- function(contract_dt,
 #'   excluded.  (default: \code{"contract_type"}).
 #'
 #' @return data.table.  Subset of \code{contract_dt} containing only active
-#'   contracts at \code{ref_date}.  All original columns are preserved.
+#'   contracts at \code{as_of_date}.  All original columns are preserved.
 #' @keywords internal
 get_active_contracts <- function(contract_dt,
-                                 ref_date,
+                                 as_of_date,
                                  start_date_col = "start_date",
                                  end_date_col = "end_date",
                                  contract_type_col = "contract_type") {
   
-  # Filter: started before/on ref_date AND (no end date OR ended after ref_date)
+  # Filter: started before/on as_of_date AND (no end date OR ended after as_of_date)
   # AND not inactive AND not pensioner (pensioners are not part of the active workforce)
-  # (inside the brackets a bare `ref_date` would read a column of that name,
-  # which stays at the start date during a projection)
-  .as_of_date <- ref_date
   active <- contract_dt[
-    get(start_date_col) <= .as_of_date &
-    (is.na(get(end_date_col)) | get(end_date_col) >= .as_of_date) &
+    get(start_date_col) <= as_of_date &
+    (is.na(get(end_date_col)) | get(end_date_col) >= as_of_date) &
     .on_payroll(get(contract_type_col))
   ]
   
@@ -458,12 +451,13 @@ get_active_contracts <- function(contract_dt,
 #' @param salary_col Character.  Salary column for the second priority level
 #'   (highest salary wins when start dates are tied).
 #'   (default: \code{"gross_salary_lcu"}).
+#' @param snapshot_col Character or \code{NULL}.  With panel data, the snapshot
+#'   date column, to get one main contract per person per snapshot.  With the
+#'   default, \code{NULL}, one per person.
 #'
 #' @details
-#' Sorts \code{contract_dt} in place (\code{data.table::setorderv}) before
-#' taking \code{.SD[1]} per group.  The caller's table is reordered as a
-#' side-effect; pass \code{data.table::copy(contract_dt)} if the original
-#' row order must be preserved.
+#' A blank start date or salary never wins: it ranks below any real value.  The
+#' caller's table is not changed.
 #'
 #' @return data.table.  One row per unique \code{personnel_id_col} value,
 #'   containing all original columns of the highest-priority contract.
@@ -472,23 +466,19 @@ get_primary_contract <- function(contract_dt,
                                  personnel_id_col = "personnel_id",
                                  contract_id_col = "contract_id",
                                  start_date_col = "start_date",
-                                 salary_col = "gross_salary_lcu") {
+                                 salary_col = "gross_salary_lcu",
+                                 snapshot_col = NULL) {
 
-  # Copy to avoid mutating the caller's table via setorderv
+  # Sort a copy by priority: newest start, then highest salary, then lowest ID,
+  # with blanks last. Then the first row per person is their main contract.
   contract_dt <- data.table::copy(contract_dt)
-
-  # Order by priority: start_date DESC, salary DESC, contract_id ASC
   data.table::setorderv(
     contract_dt,
     cols = c(start_date_col, salary_col, contract_id_col),
-    order = c(-1, -1, 1)  # DESC, DESC, ASC
+    order = c(-1, -1, 1),
+    na.last = TRUE
   )
-  
-  # Take first row per personnel (highest priority), keyed by the caller's
-  # ID column
-  primary <- contract_dt[, .SD[1], by = personnel_id_col]
-  
-  return(primary)
+  unique(contract_dt, by = c(personnel_id_col, snapshot_col))
 }
 
 
@@ -500,10 +490,10 @@ get_primary_contract <- function(contract_dt,
 #' period-over-period microdata joins and snapshot tests reproducible.
 #' If \code{group_key} is supplied it is sanitised (non-alphanumeric chars → "_") and
 #' embedded in the ID to prevent collisions when called multiple times on the same
-#' \code{ref_date} (e.g. once per group in a loop).
+#' \code{as_of_date} (e.g. once per group in a loop).
 #'
 #' @param n Integer. Number of IDs to generate
-#' @param ref_date Date. Reference date for ID stamping
+#' @param as_of_date Date. Reference date for ID stamping
 #' @param prefix Character. Prefix for IDs (default "NEW")
 #' @param group_key Character scalar. Optional group identifier to embed in ID
 #'   (e.g. "HR" or "ministry_of_finance"). Non-alphanumeric characters are
@@ -517,8 +507,8 @@ get_primary_contract <- function(contract_dt,
 #' generate_new_ids(3, as.Date("2025-01-15"), prefix = "P", group_key = "HR")
 #' # Returns: c("P_2025-01-15_HR_001", "P_2025-01-15_HR_002", "P_2025-01-15_HR_003")
 #' }
-generate_new_ids <- function(n, ref_date, prefix = "NEW", group_key = NULL) {
-  date_str <- format(ref_date, "%Y%m%d")
+generate_new_ids <- function(n, as_of_date, prefix = "NEW", group_key = NULL) {
+  date_str <- format(as_of_date, "%Y%m%d")
   seq_str  <- formatC(seq_len(n), width = max(3L, nchar(as.character(n))), flag = "0")
   if (!is.null(group_key) && nchar(group_key) > 0L) {
     # Sanitise: replace any non-alphanumeric character with underscore, collapse runs
@@ -559,9 +549,9 @@ create_empty_events <- function(event_type = "event") {
 #' a specified target date. Used to select appropriate snapshot from panel data.
 #'
 #' @param x Date vector. Available reference dates to choose from
-#' @param ref_date Date. Target reference date
+#' @param as_of_date Date. Target reference date
 #'
-#' @return Date. Single date value (closest to ref_date without exceeding it)
+#' @return Date. Single date value (closest to as_of_date without exceeding it)
 #' @keywords internal
 #'
 #' @examples
@@ -570,14 +560,14 @@ create_empty_events <- function(event_type = "event") {
 #' select_nearest_ref_date(dates, as.Date("2016-06-01"))
 #' # Returns: 2016-01-01
 #' }
-select_nearest_ref_date <- function(x, ref_date) {
+select_nearest_ref_date <- function(x, as_of_date) {
   unique_dates <- unique(x)
   # Remove NA values before comparison
   unique_dates <- unique_dates[!is.na(unique_dates)]
-  valid_dates <- unique_dates[unique_dates <= ref_date]
+  valid_dates <- unique_dates[unique_dates <= as_of_date]
   
   if (length(valid_dates) == 0) {
-    stop("No dates found on or before ", ref_date, call. = FALSE)
+    stop("No dates found on or before ", as_of_date, call. = FALSE)
   }
   
   max(valid_dates)
@@ -662,95 +652,6 @@ expand_rate_vector <- function(x, n_periods, param_name) {
   } else {
     assign(".Random.seed", state, envir = globalenv())
   }
-}
-
-
-#' Iterate Consecutive Snapshot Pairs in a Panel data.table
-#'
-#' @description
-#' Sets a data.table key on \code{date_col} (enabling O(log N) binary-search
-#' subsetting rather than O(N) full-table scans), then calls a user-supplied
-#' function \code{f(snap_a, snap_b, ...)} for every consecutive pair of
-#' distinct dates in the panel.  Results are collected and returned as a
-#' single \code{data.table} via \code{rbindlist}.
-#'
-#' This helper enforces the key-setting pattern for all callers that need to
-#' walk a longitudinal panel snapshot by snapshot.  At scale (50 M rows, 15
-#' annual snapshots) the difference between an unkeyed and a keyed scan is
-#' roughly 5–10×.
-#'
-#' @param panel_dt data.table.  Panel data containing all snapshots.  The key
-#'   is set/updated in-place on entry; pass \code{data.table::copy()} if the
-#'   caller must preserve the original key.
-#' @param date_col Character scalar.  Name of the date column that identifies
-#'   snapshots (e.g. \code{"ref_date"}).  \code{NA} values are silently dropped
-#'   before iteration.
-#' @param f Function.  Called as \code{f(snap_a, snap_b, ...)} where
-#'   \code{snap_a} and \code{snap_b} are the T0 and T1 subsets respectively.
-#'   Must return a \code{data.table} or \code{NULL}; \code{NULL} rows are
-#'   skipped.
-#' @param ... Additional arguments forwarded to \code{f} unchanged.
-#'
-#' @return A single \code{data.table} produced by
-#'   \code{rbindlist(results, fill = TRUE, use.names = TRUE)} over all
-#'   non-\code{NULL} results.  Returns an empty \code{data.table()} when all
-#'   calls return \code{NULL} or the panel has fewer than two distinct dates.
-#'
-#' @examples
-#' \dontrun{
-#' library(data.table)
-#' panel <- data.table(
-#'   ref_date     = as.Date(c("2015-01-01","2015-01-01","2016-01-01","2016-01-01")),
-#'   personnel_id = c("P1", "P2", "P1", "P2"),
-#'   paygrade     = c("G1", "G2", "G2", "G2")
-#' )
-#'
-#' count_movers <- function(a, b) {
-#'   data.table(n_persons_t0 = nrow(a), n_persons_t1 = nrow(b))
-#' }
-#'
-#' roll_snapshot_pairs(panel, date_col = "ref_date", f = count_movers)
-#' }
-#'
-#' @keywords internal
-roll_snapshot_pairs <- function(panel_dt, date_col, f, ...) {
-
-  if (!data.table::is.data.table(panel_dt))
-    stop("panel_dt must be a data.table.", call. = FALSE)
-
-  if (!is.character(date_col) || length(date_col) != 1L)
-    stop("date_col must be a single character string.", call. = FALSE)
-
-  if (!date_col %in% names(panel_dt))
-    stop("date_col '", date_col, "' not found in panel_dt.", call. = FALSE)
-
-  # Set key for binary-search subsetting — this is the core performance lever.
-  # Only re-key if needed to avoid unnecessary copies of the index.
-  cur_key <- data.table::key(panel_dt)
-  if (is.null(cur_key) || cur_key[1L] != date_col)
-    data.table::setkeyv(panel_dt, date_col)
-
-  all_dates <- sort(unique(panel_dt[[date_col]]))
-  all_dates  <- all_dates[!is.na(all_dates)]
-
-  if (length(all_dates) < 2L) {
-    return(data.table::data.table())
-  }
-
-  n_pairs  <- length(all_dates) - 1L
-  results  <- vector("list", n_pairs)
-
-  for (k in seq_len(n_pairs)) {
-    snap_a <- panel_dt[.(all_dates[k])]
-    snap_b <- panel_dt[.(all_dates[k + 1L])]
-    res_k  <- f(snap_a, snap_b, ...)
-    if (!is.null(res_k)) results[[k]] <- res_k
-  }
-
-  non_null <- Filter(Negate(is.null), results)
-  if (length(non_null) == 0L) return(data.table::data.table())
-
-  data.table::rbindlist(non_null, fill = TRUE, use.names = TRUE)
 }
 
 
@@ -1149,11 +1050,11 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
 #' @param hiring_group_cols Character vector or \code{NULL}.  Group columns
 #'   for the flow-based hiring policy.  \code{NULL} hires at the aggregate
 #'   level.
-#' @param column_spec_args Named list.  Column names, if your data use
-#'   different names from the \code{govhr} defaults: give only the ones you
-#'   need to change, e.g. \code{list(salary_col = "base_salary_lcu")}.  See
-#'   \code{\link{simulate_horizon}} for the keys and defaults.  Pass the same
-#'   list to \code{simulate_horizon()} when you run these policies.
+#' @param column_spec_args Column names, from \code{\link{define_column_spec}()}.  Change only
+#'   the ones that differ from the \code{govhr} defaults, e.g.
+#'   \code{define_column_spec(salary_col = "base_salary_lcu")}.  See
+#'   \code{\link{define_column_spec}} for the keys and defaults.  Pass the same
+#'   spec to \code{simulate_horizon()} when you run these policies.
 #'
 #' @return Named list with four elements:
 #'   \describe{
@@ -1175,7 +1076,7 @@ make_status_quo_policies <- function(contract_dt,
                                      movement_group_cols = NULL,
                                      exit_group_cols     = NULL,
                                      hiring_group_cols   = NULL,
-                                     column_spec_args    = list()) {
+                                     column_spec_args    = define_column_spec()) {
 
   .Deprecated(msg = paste0(
     "make_status_quo_policies() is deprecated. Use the design_*_status_quo() helpers, which ",
@@ -1187,7 +1088,8 @@ make_status_quo_policies <- function(contract_dt,
   if (!data.table::is.data.table(personnel_dt))
     personnel_dt <- data.table::as.data.table(personnel_dt)
 
-  cols <- .column_spec(column_spec_args)
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
 
   has_panel <- cols$ref_date_col %in% names(contract_dt) &&
                data.table::uniqueN(contract_dt[[cols$ref_date_col]]) >= 2L

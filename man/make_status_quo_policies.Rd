@@ -11,7 +11,7 @@ make_status_quo_policies(
   movement_group_cols = NULL,
   exit_group_cols = NULL,
   hiring_group_cols = NULL,
-  column_spec_args = list()
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -37,11 +37,11 @@ historical exit rate estimation.  \code{NULL} estimates an aggregate rate.}
 for the flow-based hiring policy.  \code{NULL} hires at the aggregate
 level.}
 
-\item{column_spec_args}{Named list.  Column names, if your data use
-different names from the \code{govhr} defaults: give only the ones you
-need to change, e.g. \code{list(salary_col = "base_salary_lcu")}.  See
-\code{\link{simulate_horizon}} for the keys and defaults.  Pass the same
-list to \code{simulate_horizon()} when you run these policies.}
+\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only
+the ones that differ from the \code{govhr} defaults, e.g.
+\code{define_column_spec(salary_col = "base_salary_lcu")}.  See
+\code{\link{define_column_spec}} for the keys and defaults.  Pass the same
+spec to \code{simulate_horizon()} when you run these policies.}
 }
 \value{
 Named list with four elements:

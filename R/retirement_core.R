@@ -95,14 +95,14 @@ utils::globalVariables(c(
 #'
 #' @description
 #' Restricts the candidate pool to personnel who hold an active, non-pensioner
-#' contract at \code{ref_date}. Returns both the filtered table and identifier
+#' contract at \code{as_of_date}. Returns both the filtered table and identifier
 #' vectors used later to restore inactive personnel with \code{retire = 0}.
 #'
 #' @param contract_dt data.table. Contract register.
 #' @param personnel_dt data.table. Personnel register.
-#' @param ref_date Date. Reference date for active-contract filtering.
+#' @param as_of_date Date. Reference date for active-contract filtering.
 #' @param column_spec_args Complete column specification
-#'   (\code{.column_spec()}). Keys read: \code{personnel_id_col},
+#'   (\code{define_column_spec()}). Keys read: \code{personnel_id_col},
 #'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
 #'   \code{status_col}.
 #' @param policy_params List. Retirement policy; \code{defaults$active_types},
@@ -114,8 +114,8 @@ utils::globalVariables(c(
 #' @keywords internal
 .filter_active_candidate_pool <- function(contract_dt,
                                           personnel_dt,
-                                          ref_date,
-                                          column_spec_args = .column_spec(),
+                                          as_of_date,
+                                          column_spec_args = define_column_spec(),
                                           policy_params = list()) {
   personnel_id_col  <- column_spec_args$personnel_id_col
   start_date_col    <- column_spec_args$start_date_col
@@ -126,7 +126,7 @@ utils::globalVariables(c(
   all_pid <- unique(personnel_dt[[personnel_id_col]])
   active_contracts <- get_active_contracts(
     contract_dt = contract_dt,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     start_date_col = start_date_col,
     end_date_col = end_date_col,
     contract_type_col = contract_type_col
@@ -154,9 +154,9 @@ utils::globalVariables(c(
 #' @param needed_cols Character vector. Columns to add when absent.
 #' @param contract_dt data.table. Contract source table.
 #' @param personnel_dt data.table. Personnel source table.
-#' @param ref_date Date. Reference date for active contract extraction.
+#' @param as_of_date Date. Reference date for active contract extraction.
 #' @param column_spec_args Complete column specification
-#'   (\code{.column_spec()}). Keys read: \code{personnel_id_col},
+#'   (\code{define_column_spec()}). Keys read: \code{personnel_id_col},
 #'   \code{contract_id_col}, \code{start_date_col}, \code{end_date_col},
 #'   \code{contract_type_col}, \code{salary_col} (picks the primary contract).
 #'
@@ -167,8 +167,8 @@ utils::globalVariables(c(
                                   needed_cols,
                                   contract_dt,
                                   personnel_dt,
-                                  ref_date,
-                                  column_spec_args = .column_spec()) {
+                                  as_of_date,
+                                  column_spec_args = define_column_spec()) {
   personnel_id_col  <- column_spec_args$personnel_id_col
   contract_id_col   <- column_spec_args$contract_id_col
   start_date_col    <- column_spec_args$start_date_col
@@ -189,7 +189,7 @@ utils::globalVariables(c(
     primary <- get_primary_contract(
       contract_dt = get_active_contracts(
         contract_dt = contract_dt,
-        ref_date = ref_date,
+        as_of_date = as_of_date,
         start_date_col = start_date_col,
         end_date_col = end_date_col,
         contract_type_col = contract_type_col
@@ -300,9 +300,9 @@ utils::globalVariables(c(
 #'       \code{eligibility_type} is \code{"tenure_only"} or
 #'       \code{"age_and_tenure"}.
 #'   }
-#' @param ref_date Date.  Reference date for age and tenure computation.
+#' @param as_of_date Date.  Reference date for age and tenure computation.
 #' @param column_spec_args Complete column specification
-#'   (\code{.column_spec()}), in the caller's column names. Keys read:
+#'   (\code{define_column_spec()}), in the caller's column names. Keys read:
 #'   \code{personnel_id_col}, \code{contract_id_col}, \code{birth_date_col},
 #'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
 #'   \code{status_col}, and \code{age_col} / \code{tenure_col}: columns in
@@ -344,11 +344,11 @@ utils::globalVariables(c(
 #'       — inactive personnel are not dropped.}
 #'     \item{\code{retire}}{Integer (0/1).  1 = eligible and assumed to retire;
 #'       0 = not eligible, already inactive, or a threshold was \code{NA}.}
-#'     \item{\code{age}}{Numeric.  Age in years at \code{ref_date}.
-#'       \code{NA} for personnel inactive at \code{ref_date} or when age
+#'     \item{\code{age}}{Numeric.  Age in years at \code{as_of_date}.
+#'       \code{NA} for personnel inactive at \code{as_of_date} or when age
 #'       computation was skipped (tenure-only eligibility).}
 #'     \item{\code{tenure_years}}{Numeric.  Cumulative service in years at
-#'       \code{ref_date}.  \code{NA} analogously to \code{age}.}
+#'       \code{as_of_date}.  \code{NA} analogously to \code{age}.}
 #'   }
 #'
 #' @section Retirement eligibility vs. retirement choice:
@@ -368,8 +368,8 @@ utils::globalVariables(c(
 identify_eligibility <- function(contract_dt,
                                  personnel_dt,
                                  policy_params,
-                                 ref_date,
-                                 column_spec_args = .column_spec()) {
+                                 as_of_date,
+                                 column_spec_args = define_column_spec()) {
   personnel_id_col  <- column_spec_args$personnel_id_col
   contract_id_col   <- column_spec_args$contract_id_col
   birth_date_col    <- column_spec_args$birth_date_col
@@ -393,7 +393,7 @@ identify_eligibility <- function(contract_dt,
   .pool <- .filter_active_candidate_pool(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     column_spec_args = column_spec_args,
     policy_params = policy_params
   )
@@ -413,7 +413,7 @@ identify_eligibility <- function(contract_dt,
     } else {
       age_dt <- compute_age(
         personnel_dt = personnel_dt,
-        ref_date = ref_date,
+        as_of_date = as_of_date,
         birth_date_col = birth_date_col,
         personnel_id_col = personnel_id_col
       )
@@ -438,7 +438,7 @@ identify_eligibility <- function(contract_dt,
     } else {
       tenure_dt <- compute_tenure(
         contract_dt = contract_dt,
-        ref_date = ref_date,
+        as_of_date = as_of_date,
         personnel_id_col = personnel_id_col,
         start_date_col = start_date_col,
         end_date_col = end_date_col,
@@ -469,7 +469,7 @@ identify_eligibility <- function(contract_dt,
     needed_cols = .needed_cols,
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     column_spec_args = column_spec_args
   )
 
@@ -660,10 +660,10 @@ compute_retirement_summary <- function(retirees_dt, contract_dt = NULL) {
 #'   \code{\link{get_active_contracts}}.
 #' @param personnel_dt data.table.  Personnel register.  Used to compute
 #'   missing age values when \code{anyNA(eligibility_dt$age)} is \code{TRUE}.
-#' @param ref_date Date.  Reference date passed to age/tenure computations
+#' @param as_of_date Date.  Reference date passed to age/tenure computations
 #'   when filling \code{NA} values.
 #' @param column_spec_args Complete column specification
-#'   (\code{.column_spec()}), in the caller's column names. Keys read:
+#'   (\code{define_column_spec()}), in the caller's column names. Keys read:
 #'   \code{personnel_id_col}, \code{birth_date_col}, \code{contract_id_col},
 #'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
 #'   and \code{salary_col} (picks the primary contract; the pension wage base).
@@ -689,8 +689,8 @@ compute_retirement_summary <- function(retirees_dt, contract_dt = NULL) {
 prepare_retiree_data <- function(eligibility_dt,
                                  contract_dt,
                                  personnel_dt,
-                                 ref_date,
-                                 column_spec_args = .column_spec()) {
+                                 as_of_date,
+                                 column_spec_args = define_column_spec()) {
   personnel_id_col  <- column_spec_args$personnel_id_col
   birth_date_col    <- column_spec_args$birth_date_col
   contract_id_col   <- column_spec_args$contract_id_col
@@ -714,7 +714,7 @@ prepare_retiree_data <- function(eligibility_dt,
   if (anyNA(retirees_only$age)) {
     age_dt <- compute_age(
       personnel_dt = personnel_dt,
-      ref_date = ref_date,
+      as_of_date = as_of_date,
       birth_date_col = birth_date_col,
       personnel_id_col = personnel_id_col
     )
@@ -724,7 +724,7 @@ prepare_retiree_data <- function(eligibility_dt,
   if (anyNA(retirees_only$tenure_years)) {
     tenure_dt <- compute_tenure(
       contract_dt = contract_dt,
-      ref_date = ref_date,
+      as_of_date = as_of_date,
       personnel_id_col = personnel_id_col,
       contract_id_col = contract_id_col,
       start_date_col = start_date_col,
@@ -741,7 +741,7 @@ prepare_retiree_data <- function(eligibility_dt,
   # Get active contracts for these retirees
   active_contracts <- get_active_contracts(
     contract_dt = contract_dt,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     start_date_col = start_date_col,
     end_date_col = end_date_col,
     contract_type_col = contract_type_col
@@ -816,12 +816,12 @@ prepare_retiree_data <- function(eligibility_dt,
 #'   most likely to bite when \code{group_cols} is granular (e.g. per
 #'   establishment): consider \code{smooth = TRUE} whenever a group/age cell
 #'   is likely to have thin exposure in the historical panel.
-#' @param column_spec_args Named list.  Column names, if your data use
-#'   different names from the \code{govhr} defaults: give only the ones you
-#'   need to change, e.g. \code{list(personnel_id_col = "emp_id")}.  Keys read
+#' @param column_spec_args Column names, from \code{\link{define_column_spec}()}.  Change only
+#'   the ones that differ from the \code{govhr} defaults, e.g.
+#'   \code{define_column_spec(personnel_id_col = "emp_id")}.  Keys read
 #'   here: \code{age_col} (fractional age; \code{NULL} means \code{"age"}),
 #'   \code{personnel_id_col}, \code{ref_date_col}, \code{status_col}.  See
-#'   \code{\link{simulate_horizon}} for the defaults.
+#'   \code{\link{define_column_spec}} for the defaults.
 #'
 #' @return data.table with \code{group_cols} and \code{hazard_rate}.  One row
 #'   per unique combination of \code{group_cols} observed in the panel.
@@ -835,7 +835,7 @@ estimate_retirement_hazard_rates <- function(panel_personnel_dt,
                                              group_cols       = NULL,
                                              retire_status    = "pensioner",
                                              smooth           = FALSE,
-                                             column_spec_args = list()) {
+                                             column_spec_args = define_column_spec()) {
 
   if (!"age_yr_int" %in% group_cols) {
     stop(
@@ -845,7 +845,8 @@ estimate_retirement_hazard_rates <- function(panel_personnel_dt,
     )
   }
 
-  cols <- .column_spec(column_spec_args)
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
   if (is.null(cols$age_col)) cols$age_col <- "age"
   .check_spec_columns(NULL, panel_personnel_dt, cols, required = list(
     personnel_dt = c("age_col", "personnel_id_col", "ref_date_col", "status_col")
@@ -950,10 +951,10 @@ estimate_retirement_hazard_rates <- function(panel_personnel_dt,
 #'   \code{contract_dt} column (e.g. a salary column) — the latter is
 #'   enriched onto the working table automatically, the same way
 #'   \code{group_cols} are.
-#' @param ref_date Date.  Reference date for active-contract filtering and age
+#' @param as_of_date Date.  Reference date for active-contract filtering and age
 #'   computation.
 #' @param column_spec_args Complete column specification
-#'   (\code{.column_spec()}), in the caller's column names. Keys read:
+#'   (\code{define_column_spec()}), in the caller's column names. Keys read:
 #'   \code{personnel_id_col}, \code{contract_id_col}, \code{birth_date_col},
 #'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
 #'   \code{status_col}, and \code{age_col}: pre-computed age in years on
@@ -972,8 +973,8 @@ estimate_retirement_hazard_rates <- function(panel_personnel_dt,
 compute_status_quo_retirements <- function(contract_dt,
                                            personnel_dt,
                                            policy_params,
-                                           ref_date,
-                                           column_spec_args = .column_spec()) {
+                                           as_of_date,
+                                           column_spec_args = define_column_spec()) {
   personnel_id_col <- column_spec_args$personnel_id_col
   birth_date_col   <- column_spec_args$birth_date_col
   age_col          <- column_spec_args$age_col
@@ -993,7 +994,7 @@ compute_status_quo_retirements <- function(contract_dt,
   .pool <- .filter_active_candidate_pool(
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     column_spec_args = column_spec_args,
     policy_params = policy_params
   )
@@ -1013,7 +1014,7 @@ compute_status_quo_retirements <- function(contract_dt,
   } else {
     age_dt <- compute_age(
       personnel_dt = working_dt,
-      ref_date = ref_date,
+      as_of_date = as_of_date,
       birth_date_col = birth_date_col,
       personnel_id_col = personnel_id_col
     )
@@ -1034,7 +1035,7 @@ compute_status_quo_retirements <- function(contract_dt,
     needed_cols = union(setdiff(group_cols, "age_yr_int"), .strategy_col),
     contract_dt = contract_dt,
     personnel_dt = personnel_dt,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     column_spec_args = column_spec_args
   )
 

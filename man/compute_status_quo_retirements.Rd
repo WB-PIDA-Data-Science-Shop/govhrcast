@@ -8,8 +8,8 @@ compute_status_quo_retirements(
   contract_dt,
   personnel_dt,
   policy_params,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -31,11 +31,11 @@ A rank-by-column strategy may name either a \code{personnel_dt} or a
 enriched onto the working table automatically, the same way
 \code{group_cols} are.}
 
-\item{ref_date}{Date.  Reference date for active-contract filtering and age
+\item{as_of_date}{Date.  Reference date for active-contract filtering and age
 computation.}
 
 \item{column_spec_args}{Complete column specification
-(\code{.column_spec()}), in the caller's column names. Keys read:
+(\code{define_column_spec()}), in the caller's column names. Keys read:
 \code{personnel_id_col}, \code{contract_id_col}, \code{birth_date_col},
 \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
 \code{status_col}, and \code{age_col}: pre-computed age in years on

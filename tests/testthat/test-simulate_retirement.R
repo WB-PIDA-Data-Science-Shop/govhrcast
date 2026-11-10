@@ -53,7 +53,7 @@ test_that("simulate_retirement works with age_only eligibility", {
   result <- simulate_retirement(
     contract_dt  = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date     = ref_date,
+    as_of_date     = ref_date,
     policy_params = policy_params
   )
 
@@ -106,7 +106,7 @@ test_that("simulate_retirement works with tenure_only eligibility", {
   result <- simulate_retirement(
     contract_dt  = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date     = ref_date,
+    as_of_date     = ref_date,
     policy_params = policy_params
   )
 
@@ -139,7 +139,7 @@ test_that("simulate_retirement works with age_and_tenure eligibility", {
   result <- simulate_retirement(
     contract_dt  = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date     = ref_date,
+    as_of_date     = ref_date,
     policy_params = policy_params
   )
 
@@ -173,7 +173,7 @@ test_that("simulate_retirement works with DB pension", {
   result <- simulate_retirement(
     contract_dt  = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date     = ref_date,
+    as_of_date     = ref_date,
     policy_params = policy_params
   )
 
@@ -214,7 +214,7 @@ test_that("simulate_retirement works with DC pension", {
   result <- simulate_retirement(
     contract_dt  = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date     = ref_date,
+    as_of_date     = ref_date,
     policy_params = policy_params
   )
 
@@ -254,7 +254,7 @@ test_that("simulate_retirement works with hybrid pension", {
   result <- simulate_retirement(
     contract_dt  = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date     = ref_date,
+    as_of_date     = ref_date,
     policy_params = policy_params
   )
 
@@ -292,7 +292,7 @@ test_that("simulate_retirement handles no eligible retirees", {
   result <- simulate_retirement(
     contract_dt  = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date     = ref_date,
+    as_of_date     = ref_date,
     policy_params = policy_params
   )
 
@@ -323,7 +323,7 @@ test_that("simulate_retirement handles retiree with multiple contracts", {
   result <- simulate_retirement(
     contract_dt  = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date     = ref_date,
+    as_of_date     = ref_date,
     policy_params = policy_params
   )
 
@@ -353,7 +353,7 @@ test_that("simulate_retirement does not modify original data", {
   result <- simulate_retirement(
     contract_dt  = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date     = ref_date,
+    as_of_date     = ref_date,
     policy_params = policy_params
   )
 
@@ -382,7 +382,7 @@ test_that("simulate_retirement validates inputs correctly", {
     simulate_retirement(
       contract_dt  = test_data$contract_dt,
       personnel_dt = test_data$personnel_dt,
-      ref_date     = ref_date,
+      as_of_date     = ref_date,
       policy_params = policy_params
     ),
     "min_age is required"
@@ -409,7 +409,7 @@ test_that("simulate_retirement handles missing birth dates gracefully", {
   result <- simulate_retirement(
     contract_dt  = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date     = ref_date,
+    as_of_date     = ref_date,
     policy_params = policy_params
   )
 
@@ -441,7 +441,7 @@ test_that("simulate_retirement works with package data", {
   result <- simulate_retirement(
     contract_dt  = bra_hrmis_contract,
     personnel_dt = bra_hrmis_personnel,
-    ref_date     = ref_date,
+    as_of_date     = ref_date,
     policy_params = policy_params
   )
 
@@ -488,7 +488,7 @@ test_that("simulate_retirement: group-level accrual_rate via policy_table produc
   result <- simulate_retirement(
     contract_dt  = contract_dt,
     personnel_dt = personnel_dt,
-    ref_date     = ref_date,
+    as_of_date     = ref_date,
     policy_params = policy_params
   )
   # Both retire; grade B should have higher pension due to higher accrual rate
@@ -536,7 +536,7 @@ test_that("simulate_retirement works with hazard_rate eligibility end-to-end", {
 
   result <- simulate_retirement(
     contract_dt = contract_dt, personnel_dt = personnel_dt,
-    ref_date = ref_date, policy_params = policy_params
+    as_of_date = ref_date, policy_params = policy_params
   )
 
   # p7 (age 70) and p8 (age 71) are forced by min_age; age 60/61 groups each
@@ -596,7 +596,7 @@ test_that("simulate_retirement hazard_rate works when age must be computed from 
 
   result <- simulate_retirement(
     contract_dt = contract_dt, personnel_dt = personnel_dt,
-    ref_date = ref_date, policy_params = policy_params
+    as_of_date = ref_date, policy_params = policy_params
   )
 
   expect_equal(result$retirees_dt$personnel_id, "p1")
@@ -615,7 +615,7 @@ test_that("simulate_retirement hazard_rate validates group_cols includes age_yr_
   expect_error(
     simulate_retirement(
       contract_dt = test_data$contract_dt, personnel_dt = test_data$personnel_dt,
-      ref_date = as.Date("2025-01-01"), policy_params = policy_params
+      as_of_date = as.Date("2025-01-01"), policy_params = policy_params
     ),
     regexp = "age_yr_int"
   )
@@ -632,7 +632,7 @@ test_that("simulate_retirement hazard_rate validates policy_table has a hazard_r
   expect_error(
     simulate_retirement(
       contract_dt = test_data$contract_dt, personnel_dt = test_data$personnel_dt,
-      ref_date = as.Date("2025-01-01"), policy_params = policy_params
+      as_of_date = as.Date("2025-01-01"), policy_params = policy_params
     ),
     regexp = "hazard_rate"
   )
@@ -662,7 +662,7 @@ make_tenure_col_data <- function() {
 
 retired_ids <- function(policy) {
   d <- make_tenure_col_data()
-  r <- simulate_retirement(d$ct, d$pt, policy, ref_date = as.Date("2020-01-01"))
+  r <- simulate_retirement(d$ct, d$pt, policy, as_of_date = as.Date("2020-01-01"))
   sort(r$retirees_dt$personnel_id)
 }
 

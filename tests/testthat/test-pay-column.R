@@ -18,9 +18,9 @@ pay_table <- function(col) {
 base_pay_run <- function(hiring_policy, n_periods = 3L, retirement_policy = NULL) {
   suppressMessages(simulate_horizon(
     history_contracts(), history_personnel(), pay_table("base_salary_lcu"), n_periods = n_periods,
-    ref_date = sim_start, retirement_policy = retirement_policy, hiring_policy = hiring_policy,
-    salary_growth_rate = 0.05, column_spec_args = list(salary_col = "base_salary_lcu"),
-    output_control_args = list(return_microdata = TRUE), seed = 1L
+    baseline_date = sim_start, retirement_policy = retirement_policy, hiring_policy = hiring_policy,
+    salary_growth_rate = 0.05, column_spec_args = define_column_spec(salary_col = "base_salary_lcu"),
+    output_control_args = define_output_control(return_microdata = TRUE), seed = 1L
   ))
 }
 new_contracts <- function(run) run$contract_dt[!contract_id %in% bra_hrmis_contract$contract_id]
@@ -77,8 +77,8 @@ test_that("movers are paid from salary_col in a pay table holding several pay co
   )
   set.seed(1L)
   run <- suppressMessages(simulate_promotions_transfers(
-    hc, hp, table, policy_params = policy, ref_date = sim_start,
-    column_spec_args = list(salary_col = "base_salary_lcu")
+    hc, hp, table, policy_params = policy, as_of_date = sim_start,
+    column_spec_args = define_column_spec(salary_col = "base_salary_lcu")
   ))
   ids <- run$movers_dt$personnel_id
   expect_gt(length(ids), 0L)
@@ -93,7 +93,7 @@ test_that("new hires are paid from salary_col in a pay table holding several pay
   group <- table$est_id[1]
   stock <- compute_current_stock(hc, hp, sim_start, group_cols = "est_id")[est_id == group]
   run <- simulate_hiring(
-    hc, hp, ref_date = sim_start, column_spec_args = list(salary_col = "base_salary_lcu"),
+    hc, hp, as_of_date = sim_start, column_spec_args = define_column_spec(salary_col = "base_salary_lcu"),
     policy_params = list(mode = "stock", group_cols = "est_id", salary_scale = table,
                          stock_targets = stock[, .(est_id, target_stock = current_stock + 5L)])
   )
@@ -107,19 +107,19 @@ test_that("a pay table without a column named salary_col stops with a clear mess
   hc <- bra_hrmis_contract[ref_date == sim_start]
   hp <- bra_hrmis_personnel[ref_date == sim_start]
   gross_table <- pay_table("gross_salary_lcu")
-  spec <- list(salary_col = "base_salary_lcu")
+  spec <- define_column_spec(salary_col = "base_salary_lcu")
   message <- "must have a column named 'base_salary_lcu'"
 
-  expect_error(simulate_horizon(hc, hp, gross_table, n_periods = 1L, ref_date = sim_start,
+  expect_error(simulate_horizon(hc, hp, gross_table, n_periods = 1L, baseline_date = sim_start,
                                 retirement_policy = NULL, column_spec_args = spec), message)
   expect_error(simulate_scenario(hc, hp, gross_table, period_date = sim_start,
                                  column_spec_args = spec), message)
-  expect_error(simulate_hiring(hc, hp, ref_date = sim_start, column_spec_args = spec,
+  expect_error(simulate_hiring(hc, hp, as_of_date = sim_start, column_spec_args = spec,
                                policy_params = list(mode = "stock", group_cols = "est_id", salary_scale = gross_table,
                                                     stock_targets = gross_table[, .(est_id, target_stock = 1L)])),
                message)
   expect_error(check_movement_inputs(
-    hc, hp, gross_table, ref_date = sim_start, column_spec_args = .column_spec(spec),
+    hc, hp, gross_table, as_of_date = sim_start, column_spec_args = spec,
     policy_params = list(group_cols = "est_id", policy_table = data.table(from_group = "a", to_group = "b", movement_rate = 0.1),
                          defaults = list(movement_strategy = "random"))
   ), message)
@@ -161,7 +161,7 @@ three_people <- function() {
 test_that("hiring with no groups pays new hires from a one-row pay table, in salary_col", {
   d <- three_people()
   run <- simulate_hiring(
-    d$ct, d$pt, ref_date = as.Date("2020-01-01"), column_spec_args = list(salary_col = "base_salary_lcu"),
+    d$ct, d$pt, as_of_date = as.Date("2020-01-01"), column_spec_args = define_column_spec(salary_col = "base_salary_lcu"),
     policy_params = list(mode = "stock", group_cols = NULL, stock_targets = data.table(target_stock = 5L),
                          salary_scale = data.table(base_salary_lcu = 250))
   )
@@ -173,7 +173,7 @@ test_that("hiring with no groups stops clearly on a pay table with several rows"
   d <- three_people()
   expect_error(
     simulate_hiring(
-      d$ct, d$pt, ref_date = as.Date("2020-01-01"), column_spec_args = list(salary_col = "base_salary_lcu"),
+      d$ct, d$pt, as_of_date = as.Date("2020-01-01"), column_spec_args = define_column_spec(salary_col = "base_salary_lcu"),
       policy_params = list(mode = "stock", group_cols = NULL, stock_targets = data.table(target_stock = 5L),
                            salary_scale = data.table(paygrade = c("A", "B"), base_salary_lcu = c(100, 200)))
     ),
@@ -209,7 +209,7 @@ one_person <- function() {
 two_years <- function(growth, pay_col = "base_salary_lcu") {
   d <- one_person()
   policy <- design_retirement_policy_age(min_age = 60, pension = pension_rate(0.1))
-  spec <- list(salary_col = pay_col)
+  spec <- define_column_spec(salary_col = pay_col)
   year1 <- simulate_scenario(d$ct, d$pt, d$scale, period_date = as.Date("2020-01-01"), retirement_policy = policy,
                              salary_growth_rate = growth, column_spec_args = spec)
   year2 <- simulate_scenario(year1$contract_dt, year1$personnel_dt, year1$salary_scale_dt,
@@ -244,14 +244,14 @@ test_that("a hand-written policy still naming ref_wage_col stops with a clear me
                    policy_table = data.table(est_id = "E1", ref_wage_col = "gross_salary_lcu"),
                    defaults = list(eligibility_type = "age_only", min_age = 60, pension_type = "rate",
                                    pension_rate = 0.1))
-  expect_error(simulate_retirement(d$ct, d$pt, policy_params = in_defaults, ref_date = as.Date("2020-01-01")), message)
-  expect_error(simulate_retirement(d$ct, d$pt, policy_params = in_table, ref_date = as.Date("2020-01-01")), message)
+  expect_error(simulate_retirement(d$ct, d$pt, policy_params = in_defaults, as_of_date = as.Date("2020-01-01")), message)
+  expect_error(simulate_retirement(d$ct, d$pt, policy_params = in_table, as_of_date = as.Date("2020-01-01")), message)
 })
 
 default_retirement_run <- function(contract, pay_col, table) {
   suppressMessages(simulate_horizon(
-    contract, history_personnel(), table, n_periods = 2L, ref_date = sim_start,
-    column_spec_args = list(salary_col = pay_col), seed = 1L
+    contract, history_personnel(), table, n_periods = 2L, baseline_date = sim_start,
+    column_spec_args = define_column_spec(salary_col = pay_col), seed = 1L
   ))
 }
 
@@ -280,9 +280,9 @@ test_that("the derived pay table reads salary_col, not the table's first number"
   numbered <- copy(table)[, headcount := 1]
   setcolorder(numbered, c("est_id", "headcount"))
   run <- function(scale) suppressMessages(simulate_horizon(
-    history_contracts(), history_personnel(), scale, n_periods = 1L, ref_date = sim_start,
+    history_contracts(), history_personnel(), scale, n_periods = 1L, baseline_date = sim_start,
     retirement_policy = NULL, hiring_policy = design_hiring_policy_status_quo(group_cols = "est_id"),
-    column_spec_args = list(salary_col = "base_salary_lcu"), seed = 1L
+    column_spec_args = define_column_spec(salary_col = "base_salary_lcu"), seed = 1L
   ))
   expect_equal(run(numbered)$comparison$hiring_effect, run(table)$comparison$hiring_effect)
 })
@@ -298,8 +298,8 @@ test_that("assign_compensation() and update_state_with_movement() check the pay 
   movers <- data.table(personnel_id = "P1", from_group = "E1", to_group = "E2")
   expect_error(
     update_state_with_movement(d$ct, d$pt, movers, list(group_cols = "est_id"), salary_scale_dt = no_pay,
-                               ref_date = as.Date("2020-01-01"),
-                               column_spec_args = .column_spec(list(salary_col = "base_salary_lcu"))),
+                               as_of_date = as.Date("2020-01-01"),
+                               column_spec_args = define_column_spec(salary_col = "base_salary_lcu")),
     "must have a column named 'base_salary_lcu'"
   )
 })
@@ -315,11 +315,11 @@ hires_each_year <- function(table, growth) {
   staff <- data.table(personnel_id = paste0("P", 1:10), employment_status = "active")
   suppressMessages(simulate_horizon(
     people, staff, data.table(est_id = "E1", base_salary_lcu = 100), n_periods = length(growth),
-    ref_date = as.Date("2020-01-01"), retirement_policy = NULL,
+    baseline_date = as.Date("2020-01-01"), retirement_policy = NULL,
     hiring_policy = design_hiring_policy_adjustment(
       data.table(est_id = "E1", hiring_rate = 0.5), group_cols = "est_id", salary_scale = table
     ),
-    salary_growth_rate = growth, column_spec_args = list(salary_col = "base_salary_lcu"), seed = 1L
+    salary_growth_rate = growth, column_spec_args = define_column_spec(salary_col = "base_salary_lcu"), seed = 1L
   ))
 }
 
@@ -356,7 +356,7 @@ test_that("simulate_scenario() returns the grown table to pass back in next year
                                             salary_scale = table)
   year1 <- simulate_scenario(d$ct, d$pt, d$scale, period_date = as.Date("2020-01-01"), retirement_policy = NULL,
                              hiring_policy = policy, salary_growth_rate = 0.10,
-                             column_spec_args = list(salary_col = "base_salary_lcu"), seed = 1L)
+                             column_spec_args = define_column_spec(salary_col = "base_salary_lcu"), seed = 1L)
   expect_equal(year1$hiring_policy$salary_scale$base_salary_lcu, 275)
   # Only the pay column grows
   expect_equal(year1$hiring_policy$salary_scale$other, 7)
@@ -368,7 +368,7 @@ test_that("a pay table built from salary_scale_dt is not kept for the next year"
   policy <- design_hiring_policy_adjustment(data.table(est_id = "E1", hiring_rate = 1), group_cols = "est_id")
   year1 <- simulate_scenario(d$ct, d$pt, d$scale, period_date = as.Date("2020-01-01"), retirement_policy = NULL,
                              hiring_policy = policy, salary_growth_rate = 0.10,
-                             column_spec_args = list(salary_col = "base_salary_lcu"), seed = 1L)
+                             column_spec_args = define_column_spec(salary_col = "base_salary_lcu"), seed = 1L)
   expect_gt(year1$summary$n_hires, 0L)
   expect_null(year1$hiring_policy$salary_scale)
 })

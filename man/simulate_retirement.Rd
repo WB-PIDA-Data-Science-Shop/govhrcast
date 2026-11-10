@@ -7,11 +7,11 @@
 simulate_retirement(
   contract_dt,
   personnel_dt,
-  ref_date,
+  as_of_date,
   policy_params = list(group_cols = NULL, policy_table = NULL, defaults =
     list(eligibility_type = "age_and_tenure", pension_type = "db", min_age = 60,
     min_tenure = 10, accrual_rate = 0.02, max_years = 35, replacement_cap = 0.8)),
-  column_spec_args = list()
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -30,7 +30,7 @@ The table may represent either:
 }
 
 When multiple snapshots are present, the snapshot nearest (but not later
-than) \code{ref_date} is selected automatically.}
+than) \code{as_of_date} is selected automatically.}
 
 \item{personnel_dt}{A \code{data.table} (or object coercible to a
 \code{data.table}) containing the personnel register in \strong{govhr}
@@ -42,7 +42,7 @@ birth columns specified by \code{personnel_id_col} and \code{birth_date_col}.
 If pre-computed age and tenure variables are supplied, they are used
 directly to avoid unnecessary recalculation.}
 
-\item{ref_date}{A \code{Date} giving the simulation date for the current
+\item{as_of_date}{A \code{Date} giving the simulation date for the current
 projection period.
 
 This date is used to:
@@ -111,15 +111,15 @@ from historical panel data). Within each group,
 \code{retire_strategy}, after anyone at or above \code{min_age} (if set) is
 force-retired first.}
 
-\item{column_spec_args}{A named list saying what your columns are called,
-so the function can read your data as it is. List only the names that
+\item{column_spec_args}{What your columns are called, from \code{\link[=define_column_spec]{define_column_spec()}},
+so the function can read your data as it is. Change only the names that
 differ from the \strong{govhr} harmonized defaults; for example
-\code{list(personnel_id_col = "pid", age_col = "idade")}. Your names are used
+\code{define_column_spec(personnel_id_col = "pid", age_col = "idade")}.
+Your names are used
 throughout, so the returned tables keep them, and you write the same names
 in \code{group_cols}, \code{policy_table}, \code{retire_strategy} and
-inside \code{eligibility_rule} / \code{pension_formula}. The same list can be passed
-to every \strong{govhrcast} function; keys a function does not use are ignored,
-and an unknown key is an error.
+inside \code{eligibility_rule} / \code{pension_formula}. The same spec can be passed
+to every \strong{govhrcast} function; columns a function does not use are ignored.
 
 Keys used here (default in brackets):
 \itemize{
@@ -127,11 +127,11 @@ Keys used here (default in brackets):
 \item \code{contract_id_col} (\code{"contract_id"}): contract identifier.
 \item \code{ref_date_col} (\code{"ref_date"}): snapshot date of a panel. When the
 contract table holds several snapshots, the one nearest (but not later
-than) \code{ref_date} is used.
+than) \code{as_of_date} is used.
 \item \code{start_date_col}, \code{end_date_col} (\code{"start_date"}, \code{"end_date"}):
 contract dates, used for tenure and to find active contracts. Open
 contracts have \code{NA} end dates; retiring employees' contracts get
-\code{ref_date}.
+\code{as_of_date}.
 \item \code{salary_col} (\code{"gross_salary_lcu"}): pay column. Picks each retiree's
 main contract, is set to 0 on contracts that close, and is what
 wage-based pensions are calculated from.
@@ -219,7 +219,7 @@ ledger.
 Retirement simulation proceeds through the following stages:
 \enumerate{
 \item Validate all inputs.
-\item Select the workforce snapshot nearest (but not later than) \code{ref_date}
+\item Select the workforce snapshot nearest (but not later than) \code{as_of_date}
 when historical panel data are supplied.
 \item Determine retirement eligibility using the policy specified in
 \code{policy_params}.
@@ -290,7 +290,7 @@ library(govhrcast)
 contract_dt  <- copy(bra_hrmis_contract)
 personnel_dt <- copy(bra_hrmis_personnel)
 
-ref_date <- as.Date("2014-01-01")
+as_of_date <- as.Date("2014-01-01")
 
 ############################################################
 ## Example 1: Uniform age-based retirement with a
@@ -316,7 +316,7 @@ policy_params <- list(
 results <- simulate_retirement(
   contract_dt = contract_dt,
   personnel_dt = personnel_dt,
-  ref_date = ref_date,
+  as_of_date = as_of_date,
   policy_params = policy_params
 )
 
@@ -351,7 +351,7 @@ policy_params <- list(
 results <- simulate_retirement(
   contract_dt = contract_dt,
   personnel_dt = personnel_dt,
-  ref_date = ref_date,
+  as_of_date = as_of_date,
   policy_params = policy_params
 )
 

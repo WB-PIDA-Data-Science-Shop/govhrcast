@@ -8,8 +8,8 @@ check_hiring_inputs(
   contract_dt,
   personnel_dt,
   policy_params,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -19,10 +19,10 @@ check_hiring_inputs(
 
 \item{policy_params}{List. Policy parameters}
 
-\item{ref_date}{Date. Reference date}
+\item{as_of_date}{Date. Reference date}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 Invisible TRUE if valid, stops with error otherwise

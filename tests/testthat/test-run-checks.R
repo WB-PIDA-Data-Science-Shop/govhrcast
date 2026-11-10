@@ -37,25 +37,91 @@ two_snapshots <- function(d = small_run_data()) {
 
 # -- Where the projection starts ---------------------------------------------
 
-test_that("a ref_date between snapshots stops, and says which snapshots there are", {
+test_that("a baseline_date between snapshots stops, and says which snapshots there are", {
   d <- two_snapshots()
   expect_error(
-    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start - 100, retirement_policy = NULL),
+    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start - 100, retirement_policy = NULL),
     "2020-01-01"
-  )
-  # The default date, today, is the usual way to hit this
-  expect_error(
-    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, retirement_policy = NULL),
-    "ref_date"
   )
 })
 
-test_that("a ref_date on a snapshot, or with no snapshot column, runs as before", {
+test_that("the start of a projection is baseline_date, and the date a module works at is as_of_date", {
   d <- two_snapshots()
-  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, retirement_policy = NULL)
+  earlier <- start - 366
+  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = earlier, retirement_policy = NULL)
+  expect_equal(run$comparison$period_date, earlier)
+
+  s <- small_run_data()
+  module <- simulate_exits(s$c, s$p, as_of_date = start,
+                           policy_params = list(defaults = list(exit_rate = 0)))
+  expect_equal(module$summary$n_exits, 0L)
+})
+
+test_that("people already retired are on the register as of baseline_date, at their age then", {
+  d <- small_run_data()
+  d$c[personnel_id == "P1", contract_type := "pensioner"]
+  d$p[personnel_id == "P1", employment_status := "pensioner"]
+  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL)
+  seeded <- run$pensioner_register[personnel_id == "P1"]
+  expect_equal(seeded$period_date, start)
+  # birth_date in the fixture is 70 years before the start
+  expect_equal(seeded$age_at_retirement, 70, tolerance = 0.001)
+})
+
+test_that("with no baseline_date given, the projection starts from the latest snapshot", {
+  d <- two_snapshots()
+  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, retirement_policy = NULL)
+  expect_equal(run$comparison$period_date, start)
+  named <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL)
+  expect_equal(run$comparison, named$comparison)
+})
+
+test_that("with no baseline_date given, the start is the latest snapshot both tables hold", {
+  d <- two_snapshots()
+  later <- function(x) rbind(x, copy(x[ref_date == start])[, ref_date := start + 365])
+
+  personnel_later <- simulate_horizon(d$c, later(d$p), d$s, n_periods = 1L, retirement_policy = NULL)
+  expect_equal(personnel_later$comparison$period_date, start)
+  expect_equal(personnel_later$comparison$n_headcount_start, 4L)
+
+  contracts_later <- simulate_horizon(later(d$c), d$p, d$s, n_periods = 1L, retirement_policy = NULL)
+  expect_equal(contracts_later$comparison$period_date, start)
+  expect_equal(contracts_later$comparison$n_headcount_start, 4L)
+})
+
+test_that("with no baseline_date given and no usable snapshot, the run asks for one", {
+  message <- "Pass baseline_date"
+  no_column <- small_run_data()
+  expect_error(simulate_horizon(no_column$c, no_column$p, no_column$s, n_periods = 1L,
+                                retirement_policy = NULL), message)
+
+  blank <- two_snapshots()
+  blank$c[, ref_date := as.Date(NA)]
+  blank$p[, ref_date := as.Date(NA)]
+  expect_error(simulate_horizon(blank$c, blank$p, blank$s, n_periods = 1L,
+                                retirement_policy = NULL), message)
+
+  no_overlap <- two_snapshots()
+  no_overlap$p[, ref_date := ref_date - 30]
+  expect_error(simulate_horizon(no_overlap$c, no_overlap$p, no_overlap$s, n_periods = 1L,
+                                retirement_policy = NULL), message)
+})
+
+test_that("a baseline_date that is not a date stops rather than being read as one", {
+  d <- two_snapshots()
+  # 18262 is the day count for 2020-01-01, a real snapshot: it must not slip through
+  expect_error(simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = as.numeric(start),
+                                retirement_policy = NULL), "baseline_date must be a Date")
+  expect_error(simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = "not a date",
+                                retirement_policy = NULL), "baseline_date must be a valid date string")
+})
+
+test_that("a baseline_date on a snapshot, or with no snapshot column, runs as before", {
+  d <- two_snapshots()
+  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL)
   expect_equal(run$comparison$n_headcount_start, 4L)
   s <- small_run_data()
-  run <- simulate_horizon(s$c, s$p, s$s, n_periods = 1L, ref_date = start, retirement_policy = NULL)
+  run <- simulate_horizon(s$c, s$p, s$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL)
   expect_equal(run$comparison$n_headcount_start, 4L)
 })
 
@@ -63,7 +129,7 @@ test_that("a ref_date on a snapshot, or with no snapshot column, runs as before"
 
 test_that("the year's pension total matches the register after pension growth", {
   d <- small_run_data()
-  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 2L, ref_date = start, seed = 1L,
+  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 2L, baseline_date = start, seed = 1L,
                           retirement_policy = design_retirement_policy_age(60, pension_flat(500)),
                           pension_cola_rate = 0.10)
   expect_equal(run$comparison$pension_cost_new, c(2000, 0))
@@ -97,7 +163,7 @@ test_that("movement applies active_types, and a blank type still counts as staff
   policy <- list(group_cols = "paygrade",
                  policy_table = data.table(from_group = "A", to_group = "B", movement_rate = 1),
                  defaults = list(movement_strategy = "random", active_types = "permanent"))
-  out <- simulate_promotions_transfers(d$c, d$p, d$s, policy_params = policy, ref_date = start)
+  out <- simulate_promotions_transfers(d$c, d$p, d$s, policy_params = policy, as_of_date = start)
   expect_setequal(out$movers_dt$personnel_id, c("P1", "P3", "P4"))
   expect_equal(out$contract_dt[personnel_id == "P2", paygrade], "A")
   flat <- list(group_cols = "paygrade", policy_table = NULL,
@@ -114,7 +180,7 @@ test_that("a mover's main contract is one the policy covers", {
   policy <- list(group_cols = "paygrade",
                  policy_table = data.table(from_group = "A", to_group = "B", movement_rate = 1),
                  defaults = list(movement_strategy = "random", active_types = "permanent"))
-  ct <- simulate_promotions_transfers(d$c, d$p, d$s, policy_params = policy, ref_date = start)$contract_dt
+  ct <- simulate_promotions_transfers(d$c, d$p, d$s, policy_params = policy, as_of_date = start)$contract_dt
   expect_equal(ct[contract_id == "C1", paygrade], "B")
   expect_equal(ct[contract_id == "C5", paygrade], "A")
 })
@@ -124,8 +190,8 @@ test_that("a mover's main contract is one the policy covers", {
 test_that("print and summary tell scenarios apart by their label", {
   d <- small_run_data()
   run <- function(name) {
-    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, retirement_policy = NULL,
-                     output_control_args = list(scenario_name = name))
+    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL,
+                     output_control_args = define_output_control(scenario_name = name))
   }
   out <- capture.output(print(run("Baseline")))
   expect_true(any(grepl("Baseline", out)))
@@ -145,12 +211,12 @@ test_that("groups with no rate in a table are reported once, not silently frozen
   exits <- list(group_cols = "est_id", policy_table = data.table(est_id = "E1", exit_rate = 0.1),
                 defaults = list(exit_strategy = "random"))
   expect_message(
-    simulate_horizon(d$c, d$p, d$s, n_periods = 2L, ref_date = start, retirement_policy = NULL,
+    simulate_horizon(d$c, d$p, d$s, n_periods = 2L, baseline_date = start, retirement_policy = NULL,
                      exit_policy = exits, seed = 1L),
     "exit.*1 group.*E2"
   )
   msgs <- capture_messages(
-    simulate_horizon(d$c, d$p, d$s, n_periods = 2L, ref_date = start, retirement_policy = NULL,
+    simulate_horizon(d$c, d$p, d$s, n_periods = 2L, baseline_date = start, retirement_policy = NULL,
                      exit_policy = exits, seed = 1L)
   )
   expect_length(grep("E2", msgs), 1L)
@@ -159,7 +225,7 @@ test_that("groups with no rate in a table are reported once, not silently frozen
 test_that("hiring and retirement tables report their missing groups too", {
   d <- small_run_data()
   expect_message(
-    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, retirement_policy = NULL,
+    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL,
                      hiring_policy = design_hiring_policy_adjustment(
                        data.table(est_id = "E1", hiring_rate = 0.1), group_cols = "est_id"), seed = 1L),
     "hiring.*1 group.*E2"
@@ -167,7 +233,7 @@ test_that("hiring and retirement tables report their missing groups too", {
   policy <- design_retirement_policy_status_quo(pension = pension_flat(1), group_cols = "est_id")
   policy$policy_table <- data.table(age_yr_int = 70L, est_id = "E1", hazard_rate = 0)
   expect_message(
-    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, retirement_policy = policy, seed = 1L),
+    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = policy, seed = 1L),
     "retirement.*1 group.*E2"
   )
 })
@@ -177,11 +243,11 @@ test_that("no message when every group has a rate, or the rate is flat", {
   exits <- list(group_cols = "est_id", policy_table = data.table(est_id = c("E1", "E2"), exit_rate = 0.1),
                 defaults = list(exit_strategy = "random"))
   expect_no_message(
-    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, retirement_policy = NULL,
+    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL,
                      exit_policy = exits, seed = 1L)
   )
   expect_no_message(
-    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, retirement_policy = NULL,
+    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL,
                      exit_policy = design_exit_policy_flat(0.1), seed = 1L)
   )
 })
@@ -190,7 +256,7 @@ test_that("no message when every group has a rate, or the rate is flat", {
 
 test_that("a flat exit rate on panel data is used, not replaced by the history", {
   d <- two_snapshots()
-  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, retirement_policy = NULL,
+  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL,
                           exit_policy = design_exit_policy_flat(0.5), seed = 1L)
   # The two snapshots show nobody leaving, so history alone would give none
   expect_equal(run$comparison$n_non_ret_exits, 2L)
@@ -201,7 +267,7 @@ test_that("a failed exit estimate stops the run instead of using a flat default"
   policy <- list(group_cols = "no_such_column", policy_table = NULL,
                  defaults = list(exit_rate = 0.05, exit_strategy = "random"))
   expect_error(
-    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, retirement_policy = NULL,
+    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL,
                      exit_policy = policy),
     "could not estimate status-quo exit rates"
   )
@@ -210,7 +276,7 @@ test_that("a failed exit estimate stops the run instead of using a flat default"
 test_that("status-quo exits on one snapshot stop, like hiring and retirement", {
   d <- small_run_data()
   expect_error(
-    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, ref_date = start, retirement_policy = NULL,
+    simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = NULL,
                      exit_policy = design_exit_policy_status_quo()),
     "status-quo exits need a panel"
   )

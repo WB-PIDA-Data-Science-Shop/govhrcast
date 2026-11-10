@@ -30,7 +30,7 @@ test_that("simulate_allowances: policy_params = NULL is a no-op", {
   pt <- make_sim_personnel_dt()
 
   out <- simulate_allowances(
-    contract_dt = ct, personnel_dt = pt, policy_params = NULL, ref_date = as.Date("2020-01-01")
+    contract_dt = ct, personnel_dt = pt, policy_params = NULL, as_of_date = as.Date("2020-01-01")
   )
 
   expect_identical(out$contract_dt, ct)
@@ -50,7 +50,7 @@ test_that("simulate_allowances: NULL policy_params passes an existing allowance_
 
   out <- simulate_allowances(
     contract_dt = ct, personnel_dt = pt, allowance_dt = existing_ledger,
-    policy_params = NULL, ref_date = as.Date("2020-01-01")
+    policy_params = NULL, as_of_date = as.Date("2020-01-01")
   )
 
   expect_identical(out$allowance_dt, existing_ledger)
@@ -64,7 +64,7 @@ test_that("simulate_allowances never mutates contract_dt/personnel_dt with an ac
   out <- simulate_allowances(
     contract_dt = ct, personnel_dt = pt,
     policy_params = list(group_cols = c("est_id", "allowance_type"), policy_table = scale_dt, defaults = list(amount = 0)),
-    ref_date = as.Date("2020-01-01")
+    as_of_date = as.Date("2020-01-01")
   )
 
   expect_identical(out$contract_dt, ct)
@@ -79,7 +79,7 @@ test_that("simulate_allowances resolves amounts and summarizes correctly", {
   out <- simulate_allowances(
     contract_dt = ct, personnel_dt = pt,
     policy_params = list(group_cols = c("est_id", "allowance_type"), policy_table = scale_dt, defaults = list(amount = 0)),
-    ref_date = as.Date("2020-01-01")
+    as_of_date = as.Date("2020-01-01")
   )
 
   # C1, C2 in E1 (hazard 100 + transport 20 each); C3 in E2 (hazard 5 + transport 5)
@@ -98,7 +98,7 @@ test_that("simulate_allowances derives allowance_types from policy_table when no
   out <- simulate_allowances(
     contract_dt = ct, personnel_dt = pt,
     policy_params = list(group_cols = c("est_id", "allowance_type"), policy_table = scale_dt, defaults = list(amount = 0)),
-    ref_date = as.Date("2020-01-01")
+    as_of_date = as.Date("2020-01-01")
   )
   expect_setequal(unique(out$allowance_dt$allowance_type), c("hazard", "transport"))
 })
@@ -111,7 +111,7 @@ test_that("simulate_allowances errors when allowance_types cannot be derived", {
     simulate_allowances(
       contract_dt = ct, personnel_dt = pt,
       policy_params = list(group_cols = NULL, policy_table = NULL, defaults = list(amount = 50)),
-      ref_date = as.Date("2020-01-01")
+      as_of_date = as.Date("2020-01-01")
     ),
     "allowance_types"
   )
@@ -123,10 +123,10 @@ test_that("simulate_allowances accumulates the ledger across sequential periods"
   scale_dt <- make_scale_dt()
   policy <- list(group_cols = c("est_id", "allowance_type"), policy_table = scale_dt, defaults = list(amount = 0))
 
-  out1 <- simulate_allowances(contract_dt = ct, personnel_dt = pt, policy_params = policy, ref_date = as.Date("2020-01-01"))
+  out1 <- simulate_allowances(contract_dt = ct, personnel_dt = pt, policy_params = policy, as_of_date = as.Date("2020-01-01"))
   out2 <- simulate_allowances(
     contract_dt = ct, personnel_dt = pt, allowance_dt = out1$allowance_dt,
-    policy_params = policy, ref_date = as.Date("2021-01-01")
+    policy_params = policy, as_of_date = as.Date("2021-01-01")
   )
 
   expect_equal(nrow(out2$allowance_dt), nrow(out1$allowance_dt) * 2L)
@@ -141,7 +141,7 @@ test_that("simulate_allowances validates ref_date format", {
     simulate_allowances(
       contract_dt = ct, personnel_dt = pt,
       policy_params = list(group_cols = "allowance_type", policy_table = scale_dt, defaults = list(amount = 0)),
-      ref_date = "not-a-date"
+      as_of_date = "not-a-date"
     )
   )
 })

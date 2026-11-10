@@ -9,8 +9,8 @@ estimate_hiring_demand(
   personnel_dt,
   policy_params,
   leavers_dt = NULL,
-  ref_date,
-  column_spec_args = .column_spec()
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -27,10 +27,10 @@ estimate_hiring_demand(
 \item{leavers_dt}{data.table or \code{NULL}. The people who left this period,
 for flow hiring: see \code{\link{compute_flow_demand}}.}
 
-\item{ref_date}{Date. Reference date}
+\item{as_of_date}{Date. Reference date}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 data.table with group_cols (if specified) and total_hires column

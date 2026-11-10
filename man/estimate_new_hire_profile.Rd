@@ -8,7 +8,7 @@ estimate_new_hire_profile(
   panel_contract_dt,
   panel_personnel_dt,
   group_cols = NULL,
-  column_spec_args = list()
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -19,8 +19,8 @@ estimate_new_hire_profile(
 \item{group_cols}{Character vector or \code{NULL}. The hiring groups, e.g.
 \code{"est_id"}.  \code{NULL} gives one profile for all hires.}
 
-\item{column_spec_args}{Named list.  Column names, if your data use different
-names from the \code{govhr} defaults: give only the ones you need to change.
+\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only the
+ones that differ from the \code{govhr} defaults.
 Keys read here: \code{personnel_id_col}, \code{ref_date_col}, \code{status_col},
 \code{hire_date_col}, \code{contract_type_col}, \code{age_col},
 \code{birth_date_col} and \code{gender_col}.  Age comes from \code{age_col}

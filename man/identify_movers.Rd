@@ -9,9 +9,9 @@ identify_movers(
   personnel_dt,
   demand_dt,
   policy_params,
-  ref_date,
+  as_of_date,
   baseline_matrix = NULL,
-  column_spec_args = .column_spec()
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -38,13 +38,13 @@ numeric column present in \code{contract_dt} or the merged
 workforce view.  Default \code{NULL}.}
 }}
 
-\item{ref_date}{Date or character. Reference date}
+\item{as_of_date}{Date or character. Reference date}
 
 \item{baseline_matrix}{data.table. Full baseline matrix (used to compute
 max_salary per grade for wage_based strategy). Can be NULL.}
 
 \item{column_spec_args}{Complete column specification from
-\code{.column_spec()}.}
+\code{define_column_spec()}.}
 }
 \value{
 data.table with columns:

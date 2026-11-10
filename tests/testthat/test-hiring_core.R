@@ -40,7 +40,7 @@ test_that("compute_current_stock calculates overall headcount correctly", {
   result <- compute_current_stock(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date = as.Date("2024-06-01"),
+    as_of_date = as.Date("2024-06-01"),
     group_cols = NULL
   )
 
@@ -56,7 +56,7 @@ test_that("compute_current_stock aggregates by group_cols", {
   result <- compute_current_stock(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date = as.Date("2024-06-01"),
+    as_of_date = as.Date("2024-06-01"),
     group_cols = c("department")
   )
 
@@ -77,7 +77,7 @@ test_that("compute_current_stock handles multiple grouping columns", {
   result <- compute_current_stock(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
-    ref_date = as.Date("2024-06-01"),
+    as_of_date = as.Date("2024-06-01"),
     group_cols = c("department", "paygrade")
   )
 
@@ -111,7 +111,7 @@ test_that("compute_flow_demand works with retirees_dt provided", {
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
     leavers_dt = retirees_dt,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
 
   expect_s3_class(result, "data.table")
@@ -138,7 +138,7 @@ test_that("compute_flow_demand handles scalar replacement_rate", {
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
     leavers_dt = retirees_dt,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
 
   expect_s3_class(result, "data.table")
@@ -171,7 +171,7 @@ test_that("compute_flow_demand handles data.table replacement_rate", {
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
     leavers_dt = retirees_dt,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
 
   expect_s3_class(result, "data.table")
@@ -205,7 +205,7 @@ test_that("compute_stock_demand calculates demand correctly", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
 
   expect_s3_class(result, "data.table")
@@ -235,7 +235,7 @@ test_that("compute_stock_demand allows negative values for downsizing", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
 
   expect_s3_class(result, "data.table")
@@ -260,7 +260,7 @@ test_that("compute_stock_demand handles overall target (no grouping)", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
 
   expect_s3_class(result, "data.table")
@@ -288,7 +288,7 @@ test_that("estimate_hiring_demand routes to correct function based on mode", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params_flow,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
 
   expect_s3_class(result_flow, "data.table")
@@ -305,7 +305,7 @@ test_that("estimate_hiring_demand routes to correct function based on mode", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params_stock,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
 
   expect_s3_class(result_stock, "data.table")
@@ -324,7 +324,7 @@ test_that("estimate_hiring_demand fails with invalid mode", {
       contract_dt = test_data$contract_dt,
       personnel_dt = test_data$personnel_dt,
       policy_params = policy_params,
-      ref_date = as.Date("2024-06-01")
+      as_of_date = as.Date("2024-06-01")
     ),
     "Unknown hiring mode"
   )
@@ -404,7 +404,7 @@ test_that("compute_current_stock errors on duplicate personnel_id in personnel_d
     compute_current_stock(
       contract_dt  = contract_dt,
       personnel_dt = personnel_dt,
-      ref_date     = as.Date("2024-06-01")
+      as_of_date     = as.Date("2024-06-01")
     ),
     "duplicate rows"
   )
@@ -514,7 +514,7 @@ test_that("hire_date_col path counts only hires within the panel window", {
     panel_contract_dt  = d$contract_dt,
     panel_personnel_dt = d$personnel_dt,
     group_cols         = NULL,
-    column_spec_args   = list(hire_date_col = "first_employment_date")
+    column_spec_args   = define_column_spec(hire_date_col = "first_employment_date")
   )
 
   expect_s3_class(result, "data.table")
@@ -534,7 +534,7 @@ test_that("hire_date_col = NULL (fallback) returns a numeric hiring_rate", {
     panel_contract_dt  = d$contract_dt,
     panel_personnel_dt = d$personnel_dt,
     group_cols         = NULL,
-    column_spec_args   = list(hire_date_col = NULL)   # panel first-appearance fallback
+    column_spec_args   = define_column_spec(hire_date_col = NULL)   # panel first-appearance fallback
   )
 
   expect_s3_class(result, "data.table")
@@ -551,7 +551,7 @@ test_that("hire_date_col path errors clearly when column absent", {
       panel_contract_dt  = d$contract_dt,
       panel_personnel_dt = d$personnel_dt,
       group_cols         = NULL,
-      column_spec_args   = list(hire_date_col = "nonexistent_col")
+      column_spec_args   = define_column_spec(hire_date_col = "nonexistent_col")
     ),
     regexp = "nonexistent_col"
   )
@@ -564,7 +564,7 @@ test_that("hire_date_col path with group_cols returns one row per group", {
     panel_contract_dt  = d$contract_dt,
     panel_personnel_dt = d$personnel_dt,
     group_cols         = "department",
-    column_spec_args   = list(hire_date_col = "first_employment_date")
+    column_spec_args   = define_column_spec(hire_date_col = "first_employment_date")
   )
 
   expect_s3_class(result, "data.table")
@@ -584,7 +584,7 @@ test_that("hire_date_col path: all hires outside window produces rate = 0", {
     panel_contract_dt  = d$contract_dt,
     panel_personnel_dt = d$personnel_dt,
     group_cols         = NULL,
-    column_spec_args   = list(hire_date_col = "first_employment_date")
+    column_spec_args   = define_column_spec(hire_date_col = "first_employment_date")
   )
 
   expect_equal(result$hiring_rate, 0)
@@ -597,14 +597,14 @@ test_that("hire_date_col produces lower rate than panel-appearance when pre-pane
     panel_contract_dt  = d$contract_dt,
     panel_personnel_dt = d$personnel_dt,
     group_cols         = NULL,
-    column_spec_args   = list(hire_date_col = "first_employment_date")
+    column_spec_args   = define_column_spec(hire_date_col = "first_employment_date")
   )$hiring_rate
 
   rate_panel <- estimate_historical_hiring_rates(
     panel_contract_dt  = d$contract_dt,
     panel_personnel_dt = d$personnel_dt,
     group_cols         = NULL,
-    column_spec_args   = list(hire_date_col = NULL)
+    column_spec_args   = define_column_spec(hire_date_col = NULL)
   )$hiring_rate
 
   # Panel first-appearance will count P1 and P5 as appearing at first snapshot;
@@ -649,7 +649,7 @@ test_that("estimate_historical_hiring_rates: events are read from the caller's s
   pt[, situacao := employment_status]
   pt[, employment_status := "pensioner"]
   rate <- estimate_historical_hiring_rates(p$ct, pt, group_cols = NULL,
-                                           column_spec_args = list(status_col = "situacao"))
+                                           column_spec_args = define_column_spec(status_col = "situacao"))
   expect_equal(rate$hiring_rate, 0.5)
 })
 

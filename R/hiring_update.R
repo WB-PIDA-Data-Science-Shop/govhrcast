@@ -18,7 +18,7 @@ NULL
 #' from the policy's new hire profile.
 #'
 #' @param n Integer. Number of new personnel to generate
-#' @param ref_date Date. Reference date for ID generation
+#' @param as_of_date Date. Reference date for ID generation
 #' @param group_vals Named list. Values for grouping columns (e.g., list(department = "HR", grade = "G5"))
 #' @param personnel_id_col Character. Personnel ID column (default: "personnel_id")
 #' @param status_col Character. Status column (default: "employment_status")
@@ -26,7 +26,7 @@ NULL
 #' @return data.table with new personnel records
 #' @keywords internal
 generate_new_personnel <- function(n,
-                                   ref_date,
+                                   as_of_date,
                                    group_vals = NULL,
                                    personnel_id_col = "personnel_id",
                                    status_col         = "employment_status") {
@@ -41,7 +41,7 @@ generate_new_personnel <- function(n,
   } else {
     NULL
   }
-  new_ids <- generate_new_ids(n = n, ref_date = ref_date, prefix = "P", group_key = group_key)
+  new_ids <- generate_new_ids(n = n, as_of_date = as_of_date, prefix = "P", group_key = group_key)
 
   # Create base personnel records
   new_personnel <- data.table::data.table(
@@ -69,21 +69,21 @@ generate_new_personnel <- function(n,
 #'
 #' @description
 #' Creates new contract records for new hires. Generates unique contract IDs
-#' and sets start_date to ref_date. The type is "permanent" until set from the
+#' and sets start_date to as_of_date. The type is "permanent" until set from the
 #' policy's new hire profile.
 #'
 #' @param personnel_ids Character vector. Personnel IDs for new hires
-#' @param ref_date Date. Contract start date
+#' @param as_of_date Date. Contract start date
 #' @param group_vals Named list. Values for grouping columns
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.
+#'   \code{define_column_spec()}.
 #'
 #' @return data.table with new contract records
 #' @keywords internal
 generate_new_contracts <- function(personnel_ids,
-                                   ref_date,
+                                   as_of_date,
                                    group_vals = NULL,
-                                   column_spec_args = .column_spec()) {
+                                   column_spec_args = define_column_spec()) {
 
   n <- length(personnel_ids)
 
@@ -97,13 +97,13 @@ generate_new_contracts <- function(personnel_ids,
   } else {
     NULL
   }
-  contract_ids <- generate_new_ids(n = n, ref_date = ref_date, prefix = "C", group_key = group_key)
+  contract_ids <- generate_new_ids(n = n, as_of_date = as_of_date, prefix = "C", group_key = group_key)
 
   # Create base contract records
   new_contracts <- data.table::data.table(
     contract_id = contract_ids,
     personnel_id = personnel_ids,
-    start_date = ref_date,
+    start_date = as_of_date,
     end_date = as.Date(NA),
     contract_type = "permanent"
   )
@@ -241,9 +241,9 @@ assign_compensation <- function(new_contracts_dt,
 #' @param strategy Character. Removal strategy (default: "last_hired_first")
 #'   Options: "last_hired_first", "random"
 #' @param group_vals Named list. Values for grouping columns to filter on
-#' @param ref_date Date. Reference date
+#' @param as_of_date Date. Reference date
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.
+#'   \code{define_column_spec()}.
 #'
 #' @return Character vector of personnel_ids to remove
 #' @keywords internal
@@ -252,8 +252,8 @@ select_personnel_to_remove <- function(contract_dt,
                                        n_remove,
                                        strategy = "last_hired_first",
                                        group_vals = NULL,
-                                       ref_date,
-                                       column_spec_args = .column_spec()) {
+                                       as_of_date,
+                                       column_spec_args = define_column_spec()) {
   personnel_id_col <- column_spec_args$personnel_id_col
   start_date_col   <- column_spec_args$start_date_col
 
@@ -264,7 +264,7 @@ select_personnel_to_remove <- function(contract_dt,
   # Get active personnel
   active_contracts <- get_active_contracts(
     contract_dt = contract_dt,
-    ref_date = ref_date,
+    as_of_date = as_of_date,
     start_date_col = start_date_col,
     end_date_col = column_spec_args$end_date_col,
     contract_type_col = column_spec_args$contract_type_col
@@ -340,7 +340,7 @@ select_personnel_to_remove <- function(contract_dt,
 # Gives new hires the state everyone else has: entry age and birth date, tenure 0,
 # gender, hire date and contract type. Personal details go only in columns the
 # personnel table has. Changes both tables in place.
-.set_new_hire_state <- function(new_personnel, new_contracts, group_vals, policy_params, ref_date,
+.set_new_hire_state <- function(new_personnel, new_contracts, group_vals, policy_params, as_of_date,
                                 personnel_dt, column_spec_args) {
   drawn <- .draw_new_hire_profile(nrow(new_personnel), group_vals, policy_params)
   contract_type_col <- column_spec_args$contract_type_col
@@ -353,9 +353,9 @@ select_personnel_to_remove <- function(contract_dt,
   }
   entry_age <- drawn$entry_age %||% NA_real_
   set_detail(column_spec_args$age_col, entry_age)
-  set_detail(column_spec_args$birth_date_col, ref_date - round(entry_age * 365.25))
+  set_detail(column_spec_args$birth_date_col, as_of_date - round(entry_age * 365.25))
   set_detail(column_spec_args$tenure_col, 0)
-  set_detail(column_spec_args$hire_date_col, ref_date)
+  set_detail(column_spec_args$hire_date_col, as_of_date)
   if (!is.null(gender_col) && gender_col %in% names(drawn)) set_detail(gender_col, drawn[[gender_col]])
 
   if (contract_type_col %in% names(drawn)) {
@@ -370,15 +370,14 @@ select_personnel_to_remove <- function(contract_dt,
 # and their status becomes "inactive". A pension row they hold is left alone.
 # Changes both tables in place, and returns the contracts as they were before,
 # so the caller can report what was saved.
-.let_people_go <- function(contract_dt, personnel_dt, ids, ref_date, column_spec_args) {
+.let_people_go <- function(contract_dt, personnel_dt, ids, as_of_date, column_spec_args) {
   personnel_id_col  <- column_spec_args$personnel_id_col
   contract_type_col <- column_spec_args$contract_type_col
-  .as_of_date       <- ref_date
 
   on_payroll <- contract_dt[[personnel_id_col]] %in% ids &
     .on_payroll(contract_dt[[contract_type_col]])
   let_go <- contract_dt[on_payroll]
-  contract_dt[on_payroll, c(column_spec_args$end_date_col, contract_type_col) := list(.as_of_date, "inactive")]
+  contract_dt[on_payroll, c(column_spec_args$end_date_col, contract_type_col) := list(as_of_date, "inactive")]
   personnel_dt[get(personnel_id_col) %in% ids, (column_spec_args$status_col) := "inactive"]
   let_go
 }
@@ -403,9 +402,9 @@ select_personnel_to_remove <- function(contract_dt,
 #'       start with: see \code{\link{estimate_new_hire_profile}}.  Without a
 #'       profile, hires are \code{"permanent"} with a blank age and gender.
 #'   }
-#' @param ref_date Date. Reference date for adjustments
+#' @param as_of_date Date. Reference date for adjustments
 #' @param column_spec_args Complete column specification from
-#'   \code{.column_spec()}.
+#'   \code{define_column_spec()}.
 #'
 #' @return List containing:
 #'   \itemize{
@@ -424,8 +423,8 @@ update_state_with_adjustment <- function(contract_dt,
                                          personnel_dt,
                                          adjustment_dt,
                                          policy_params,
-                                         ref_date,
-                                         column_spec_args = .column_spec()) {
+                                         as_of_date,
+                                         column_spec_args = define_column_spec()) {
   personnel_id_col  <- column_spec_args$personnel_id_col
   status_col        <- column_spec_args$status_col
   salary_col        <- column_spec_args$salary_col
@@ -458,7 +457,7 @@ update_state_with_adjustment <- function(contract_dt,
         # Generate new personnel
         new_personnel <- generate_new_personnel(
           n = net_change,
-          ref_date = ref_date,
+          as_of_date = as_of_date,
           group_vals = group_vals,
           personnel_id_col = personnel_id_col,
           status_col = status_col
@@ -467,7 +466,7 @@ update_state_with_adjustment <- function(contract_dt,
         # Generate new contracts
         new_contracts <- generate_new_contracts(
           personnel_ids = new_personnel[[personnel_id_col]],
-          ref_date = ref_date,
+          as_of_date = as_of_date,
           group_vals = group_vals,
           column_spec_args = column_spec_args
         )
@@ -480,7 +479,7 @@ update_state_with_adjustment <- function(contract_dt,
           salary_col = salary_col
         )
 
-        .set_new_hire_state(new_personnel, new_contracts, group_vals, policy_params, ref_date,
+        .set_new_hire_state(new_personnel, new_contracts, group_vals, policy_params, as_of_date,
                             personnel_dt, column_spec_args)
 
         # Append new records to data.tables
@@ -511,12 +510,12 @@ update_state_with_adjustment <- function(contract_dt,
           n_remove = n_remove,
           strategy = removal_strategy,
           group_vals = group_vals,
-          ref_date = ref_date,
+          as_of_date = as_of_date,
           column_spec_args = column_spec_args
         )
 
         all_terminated_contracts[[i]] <- .let_people_go(
-          contract_dt, personnel_dt, personnel_to_remove, ref_date, column_spec_args
+          contract_dt, personnel_dt, personnel_to_remove, as_of_date, column_spec_args
         )
       }
       # net_change == 0: no action
@@ -534,7 +533,7 @@ update_state_with_adjustment <- function(contract_dt,
       # HIRING
       new_personnel <- generate_new_personnel(
         n = net_change,
-        ref_date = ref_date,
+        as_of_date = as_of_date,
         group_vals = NULL,
         personnel_id_col = personnel_id_col,
         status_col = status_col
@@ -542,7 +541,7 @@ update_state_with_adjustment <- function(contract_dt,
 
       new_contracts <- generate_new_contracts(
         personnel_ids = new_personnel[[personnel_id_col]],
-        ref_date = ref_date,
+        as_of_date = as_of_date,
         group_vals = NULL,
         column_spec_args = column_spec_args
       )
@@ -557,7 +556,7 @@ update_state_with_adjustment <- function(contract_dt,
         )
       }
 
-      .set_new_hire_state(new_personnel, new_contracts, NULL, policy_params, ref_date,
+      .set_new_hire_state(new_personnel, new_contracts, NULL, policy_params, as_of_date,
                           personnel_dt, column_spec_args)
 
       # Append to data
@@ -586,12 +585,12 @@ update_state_with_adjustment <- function(contract_dt,
         n_remove = n_remove,
         strategy = removal_strategy,
         group_vals = NULL,
-        ref_date = ref_date,
+        as_of_date = as_of_date,
         column_spec_args = column_spec_args
       )
 
       all_terminated_contracts[[1]] <- .let_people_go(
-        contract_dt, personnel_dt, personnel_to_remove, ref_date, column_spec_args
+        contract_dt, personnel_dt, personnel_to_remove, as_of_date, column_spec_args
       )
     }
   }

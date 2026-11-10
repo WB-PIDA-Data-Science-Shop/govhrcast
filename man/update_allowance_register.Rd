@@ -4,7 +4,7 @@
 \alias{update_allowance_register}
 \title{Update the Allowance Register with This Period's Resolved Amounts}
 \usage{
-update_allowance_register(allowance_dt, resolved_amounts_dt, ref_date)
+update_allowance_register(allowance_dt, resolved_amounts_dt, as_of_date)
 }
 \arguments{
 \item{allowance_dt}{data.table or \code{NULL}. Accumulated ledger from
@@ -14,9 +14,9 @@ rows.}
 \item{resolved_amounts_dt}{data.table. This period's resolved amounts, as
 returned by \code{\link{resolve_allowance_amounts}}.}
 
-\item{ref_date}{Date. Stamped onto the new rows as \code{period_date},
+\item{as_of_date}{Date. Stamped onto the new rows as \code{period_date},
 matching \code{pensioner_register}'s column (the parameter itself is
-named \code{ref_date} for consistency with
+named \code{as_of_date} for consistency with
 \code{simulate_retirement()}/\code{simulate_exits()}/
 \code{simulate_promotions_transfers()}/\code{simulate_hiring()}, which
 all take the current period's date under this same name).}

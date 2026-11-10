@@ -37,7 +37,7 @@
 #' 1. Validate all inputs.
 #' 2. Estimate or load the transition baseline (see **Transition baseline**
 #'    below).
-#' 3. Select the workforce snapshot nearest (but not later than) `ref_date`
+#' 3. Select the workforce snapshot nearest (but not later than) `as_of_date`
 #'    when panel data are supplied.
 #' 4. Compute movement demand via [compute_movement_demand()] when a
 #'    transition baseline is available (supplied `policy_table` or a
@@ -218,7 +218,7 @@
 #'
 #' May be a single-period snapshot or a longitudinal panel containing
 #' multiple `ref_date` values. When multiple snapshots are present, the
-#' snapshot nearest (but not later than) `ref_date` is used for the
+#' snapshot nearest (but not later than) `as_of_date` is used for the
 #' simulation, while all snapshots are used for baseline estimation and
 #' time-in-grade calculation.
 #'
@@ -242,18 +242,18 @@
 #' Must have exactly one row per group — duplicate keys will cause an
 #' error. Must contain a numeric column with the same name as `salary_col`.
 #'
-#' @param ref_date A `Date` giving the simulation date for the current
+#' @param as_of_date A `Date` giving the simulation date for the current
 #' projection period. Used to select the workforce snapshot, compute
 #' time-in-grade, and compute overall tenure.
 #'
-#' @param column_spec_args A named list saying what your columns are called,
-#' so the function can read your data as it is. List only the names that
+#' @param column_spec_args What your columns are called, from [define_column_spec()],
+#' so the function can read your data as it is. Change only the names that
 #' differ from the **govhr** harmonized defaults; for example
-#' `list(personnel_id_col = "pid", salary_col = "bruto")`. Your names are used
+#' `define_column_spec(personnel_id_col = "pid", salary_col = "bruto")`.
+#' Your names are used 
 #' throughout, so the returned tables keep them, and you write the same names
-#' in `group_cols` and `promotion_order_col`. The same list can be passed to
-#' every **govhrcast** function; keys a function does not use are ignored, and
-#' an unknown key is an error.
+#' in `group_cols` and `promotion_order_col`. The same spec can be passed to
+#' every **govhrcast** function; columns a function does not use are ignored.
 #'
 #' Keys used here (default in brackets):
 #'
@@ -337,7 +337,7 @@
 #'
 #' contract_dt  <- copy(bra_hrmis_contract)
 #' personnel_dt <- copy(bra_hrmis_personnel)
-#' ref_date     <- as.Date("2017-09-01")
+#' as_of_date     <- as.Date("2017-09-01")
 #'
 #' salary_scale_dt <- contract_dt[
 #'   ref_date == "2017-09-01",
@@ -370,8 +370,8 @@
 #'   personnel_dt    = personnel_dt,
 #'   salary_scale_dt = salary_scale_dt,
 #'   policy_params   = movement_policy,
-#'   ref_date        = ref_date,
-#'   column_spec_args = list(salary_col = "gross_salary_cpi")
+#'   as_of_date        = as_of_date,
+#'   column_spec_args = define_column_spec(salary_col = "gross_salary_cpi")
 #' )
 #'
 #' results$summary
@@ -419,8 +419,8 @@
 #'   personnel_dt    = personnel_dt,
 #'   salary_scale_dt = salary_scale_dt,
 #'   policy_params   = movement_policy_reform,
-#'   ref_date        = ref_date,
-#'   column_spec_args = list(salary_col = "gross_salary_cpi")
+#'   as_of_date        = as_of_date,
+#'   column_spec_args = define_column_spec(salary_col = "gross_salary_cpi")
 #' )
 #'
 #' results_reform$summary
@@ -455,8 +455,8 @@
 #'   personnel_dt    = personnel_dt,
 #'   salary_scale_dt = salary_scale_grade,
 #'   policy_params   = movement_policy_promotions,
-#'   ref_date        = ref_date,
-#'   column_spec_args = list(salary_col = "gross_salary_cpi")
+#'   as_of_date        = as_of_date,
+#'   column_spec_args = define_column_spec(salary_col = "gross_salary_cpi")
 #' )
 #'
 #' results_promotions$summary
@@ -491,8 +491,8 @@
 #'   personnel_dt    = personnel_dt,
 #'   salary_scale_dt = salary_scale_est,
 #'   policy_params   = movement_policy_transfers,
-#'   ref_date        = ref_date,
-#'   column_spec_args = list(salary_col = "gross_salary_cpi")
+#'   as_of_date        = as_of_date,
+#'   column_spec_args = define_column_spec(salary_col = "gross_salary_cpi")
 #' )
 #'
 #' results_transfers$summary
@@ -523,8 +523,8 @@
 #'   personnel_dt    = personnel_dt,
 #'   salary_scale_dt = salary_scale_dt,
 #'   policy_params   = movement_policy_keep,
-#'   ref_date        = ref_date,
-#'   column_spec_args = list(salary_col = "gross_salary_cpi")
+#'   as_of_date        = as_of_date,
+#'   column_spec_args = define_column_spec(salary_col = "gross_salary_cpi")
 #' )
 #'
 #' # Confirm salaries unchanged: salary_before should equal
@@ -567,28 +567,28 @@ simulate_promotions_transfers <- function(contract_dt,
                                           personnel_dt,
                                           salary_scale_dt,
                                           policy_params,
-                                          ref_date,
-                                          column_spec_args = list()) {
+                                          as_of_date,
+                                          column_spec_args = define_column_spec()) {
 
   # ======================================================================
   # 1. Input Validation
   # ======================================================================
-  # The caller's column names, with defaults for any not given; the same
-  # list is passed to every step below
-  cols <- .column_spec(column_spec_args)
+  # Check the caller's column names; the same spec goes to every step below
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
   check_movement_inputs(
     contract_dt      = contract_dt,
     personnel_dt     = personnel_dt,
     salary_scale_dt  = salary_scale_dt,
     policy_params    = policy_params,
-    ref_date         = ref_date,
+    as_of_date         = as_of_date,
     column_spec_args = cols
   )
   ref_date_col     <- cols$ref_date_col
   personnel_id_col <- cols$personnel_id_col
 
-  # Convert ref_date early (accepts string or Date)
-  ref_date <- validate_date_format(ref_date, "ref_date")
+  # Convert as_of_date early (accepts string or Date)
+  as_of_date <- validate_date_format(as_of_date, "as_of_date")
 
   # ======================================================================
   # 2. Copy inputs once (copy-once-modify-by-reference pattern)
@@ -652,11 +652,11 @@ simulate_promotions_transfers <- function(contract_dt,
   }
 
   # ======================================================================
-  # 4. Select simulation snapshot (nearest ref_date not after target)
+  # 4. Select simulation snapshot (nearest as_of_date not after target)
   # ======================================================================
-  selected_ref_date <- ref_date
+  selected_ref_date <- as_of_date
   if (ref_date_col %in% names(contract_dt)) {
-    selected_ref_date <- select_nearest_ref_date(contract_dt[[ref_date_col]], ref_date)
+    selected_ref_date <- select_nearest_ref_date(contract_dt[[ref_date_col]], as_of_date)
     snap_contract_dt  <- contract_dt[get(ref_date_col) == selected_ref_date]
 
     if (ref_date_col %in% names(personnel_dt)) {
@@ -707,7 +707,7 @@ simulate_promotions_transfers <- function(contract_dt,
   # ======================================================================
   active_before <- get_active_contracts(
     contract_dt = snap_contract_dt,
-    ref_date = selected_ref_date,
+    as_of_date = selected_ref_date,
     start_date_col = cols$start_date_col,
     end_date_col = cols$end_date_col,
     contract_type_col = cols$contract_type_col
@@ -734,7 +734,7 @@ simulate_promotions_transfers <- function(contract_dt,
       baseline_matrix  = baseline_matrix,
       policy_params    = policy_params,
       salary_scale_dt  = salary_scale_dt,
-      ref_date         = selected_ref_date,
+      as_of_date         = selected_ref_date,
       column_spec_args = cols
     )
   } else if (is.null(policy_params$defaults$movement_rate)) {
@@ -760,7 +760,7 @@ simulate_promotions_transfers <- function(contract_dt,
       personnel_dt     = snap_personnel_dt,
       salary_scale_dt  = salary_scale_dt,
       policy_params    = policy_params,
-      ref_date         = selected_ref_date,
+      as_of_date         = selected_ref_date,
       column_spec_args = cols
     )
   }
@@ -794,7 +794,7 @@ simulate_promotions_transfers <- function(contract_dt,
     personnel_dt     = snap_personnel_dt,
     demand_dt        = demand_dt,
     policy_params    = policy_params,
-    ref_date         = selected_ref_date,
+    as_of_date         = selected_ref_date,
     baseline_matrix  = baseline_matrix,
     column_spec_args = cols
   )
@@ -808,7 +808,7 @@ simulate_promotions_transfers <- function(contract_dt,
     movers_dt         = movers_dt,
     policy_params     = policy_params,
     salary_scale_dt   = salary_scale_dt,
-    ref_date          = selected_ref_date,
+    as_of_date          = selected_ref_date,
     column_spec_args  = cols
   )
 

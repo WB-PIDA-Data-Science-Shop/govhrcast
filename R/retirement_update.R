@@ -15,7 +15,7 @@ NULL
 #' Applies retirement state changes to \code{contract_dt} in a single
 #' \code{:=} expression.  All open contracts held by retiring personnel are
 #' simultaneously reclassified as \code{"pensioner"}, their closing date is
-#' stamped to \code{ref_date}, and their salary is zeroed.
+#' stamped to \code{as_of_date}, and their salary is zeroed.
 #'
 #' @param contract_dt data.table.  Contract register (modified in place by
 #'   \code{:=}).  Required columns: \code{personnel_id_col},
@@ -23,12 +23,12 @@ NULL
 #' @param retirees_dt data.table.  Table of confirmed retirees (\code{retire == 1})
 #'   produced by \code{\link{prepare_retiree_data}}.  Only the
 #'   \code{personnel_id_col} column is used here.
-#' @param ref_date Date.  The simulation period date.  Stamped as
+#' @param as_of_date Date.  The simulation period date.  Stamped as
 #'   \code{end_date_col} on all closing contracts.
 #' @param column_spec_args Complete column specification
-#'   (\code{.column_spec()}), in the caller's column names. Keys read:
+#'   (\code{define_column_spec()}), in the caller's column names. Keys read:
 #'   \code{personnel_id_col} (in both tables); \code{end_date_col} (set to
-#'   \code{ref_date} for all closing contracts); \code{salary_col} (set to
+#'   \code{as_of_date} for all closing contracts); \code{salary_col} (set to
 #'   \code{0} to prevent double-counting: pension cost is tracked separately
 #'   via \code{pension_amount} in the pensioner register);
 #'   \code{contract_type_col} (set to \code{"pensioner"} for closing
@@ -44,8 +44,8 @@ NULL
 #' @keywords internal
 update_contracts_for_retirees <- function(contract_dt,
                                           retirees_dt,
-                                          ref_date,
-                                          column_spec_args = .column_spec()) {
+                                          as_of_date,
+                                          column_spec_args = define_column_spec()) {
   personnel_id_col  <- column_spec_args$personnel_id_col
   end_date_col      <- column_spec_args$end_date_col
   salary_col        <- column_spec_args$salary_col
@@ -62,11 +62,10 @@ update_contracts_for_retirees <- function(contract_dt,
   # Mark every contract a retiring person holds on the payroll as "pensioner", in
   # a single pass, even when they hold several. Rows already off the payroll are
   # left untouched.
-  .as_of_date <- ref_date
   contract_dt[
     get(personnel_id_col) %in% retiring_ids &
       .on_payroll(get(contract_type_col)),
-    c(contract_type_col, end_date_col, salary_col) := list("pensioner", .as_of_date, 0)
+    c(contract_type_col, end_date_col, salary_col) := list("pensioner", as_of_date, 0)
   ]
 
   return(contract_dt)
