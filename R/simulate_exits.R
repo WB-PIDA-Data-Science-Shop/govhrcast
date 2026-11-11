@@ -38,7 +38,8 @@
 #' 3. Resolve exit rates from `policy_params` — either a scalar rate applied
 #'    uniformly or group-specific rates joined from `policy_table`.
 #' 4. Compute the number of exits per group as
-#'    `round(n_active * exit_rate)`.
+#'    `n_active * exit_rate`, rounded up or down at random so that small groups
+#'    are not stuck at zero (see [stochastic_round()]).
 #' 5. Select which employees exit using the chosen `exit_strategy`.
 #' 6. Attach pre-exit salaries to compute savings.
 #' 7. Update contract and personnel registers in place.
@@ -54,13 +55,19 @@
 #' supplied:
 #'
 #' * **Status quo mode** (`policy_table` supplied): group-level exit rates
-#'   estimated from historical panel data are applied to each group. Rates
-#'   can additionally be scaled by an `exit_multiplier` column in
-#'   `policy_table` to model reform scenarios without altering the
-#'   underlying historical estimates.
+#'   estimated from historical panel data are applied to each group. With
+#'   `group_cols = NULL`, `policy_table` must have exactly one row (an
+#'   overall rate, as [estimate_historical_exit_rates()] returns for
+#'   `group_cols = NULL`), and that rate applies to everyone.
 #' * **Fixed rate mode** (`policy_table = NULL`): a single scalar
 #'   `exit_rate` from `defaults` is applied uniformly across the entire
 #'   active workforce.
+#'
+#' In both modes, rates can be scaled by `exit_multiplier` to model reform
+#' scenarios without altering the underlying rates (e.g. `1.2` means 20%
+#' more exits than the rate implies). Set it once in `defaults` to scale
+#' every group, or as an `exit_multiplier` column in `policy_table` to vary
+#' it by group -- a table value takes precedence over `defaults`.
 #'
 #' When `simulate_horizon()` is called with `policy_table = NULL` and
 #' panel data are supplied, historical exit rates are estimated
@@ -107,7 +114,8 @@
 #' A `data.table` containing group-specific exit rates, keyed on
 #' `group_cols`. Must contain an `exit_rate` column. May optionally
 #' contain an `exit_multiplier` column to scale historical rates for
-#' reform scenarios without modifying the underlying estimates.
+#' reform scenarios without modifying the underlying estimates. When
+#' `group_cols` is `NULL`, it must have exactly one row.
 #'
 #' Pass the output of [estimate_historical_exit_rates()] here for
 #' status quo projections.
@@ -122,17 +130,17 @@
 #' | Parameter | Description |
 #' |:----------|:------------|
 #' | `exit_rate` | Scalar attrition rate applied when `policy_table = NULL`, or as the fallback rate for groups absent from `policy_table` |
+#' | `exit_multiplier` | Scales the resolved exit rate in either mode (default `1`, no change). An `exit_multiplier` column in `policy_table` overrides it per group |
 #' | `exit_strategy` | `"random"` or a numeric column name in `contract_dt` to rank employees for exit selection |
-#' | `active_types` | Contract type values in `contract_type_col` treated as eligible for exit. Must match actual `contract_type` values (e.g. `c("permanent", "short-term", "fixed-term")`), not `employment_status` values |
-#' | `exited_type` | Value written to `contract_type_col` after exit. Default `"inactive"` |
+#' | `active_types` | Contract type values in `contract_type_col` treated as eligible for exit. Must match actual `contract_type` values, not `employment_status` values. Default `c("permanent", "fixed-term", "short-term")` — the non-terminal `contract_type` values per the `govhr` harmonized dictionary |
 #'
 #' @param contract_dt A `data.table` (or object coercible to a
 #' `data.table`) containing the active workforce contract register in
 #' **govhr** harmonized format.
 #'
 #' At a minimum, this table must contain the columns identified by
-#' `personnel_id_col`, `contract_id_col`, `start_date_col`,
-#' `end_date_col`, `contract_type_col`, and `salary_col`.
+#' `personnel_id_col`, `end_date_col`, `contract_type_col`, and `salary_col`
+#' in `column_spec_args`.
 #'
 #' This table should be a single-period snapshot. When called through
 #' [simulate_horizon()], retirees have already been removed before this
@@ -143,41 +151,32 @@
 #' harmonized format.
 #'
 #' Must contain at least the columns identified by `personnel_id_col`
-#' and `status_col`.
+#' and `status_col` in `column_spec_args`.
 #'
-#' @param ref_date A `Date` giving the simulation date for the current
+#' @param as_of_date A `Date` giving the simulation date for the current
 #' projection period. Used to stamp exit dates onto closed contracts.
 #'
-#' @param personnel_id_col Character scalar giving the unique personnel
-#' identifier shared by both `contract_dt` and `personnel_dt`.
-#' Default is `"personnel_id"`.
+#' @param column_spec_args What your columns are called, from [define_column_spec()],
+#' so the function can read your data as it is. Change only the names that
+#' differ from the **govhr** harmonized defaults; for example
+#' `define_column_spec(personnel_id_col = "pid", salary_col = "bruto")`.
+#' Your names are used 
+#' throughout, so the returned tables keep them, and you write the same names
+#' in `group_cols`, `policy_table` and `exit_strategy`. The same spec can be
+#' passed to every **govhrcast** function; columns a function does not use are ignored.
 #'
-#' @param birth_date_col Character scalar giving the column containing each
-#' employee's date of birth. Default is `"birth_date"`.
+#' Keys used here (default in brackets):
 #'
-#' @param start_date_col Character scalar identifying the contract start
-#' date column. Default is `"start_date"`.
-#'
-#' @param contract_id_col Character scalar identifying unique contracts.
-#' Default is `"contract_id"`.
-#'
-#' @param contract_type_col Character scalar identifying the contract type
-#' variable. Only contract types listed in `policy_params$defaults$active_types`
-#' are eligible for exit selection. Exited contracts are reclassified to the
-#' value in `policy_params$defaults$exited_type` (default `"inactive"`).
-#' Default is `"contract_type"`.
-#'
-#' @param status_col Character scalar identifying the employment status
-#' variable in `personnel_dt`. Personnel records for exiting employees are
-#' updated to `"inactive"`. Default is `"employment_status"`.
-#'
-#' @param salary_col Character scalar identifying the primary salary column.
-#' Used to compute salary savings attributable to exits.
-#' Default is `"gross_salary_lcu"`.
-#'
-#' @param end_date_col Character scalar identifying the contract end date
-#' column. Active contracts contain `NA` here. Exiting employees have this
-#' value replaced with `ref_date`. Default is `"end_date"`.
+#' * `personnel_id_col` (`"personnel_id"`): person identifier, in both tables.
+#' * `contract_type_col` (`"contract_type"`): only types in `active_types`, or
+#'   a blank type (which is missing data), can exit; their contracts become
+#'   `"inactive"`.
+#' * `salary_col` (`"gross_salary_lcu"`): pay column, added up per person to
+#'   give the savings from exits.
+#' * `end_date_col` (`"end_date"`): contract end date. Exiting employees'
+#'   contracts get `as_of_date`.
+#' * `status_col` (`"employment_status"`): set to `"inactive"` for employees
+#'   who exit.
 #'
 #' @return
 #' A named list with four elements:
@@ -195,8 +194,8 @@
 #' * **contract_dt**
 #'
 #'   The updated contract register after exits have been processed.
-#'   Exited contracts have `contract_type_col` set to `exited_type` and
-#'   `end_date_col` set to `ref_date`.
+#'   Exited contracts have `contract_type_col` set to `"inactive"` and
+#'   `end_date_col` set to `as_of_date`.
 #'
 #' * **personnel_dt**
 #'
@@ -217,7 +216,7 @@
 #'
 #' contract_dt  <- copy(bra_hrmis_contract)
 #' personnel_dt <- copy(bra_hrmis_personnel)
-#' ref_date     <- as.Date("2014-01-01")
+#' as_of_date     <- as.Date("2014-01-01")
 #'
 #' ############################################################
 #' ## Example 1: Flat scalar attrition rate
@@ -229,8 +228,7 @@
 #'   defaults = list(
 #'     exit_rate     = 0.05,
 #'     exit_strategy = "random",
-#'     active_types  = c("permanent", "short-term", "fixed-term"),
-#'     exited_type   = "inactive"
+#'     active_types  = c("permanent", "short-term", "fixed-term")
 #'   )
 #' )
 #'
@@ -238,7 +236,7 @@
 #'   contract_dt   = contract_dt,
 #'   personnel_dt  = personnel_dt,
 #'   policy_params = exit_policy,
-#'   ref_date      = ref_date
+#'   as_of_date      = as_of_date
 #' )
 #'
 #' results$summary
@@ -266,8 +264,7 @@
 #'   defaults = list(
 #'     exit_rate     = mean(rates_dt$exit_rate, na.rm = TRUE),
 #'     exit_strategy = "personnel_tenure",
-#'     active_types  = c("permanent", "short-term", "fixed-term"),
-#'     exited_type   = "inactive"
+#'     active_types  = c("permanent", "short-term", "fixed-term")
 #'   )
 #' )
 #'
@@ -275,7 +272,7 @@
 #'   contract_dt   = contract_dt,
 #'   personnel_dt  = personnel_dt,
 #'   policy_params = exit_policy,
-#'   ref_date      = ref_date
+#'   as_of_date      = as_of_date
 #' )
 #'
 #' results$summary
@@ -302,20 +299,24 @@
 simulate_exits <- function(contract_dt,
                            personnel_dt,
                            policy_params,
-                           ref_date,
-                           personnel_id_col  = "personnel_id",
-                           birth_date_col    = "birth_date",
-                           start_date_col    = "start_date",
-                           contract_id_col   = "contract_id",
-                           contract_type_col = "contract_type",
-                           status_col         = "employment_status",
-                           salary_col        = "gross_salary_lcu",
-                           end_date_col      = "end_date") {
+                           as_of_date,
+                           column_spec_args = define_column_spec()) {
 
   # ------------------------------------------------------------------
   # 0. Validate & copy
   # ------------------------------------------------------------------
-  ref_date <- validate_date_format(ref_date, "ref_date")
+  as_of_date <- validate_date_format(as_of_date, "as_of_date")
+
+  # Check the caller's column names
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
+  .check_spec_columns(contract_dt, personnel_dt, cols, required = list(
+    contract_dt  = c("personnel_id_col", "contract_type_col", "salary_col", "end_date_col"),
+    personnel_dt = c("personnel_id_col", "status_col")
+  ))
+  personnel_id_col  <- cols$personnel_id_col
+  contract_type_col <- cols$contract_type_col
+  salary_col        <- cols$salary_col
 
   if (!data.table::is.data.table(contract_dt))
     contract_dt <- data.table::as.data.table(contract_dt)
@@ -328,8 +329,7 @@ simulate_exits <- function(contract_dt,
     personnel_dt <- data.table::copy(personnel_dt)
 
   exit_strategy <- policy_params$defaults$exit_strategy %||% "random"
-  active_types  <- policy_params$defaults$active_types  %||% "active"
-  exited_type   <- policy_params$defaults$exited_type   %||% "inactive"
+  active_types  <- .exit_types(policy_params$defaults)
 
   # ------------------------------------------------------------------
   # 1. Validate policy_params
@@ -404,18 +404,17 @@ simulate_exits <- function(contract_dt,
     update_contracts_for_exits(
       contract_dt       = contract_dt,
       exits_dt          = exits_dt,
-      ref_date          = ref_date,
+      as_of_date          = as_of_date,
       personnel_id_col  = personnel_id_col,
       contract_type_col = contract_type_col,
-      end_date_col      = end_date_col,
-      active_types      = active_types,
-      exited_type       = exited_type
+      end_date_col      = cols$end_date_col,
+      active_types      = active_types
     )
     update_personnel_for_exits(
       personnel_dt     = personnel_dt,
       exits_dt         = exits_dt,
       personnel_id_col = personnel_id_col,
-      status_col       = status_col
+      status_col       = cols$status_col
     )
   }
 

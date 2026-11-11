@@ -8,22 +8,24 @@ test_that("compute_years calculates time differences correctly", {
   start <- as.Date("2000-01-01")
   end <- as.Date("2025-01-01")
   result <- compute_years(start, end)
-  expect_equal(result, 25, tolerance = 0.01)
-  
+  # Years use a 365.25-day year: 9,132 days elapse between these dates
+  expect_equal(result, 9132 / 365.25)
+
   # Vectorized operation
   starts <- as.Date(c("2000-01-01", "2010-06-15", "2015-12-31"))
   ends <- as.Date(c("2020-01-01", "2020-06-15", "2025-12-31"))
   results <- compute_years(starts, ends)
   expect_length(results, 3)
-  expect_equal(results[1], 20, tolerance = 0.01)
-  expect_equal(results[2], 10, tolerance = 0.01)
-  expect_equal(results[3], 10, tolerance = 0.01)
-  
-  # Leap year handling
+  # 7,305 / 3,653 / 3,653 days respectively
+  expect_equal(results[1], 7305 / 365.25)
+  expect_equal(results[2], 3653 / 365.25)
+  expect_equal(results[3], 3653 / 365.25)
+
+  # Leap year handling: four calendar years from Feb 29 are exactly 1,461 days
   start_leap <- as.Date("2020-02-29")
   end_leap <- as.Date("2024-02-29")
   result_leap <- compute_years(start_leap, end_leap)
-  expect_equal(result_leap, 4, tolerance = 0.01)
+  expect_equal(result_leap, 4)
   
   # Same date should be 0
   same_date <- as.Date("2020-01-01")
@@ -168,10 +170,10 @@ test_that("compute_age calculates ages correctly", {
   expect_true("age" %in% names(result))
   expect_true("personnel_id" %in% names(result))
   
-  # Check age calculations
-  expect_equal(result[personnel_id == "P001"]$age, 55, tolerance = 0.1)
-  expect_equal(result[personnel_id == "P002"]$age, 39.5, tolerance = 0.1)
-  expect_equal(result[personnel_id == "P003"]$age, 34, tolerance = 0.1)
+  # Age = days from birth to ref_date / 365.25 (20,089 / 14,445 / 12,420 days)
+  expect_equal(result[personnel_id == "P001"]$age, 20089 / 365.25)
+  expect_equal(result[personnel_id == "P002"]$age, 14445 / 365.25)
+  expect_equal(result[personnel_id == "P003"]$age, 12420 / 365.25)
 })
 
 test_that("compute_age handles missing birth_dates", {
@@ -198,7 +200,8 @@ test_that("compute_age uses custom column names", {
                        birth_date_col = "dob",
                        personnel_id_col = "emp_id")
   
-  expect_true("personnel_id" %in% names(result))
+  # The ID comes back under the caller's column name (ADR 0012)
+  expect_identical(names(result), c("emp_id", "age"))
   expect_equal(nrow(result), 2)
 })
 
@@ -221,13 +224,13 @@ test_that("compute_tenure calculates service years correctly", {
   expect_true("tenure_days" %in% names(result))
   expect_true("personnel_id" %in% names(result))
   
-  # P001 has two contracts: 5 years + 10 years = 15 years
+  # P001 has two back-to-back contracts: 1,826 + 3,653 = 5,479 days
   p001_tenure <- result[personnel_id == "P001"]$tenure_years
-  expect_equal(p001_tenure, 15, tolerance = 0.1)
-  
-  # P002 has one ongoing contract: ~6.5 years
+  expect_equal(p001_tenure, 5479 / 365.25)
+
+  # P002 has one ongoing contract, capped at ref_date: 2,406 days
   p002_tenure <- result[personnel_id == "P002"]$tenure_years
-  expect_equal(p002_tenure, 6.5, tolerance = 0.1)
+  expect_equal(p002_tenure, 2406 / 365.25)
 })
 
 test_that("compute_tenure handles panel data correctly", {
@@ -248,7 +251,7 @@ test_that("compute_tenure handles panel data correctly", {
   # (C001: 2010-01-01 to 2015-01-01 = 5 yrs; C002: 2015-01-01 to open → capped at ref_date
   #  = 10 yrs; no overlap → sum = 15 yrs)
   expect_equal(nrow(result), 1)  # Only one personnel
-  expect_equal(result$tenure_years, 15, tolerance = 0.1)
+  expect_equal(result$tenure_years, 5479 / 365.25)  # 1,826 + 3,653 days
 })
 
 test_that("compute_tenure excludes inactive contracts", {
@@ -263,8 +266,8 @@ test_that("compute_tenure excludes inactive contracts", {
   ref_date <- as.Date("2025-01-01")
   result <- compute_tenure(contract_dt, ref_date)
   
-  # Should exclude C002 (inactive): 5 years (C001) + 5 years (C003) = 10 years
-  expect_equal(result$tenure_years, 10, tolerance = 0.1)
+  # Should exclude C002 (inactive): C001 1,826 days + C003 1,827 days
+  expect_equal(result$tenure_years, 3653 / 365.25)
 })
 
 test_that("compute_tenure handles contracts starting after ref_date", {
@@ -279,8 +282,8 @@ test_that("compute_tenure handles contracts starting after ref_date", {
   ref_date <- as.Date("2025-01-01")
   result <- compute_tenure(contract_dt, ref_date)
   
-  # Should only count C001: 15 years
-  expect_equal(result$tenure_years, 15, tolerance = 0.1)
+  # Should only count C001: 2010-01-01 to 2025-01-01 = 5,479 days
+  expect_equal(result$tenure_years, 5479 / 365.25)
 })
 
 test_that("compute_tenure handles empty contract data", {
@@ -344,6 +347,41 @@ test_that("get_primary_contract uses contract_id as tiebreaker", {
   
   # Should select C001: lowest contract_id when all else equal
   expect_equal(result$contract_id, "C001")
+})
+
+test_that("get_primary_contract does not let a blank value win", {
+  blank_salary <- data.table(
+    contract_id = c("C1", "C2"), personnel_id = "P1",
+    start_date = as.Date("2020-01-01"), gross_salary_lcu = c(100, NA)
+  )
+  expect_equal(get_primary_contract(blank_salary)$contract_id, "C1")
+
+  blank_start <- data.table(
+    contract_id = c("C1", "C2"), personnel_id = "P1",
+    start_date = as.Date(c("2020-01-01", NA)), gross_salary_lcu = 100
+  )
+  expect_equal(get_primary_contract(blank_start)$contract_id, "C1")
+})
+
+test_that("get_primary_contract gives one main contract per snapshot when asked", {
+  contract_dt <- data.table(
+    contract_id = c("C1", "C2", "C1"), personnel_id = "P1",
+    ref_date = as.Date(c("2019-01-01", "2019-01-01", "2020-01-01")),
+    start_date = as.Date(c("2000-01-01", "2010-01-01", "2000-01-01")),
+    gross_salary_lcu = 100
+  )
+  result <- get_primary_contract(contract_dt, snapshot_col = "ref_date")
+  expect_equal(result[order(ref_date), contract_id], c("C2", "C1"))
+})
+
+test_that("get_primary_contract leaves the caller's table as it was", {
+  contract_dt <- data.table(
+    contract_id = c("C1", "C2"), personnel_id = "P1",
+    start_date = as.Date(c("2000-01-01", "2010-01-01")), gross_salary_lcu = 100
+  )
+  before <- copy(contract_dt)
+  get_primary_contract(contract_dt)
+  expect_identical(contract_dt, before)
 })
 
 
@@ -486,4 +524,81 @@ test_that("dispatch_param: multi-column group_cols join works correctly", {
     dt, "min_age"
   )
   expect_equal(result, c(60, 55, 58))
+})
+
+# =============================================================================
+# .select_personnel_subset() -- relocated from exit_core.R's .select_exits(),
+# now shared by both compute_status_quo_exits() and
+# compute_status_quo_retirements().
+# =============================================================================
+
+select_personnel_subset <- getFromNamespace(
+  ".select_personnel_subset",
+  "govhrcast"
+)
+
+test_that(".select_personnel_subset random strategy selects requested count with no duplicates", {
+  pool <- paste0("p", 1:20)
+  dt   <- data.table::data.table(personnel_id = pool)
+
+  selected <- select_personnel_subset(pool, dt, 5L, "random", "personnel_id")
+
+  expect_length(selected, 5L)
+  expect_true(all(selected %in% pool))
+  expect_equal(anyDuplicated(selected), 0L)
+})
+
+test_that(".select_personnel_subset caps n_select at pool length", {
+  pool <- paste0("p", 1:3)
+  dt   <- data.table::data.table(personnel_id = pool)
+
+  selected <- select_personnel_subset(pool, dt, 10L, "random", "personnel_id")
+
+  expect_length(selected, 3L)
+  expect_setequal(selected, pool)
+})
+
+test_that(".select_personnel_subset returns character(0) when n_select <= 0", {
+  pool <- paste0("p", 1:5)
+  dt   <- data.table::data.table(personnel_id = pool)
+
+  expect_identical(select_personnel_subset(pool, dt, 0L, "random", "personnel_id"), character(0))
+  expect_identical(select_personnel_subset(pool, dt, -1L, "random", "personnel_id"), character(0))
+})
+
+test_that(".select_personnel_subset rank strategy selects lowest values first", {
+  pool <- paste0("p", 1:5)
+  dt <- data.table::data.table(
+    personnel_id = pool,
+    salary       = c(500, 100, 300, 200, 400)
+  )
+
+  selected <- select_personnel_subset(pool, dt, 3L, "salary", "personnel_id")
+
+  # p2 (100), p4 (200), p3 (300) are the three lowest -- in that order.
+  expect_identical(selected, c("p2", "p4", "p3"))
+})
+
+test_that(".select_personnel_subset rank strategy takes the max per ID when duplicated", {
+  # Two rows for p1 (multiple contracts) -- ranking should use max(salary).
+  dt <- data.table::data.table(
+    personnel_id = c("p1", "p1", "p2", "p3"),
+    salary       = c(100, 900, 200, 300)
+  )
+  pool <- c("p1", "p2", "p3")
+
+  selected <- select_personnel_subset(pool, dt, 3L, "salary", "personnel_id")
+
+  # p1's max salary is 900 (highest), so it ranks last despite one low row.
+  expect_identical(selected, c("p2", "p3", "p1"))
+})
+
+test_that(".select_personnel_subset falls back to random for an unrecognized strategy", {
+  pool <- paste0("p", 1:5)
+  dt   <- data.table::data.table(personnel_id = pool)
+
+  selected <- select_personnel_subset(pool, dt, 3L, "not_a_real_column", "personnel_id")
+
+  expect_length(selected, 3L)
+  expect_true(all(selected %in% pool))
 })

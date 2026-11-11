@@ -8,14 +8,8 @@ check_retirement_inputs(
   contract_dt,
   personnel_dt,
   policy_params,
-  ref_date,
-  personnel_id_col = "personnel_id",
-  birth_date_col = "birth_date",
-  contract_id_col = "contract_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -39,26 +33,16 @@ tenure.  May be omitted if \code{policy_table} carries a
 \code{min_tenure} column.}
 }}
 
-\item{ref_date}{Date or character convertible to Date.  Reference date for
+\item{as_of_date}{Date or character convertible to Date.  Reference date for
 the simulation period.}
 
-\item{personnel_id_col}{Character.  Must exist in both \code{contract_dt}
-and \code{personnel_dt}.  Default \code{"personnel_id"}.}
-
-\item{birth_date_col}{Character or \code{NULL}.  Must exist in
-\code{personnel_dt} when \code{eligibility_type} involves age.  Pass
-\code{NULL} when age is pre-computed by the caller.  Default
-\code{"birth_date"}.}
-
-\item{contract_id_col}{Character.  Default \code{"contract_id"}.}
-
-\item{start_date_col}{Character.  Default \code{"start_date"}.}
-
-\item{end_date_col}{Character.  Default \code{"end_date"}.}
-
-\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
-
-\item{status_col}{Character.  Default \code{"status"}.}
+\item{column_spec_args}{Complete column specification from
+\code{define_column_spec()}. Keys read: \code{personnel_id_col} (must exist in
+both tables), \code{contract_id_col}, \code{start_date_col},
+\code{end_date_col}, \code{contract_type_col} (in \code{contract_dt}),
+\code{status_col} (in \code{personnel_dt}) and \code{birth_date_col}
+(in \code{personnel_dt} when eligibility involves age, unless
+\code{NULL}, meaning age is pre-computed).}
 }
 \value{
 Invisible \code{TRUE}.  Stops with an informative error on the
@@ -75,7 +59,7 @@ offending argument.
 
 \describe{
 \item{Empty tables}{\code{contract_dt} or \code{personnel_dt} has 0 rows.}
-\item{Invalid ref_date}{\code{ref_date} cannot be parsed as a Date, is NA,
+\item{Invalid as_of_date}{\code{as_of_date} cannot be parsed as a Date, is NA,
 or is not length 1.}
 \item{Invalid policy structure}{\code{validate_policy_table()} fails — see
 that function for sub-conditions.}

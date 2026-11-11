@@ -6,7 +6,7 @@
 \usage{
 generate_new_personnel(
   n,
-  ref_date,
+  as_of_date,
   group_vals = NULL,
   personnel_id_col = "personnel_id",
   status_col = "employment_status"
@@ -15,19 +15,20 @@ generate_new_personnel(
 \arguments{
 \item{n}{Integer. Number of new personnel to generate}
 
-\item{ref_date}{Date. Reference date for ID generation}
+\item{as_of_date}{Date. Reference date for ID generation}
 
 \item{group_vals}{Named list. Values for grouping columns (e.g., list(department = "HR", grade = "G5"))}
 
 \item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
 
-\item{status_col}{Character. Status column (default: "status")}
+\item{status_col}{Character. Status column (default: "employment_status")}
 }
 \value{
 data.table with new personnel records
 }
 \description{
 Creates new personnel records for new hires. Generates unique personnel IDs
-and sets status to "active".
+and sets status to "active". Their age, tenure and gender are set afterwards,
+from the policy's new hire profile.
 }
 \keyword{internal}

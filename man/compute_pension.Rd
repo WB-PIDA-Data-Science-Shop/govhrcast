@@ -4,7 +4,7 @@
 \alias{compute_pension}
 \title{Compute Pension Amounts}
 \usage{
-compute_pension(retirees_dt)
+compute_pension(retirees_dt, salary_col = "gross_salary_lcu")
 }
 \arguments{
 \item{retirees_dt}{data.table.  Enriched retiree table produced by the
@@ -16,8 +16,6 @@ Required columns (all stamped as per-row by
 \code{"dc"}, \code{"flat"}, \code{"hybrid"}.}
 \item{\code{accrual_rate}}{Numeric. DB accrual rate (required for DB
 and hybrid).}
-\item{\code{ref_wage_col}}{Character column-pointer naming the wage
-column (required for DB and hybrid).}
 \item{\code{tenure_years}}{Numeric. Years of service (DB and hybrid).}
 \item{\code{max_years}}{Numeric. Service cap; \code{NA} = uncapped
 (DB and hybrid).}
@@ -29,6 +27,9 @@ account balance (DC and hybrid).}
 hybrid).}
 \item{\code{flat_amount}}{Numeric. Uniform pension amount (flat only).}
 }}
+
+\item{salary_col}{Character.  The pay column, which wage-based pensions are
+calculated from.  Default \code{"gross_salary_lcu"}.}
 }
 \value{
 Numeric vector of length \code{nrow(retirees_dt)} giving the

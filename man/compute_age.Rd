@@ -6,7 +6,7 @@
 \usage{
 compute_age(
   personnel_dt,
-  ref_date,
+  as_of_date,
   birth_date_col = "birth_date",
   personnel_id_col = "personnel_id"
 )
@@ -15,7 +15,7 @@ compute_age(
 \item{personnel_dt}{data.table.  Personnel register.  Required columns:
 \code{personnel_id_col}, \code{birth_date_col}.}
 
-\item{ref_date}{Date.  The reference date used as the \emph{end} date for
+\item{as_of_date}{Date.  The reference date used as the \emph{end} date for
 the age interval.  Typically the simulation period close date.}
 
 \item{birth_date_col}{Character.  Date of birth column in
@@ -27,8 +27,9 @@ the age interval.  Typically the simulation period close date.}
 \value{
 data.table (one row per person) with columns:
 \describe{
-\item{\code{personnel_id}}{Personnel identifier.}
-\item{\code{age}}{Numeric.  Age in fractional years at \code{ref_date}.}
+\item{\emph{\code{personnel_id_col}}}{Personnel identifier, under the
+caller's column name.}
+\item{\code{age}}{Numeric.  Age in fractional years at \code{as_of_date}.}
 }
 }
 \description{
@@ -41,7 +42,7 @@ that extracts the birth date column and returns a tidy two-column
 \dontrun{
 age_dt <- compute_age(
   personnel_dt = personnel_data,
-  ref_date = as.Date("2025-01-01"),
+  as_of_date = as.Date("2025-01-01"),
   birth_date_col = "birth_date"
 )
 }

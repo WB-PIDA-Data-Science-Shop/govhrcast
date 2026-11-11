@@ -68,7 +68,7 @@ test_that("simulate_promotions_transfers returns required list elements", {
     personnel_dt    = make_personnel(),
     salary_scale_dt = make_salary_scale(),
     policy_params   = make_policy(),
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
   expect_true(is.list(result))
   expected_names <- c("summary", "contract_dt", "personnel_dt",
@@ -83,7 +83,7 @@ test_that("simulate_promotions_transfers summary has required columns", {
     personnel_dt    = make_personnel(),
     salary_scale_dt = make_salary_scale(),
     policy_params   = make_policy(),
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
   expect_true(all(c("n_movers", "headcount_before", "headcount_after") %in%
                     names(result$summary)))
@@ -96,7 +96,7 @@ test_that("simulate_promotions_transfers returns baseline_matrix with correct st
     personnel_dt    = make_personnel(),
     salary_scale_dt = make_salary_scale(),
     policy_params   = make_policy(),
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
   bm <- result$baseline_matrix
   expect_true(data.table::is.data.table(bm))
@@ -110,7 +110,7 @@ test_that("simulate_promotions_transfers headcount unchanged after movements", {
     personnel_dt    = make_personnel(),
     salary_scale_dt = make_salary_scale(),
     policy_params   = make_policy(),
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
   expect_equal(result$summary$headcount_before, result$summary$headcount_after)
 })
@@ -122,7 +122,7 @@ test_that("simulate_promotions_transfers movers_dt has correct columns", {
     personnel_dt    = make_personnel(),
     salary_scale_dt = make_salary_scale(),
     policy_params   = make_policy(),
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
   if (nrow(result$movers_dt) > 0) {
     expect_true(all(c("personnel_id", "from_group", "to_group") %in%
@@ -139,7 +139,7 @@ test_that("simulate_promotions_transfers accepts string ref_date", {
       personnel_dt    = make_personnel(),
       salary_scale_dt = make_salary_scale(),
       policy_params   = make_policy(),
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     )
   )
 })
@@ -152,21 +152,85 @@ test_that("simulate_promotions_transfers accepts Date ref_date", {
       personnel_dt    = make_personnel(),
       salary_scale_dt = make_salary_scale(),
       policy_params   = make_policy(),
-      ref_date        = as.Date("2016-01-01")
+      as_of_date        = as.Date("2016-01-01")
     )
   )
 })
 
-test_that("simulate_promotions_transfers: movement_rate = 0 gives 0 movers", {
+test_that("simulate_promotions_transfers: no policy_table, panel with zero observed transitions, movement_rate = 0 gives 0 movers", {
+  # make_full_panel() has real transitions (P1, P6 change grade between
+  # snapshots), so it is not a valid fixture for a "0 movers" expectation
+  # once policy_table = NULL correctly triggers empirical estimation (see
+  # the next test). Use a static panel -- same person/grade in both
+  # snapshots -- so estimation legitimately yields zero transitions and the
+  # function falls back to the flat movement_rate = 0.
+  static_panel <- data.table::rbindlist(list(
+    make_full_panel()[ref_date == as.Date("2015-01-01")],
+    data.table::copy(
+      make_full_panel()[ref_date == as.Date("2015-01-01")]
+    )[, ref_date := as.Date("2016-01-01")]
+  ))
+  set.seed(1)
+  expect_message(
+    result <- simulate_promotions_transfers(
+      contract_dt     = static_panel,
+      personnel_dt    = make_personnel(),
+      salary_scale_dt = make_salary_scale(),
+      policy_params   = make_policy(movement_rate = 0),
+      as_of_date        = "2016-01-01"
+    ),
+    "falling back to defaults\\$movement_rate"
+  )
+  expect_equal(result$summary$n_movers, 0L)
+})
+
+test_that("simulate_promotions_transfers: zero-row baseline and no movement_rate gives 0 movers, not an error", {
+  # Regression test: a zero-row policy_table (what simulate_horizon() passes
+  # when panel estimation finds no transitions) with no defaults$movement_rate
+  # used to fall through to compute_fixed_rate_movements() and error.
+  static_panel <- data.table::rbindlist(list(
+    make_full_panel()[ref_date == as.Date("2015-01-01")],
+    data.table::copy(
+      make_full_panel()[ref_date == as.Date("2015-01-01")]
+    )[, ref_date := as.Date("2016-01-01")]
+  ))
+  policy <- make_policy()
+  policy$defaults$movement_rate <- NULL
+  policy$policy_table <- estimate_historical_movement_rates(static_panel, group_cols = "paygrade")
+  expect_equal(nrow(policy$policy_table), 0L)
+
+  set.seed(1)
+  expect_message(
+    result <- simulate_promotions_transfers(
+      contract_dt     = static_panel,
+      personnel_dt    = make_personnel(),
+      salary_scale_dt = make_salary_scale(),
+      policy_params   = policy,
+      as_of_date        = "2016-01-01"
+    ),
+    "no defaults\\$movement_rate"
+  )
+  expect_equal(result$summary$n_movers, 0L)
+  expect_equal(nrow(result$movers_dt), 0L)
+  expect_true(all(c("from_group", "to_group", "n_movers") %in% names(result$demand_dt)))
+})
+
+test_that("simulate_promotions_transfers: no policy_table + panel with real transitions uses the estimated baseline, not the flat rate", {
+  # Regression test: policy_table = NULL with >= 2 panel snapshots must
+  # drive movement demand from the empirically estimated baseline
+  # (estimate_historical_movement_rates()), not silently fall back to a flat
+  # defaults$movement_rate. make_full_panel() has two observed transitions
+  # (P1: G1->G2, P6: G2->G1), so movement_rate = 0 should NOT suppress them.
   set.seed(1)
   result <- simulate_promotions_transfers(
     contract_dt     = make_full_panel(),
     personnel_dt    = make_personnel(),
     salary_scale_dt = make_salary_scale(),
     policy_params   = make_policy(movement_rate = 0),
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
-  expect_equal(result$summary$n_movers, 0L)
+  expect_gt(result$summary$n_movers, 0L)
+  expect_true(all(result$baseline_matrix$movement_rate > 0))
 })
 
 test_that("simulate_promotions_transfers: contract_dt returned is snapshot only", {
@@ -176,7 +240,7 @@ test_that("simulate_promotions_transfers: contract_dt returned is snapshot only"
     personnel_dt    = make_personnel(),
     salary_scale_dt = make_salary_scale(),
     policy_params   = make_policy(),
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
   if ("ref_date" %in% names(result$contract_dt)) {
     expect_equal(data.table::uniqueN(result$contract_dt$ref_date), 1L)
@@ -192,7 +256,7 @@ test_that("simulate_promotions_transfers: contract_dt rows unchanged (no new/rem
     personnel_dt    = make_personnel(),
     salary_scale_dt = make_salary_scale(),
     policy_params   = make_policy(),
-    ref_date        = "2016-01-01"
+    as_of_date        = "2016-01-01"
   )
   expect_equal(nrow(result$contract_dt), snap_rows)
 })
@@ -211,7 +275,7 @@ test_that("simulate_promotions_transfers handles single snapshot gracefully", {
         personnel_dt    = make_personnel()[ref_date == as.Date("2016-01-01")],
         salary_scale_dt = make_salary_scale(),
         policy_params   = make_policy(),
-        ref_date        = "2016-01-01"
+        as_of_date        = "2016-01-01"
       )
     },
     "No movement baseline"
@@ -229,7 +293,7 @@ test_that("simulate_promotions_transfers errors when salary_scale_dt is NULL", {
       personnel_dt    = make_personnel(),
       salary_scale_dt = NULL,
       policy_params   = make_policy(),
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     ),
     "salary_scale_dt"
   )
@@ -244,7 +308,7 @@ test_that("simulate_promotions_transfers errors when no policy_table and no move
       personnel_dt    = make_personnel(),
       salary_scale_dt = make_salary_scale(),
       policy_params   = pp,
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     ),
     "movement_rate"
   )
@@ -259,7 +323,7 @@ test_that("simulate_promotions_transfers errors on invalid movement_strategy", {
       personnel_dt    = make_personnel(),
       salary_scale_dt = make_salary_scale(),
       policy_params   = pp,
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     ),
     "movement_strategy"
   )
@@ -272,7 +336,7 @@ test_that("simulate_promotions_transfers errors on non-datatable input", {
       personnel_dt    = make_personnel(),
       salary_scale_dt = make_salary_scale(),
       policy_params   = make_policy(),
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     )
   )
 })
@@ -284,7 +348,7 @@ test_that("simulate_promotions_transfers errors on invalid ref_date", {
       personnel_dt    = make_personnel(),
       salary_scale_dt = make_salary_scale(),
       policy_params   = make_policy(),
-      ref_date        = "not-a-date"
+      as_of_date        = "not-a-date"
     )
   )
 })
@@ -302,7 +366,7 @@ test_that("simulate_promotions_transfers works on subset contract_dt", {
       personnel_dt    = pt,
       salary_scale_dt = make_salary_scale(),
       policy_params   = make_policy(),
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     )
   )
 })
@@ -317,7 +381,7 @@ test_that("check_movement_inputs passes with valid inputs", {
       personnel_dt    = make_personnel(),
       salary_scale_dt = make_salary_scale(),
       policy_params   = make_policy(),
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     )
   )
 })
@@ -329,7 +393,7 @@ test_that("check_movement_inputs errors on non-list policy_params", {
       personnel_dt    = make_personnel(),
       salary_scale_dt = make_salary_scale(),
       policy_params   = "not a list",
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     ),
     "list"
   )
@@ -344,7 +408,7 @@ test_that("check_movement_inputs errors when group_cols not in contract_dt", {
       personnel_dt    = make_personnel(),
       salary_scale_dt = make_salary_scale(),
       policy_params   = pp,
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     )
   )
 })
@@ -357,7 +421,7 @@ test_that("check_movement_inputs errors when salary_scale_dt lacks salary column
       personnel_dt    = make_personnel(),
       salary_scale_dt = bad_scale,
       policy_params   = make_policy(),
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     ),
     "salary"
   )
@@ -371,7 +435,7 @@ test_that("check_movement_inputs errors on negative movement_rate", {
       personnel_dt    = make_personnel(),
       salary_scale_dt = make_salary_scale(),
       policy_params   = pp,
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     )
   )
 })
@@ -384,7 +448,7 @@ test_that("check_movement_inputs accepts zero movement_rate", {
       personnel_dt    = make_personnel(),
       salary_scale_dt = make_salary_scale(),
       policy_params   = pp,
-      ref_date        = "2016-01-01"
+      as_of_date        = "2016-01-01"
     )
   )
 })

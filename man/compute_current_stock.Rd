@@ -7,13 +7,9 @@
 compute_current_stock(
   contract_dt,
   personnel_dt,
-  ref_date,
+  as_of_date,
   group_cols = NULL,
-  personnel_id_col = "personnel_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -21,19 +17,12 @@ compute_current_stock(
 
 \item{personnel_dt}{data.table. Personnel data}
 
-\item{ref_date}{Date. Reference date for stock calculation}
+\item{as_of_date}{Date. Reference date for stock calculation}
 
 \item{group_cols}{Character vector. Columns to group by (default: NULL for overall count)}
 
-\item{personnel_id_col}{Character. Personnel ID column (default: "personnel_id")}
-
-\item{start_date_col}{Character. Start date column (default: "start_date")}
-
-\item{end_date_col}{Character. End date column (default: "end_date")}
-
-\item{contract_type_col}{Character. Contract type column (default: "contract_type")}
-
-\item{status_col}{Character. Status column (default: "status")}
+\item{column_spec_args}{Complete column specification from
+\code{define_column_spec()}.}
 }
 \value{
 data.table with group_cols (if specified) and current_stock column

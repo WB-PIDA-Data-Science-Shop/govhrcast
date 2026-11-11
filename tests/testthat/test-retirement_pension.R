@@ -1,12 +1,11 @@
 # Unit tests for retirement_pension.R functions
 # Testing all pension calculation methods with edge cases
 #
-# NOTE: In the new unified design, pension parameters (accrual_rate, ref_wage_col,
+# NOTE: In the new unified design, pension parameters (accrual_rate,
 # flat_amount, balance_col, annuity_factor, etc.) are columns on the retirees_dt
-# data.table -- resolved upstream by resolve_policy_table().  Sub-functions
-# compute_db_pension(), compute_dc_pension(), compute_flat_pension(), and
-# compute_hybrid_pension() accept only `dt`; compute_pension() dispatches on
-# the `pension_type` column.
+# data.table -- resolved upstream by resolve_policy_table().  compute_pension()
+# dispatches on the `pension_type` column. Wage-based pensions read the pay
+# column, salary_col.
 
 library(testthat)
 library(data.table)
@@ -17,7 +16,6 @@ library(data.table)
 
 # Base retirees_dt with DB param columns
 create_db_retirees_dt <- function(accrual_rate    = 0.02,
-                                  ref_wage_col    = "gross_salary_lcu",
                                   max_years       = NA_real_,
                                   replacement_cap = NA_real_) {
   data.table(
@@ -28,7 +26,6 @@ create_db_retirees_dt <- function(accrual_rate    = 0.02,
     age              = c(65,      60,     68,      62),
     pension_type     = "db",
     accrual_rate     = accrual_rate,
-    ref_wage_col     = ref_wage_col,
     max_years        = max_years,
     replacement_cap  = replacement_cap
   )
@@ -66,7 +63,6 @@ create_flat_retirees_dt <- function(flat_amount = 15000) {
 
 # Base retirees_dt with hybrid param columns (DB + DC)
 create_hybrid_retirees_dt <- function(accrual_rate    = 0.015,
-                                      ref_wage_col    = "gross_salary_lcu",
                                       max_years       = NA_real_,
                                       replacement_cap = NA_real_,
                                       balance_col     = "account_balance",
@@ -81,7 +77,6 @@ create_hybrid_retirees_dt <- function(accrual_rate    = 0.015,
     age              = c(65,      60,     68,      62),
     pension_type     = "hybrid",
     accrual_rate     = accrual_rate,
-    ref_wage_col     = ref_wage_col,
     max_years        = max_years,
     replacement_cap  = replacement_cap,
     balance_col      = balance_col,
@@ -133,7 +128,6 @@ test_that("compute_db_pension handles NA salaries", {
     tenure_years     = c(25, 20),
     pension_type     = "db",
     accrual_rate     = 0.02,
-    ref_wage_col     = "gross_salary_lcu",
     max_years        = NA_real_,
     replacement_cap  = NA_real_
   )
@@ -149,7 +143,6 @@ test_that("compute_db_pension handles NA tenure", {
     tenure_years     = c(25, NA),
     pension_type     = "db",
     accrual_rate     = 0.02,
-    ref_wage_col     = "gross_salary_lcu",
     max_years        = NA_real_,
     replacement_cap  = NA_real_
   )
@@ -158,10 +151,23 @@ test_that("compute_db_pension handles NA tenure", {
   expect_true(is.na(result[2]))
 })
 
-test_that("compute_db_pension errors when ref_wage_col is NA", {
+test_that("compute_db_pension errors when the pay column is absent", {
+  expect_error(compute_db_pension(create_db_retirees_dt(), "not_a_column"), "not_a_column")
+})
+
+test_that("compute_db_pension reads the pay column it is given", {
   dt <- create_db_retirees_dt()
-  dt[, ref_wage_col := NA_character_]
-  expect_error(compute_db_pension(dt), "ref_wage_col")
+  dt[, base_salary_lcu := gross_salary_lcu / 2]
+  expect_equal(compute_db_pension(dt, "base_salary_lcu"), compute_db_pension(dt) / 2)
+})
+
+test_that("compute_pension passes the pay column to every wage-based pension", {
+  db <- create_db_retirees_dt()[, base_salary_lcu := gross_salary_lcu / 2]
+  expect_equal(compute_pension(db, "base_salary_lcu"), compute_pension(db) / 2)
+  rate <- data.table(pension_type = "rate", pension_rate = 0.1, gross_salary_lcu = 1000, base_salary_lcu = 500)
+  expect_equal(compute_pension(rate, "base_salary_lcu"), 50)
+  hybrid <- create_hybrid_retirees_dt()[, base_salary_lcu := 0]
+  expect_equal(compute_pension(hybrid, "base_salary_lcu"), compute_dc_pension(hybrid))
 })
 
 test_that("compute_db_pension errors when accrual_rate column absent", {
@@ -177,7 +183,6 @@ test_that("compute_db_pension handles empty data.table", {
     tenure_years     = numeric(),
     pension_type     = character(),
     accrual_rate     = numeric(),
-    ref_wage_col     = character(),
     max_years        = numeric(),
     replacement_cap  = numeric()
   )
@@ -305,7 +310,6 @@ test_that("compute_flat_pension handles zero amount", {
 test_that("compute_hybrid_pension combines DB and DC correctly", {
   dt <- create_hybrid_retirees_dt(
     accrual_rate   = 0.015,
-    ref_wage_col   = "gross_salary_lcu",
     balance_col    = "account_balance",
     annuity_factor = 25
   )
@@ -324,7 +328,6 @@ test_that("compute_hybrid_pension handles NA in DB component", {
     tenure_years     = c(25, 20),
     pension_type     = "hybrid",
     accrual_rate     = 0.02,
-    ref_wage_col     = "gross_salary_lcu",
     max_years        = NA_real_,
     replacement_cap  = NA_real_,
     balance_col      = "account_balance",
@@ -344,7 +347,6 @@ test_that("compute_hybrid_pension handles NA in DC component", {
     tenure_years     = c(25, 20),
     pension_type     = "hybrid",
     accrual_rate     = 0.02,
-    ref_wage_col     = "gross_salary_lcu",
     max_years        = NA_real_,
     replacement_cap  = NA_real_,
     balance_col      = "account_balance",
@@ -356,10 +358,8 @@ test_that("compute_hybrid_pension handles NA in DC component", {
   expect_true(is.na(result[2]))    # DB=3200, DC=NA -> NA
 })
 
-test_that("compute_hybrid_pension errors when ref_wage_col missing", {
-  dt <- create_hybrid_retirees_dt()
-  dt[, ref_wage_col := NA_character_]
-  expect_error(compute_hybrid_pension(dt), "ref_wage_col")
+test_that("compute_hybrid_pension errors when the pay column is absent", {
+  expect_error(compute_hybrid_pension(create_hybrid_retirees_dt(), "not_a_column"), "not_a_column")
 })
 
 test_that("compute_hybrid_pension errors when balance_col missing", {
@@ -376,7 +376,6 @@ test_that("compute_hybrid_pension handles empty data.table", {
     tenure_years     = numeric(),
     pension_type     = character(),
     accrual_rate     = numeric(),
-    ref_wage_col     = character(),
     max_years        = numeric(),
     replacement_cap  = numeric(),
     balance_col      = character(),
@@ -444,7 +443,6 @@ test_that("compute_pension rejects invalid policy type", {
 
 test_that("compute_rate_pension: basic rate * wage calculation", {
   dt <- data.table::data.table(
-    ref_wage_col     = "gross_salary_lcu",
     gross_salary_lcu = c(10000, 20000, 5000),
     pension_rate     = c(0.15, 0.15, 0.15)
   )
@@ -454,7 +452,6 @@ test_that("compute_rate_pension: basic rate * wage calculation", {
 
 test_that("compute_rate_pension: per-row pension_rate is respected", {
   dt <- data.table::data.table(
-    ref_wage_col     = "gross_salary_lcu",
     gross_salary_lcu = c(10000, 10000),
     pension_rate     = c(0.15, 0.50)
   )
@@ -464,7 +461,6 @@ test_that("compute_rate_pension: per-row pension_rate is respected", {
 
 test_that("compute_rate_pension: returns numeric(0) for empty input", {
   dt <- data.table::data.table(
-    ref_wage_col     = character(0),
     gross_salary_lcu = numeric(0),
     pension_rate     = numeric(0)
   )
@@ -473,25 +469,22 @@ test_that("compute_rate_pension: returns numeric(0) for empty input", {
 
 test_that("compute_rate_pension: negative result floored at zero", {
   dt <- data.table::data.table(
-    ref_wage_col     = "gross_salary_lcu",
     gross_salary_lcu = c(10000),
     pension_rate     = c(-0.1)
   )
   expect_equal(compute_rate_pension(dt), 0)
 })
 
-test_that("compute_rate_pension: errors when ref_wage_col missing", {
+test_that("compute_rate_pension: errors when the pay column is absent", {
   dt <- data.table::data.table(
-    ref_wage_col     = NA_character_,
     gross_salary_lcu = 10000,
     pension_rate     = 0.15
   )
-  expect_error(compute_rate_pension(dt), "missing or NA")
+  expect_error(compute_rate_pension(dt, "not_a_column"), "not_a_column")
 })
 
 test_that("compute_rate_pension: errors when pension_rate column absent", {
   dt <- data.table::data.table(
-    ref_wage_col     = "gross_salary_lcu",
     gross_salary_lcu = 10000
   )
   expect_error(compute_rate_pension(dt), "pension_rate")
@@ -500,7 +493,6 @@ test_that("compute_rate_pension: errors when pension_rate column absent", {
 test_that("compute_pension dispatches to compute_rate_pension", {
   dt <- data.table::data.table(
     pension_type     = "rate",
-    ref_wage_col     = "gross_salary_lcu",
     gross_salary_lcu = 20000,
     pension_rate     = 0.15
   )

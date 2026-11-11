@@ -8,14 +8,7 @@ estimate_historical_hiring_rates(
   panel_contract_dt,
   panel_personnel_dt,
   group_cols,
-  hire_date_col = NULL,
-  freq = "year",
-  personnel_id_col = "personnel_id",
-  ref_date_col = "ref_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -26,46 +19,45 @@ estimate_historical_hiring_rates(
 \item{group_cols}{Character vector. Columns to group by (e.g. \code{"est_id"}).
 Pass \code{NULL} for overall (ungrouped) rates.}
 
-\item{hire_date_col}{Character or \code{NULL}.  Name of a person-level column
-in \code{panel_personnel_dt} that holds the true administrative hire date
-(e.g. \code{"first_employment_date"}).  When supplied, the function counts
-hires directly from this column instead of using panel first-appearance
-detection.  Default \code{NULL} (panel first-appearance method).}
-
-\item{freq}{Character. Frequency passed to \code{govhr::detect_personnel_event()}
-when \code{hire_date_col = NULL}.  Default \code{"year"}.}
-
-\item{personnel_id_col}{Character. Personnel ID column. Default \code{"personnel_id"}.}
-
-\item{ref_date_col}{Character. Reference-date column in both panel tables.
-Default \code{"ref_date"}.}
-
-\item{start_date_col}{Character. Contract start-date column. Default \code{"start_date"}.}
-
-\item{end_date_col}{Character. Contract end-date column. Default \code{"end_date"}.}
-
-\item{contract_type_col}{Character. Contract-type column. Default \code{"contract_type"}.}
-
-\item{status_col}{Character. Personnel status column. Default \code{"status"}.}
+\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only
+the ones that differ from the \code{govhr} defaults, e.g.
+\code{define_column_spec(personnel_id_col = "emp_id")}.  Keys read
+here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
+\code{end_date_col}, \code{contract_type_col}, \code{status_col}, and
+\code{hire_date_col}: a person-level column in \code{panel_personnel_dt}
+holding the true administrative hire date (e.g.
+\code{"first_employment_date"}).  When given, hires are counted directly
+from that column instead of from when people first appear in the panel.
+See \code{\link{define_column_spec}} for the defaults.}
 }
 \value{
 data.table with \code{group_cols} (if specified) and \code{hiring_rate} column.
 }
 \description{
-Estimates per-group hiring rates (hires / active stock) from historical panel
-data.  Two methods are supported, selected by the \code{hire_date_col}
-argument:
+Estimates per-group hiring rates (hires per head of starting stock, per interval) from historical panel
+data.  Two methods are supported, selected by \code{hire_date_col} in
+\code{column_spec_args}:
 
 \describe{
 \item{Panel first-appearance (default, \code{hire_date_col = NULL})}{
-Uses \code{govhr::detect_personnel_event()} to detect the first time a
+Uses \code{govhr::detect_movement()} to detect the first time a
 person appears in the panel.  Left-censored at the panel start date —
-pre-existing staff present at the first snapshot are not counted as hires.}
+pre-existing staff present at the first snapshot are not counted as
+hires.  Each pair of consecutive snapshots is one interval; someone
+absent at its start and active at its end is a hire in that interval.
+The rate is \strong{pooled} across intervals:
+\code{hiring_rate = total hires / total active staff at the start of
+    each interval}.  E.g. 5 hires on a starting stock of 10, then 0 hires
+on 15, gives \code{5 / 25}.  Dividing by the \emph{starting} stock
+(not the stock after hiring) matches how the simulation applies the
+rate: rate x the stock at the start of each period.  Hires are counted
+in the group they join; a group with no staff at the start of an
+interval has no base, so its hires in that interval are not counted.}
 \item{Administrative hire date (\code{hire_date_col} supplied)}{
 Uses a person-level hire-date column (e.g. \code{"first_employment_date"})
-read directly from \code{panel_personnel_dt}.  Hire events are counted
-within the \code{[min(panel_dates), max(panel_dates)]} window.  This
-method avoids left-censoring bias and is preferred when the column is
-available.}
+read directly from \code{panel_personnel_dt}.  A hire belongs to the
+interval their hire date falls in, and is counted in the group they are in
+at the first snapshot after it.  The rate is pooled in the same way, over
+the same starting stock.}
 }
 }

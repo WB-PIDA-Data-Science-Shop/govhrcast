@@ -21,11 +21,11 @@ validate_datatable <- function(dt, varname) {
   if (!data.table::is.data.table(dt)) {
     stop(varname, " must be a data.table", call. = FALSE)
   }
-  
+
   if (nrow(dt) == 0) {
     stop(varname, " cannot be empty", call. = FALSE)
   }
-  
+
   return(invisible(TRUE))
 }
 
@@ -40,11 +40,14 @@ validate_datatable <- function(dt, varname) {
 validate_column_exists <- function(dt, colname, varname) {
   if (!colname %in% names(dt)) {
     stop(
-      "Column '", colname, "' not found in ", varname,
+      "Column '",
+      colname,
+      "' not found in ",
+      varname,
       call. = FALSE
     )
   }
-  
+
   return(invisible(TRUE))
 }
 
@@ -58,15 +61,17 @@ validate_column_exists <- function(dt, colname, varname) {
 #' @keywords internal
 validate_columns_exist <- function(dt, colnames, varname) {
   missing_cols <- setdiff(colnames, names(dt))
-  
+
   if (length(missing_cols) > 0) {
     stop(
-      "Columns not found in ", varname, ": ",
+      "Columns not found in ",
+      varname,
+      ": ",
       paste(missing_cols, collapse = ", "),
       call. = FALSE
     )
   }
-  
+
   return(invisible(TRUE))
 }
 
@@ -80,26 +85,38 @@ validate_columns_exist <- function(dt, colnames, varname) {
 validate_date_format <- function(date, varname) {
   # Accept both Date objects and character strings
   if (is.character(date)) {
-    tryCatch({
-      date <- as.Date(date)
-    }, error = function(e) {
-      stop(varname, " must be a valid date string (e.g., '2024-01-01') or Date object. ",
-           "Error: ", e$message, call. = FALSE)
-    })
+    tryCatch(
+      {
+        date <- as.Date(date)
+      },
+      error = function(e) {
+        stop(
+          varname,
+          " must be a valid date string (e.g., '2024-01-01') or Date object. ",
+          "Error: ",
+          e$message,
+          call. = FALSE
+        )
+      }
+    )
   }
-  
+
   if (!inherits(date, "Date")) {
-    stop(varname, " must be a Date object or date string (e.g., '2024-01-01')", call. = FALSE)
+    stop(
+      varname,
+      " must be a Date object or date string (e.g., '2024-01-01')",
+      call. = FALSE
+    )
   }
-  
+
   if (length(date) != 1) {
     stop(varname, " must be a single Date value", call. = FALSE)
   }
-  
+
   if (is.na(date)) {
     stop(varname, " cannot be NA", call. = FALSE)
   }
-  
+
   return(date)
 }
 
@@ -136,56 +153,91 @@ validate_date_format <- function(date, varname) {
 #'
 #' @keywords internal
 validate_param_spec <- function(param_spec, param_name) {
-
   # --- Bare scalar path ---------------------------------------------------
   if (!is.list(param_spec) || data.table::is.data.table(param_spec)) {
-    if (!is.numeric(param_spec) || length(param_spec) != 1L || is.na(param_spec))
-      stop(param_name, " must be a single non-NA numeric scalar or a param ",
-           "spec list (list(default, group_cols, policy_table))", call. = FALSE)
-    if (param_spec <= 0)
+    if (
+      !is.numeric(param_spec) || length(param_spec) != 1L || is.na(param_spec)
+    ) {
+      stop(
+        param_name,
+        " must be a single non-NA numeric scalar or a param ",
+        "spec list (list(default, group_cols, policy_table))",
+        call. = FALSE
+      )
+    }
+    if (param_spec <= 0) {
       stop(param_name, " must be > 0", call. = FALSE)
+    }
     return(invisible(TRUE))
   }
 
   # --- Three-slot list path -----------------------------------------------
-  group_cols   <- param_spec$group_cols
-  default      <- param_spec$default
+  group_cols <- param_spec$group_cols
+  default <- param_spec$default
   policy_table <- param_spec$policy_table
 
   # default: must be positive scalar or NULL
   if (!is.null(default)) {
-    if (!is.numeric(default) || length(default) != 1L || is.na(default))
-      stop(param_name, "$default must be a single non-NA numeric scalar or NULL",
-           call. = FALSE)
-    if (default <= 0)
+    if (!is.numeric(default) || length(default) != 1L || is.na(default)) {
+      stop(
+        param_name,
+        "$default must be a single non-NA numeric scalar or NULL",
+        call. = FALSE
+      )
+    }
+    if (default <= 0) {
       stop(param_name, "$default must be > 0", call. = FALSE)
+    }
   }
 
   # group_cols / policy_table must both be set or both be NULL
-  if (is.null(group_cols) && !is.null(policy_table))
-    stop(param_name, ": policy_table supplied but group_cols is NULL. ",
-         "Set group_cols to the column(s) to join on.", call. = FALSE)
+  if (is.null(group_cols) && !is.null(policy_table)) {
+    stop(
+      param_name,
+      ": policy_table supplied but group_cols is NULL. ",
+      "Set group_cols to the column(s) to join on.",
+      call. = FALSE
+    )
+  }
 
-  if (!is.null(group_cols) && is.null(policy_table))
-    stop(param_name, ": group_cols supplied but policy_table is NULL. ",
-         "Provide a policy_table or remove group_cols.", call. = FALSE)
+  if (!is.null(group_cols) && is.null(policy_table)) {
+    stop(
+      param_name,
+      ": group_cols supplied but policy_table is NULL. ",
+      "Provide a policy_table or remove group_cols.",
+      call. = FALSE
+    )
+  }
 
   # If group-level, validate the policy_table
   if (!is.null(group_cols)) {
-    if (!data.table::is.data.table(policy_table))
+    if (!data.table::is.data.table(policy_table)) {
       stop(param_name, "$policy_table must be a data.table", call. = FALSE)
+    }
 
     missing_gcols <- setdiff(group_cols, names(policy_table))
-    if (length(missing_gcols) > 0L)
-      stop(param_name, "$policy_table is missing group_cols column(s): ",
-           paste(missing_gcols, collapse = ", "), call. = FALSE)
+    if (length(missing_gcols) > 0L) {
+      stop(
+        param_name,
+        "$policy_table is missing group_cols column(s): ",
+        paste(missing_gcols, collapse = ", "),
+        call. = FALSE
+      )
+    }
 
-    if (!param_name %in% names(policy_table))
-      stop(param_name, "$policy_table must contain a column named '",
-           param_name, "'", call. = FALSE)
+    if (!param_name %in% names(policy_table)) {
+      stop(
+        param_name,
+        "$policy_table must contain a column named '",
+        param_name,
+        "'",
+        call. = FALSE
+      )
+    }
 
-    if (nrow(policy_table) == 0L)
+    if (nrow(policy_table) == 0L) {
       stop(param_name, "$policy_table has 0 rows", call. = FALSE)
+    }
   }
 
   invisible(TRUE)
@@ -204,15 +256,15 @@ validate_positive_number <- function(num, varname, allow_zero = FALSE) {
   if (!is.numeric(num)) {
     stop(varname, " must be numeric", call. = FALSE)
   }
-  
+
   if (length(num) != 1) {
     stop(varname, " must be a single numeric value", call. = FALSE)
   }
-  
+
   if (is.na(num)) {
     stop(varname, " cannot be NA", call. = FALSE)
   }
-  
+
   if (allow_zero) {
     if (num < 0) {
       stop(varname, " must be >= 0", call. = FALSE)
@@ -222,7 +274,7 @@ validate_positive_number <- function(num, varname, allow_zero = FALSE) {
       stop(varname, " must be > 0", call. = FALSE)
     }
   }
-  
+
   return(invisible(TRUE))
 }
 
@@ -239,22 +291,26 @@ validate_number_range <- function(num, varname, min, max) {
   if (!is.numeric(num)) {
     stop(varname, " must be numeric", call. = FALSE)
   }
-  
+
   if (length(num) != 1) {
     stop(varname, " must be a single numeric value", call. = FALSE)
   }
-  
+
   if (is.na(num)) {
     stop(varname, " cannot be NA", call. = FALSE)
   }
-  
+
   if (num < min || num > max) {
     stop(
-      varname, " must be between ", min, " and ", max,
+      varname,
+      " must be between ",
+      min,
+      " and ",
+      max,
       call. = FALSE
     )
   }
-  
+
   return(invisible(TRUE))
 }
 
@@ -270,11 +326,11 @@ validate_character_string <- function(str, varname, allow_na = FALSE) {
   if (!is.character(str) || length(str) != 1) {
     stop(varname, " must be a single character string", call. = FALSE)
   }
-  
+
   if (!allow_na && is.na(str)) {
     stop(varname, " cannot be NA", call. = FALSE)
   }
-  
+
   return(invisible(TRUE))
 }
 
@@ -290,15 +346,20 @@ validate_choice <- function(choice, valid_choices, varname) {
   if (!is.character(choice) || length(choice) != 1) {
     stop(varname, " must be a single character string", call. = FALSE)
   }
-  
+
   if (!choice %in% valid_choices) {
     stop(
-      "Invalid ", varname, ": '", choice, "'. ",
-      "Valid options: ", paste(valid_choices, collapse = ", "),
+      "Invalid ",
+      varname,
+      ": '",
+      choice,
+      "'. ",
+      "Valid options: ",
+      paste(valid_choices, collapse = ", "),
       call. = FALSE
     )
   }
-  
+
   return(invisible(TRUE))
 }
 
@@ -314,17 +375,19 @@ validate_required_params <- function(params, required_params, context) {
   if (!is.list(params)) {
     stop("policy_params must be a list", call. = FALSE)
   }
-  
+
   missing_params <- setdiff(required_params, names(params))
-  
+
   if (length(missing_params) > 0) {
     stop(
-      "Missing required parameters for ", context, ": ",
+      "Missing required parameters for ",
+      context,
+      ": ",
       paste(missing_params, collapse = ", "),
       call. = FALSE
     )
   }
-  
+
   return(invisible(TRUE))
 }
 
@@ -358,35 +421,50 @@ validate_required_params <- function(params, required_params, context) {
 #'
 #' @keywords internal
 validate_policy_table <- function(policy_params) {
-
-  if (!is.list(policy_params))
+  if (!is.list(policy_params)) {
     stop("policy_params must be a list", call. = FALSE)
+  }
 
-  if (is.null(policy_params$defaults) || !is.list(policy_params$defaults))
+  if (is.null(policy_params$defaults) || !is.list(policy_params$defaults)) {
     stop("policy_params must contain a 'defaults' list", call. = FALSE)
+  }
 
   gc <- policy_params$group_cols
   pt <- policy_params$policy_table
 
-  if (!is.null(gc) && is.null(pt))
-    stop("policy_params: group_cols supplied but policy_table is NULL. ",
-         "Provide a policy_table or set group_cols = NULL.", call. = FALSE)
+  if (!is.null(gc) && is.null(pt)) {
+    stop(
+      "policy_params: group_cols supplied but policy_table is NULL. ",
+      "Provide a policy_table or set group_cols = NULL.",
+      call. = FALSE
+    )
+  }
 
-  if (is.null(gc) && !is.null(pt))
-    stop("policy_params: policy_table supplied but group_cols is NULL. ",
-         "Provide group_cols or set policy_table = NULL.", call. = FALSE)
+  if (is.null(gc) && !is.null(pt)) {
+    stop(
+      "policy_params: policy_table supplied but group_cols is NULL. ",
+      "Provide group_cols or set policy_table = NULL.",
+      call. = FALSE
+    )
+  }
 
   if (!is.null(pt)) {
-    if (!data.table::is.data.table(pt))
+    if (!data.table::is.data.table(pt)) {
       stop("policy_params$policy_table must be a data.table", call. = FALSE)
+    }
 
-    if (nrow(pt) == 0L)
+    if (nrow(pt) == 0L) {
       stop("policy_params$policy_table has 0 rows", call. = FALSE)
+    }
 
     missing_gc <- setdiff(gc, names(pt))
-    if (length(missing_gc) > 0L)
-      stop("policy_params$policy_table is missing group_cols column(s): ",
-           paste(missing_gc, collapse = ", "), call. = FALSE)
+    if (length(missing_gc) > 0L) {
+      stop(
+        "policy_params$policy_table is missing group_cols column(s): ",
+        paste(missing_gc, collapse = ", "),
+        call. = FALSE
+      )
+    }
   }
 
   invisible(TRUE)
@@ -419,19 +497,15 @@ validate_policy_table <- function(policy_params) {
 #'       tenure.  May be omitted if \code{policy_table} carries a
 #'       \code{min_tenure} column.}
 #'   }
-#' @param ref_date Date or character convertible to Date.  Reference date for
+#' @param as_of_date Date or character convertible to Date.  Reference date for
 #'   the simulation period.
-#' @param personnel_id_col Character.  Must exist in both \code{contract_dt}
-#'   and \code{personnel_dt}.  Default \code{"personnel_id"}.
-#' @param birth_date_col Character or \code{NULL}.  Must exist in
-#'   \code{personnel_dt} when \code{eligibility_type} involves age.  Pass
-#'   \code{NULL} when age is pre-computed by the caller.  Default
-#'   \code{"birth_date"}.
-#' @param contract_id_col Character.  Default \code{"contract_id"}.
-#' @param start_date_col Character.  Default \code{"start_date"}.
-#' @param end_date_col Character.  Default \code{"end_date"}.
-#' @param contract_type_col Character.  Default \code{"contract_type"}.
-#' @param status_col Character.  Default \code{"status"}.
+#' @param column_spec_args Complete column specification from
+#'   \code{define_column_spec()}. Keys read: \code{personnel_id_col} (must exist in
+#'   both tables), \code{contract_id_col}, \code{start_date_col},
+#'   \code{end_date_col}, \code{contract_type_col} (in \code{contract_dt}),
+#'   \code{status_col} (in \code{personnel_dt}) and \code{birth_date_col}
+#'   (in \code{personnel_dt} when eligibility involves age, unless
+#'   \code{NULL}, meaning age is pre-computed).
 #'
 #' @return Invisible \code{TRUE}.  Stops with an informative error on the
 #'   first violation found.
@@ -439,7 +513,7 @@ validate_policy_table <- function(policy_params) {
 #' @section Error Conditions:
 #' \describe{
 #'   \item{Empty tables}{\code{contract_dt} or \code{personnel_dt} has 0 rows.}
-#'   \item{Invalid ref_date}{\code{ref_date} cannot be parsed as a Date, is NA,
+#'   \item{Invalid as_of_date}{\code{as_of_date} cannot be parsed as a Date, is NA,
 #'     or is not length 1.}
 #'   \item{Invalid policy structure}{\code{validate_policy_table()} fails — see
 #'     that function for sub-conditions.}
@@ -467,30 +541,42 @@ validate_policy_table <- function(policy_params) {
 #' }
 #'
 #' @keywords internal
-check_retirement_inputs <- function(contract_dt, 
-                                    personnel_dt, 
+check_retirement_inputs <- function(contract_dt,
+                                    personnel_dt,
                                     policy_params,
-                                    ref_date,
-                                    personnel_id_col = "personnel_id",
-                                    birth_date_col = "birth_date",
-                                    contract_id_col = "contract_id",
-                                    start_date_col = "start_date",
-                                    end_date_col = "end_date",
-                                    contract_type_col = "contract_type",
-                                    status_col         = "employment_status") {
-  
+                                    as_of_date,
+                                    column_spec_args = define_column_spec()) {
+  birth_date_col <- column_spec_args$birth_date_col
+
   # Validate data tables
   validate_datatable(contract_dt, "contract_dt")
   validate_datatable(personnel_dt, "personnel_dt")
 
-  # Validate ref_date
-  validate_date_format(ref_date, "ref_date")
+  # Validate as_of_date
+  validate_date_format(as_of_date, "as_of_date")
 
   # Validate top-level structure
   if (!is.list(policy_params)) {
     stop("policy_params must be a list", call. = FALSE)
   }
-  validate_policy_table(policy_params)
+  # An old hand-written policy would otherwise be ignored without a word
+  if (!is.null(policy_params$defaults$ref_wage_col) ||
+      "ref_wage_col" %in% names(policy_params$policy_table)) {
+    stop("ref_wage_col is no longer used: pensions are always calculated from ",
+         "salary_col. Remove it from the retirement policy.", call. = FALSE)
+  }
+  # A hazard_rate policy with no rate table (NULL, or 0 rows because the
+  # panel showed no retirements) is valid: every group's rate resolves to 0
+  # in compute_status_quo_retirements(), so only a mandatory age (min_age)
+  # forces anyone out. Validate its structure as a scalar policy instead.
+  .pt <- policy_params$policy_table
+  if (identical(policy_params$defaults$eligibility_type, "hazard_rate") &&
+      (is.null(.pt) || (data.table::is.data.table(.pt) && nrow(.pt) == 0L))) {
+    validate_policy_table(utils::modifyList(policy_params,
+                                            list(group_cols = NULL, policy_table = NULL)))
+  } else {
+    validate_policy_table(policy_params)
+  }
 
   .defaults <- policy_params$defaults
 
@@ -499,70 +585,196 @@ check_retirement_inputs <- function(contract_dt,
   validate_required_params(.defaults, required_top, "retirement policy")
 
   # Validate eligibility_type value(s)
-  valid_eligibility <- c("age_only", "tenure_only", "age_and_tenure")
+  valid_eligibility <- c(
+    "age_only", "tenure_only", "age_and_tenure", "custom", "hazard_rate"
+  )
   # Check defaults
-  validate_choice(.defaults$eligibility_type, valid_eligibility, "eligibility_type")
+  validate_choice(
+    .defaults$eligibility_type,
+    valid_eligibility,
+    "eligibility_type"
+  )
   # Also check any values in policy_table if present
-  if (!is.null(policy_params$policy_table) &&
-      "eligibility_type" %in% names(policy_params$policy_table)) {
-    bad <- setdiff(unique(policy_params$policy_table$eligibility_type), valid_eligibility)
-    if (length(bad) > 0L)
-      stop("Invalid eligibility_type in policy_table: '",
-           paste(bad, collapse = "', '"),
-           "'. Valid options: ", paste(valid_eligibility, collapse = ", "),
-           call. = FALSE)
+  if (
+    !is.null(policy_params$policy_table) &&
+      "eligibility_type" %in% names(policy_params$policy_table)
+  ) {
+    bad <- setdiff(
+      unique(policy_params$policy_table$eligibility_type),
+      valid_eligibility
+    )
+    if (length(bad) > 0L) {
+      stop(
+        "Invalid eligibility_type in policy_table: '",
+        paste(bad, collapse = "', '"),
+        "'. Valid options: ",
+        paste(valid_eligibility, collapse = ", "),
+        call. = FALSE
+      )
+    }
   }
 
   # Validate pension_type value(s)
-  valid_pension <- c("db", "dc", "flat", "hybrid", "rate")
+  valid_pension <- c("db", "dc", "flat", "hybrid", "rate", "custom")
   validate_choice(.defaults$pension_type, valid_pension, "pension_type")
-  if (!is.null(policy_params$policy_table) &&
-      "pension_type" %in% names(policy_params$policy_table)) {
-    bad <- setdiff(unique(policy_params$policy_table$pension_type), valid_pension)
-    if (length(bad) > 0L)
-      stop("Invalid pension_type in policy_table: '",
-           paste(bad, collapse = "', '"),
-           "'. Valid options: ", paste(valid_pension, collapse = ", "),
-           call. = FALSE)
+  if (
+    !is.null(policy_params$policy_table) &&
+      "pension_type" %in% names(policy_params$policy_table)
+  ) {
+    bad <- setdiff(
+      unique(policy_params$policy_table$pension_type),
+      valid_pension
+    )
+    if (length(bad) > 0L) {
+      stop(
+        "Invalid pension_type in policy_table: '",
+        paste(bad, collapse = "', '"),
+        "'. Valid options: ",
+        paste(valid_pension, collapse = ", "),
+        call. = FALSE
+      )
+    }
+  }
+
+  # Validate every pension_formula the policy supplies -- in defaults and/or
+  # a policy_table column -- against the formula allow-list, fail-fast,
+  # before any computation starts.
+  .formulas <- .defaults$pension_formula
+  if (
+    !is.null(policy_params$policy_table) &&
+      "pension_formula" %in% names(policy_params$policy_table)
+  ) {
+    .formulas <- c(.formulas, policy_params$policy_table$pension_formula)
+  }
+  for (.formula in unique(.formulas[!is.na(.formulas)])) {
+    validate_pension_formula(.formula)
+  }
+
+  # Validate hazard_rate-specific requirements. min_age/min_tenure-required
+  # checks below are keyed off eligibility_type %in% c("age_only",
+  # "tenure_only", "age_and_tenure") and so already naturally exclude
+  # "hazard_rate" -- min_age is optional (mandatory-ceiling semantics) and
+  # min_tenure is unused by this type.
+  if (identical(.defaults$eligibility_type, "hazard_rate")) {
+    if (!is.null(policy_params$policy_table) &&
+        !"hazard_rate" %in% names(policy_params$policy_table)) {
+      stop(
+        "policy_table must contain a 'hazard_rate' column when ",
+        "eligibility_type = 'hazard_rate'.",
+        call. = FALSE
+      )
+    }
+    if (is.null(policy_params$group_cols) ||
+        !("age_yr_int" %in% policy_params$group_cols)) {
+      stop(
+        "eligibility_type = 'hazard_rate' requires group_cols to include ",
+        "'age_yr_int'.",
+        call. = FALSE
+      )
+    }
   }
 
   # Validate eligibility parameters based on effective type
   .etype_varies <- !is.null(policy_params$policy_table) &&
-                   "eligibility_type" %in% names(policy_params$policy_table)
-  .needs_age    <- .etype_varies ||
-                   .defaults$eligibility_type %in% c("age_only", "age_and_tenure")
+    "eligibility_type" %in% names(policy_params$policy_table)
+  .needs_age <- .etype_varies ||
+    .defaults$eligibility_type %in% c("age_only", "age_and_tenure")
   .needs_tenure <- .etype_varies ||
-                   .defaults$eligibility_type %in% c("tenure_only", "age_and_tenure")
+    .defaults$eligibility_type %in% c("tenure_only", "age_and_tenure")
 
   if (.needs_age) {
     # min_age must be present in defaults or policy_table
     .age_in_pt <- !is.null(policy_params$policy_table) &&
-                   "min_age" %in% names(policy_params$policy_table)
-    if (is.null(.defaults$min_age) && !.age_in_pt)
-      stop("min_age is required for eligibility_type '",
-           .defaults$eligibility_type, "'", call. = FALSE)
+      "min_age" %in% names(policy_params$policy_table)
+    if (is.null(.defaults$min_age) && !.age_in_pt) {
+      stop(
+        "min_age is required for eligibility_type '",
+        .defaults$eligibility_type,
+        "'",
+        call. = FALSE
+      )
+    }
     # birth_date_col is optional: NULL means age was pre-computed by the caller
     # (e.g. simulate_horizon Phase 1b) and is already present in personnel_dt.
-    if (!is.null(birth_date_col))
+    if (!is.null(birth_date_col)) {
       validate_column_exists(personnel_dt, birth_date_col, "personnel_dt")
+    }
   }
 
   if (.needs_tenure) {
     .tenure_in_pt <- !is.null(policy_params$policy_table) &&
-                      "min_tenure" %in% names(policy_params$policy_table)
-    if (is.null(.defaults$min_tenure) && !.tenure_in_pt)
-      stop("min_tenure is required for eligibility_type '",
-           .defaults$eligibility_type, "'", call. = FALSE)
+      "min_tenure" %in% names(policy_params$policy_table)
+    if (is.null(.defaults$min_tenure) && !.tenure_in_pt) {
+      stop(
+        "min_tenure is required for eligibility_type '",
+        .defaults$eligibility_type,
+        "'",
+        call. = FALSE
+      )
+    }
   }
 
-  # Check required contract_dt columns
-  required_contract_cols <- c(contract_id_col, personnel_id_col, start_date_col,
-                              end_date_col, contract_type_col)
-  validate_columns_exist(contract_dt, required_contract_cols, "contract_dt")
+  # Validate eligibility_rule when eligibility_type = "custom" is actually
+  # in play. Unlike .needs_age/.needs_tenure above, this deliberately checks
+  # whether "custom" is among the *actual values used* (defaults and/or the
+  # policy_table column) rather than firing on .etype_varies alone -- a
+  # policy_table that only ever contains "age_only"/"tenure_only" values
+  # shouldn't be forced to also supply an eligibility_rule it will never use.
+  .etype_values <- .defaults$eligibility_type
+  if (
+    !is.null(policy_params$policy_table) &&
+      "eligibility_type" %in% names(policy_params$policy_table)
+  ) {
+    .etype_values <- c(
+      .etype_values,
+      unique(policy_params$policy_table$eligibility_type)
+    )
+  }
+  .needs_rule <- "custom" %in% .etype_values
 
-  # Check required personnel_dt columns
-  required_personnel_cols <- c(personnel_id_col, status_col)
-  validate_columns_exist(personnel_dt, required_personnel_cols, "personnel_dt")
+  if (.needs_rule) {
+    .rule_in_pt <- !is.null(policy_params$policy_table) &&
+      "eligibility_rule" %in% names(policy_params$policy_table)
+    if (is.null(.defaults$eligibility_rule) && !.rule_in_pt) {
+      stop(
+        "eligibility_rule is required when eligibility_type includes ",
+        "'custom'",
+        call. = FALSE
+      )
+    }
+
+    # Validate every unique rule string that could actually apply -- from
+    # defaults and/or every distinct value present in the policy_table
+    # column -- against the real available columns, fail-fast, before any
+    # computation starts.
+    .rules_to_check <- character(0)
+    if (!is.null(.defaults$eligibility_rule)) {
+      .rules_to_check <- c(.rules_to_check, .defaults$eligibility_rule)
+    }
+    if (.rule_in_pt) {
+      .rules_to_check <- c(
+        .rules_to_check,
+        unique(policy_params$policy_table$eligibility_rule)
+      )
+    }
+
+    .available_cols <- c(
+      names(contract_dt),
+      names(personnel_dt),
+      "age",
+      "tenure_years"
+    )
+    for (.rule in unique(.rules_to_check)) {
+      validate_eligibility_rule(.rule, available_cols = .available_cols)
+    }
+  }
+
+  # The columns retirement reads must exist under the caller's names
+  .check_spec_columns(contract_dt, personnel_dt, column_spec_args, required = list(
+    contract_dt  = c("contract_id_col", "personnel_id_col", "start_date_col",
+                     "end_date_col", "contract_type_col"),
+    personnel_dt = c("personnel_id_col", "status_col")
+  ))
 
   return(invisible(TRUE))
 }
@@ -577,69 +789,65 @@ check_retirement_inputs <- function(contract_dt,
 #' @param contract_dt data.table. Contract data
 #' @param personnel_dt data.table. Personnel data
 #' @param policy_params List. Policy parameters
-#' @param ref_date Date. Reference date
-#' @param personnel_id_col Character. Personnel ID column name
-#' @param birth_date_col Character. Birth date column name
-#' @param contract_id_col Character. Contract ID column name
-#' @param start_date_col Character. Start date column name
-#' @param end_date_col Character. End date column name
-#' @param contract_type_col Character. Contract type column name
-#' @param status_col Character. Status column name
+#' @param as_of_date Date. Reference date
+#' @param column_spec_args Complete column specification from
+#'   \code{define_column_spec()}.
 #'
 #' @return Invisible TRUE if valid, stops with error otherwise
 #' @keywords internal
 check_hiring_inputs <- function(contract_dt,
                                 personnel_dt,
                                 policy_params,
-                                ref_date,
-                                personnel_id_col = "personnel_id",
-                                birth_date_col = "birth_date",
-                                contract_id_col = "contract_id",
-                                start_date_col = "start_date",
-                                end_date_col = "end_date",
-                                contract_type_col = "contract_type",
-                                status_col         = "employment_status") {
-  
+                                as_of_date,
+                                column_spec_args = define_column_spec()) {
+  salary_col <- column_spec_args$salary_col
+
   # Validate data tables
   validate_datatable(contract_dt, "contract_dt")
   validate_datatable(personnel_dt, "personnel_dt")
-  
-  # Validate ref_date
-  validate_date_format(ref_date, "ref_date")
-  
+
+  # Validate as_of_date
+  validate_date_format(as_of_date, "as_of_date")
+
   # Validate policy_params is a list
   if (!is.list(policy_params)) {
     stop("policy_params must be a list", call. = FALSE)
   }
-  
+
   # Validate mode
   if (is.null(policy_params$mode)) {
     stop("policy_params must contain 'mode'", call. = FALSE)
   }
-  
-  valid_modes <- c("flow", "stock", "combined", "status_quo")
+
+  valid_modes <- c("flow", "stock", "status_quo")
   validate_choice(policy_params$mode, valid_modes, "mode")
-  
+
   # Validate mode-specific parameters
-  if (policy_params$mode %in% c("flow", "combined")) {
+  if (policy_params$mode == "flow") {
     if (is.null(policy_params$replacement_rate)) {
-      stop("replacement_rate is required for mode '", policy_params$mode, "'", 
-           call. = FALSE)
+      stop("replacement_rate is required for mode 'flow'", call. = FALSE)
     }
-    
+
     # If replacement_rate is data.table, validate structure
     if (data.table::is.data.table(policy_params$replacement_rate)) {
       if (!"replacement_rate" %in% names(policy_params$replacement_rate)) {
-        stop("replacement_rate data.table must contain 'replacement_rate' column", 
-             call. = FALSE)
+        stop(
+          "replacement_rate data.table must contain 'replacement_rate' column",
+          call. = FALSE
+        )
       }
-      
+
       # Check group_cols present
-      if (is.null(policy_params$group_cols) || length(policy_params$group_cols) == 0) {
-        stop("group_cols must be specified when replacement_rate is a data.table", 
-             call. = FALSE)
+      if (
+        is.null(policy_params$group_cols) ||
+          length(policy_params$group_cols) == 0
+      ) {
+        stop(
+          "group_cols must be specified when replacement_rate is a data.table",
+          call. = FALSE
+        )
       }
-      
+
       validate_columns_exist(
         policy_params$replacement_rate,
         policy_params$group_cols,
@@ -647,27 +855,31 @@ check_hiring_inputs <- function(contract_dt,
       )
     } else {
       # Scalar replacement_rate — 0 is valid (hiring policy active but zero flow)
-      validate_positive_number(policy_params$replacement_rate, "replacement_rate",
-                               allow_zero = TRUE)
+      validate_positive_number(
+        policy_params$replacement_rate,
+        "replacement_rate",
+        allow_zero = TRUE
+      )
     }
   }
-  
-  if (policy_params$mode %in% c("stock", "combined")) {
+
+  if (policy_params$mode == "stock") {
     if (is.null(policy_params$stock_targets)) {
-      stop("stock_targets is required for mode '", policy_params$mode, "'", 
-           call. = FALSE)
+      stop("stock_targets is required for mode 'stock'", call. = FALSE)
     }
-    
+
     if (!data.table::is.data.table(policy_params$stock_targets)) {
       stop("stock_targets must be a data.table", call. = FALSE)
     }
-    
+
     if (!"target_stock" %in% names(policy_params$stock_targets)) {
       stop("stock_targets must contain 'target_stock' column", call. = FALSE)
     }
-    
+
     # Validate group_cols if specified
-    if (!is.null(policy_params$group_cols) && length(policy_params$group_cols) > 0) {
+    if (
+      !is.null(policy_params$group_cols) && length(policy_params$group_cols) > 0
+    ) {
       validate_columns_exist(
         policy_params$stock_targets,
         policy_params$group_cols,
@@ -675,46 +887,59 @@ check_hiring_inputs <- function(contract_dt,
       )
     }
   }
-  
+
+  # Status-quo mode applies historical hiring rates, so the rate table must
+  # already be there (simulate_horizon() estimates it from the panel).
+  if (policy_params$mode == "status_quo") {
+    .rates <- policy_params$squorate_dt
+    if (!data.table::is.data.table(.rates) || !"hiring_rate" %in% names(.rates)) {
+      stop(
+        "squorate_dt (a data.table with a 'hiring_rate' column) is required for ",
+        "mode 'status_quo'. simulate_horizon() estimates it from the panel; when ",
+        "calling simulate_hiring() directly, create it with ",
+        "estimate_historical_hiring_rates().",
+        call. = FALSE
+      )
+    }
+  }
+
   # Validate salary_scale if provided
   if (!is.null(policy_params$salary_scale)) {
     if (!data.table::is.data.table(policy_params$salary_scale)) {
       stop("salary_scale must be a data.table", call. = FALSE)
     }
-    
-    # Check for salary column (default name)
-    if (!"gross_salary_lcu" %in% names(policy_params$salary_scale)) {
-      warning("salary_scale does not contain 'gross_salary_lcu' column. ",
-              "Ensure it contains the appropriate salary column.", 
-              call. = FALSE)
-    }
   }
-  
+
   # Validate group_cols exist in contract_dt if specified
-  if (!is.null(policy_params$group_cols) && length(policy_params$group_cols) > 0) {
+  if (
+    !is.null(policy_params$group_cols) && length(policy_params$group_cols) > 0
+  ) {
     validate_columns_exist(contract_dt, policy_params$group_cols, "contract_dt")
   }
-  
-  # Check required contract_dt columns
-  required_contract_cols <- c(contract_id_col, personnel_id_col, start_date_col,
-                              end_date_col, contract_type_col)
-  validate_columns_exist(contract_dt, required_contract_cols, "contract_dt")
-  
-  # Check required personnel_dt columns
-  required_personnel_cols <- c(personnel_id_col, status_col)
-  validate_columns_exist(personnel_dt, required_personnel_cols, "personnel_dt")
-  
+
+  # The columns this module reads
+  .check_spec_columns(contract_dt, personnel_dt, column_spec_args, required = list(
+    contract_dt  = c("personnel_id_col", "contract_id_col", "start_date_col",
+                     "end_date_col", "salary_col", "contract_type_col"),
+    personnel_dt = c("personnel_id_col", "status_col")
+  ))
+
+  if (!is.null(policy_params$salary_scale)) {
+    .check_pay_column(policy_params$salary_scale, salary_col, "salary_scale")
+  }
+
   # For flow mode, validate retirement eligibility parameters if retirees_dt not provided
   # (these are needed if compute_flow_demand needs to calculate retirements internally)
   if (policy_params$mode == "flow") {
     # Birth date may be needed for retirement calculation
     if (!is.null(policy_params$eligibility_type)) {
       if (policy_params$eligibility_type %in% c("age_only", "age_and_tenure")) {
-        validate_column_exists(personnel_dt, birth_date_col, "personnel_dt")
+        .check_spec_columns(contract_dt, personnel_dt, column_spec_args,
+                            required = list(personnel_dt = "birth_date_col"))
       }
     }
   }
-  
+
   return(invisible(TRUE))
 }
 
@@ -728,37 +953,33 @@ check_hiring_inputs <- function(contract_dt,
 #' @param contract_dt data.table. Contract data
 #' @param personnel_dt data.table. Personnel data
 #' @param policy_params List. Policy parameters
-#' @param ref_date Date or character. Reference date
-#' @param personnel_id_col Character. Personnel ID column name
-#' @param start_date_col Character. Start date column name
-#' @param end_date_col Character. End date column name
-#' @param contract_type_col Character. Contract type column name
-#' @param status_col Character. Status column name
+#' @param as_of_date Date or character. Reference date
+#' @param column_spec_args Complete column specification from
+#'   \code{define_column_spec()}.
 #'
 #' @return Invisible TRUE if valid, stops with error otherwise
 #' @keywords internal
-check_movement_inputs <- function(contract_dt,
-                                  personnel_dt,
-                                  salary_scale_dt,
-                                  policy_params,
-                                  ref_date,
-                                  personnel_id_col  = "personnel_id",
-                                  start_date_col    = "start_date",
-                                  end_date_col      = "end_date",
-                                  contract_type_col = "contract_type",
-                                  status_col         = "employment_status") {
-
+check_movement_inputs <- function(
+  contract_dt,
+  personnel_dt,
+  salary_scale_dt,
+  policy_params,
+  as_of_date,
+  column_spec_args = define_column_spec()
+) {
   # Validate data tables
-  validate_datatable(contract_dt,  "contract_dt")
+  validate_datatable(contract_dt, "contract_dt")
   validate_datatable(personnel_dt, "personnel_dt")
 
-  # Validate ref_date
-  validate_date_format(ref_date, "ref_date")
+  # Validate as_of_date
+  validate_date_format(as_of_date, "as_of_date")
 
   # Validate salary_scale_dt
   if (is.null(salary_scale_dt)) {
-    stop("salary_scale_dt is required (data.table keyed on group_cols with a salary column)",
-         call. = FALSE)
+    stop(
+      "salary_scale_dt is required (data.table keyed on group_cols with a salary column)",
+      call. = FALSE
+    )
   }
   if (!data.table::is.data.table(salary_scale_dt)) {
     stop("salary_scale_dt must be a data.table", call. = FALSE)
@@ -770,8 +991,14 @@ check_movement_inputs <- function(contract_dt,
   }
 
   # group_cols: NULL permitted (flat-rate path), but if supplied must be character
-  if (!is.null(policy_params$group_cols) && !is.character(policy_params$group_cols)) {
-    stop("policy_params$group_cols must be a character vector or NULL", call. = FALSE)
+  if (
+    !is.null(policy_params$group_cols) &&
+      !is.character(policy_params$group_cols)
+  ) {
+    stop(
+      "policy_params$group_cols must be a character vector or NULL",
+      call. = FALSE
+    )
   }
 
   # Flat-rate path: policy_table NULL → defaults$movement_rate required
@@ -779,36 +1006,51 @@ check_movement_inputs <- function(contract_dt,
   has_movement_rate <- !is.null(policy_params$defaults$movement_rate)
 
   if (!has_policy_table && !has_movement_rate) {
-    stop(paste0(
-      "policy_params must include either 'policy_table' (data.table) or ",
-      "'defaults$movement_rate' (numeric)"
-    ), call. = FALSE)
+    stop(
+      paste0(
+        "policy_params must include either 'policy_table' (data.table) or ",
+        "'defaults$movement_rate' (numeric)"
+      ),
+      call. = FALSE
+    )
   }
 
   if (has_movement_rate) {
-    validate_positive_number(policy_params$defaults$movement_rate,
-                             "defaults$movement_rate", allow_zero = TRUE)
+    validate_positive_number(
+      policy_params$defaults$movement_rate,
+      "defaults$movement_rate",
+      allow_zero = TRUE
+    )
   }
 
   # Optional: validate movement_strategy if present
   if (!is.null(policy_params$defaults$movement_strategy)) {
-    validate_choice(policy_params$defaults$movement_strategy,
-                    c("random", "tenure", "reverse_tenure", "wage_based"),
-                    "defaults$movement_strategy")
+    validate_choice(
+      policy_params$defaults$movement_strategy,
+      c("random", "tenure", "reverse_tenure", "wage_based"),
+      "defaults$movement_strategy"
+    )
+  }
+
+  # Optional: validate movement_type if present -- tells simulate_horizon()
+  # whether to report this policy's mover count under n_promotions or
+  # n_transfers (the movement mechanism itself is generic and has no way to
+  # tell these apart from group_cols alone).
+  if (!is.null(policy_params$defaults$movement_type)) {
+    validate_choice(
+      policy_params$defaults$movement_type,
+      c("promotion", "transfer"),
+      "defaults$movement_type"
+    )
   }
 
   # salary_scale_dt must contain group_cols (if non-NULL group_cols supplied)
   if (!is.null(policy_params$group_cols)) {
-    validate_columns_exist(salary_scale_dt, policy_params$group_cols, "salary_scale_dt")
-  }
-
-  # salary_scale_dt must contain a salary column
-  salary_pattern    <- "salary|wage|compensation|remuneration"
-  salary_candidates <- grep(salary_pattern, names(salary_scale_dt),
-                            value = TRUE, ignore.case = TRUE)
-  if (length(salary_candidates) == 0) {
-    stop("salary_scale_dt must contain a salary column matching 'salary|wage|compensation|remuneration'",
-         call. = FALSE)
+    validate_columns_exist(
+      salary_scale_dt,
+      policy_params$group_cols,
+      "salary_scale_dt"
+    )
   }
 
   # Validate group_cols exist in contract_dt
@@ -816,14 +1058,596 @@ check_movement_inputs <- function(contract_dt,
     validate_columns_exist(contract_dt, policy_params$group_cols, "contract_dt")
   }
 
-  # Required contract_dt columns
-  required_contract_cols <- c(personnel_id_col, start_date_col,
-                              end_date_col, contract_type_col)
-  validate_columns_exist(contract_dt, required_contract_cols, "contract_dt")
+  # The columns this module reads
+  .check_spec_columns(contract_dt, personnel_dt, column_spec_args, required = list(
+    contract_dt  = c("personnel_id_col", "contract_id_col", "start_date_col",
+                     "end_date_col", "salary_col", "contract_type_col"),
+    personnel_dt = c("personnel_id_col", "status_col")
+  ))
 
-  # Required personnel_dt columns
-  required_personnel_cols <- c(personnel_id_col, status_col)
-  validate_columns_exist(personnel_dt, required_personnel_cols, "personnel_dt")
+  .check_pay_column(salary_scale_dt, column_spec_args$salary_col, "salary_scale_dt")
 
   return(invisible(TRUE))
+}
+
+
+#' Validate Inputs for Allowance Simulation
+#'
+#' @description
+#' Composite validator for \code{\link{simulate_allowances}}, following the
+#' same pattern as \code{\link{check_retirement_inputs}} /
+#' \code{\link{check_hiring_inputs}} / \code{\link{check_movement_inputs}}.
+#' Not called when \code{policy_params} is \code{NULL} -- that short-circuits
+#' to a no-op before validation.
+#'
+#' @param contract_dt data.table. Current-period contract snapshot.
+#' @param personnel_dt data.table. Current-period personnel snapshot.
+#' @param policy_params List. See \code{\link{resolve_allowance_amounts}} for
+#'   the expected shape.
+#' @param as_of_date Date. The reference date for this period -- matches
+#'   \code{check_retirement_inputs()}'s own parameter name.
+#' @param column_spec_args Complete column specification from
+#'   \code{define_column_spec()}.
+#'
+#' @return Invisible \code{TRUE} if valid; stops with an informative error
+#'   otherwise.
+#' @keywords internal
+check_allowance_inputs <- function(contract_dt,
+                                   personnel_dt,
+                                   policy_params,
+                                   as_of_date,
+                                   column_spec_args = define_column_spec()) {
+
+  validate_datatable(contract_dt, "contract_dt")
+  validate_datatable(personnel_dt, "personnel_dt")
+  validate_date_format(as_of_date, "as_of_date")
+  .check_spec_columns(contract_dt, personnel_dt, column_spec_args, required = list(
+    contract_dt = c("contract_id_col", "personnel_id_col", "contract_type_col")
+  ))
+
+  validate_policy_table(policy_params)
+
+  if (is.null(policy_params$defaults$amount)) {
+    stop("check_allowance_inputs: policy_params$defaults must contain 'amount' ",
+         "(the fallback allowance amount for unmatched groups).", call. = FALSE)
+  }
+
+  if (!is.null(policy_params$group_cols) &&
+      "allowance_type" %in% policy_params$group_cols &&
+      !"allowance_type" %in% names(policy_params$policy_table)) {
+    stop("check_allowance_inputs: policy_params$group_cols includes ",
+         "'allowance_type' but policy_table has no 'allowance_type' column.",
+         call. = FALSE)
+  }
+
+  if (!is.null(policy_params$policy_table) &&
+      !"amount" %in% names(policy_params$policy_table)) {
+    stop("check_allowance_inputs: policy_table must contain an 'amount' column.",
+         call. = FALSE)
+  }
+
+  # Multiplier slot: same NULL/NULL consistency rule as the main 3-slot pattern
+  mgc <- policy_params$multiplier_group_cols
+  mpt <- policy_params$multiplier_policy_table
+  if (!is.null(mgc) && is.null(mpt)) {
+    stop("check_allowance_inputs: multiplier_group_cols supplied but ",
+         "multiplier_policy_table is NULL.", call. = FALSE)
+  }
+  if (!is.null(mgc) && "allowance_type" %in% mgc) {
+    stop("check_allowance_inputs: multiplier_group_cols must not include ",
+         "'allowance_type' -- the multiplier is resolved per contract, ",
+         "not per type.", call. = FALSE)
+  }
+  if (!is.null(mpt) && !"total_allowance_multiplier" %in% names(mpt)) {
+    stop("check_allowance_inputs: multiplier_policy_table must contain a ",
+         "'total_allowance_multiplier' column.", call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
+
+## column-name specification and output options (ADR 0012, 0013, 0014)
+
+# The columns that may be set to NULL in define_column_spec().
+.COLUMN_SPEC_OPTIONAL <- c("age_col", "tenure_col", "birth_date_col", "hire_date_col", "gender_col")
+
+#' Say Which Column Holds What in Your Data
+#'
+#' Which column in your data holds each thing the simulation reads? Build the
+#' answer here and pass it as `column_spec_args` to any **govhrcast** function.
+#'
+#' Data harmonized with **govhr** already use the default names, so
+#' `define_column_spec()` with no arguments is all it needs, and it is the
+#' default everywhere. If your data differ, name only the columns that differ.
+#' Your names are used all the way through: nothing is renamed, so the tables
+#' that come back keep them.
+#'
+#' @param personnel_id_col String. The person ID, in both the contract and the
+#'   personnel table. Default `"personnel_id"`.
+#' @param contract_id_col String. The contract ID, in the contract table.
+#'   Default `"contract_id"`.
+#' @param ref_date_col String. The snapshot date. It also stamps each year in
+#'   the returned microdata. Default `"ref_date"`.
+#' @param start_date_col,end_date_col Strings. When a contract starts and ends.
+#'   Defaults `"start_date"` and `"end_date"`.
+#' @param salary_col String. The salary the wage bill is measured in. A pay table
+#'   such as `salary_scale_dt` must have a column of the same name. Default
+#'   `"gross_salary_lcu"`.
+#' @param contract_type_col String. The contract type, which says who is on the
+#'   payroll and who holds a pension. Default `"contract_type"`.
+#' @param status_col String. The person's employment status, in the personnel
+#'   table. Default `"employment_status"`.
+#' @param age_col String or `NULL`. Age in years, in the personnel table.
+#'   `simulate_horizon()` calculates it from `birth_date_col` when the column is
+#'   missing or empty, then adds 1 each year. Default `"age"`. See Details for
+#'   what `NULL` does.
+#' @param tenure_col String or `NULL`. Years of service in the public sector, in
+#'   the personnel table. `simulate_horizon()` calculates it from contract history
+#'   when the column is missing or empty, then adds 1 each year. Custom retirement
+#'   rules and pension formulas can call it `tenure_years`, whatever this column
+#'   is called. Default `"personnel_tenure"`. See Details for what `NULL` does.
+#' @param birth_date_col String or `NULL`. Date of birth, used to calculate age.
+#'   Use `NULL` if you have none, and then `age_col` must already be filled in.
+#'   Default `"birth_date"`.
+#' @param hire_date_col String or `NULL`. Each person's original hire date, in the
+#'   personnel table (for example `"first_employment_date"`). When given,
+#'   status-quo hiring rates are estimated from it. With the default `NULL`, they
+#'   are estimated from when people first appear in the panel.
+#' @param gender_col String or `NULL`. Used to give new hires a gender. If your
+#'   data have no such column, new hires have none. Default `"gender"`.
+#'
+#' @return A named list with one element per argument, in the order above. Pass
+#'   it as `column_spec_args`. The same list works for every function: columns a
+#'   function does not use are ignored.
+#'
+#' @details
+#' `NULL` for `age_col` and `tenure_col` does not mean the same everywhere.
+#' `simulate_retirement()` then ignores any such column and calculates the value
+#' itself. `simulate_horizon()` treats `NULL` as the default name, and
+#' `estimate_retirement_hazard_rates()` does the same for `age_col`, so an `age`
+#' column that is already filled in is still used. `simulate_scenario()` leaves
+#' the value as it is and does not add a year.
+#'
+#' This function checks the names only, not your data: it cannot tell whether a
+#' column exists. Each function checks the columns it reads when it runs.
+#'
+#' It stops with an error when an argument is misspelled, when a name is not one
+#' non-empty string, when `NULL` is given for a column that cannot be left out,
+#' or when two arguments name the same column. Other functions stop with an error
+#' if `column_spec_args` did not come from here, for example a plain `list()`.
+#'
+#' @seealso [simulate_horizon()], which takes this as `column_spec_args`.
+#'
+#' @examples
+#' # Harmonized data: nothing to name
+#' define_column_spec()$salary_col
+#'
+#' # Name only what differs; everything else keeps its default
+#' spec <- define_column_spec(salary_col = "base_salary_lcu")
+#' spec$salary_col
+#' spec$personnel_id_col
+#'
+#' # A table whose person ID has another name. The template has one row for each
+#' # pair of establishments that people moved between.
+#' contract <- data.table::copy(bra_hrmis_contract)
+#' data.table::setnames(contract, "personnel_id", "pid")
+#' template <- movement_policy_template(
+#'   contract,
+#'   group_cols = "est_id",
+#'   column_spec_args = define_column_spec(personnel_id_col = "pid")
+#' )
+#' names(template)
+#'
+#' @export
+define_column_spec <- function(personnel_id_col  = "personnel_id",
+                               contract_id_col   = "contract_id",
+                               ref_date_col      = "ref_date",
+                               start_date_col    = "start_date",
+                               end_date_col      = "end_date",
+                               salary_col        = "gross_salary_lcu",
+                               contract_type_col = "contract_type",
+                               status_col        = "employment_status",
+                               age_col           = "age",
+                               tenure_col        = "personnel_tenure",
+                               birth_date_col    = "birth_date",
+                               hire_date_col     = NULL,
+                               gender_col        = "gender") {
+  spec <- mget(names(formals()))   # all 13 arguments, as a named list
+  .check_column_spec(spec)
+  spec
+}
+
+#' Check a Column Specification
+#'
+#' Run by [define_column_spec()] and again by each exported function, so a plain
+#' list or a spec edited by hand cannot reach the modules.
+#'
+#' @param spec The object passed as `column_spec_args`.
+#' @return `invisible(TRUE)`; stops if `spec` does not have exactly
+#'   [define_column_spec()]'s arguments, if a name is not one non-empty string
+#'   (`NULL` is allowed for `.COLUMN_SPEC_OPTIONAL`), or if two arguments name the
+#'   same column.
+#' @noRd
+.check_column_spec <- function(spec) {
+  if (!identical(names(spec), names(formals(define_column_spec)))) {
+    stop("column_spec_args must come from define_column_spec(), e.g. ",
+         "define_column_spec(salary_col = \"base_salary_lcu\").", call. = FALSE)
+  }
+
+  for (key in names(spec)) {
+    value <- spec[[key]]
+    if (is.null(value) && key %in% .COLUMN_SPEC_OPTIONAL) next
+    if (!is.character(value) || length(value) != 1L || is.na(value) || !nzchar(value)) {
+      stop(key, " must be a single column name (a string)", call. = FALSE)
+    }
+  }
+
+  named <- unlist(spec)
+  dup <- named[duplicated(named) | duplicated(named, fromLast = TRUE)]
+  if (length(dup) > 0L) {
+    col <- dup[[1L]]
+    stop(
+      paste(names(dup)[dup == col], collapse = " and "),
+      " both name column '", col, "'. Each argument must name a different column.",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
+
+#' Say How to Label a Run and What It Returns
+#'
+#' How should this run be labelled, and should it return its person-level data?
+#' Build the answer here and pass it as `output_control_args` to
+#' [simulate_horizon()].
+#'
+#' With no arguments the run has no label and returns only its summary tables, and
+#' that is the default in [simulate_horizon()]. Name only what you want to change.
+#'
+#' @param scenario_name String or `NULL`. A label for this run, for example
+#'   `"Status quo"`. When given, `$comparison` gets `scenario_id` and
+#'   `scenario_label` columns, so several runs can be stacked and told apart.
+#'   Default `NULL`.
+#' @param is_baseline `TRUE` or `FALSE`. Whether this run is the one the others are
+#'   compared with. `$comparison` always has an `is_baseline` column holding this
+#'   value. It says nothing about dates: where the projection starts is
+#'   `baseline_date` in [simulate_horizon()]. Default `FALSE`.
+#' @param return_microdata `TRUE` or `FALSE`. `TRUE` also returns `$contract_dt`
+#'   and `$personnel_dt`, with every projected year stacked, and `$allowance_dt`
+#'   when allowances are modelled. These can be large, and they are person-level
+#'   data, so handle them like the input microdata before saving or sharing a
+#'   result. Default `FALSE`.
+#'
+#' @return A named list with one element per argument. Pass it as
+#'   `output_control_args`.
+#'
+#' @details
+#' It stops with an error when an argument is misspelled, when `scenario_name` is
+#' not one string or `NULL`, or when a switch is not a single `TRUE` or `FALSE`.
+#' [simulate_horizon()] stops with an error if `output_control_args` did not come
+#' from here, for example a plain `list()`.
+#'
+#' @seealso [simulate_horizon()], which takes this as `output_control_args`;
+#'   [define_column_spec()], which says which columns hold what.
+#'
+#' @examples
+#' # The default: no label and no person-level data
+#' define_output_control()$return_microdata
+#'
+#' # Name only what you want to change
+#' reform <- define_output_control(scenario_name = "Retire at 65")
+#' reform$scenario_name
+#' reform$is_baseline
+#'
+#' @export
+define_output_control <- function(scenario_name    = NULL,
+                                  is_baseline      = FALSE,
+                                  return_microdata = FALSE) {
+  output_control <- mget(names(formals()))   # all 3 arguments, as a named list
+  .check_output_control(output_control)
+  output_control
+}
+
+#' Check the Output Options
+#'
+#' Run by [define_output_control()] and again by [simulate_horizon()], so a plain
+#' list or options edited by hand cannot reach the run.
+#'
+#' @param output_control The object passed as `output_control_args`.
+#' @return `invisible(TRUE)`; stops if it does not have exactly
+#'   [define_output_control()]'s arguments, if `scenario_name` is not one string or
+#'   `NULL`, or if a switch is not a single `TRUE` or `FALSE`.
+#' @noRd
+.check_output_control <- function(output_control) {
+  if (!identical(names(output_control), names(formals(define_output_control)))) {
+    stop("output_control_args must come from define_output_control(), e.g. ",
+         "define_output_control(return_microdata = TRUE).", call. = FALSE)
+  }
+
+  # scenario_name labels the run; the switches are single TRUE/FALSE values
+  scenario_name <- output_control$scenario_name
+  if (!is.null(scenario_name) &&
+      (!is.character(scenario_name) || length(scenario_name) != 1L || is.na(scenario_name))) {
+    stop("scenario_name must be a single character string or NULL.", call. = FALSE)
+  }
+  for (key in c("is_baseline", "return_microdata")) {
+    value <- output_control[[key]]
+    if (!is.logical(value) || length(value) != 1L || is.na(value)) {
+      stop(key, " must be TRUE or FALSE.", call. = FALSE)
+    }
+  }
+  invisible(TRUE)
+}
+
+#' Check That the Specified Columns Exist in the Data
+#'
+#' Each exported function checks only the keys it reads, so one spec can be
+#' reused across calls; keys set to \code{NULL} are skipped.
+#'
+#' @param contract_dt,personnel_dt The caller's tables.
+#' @param spec Complete specification from \code{define_column_spec()}.
+#' @param required Named list: for each table, the spec keys whose columns
+#'   it must contain. The default is what \code{simulate_horizon()} needs.
+#' @return \code{invisible(TRUE)}; stops naming the argument and table of the
+#'   first missing column.
+#' @noRd
+.check_spec_columns <- function(contract_dt, personnel_dt, spec,
+                                required = list(
+                                  contract_dt  = c("personnel_id_col", "contract_id_col",
+                                                   "start_date_col", "end_date_col",
+                                                   "salary_col", "contract_type_col"),
+                                  personnel_dt = c("personnel_id_col", "status_col",
+                                                   "hire_date_col")
+                                )) {
+  tables <- list(contract_dt = contract_dt, personnel_dt = personnel_dt)
+  for (tbl in names(required)) {
+    for (key in required[[tbl]]) {
+      if (is.null(spec[[key]])) next
+      if (!spec[[key]] %in% names(tables[[tbl]])) {
+        stop(key, " = '", spec[[key]], "': column not found in ", tbl, ".",
+             call. = FALSE)
+      }
+    }
+  }
+  invisible(TRUE)
+}
+
+#' Check That a Pay Table Holds the Pay Column
+#'
+#' A pay table gives the pay for each group in a column with the same name as
+#' \code{salary_col}. There is one salary column, for the table and the data.
+#'
+#' @param pay_table data.table.  The pay table.
+#' @param salary_col Character.  The pay column.
+#' @param table_name Character.  The table's name, for the error message.
+#' @return \code{invisible(TRUE)}; stops if the column is missing or not numeric.
+#' @noRd
+.check_pay_column <- function(pay_table, salary_col, table_name) {
+  if (!salary_col %in% names(pay_table)) {
+    stop(table_name, " must have a column named '", salary_col,
+         "', the same as salary_col, holding the pay for each group. ",
+         "It has: ", paste(names(pay_table), collapse = ", "), ".", call. = FALSE)
+  }
+  if (!is.numeric(pay_table[[salary_col]])) {
+    stop(table_name, ": column '", salary_col, "' must be numeric.", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+
+## custom retirement eligibility validation
+
+.ALLOWED_RULE_CALLS <- c(
+  "(",
+  "&",
+  "|",
+  "!",
+  "&&",
+  "||",
+  ">",
+  ">=",
+  "<",
+  "<=",
+  "==",
+  "!=",
+  "%in%",
+  "c",
+  "is.na"
+)
+
+
+.ALLOWED_FORMULA_CALLS <- c(
+  "(",
+  "+",
+  "-",
+  "*",
+  "/",
+  "^",
+  "c",
+  "is.na",
+  "pmin",
+  "pmax",
+  "round",
+  "abs"
+)
+
+#' Recursively Validate That an Expression Only Uses Safe Calls
+#'
+#' @description
+#' Walks a parsed R expression (as produced by \code{\link{str2lang}}) and
+#' throws an error if it contains any function/operator call not present in
+#' \code{allowed_calls}. This guards user-supplied eligibility rules and
+#' pension formulas, which would otherwise be able to call arbitrary R code
+#' (e.g. \code{system()}) when evaluated later via \code{eval()}. It is run
+#' both when a policy is validated and immediately before evaluation.
+#'
+#' @param expr A parsed R language object (call, name, or atomic value), as
+#'   returned by \code{str2lang()}.
+#' @param allowed_calls Character vector of function/operator names that may
+#'   be called (\code{.ALLOWED_RULE_CALLS} or \code{.ALLOWED_FORMULA_CALLS}).
+#' @param label Character scalar naming the user input being checked
+#'   (\code{"eligibility_rule"} or \code{"pension_formula"}); used as the
+#'   prefix of every error message.
+#'
+#' @details
+#' The check is recursive: for a call, it validates the call's own
+#' function/operator name and then recurses into each argument. Names (bare
+#' column references) and atomic values (numbers, strings, logicals) are
+#' always considered safe and terminate the recursion. A call whose head is
+#' not a plain name -- \code{pkg::fn(...)}, \code{(function() ...)()} -- is
+#' rejected outright.
+#'
+#' @return \code{TRUE} if \code{expr} is a safe name/atomic value. Otherwise
+#'   called for its side effect of throwing an error; the return value is not
+#'   meaningful for call expressions.
+#'
+#' @keywords internal
+.check_safe_calls <- function(expr,
+                              allowed_calls = .ALLOWED_RULE_CALLS,
+                              label = "eligibility_rule") {
+  if (is.call(expr)) {
+    # Only a plain function name can be called: pkg::fn() and anonymous
+    # functions have a call as their head and are rejected here.
+    if (!is.name(expr[[1]])) {
+      stop(
+        label, ": only plain function names can be called; '",
+        paste(deparse(expr[[1]]), collapse = " "), "' is not allowed.",
+        call. = FALSE
+      )
+    }
+
+    # The function itself must be on the allow-list.
+    func_name <- as.character(expr[[1]])
+    if (!func_name %in% allowed_calls) {
+      stop(
+        label, ": disallowed function/operator '",
+        func_name,
+        "'. Allowed: ",
+        paste(allowed_calls, collapse = ", "),
+        call. = FALSE
+      )
+    }
+
+    # Recursively check each argument of the call.
+    for (arg in as.list(expr[-1])) {
+      .check_safe_calls(arg, allowed_calls, label)
+    }
+  } else if (is.name(expr) || is.atomic(expr)) {
+    # Bare column references and literal values are always safe.
+    return(TRUE)
+  } else {
+    stop(
+      "Invalid expression in ", label, ": ",
+      deparse(expr),
+      ". Only the allowed operators and functions can be used.",
+      call. = FALSE
+    )
+  }
+}
+
+#' Validate a User-Supplied Eligibility Rule String
+#'
+#' @description
+#' Parses an \code{eligibility_rule} string (for example,
+#' \code{"age >= 60 & tenure_years >= 5"}), checks that it only uses
+#' allow-listed operators/functions via \code{\link{.check_safe_calls}}, and
+#' optionally verifies that every referenced column exists in
+#' \code{available_cols}.
+#'
+#' @param rule Character scalar. Rule expression string.
+#' @param available_cols Character vector or \code{NULL}. If supplied, all
+#'   symbols in \code{rule} must be members of this set.
+#'
+#' @return Invisibly returns the parsed expression.
+#'
+#' @details
+#' This function is primarily called for validation side effects. It errors on
+#' parse failures, disallowed calls, or references to unavailable columns.
+#'
+#' @keywords internal
+validate_eligibility_rule <- function(rule, available_cols = NULL) {
+  validate_character_string(rule, "eligibility_rule")
+
+  # Parse the rule string into an expression; report parse failures clearly.
+  expr <- tryCatch(str2lang(rule), error = function(e) {
+    stop(
+      "eligibility_rule could not be parsed as an R expression: ",
+      conditionMessage(e),
+      call. = FALSE
+    )
+  })
+
+  # Reject any expression that uses functions/operators outside the allow-list.
+  .check_safe_calls(expr)
+
+  # Optionally verify that every column referenced in the rule is available.
+  if (!is.null(available_cols)) {
+    used_cols <- all.vars(expr)
+    missing_cols <- setdiff(used_cols, available_cols)
+    if (length(missing_cols) > 0L) {
+      stop(
+        "eligibility_rule references column(s) not found: ",
+        paste(missing_cols, collapse = ", "),
+        ". Available columns: ",
+        paste(available_cols, collapse = ", "),
+        call. = FALSE
+      )
+    }
+  }
+
+  invisible(expr)
+}
+
+
+#' Validate a User-Supplied Pension Formula String
+#' 
+#' @description
+#' Parses a \code{pension_formula} string (for example, \code{"salary * 0.02 * tenure_years"}), 
+#' checks that it only uses allow-listed operators/functions via \code{\link{.check_safe_calls}}, 
+#' and optionally verifies that every referenced column exists in \code{available_cols}.
+#' 
+#' @param formula Character scalar. Formula expression string.
+#' @param available_cols Character vector or \code{NULL}. If supplied, all
+#'   symbols in \code{formula} must be members of this set.
+#'
+#' @return Invisibly returns the parsed expression.
+#'
+#' @details
+#' This function is primarily called for validation side effects. It errors on
+#' parse failures, disallowed calls, or references to unavailable columns.
+#'
+#' @keywords internal
+validate_pension_formula <- function(formula, available_cols = NULL) {
+  validate_character_string(formula, "pension_formula")
+
+  # Parse the formula string into an expression; report parse failures clearly.
+  expr <- tryCatch(str2lang(formula), error = function(e) {
+    stop(
+      "pension_formula could not be parsed as an R expression: ",
+      conditionMessage(e),
+      call. = FALSE
+    )
+  })
+
+  # Reject any expression that uses functions/operators outside the allow-list.
+  .check_safe_calls(expr, allowed_calls = .ALLOWED_FORMULA_CALLS,
+                    label = "pension_formula")
+
+  # Optionally verify that every column referenced in the formula is available.
+  if (!is.null(available_cols)) {
+    used_cols <- all.vars(expr)
+    missing_cols <- setdiff(used_cols, available_cols)
+    if (length(missing_cols) > 0L) {
+      stop(
+        "pension_formula references column(s) not found: ",
+        paste(missing_cols, collapse = ", "),
+        ". Available columns: ",
+        paste(available_cols, collapse = ", "),
+        call. = FALSE
+      )
+    }
+  }
+
+  invisible(expr)
 }

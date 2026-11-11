@@ -14,20 +14,14 @@ simulate_scenario(
   exit_policy = NULL,
   movement_policy = NULL,
   hiring_policy = NULL,
+  allowance_policy = NULL,
+  allowance_dt = NULL,
   salary_growth_rate = 0,
   pension_cola_rate = 0,
-  personnel_id_col = "personnel_id",
-  contract_id_col = "contract_id",
-  birth_date_col = "birth_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type",
-  status_col = "employment_status",
-  age_col = "age",
-  tenure_col = "tenure_years",
+  allowance_growth_rate = 0,
+  column_spec_args = define_column_spec(),
   period_fraction = 1,
-  hire_date_col = NULL
+  seed = NULL
 )
 }
 \arguments{
@@ -36,38 +30,48 @@ simulate_scenario(
 \item{personnel_dt}{data.table.  Single-snapshot personnel microdata.}
 
 \item{salary_scale_dt}{data.table.  Pay table used for movement and hiring
-salary assignment.  Updated in-place each period by \code{salary_growth_rate}.}
+salary assignment.  Not modified: the pay table grown by
+\code{salary_growth_rate} is returned as \code{$salary_scale_dt}.  None of
+the tables passed in (\code{contract_dt}, \code{personnel_dt},
+\code{salary_scale_dt}, \code{pensioner_register}) is changed; the updated
+versions are returned.}
 
 \item{period_date}{Date.  The reference date for this simulation period.
 Stored in \code{pensioner_register} for cohort auditing and used as the
 \code{period_date} column in the returned summary row.}
 
 \item{pensioner_register}{data.table or \code{NULL}.  Accumulated pensioner
-ledger from prior periods.  Must contain columns \code{personnel_id},
-\code{pension_amount}, \code{period_date}.  Pass \code{NULL} (default)
-for the first period -- an empty register is initialised internally.}
+ledger from prior periods.  Must contain the person ID column (under the
+name \code{personnel_id_col} gives), \code{pension_amount} and
+\code{period_date}.  Pass \code{NULL} (default) for the first period --
+an empty register is initialised internally.}
 
-\item{retirement_policy}{List or \code{NULL}.  Canonical 3-slot policy passed
-to \code{simulate_retirement()}: \code{group_cols}, \code{policy_table},
-\code{defaults} (keys: \code{eligibility_type}, \code{pension_type},
-\code{min_age}, \code{min_tenure}, \code{accrual_rate},
-\code{ref_wage_col}, \code{max_years}, \code{replacement_cap}).
-Pass \code{NULL} to skip retirement.}
+\item{retirement_policy, exit_policy, movement_policy, hiring_policy, allowance_policy}{Lists, or \code{NULL} to switch that module off (the default here for
+all five).  Build them with the same helper functions as
+\code{\link{simulate_horizon}} -- see the table in its Details:
+\code{design_retirement_policy_*()} (\code{\link{retirement_policy_helpers}}),
+\code{design_exit_policy_*()} (\code{\link{exit_policy_helpers}}),
+\code{design_movement_policy_*()} (\code{\link{movement_policy_helpers}}),
+\code{design_hiring_policy_*()} (\code{\link{hiring_policy_helpers}}) and
+\code{design_allowance_policy_*()} (\code{\link{allowance_policy_helpers}}).
 
-\item{exit_policy}{List or \code{NULL}.  Canonical 3-slot policy passed to
-\code{simulate_exits()}: \code{group_cols}, \code{policy_table},
-\code{defaults} (keys: \code{exit_rate}, \code{exit_strategy},
-\code{active_types}, \code{exited_type}).
-Pass \code{NULL} to model zero non-retirement attrition.}
+\strong{This function never estimates historical rates.}  A status-quo
+policy must already have its rates filled in: pass a retirement,
+exit or movement policy whose \code{policy_table} holds estimated
+rates (e.g. from \code{\link{estimate_retirement_hazard_rates}},
+\code{\link{estimate_historical_exit_rates}} or
+\code{\link{movement_policy_template}}), or a status-quo hiring policy
+with \code{squorate_dt} filled in (from
+\code{\link{estimate_historical_hiring_rates}}).
+\code{simulate_horizon()} does all of this for you.  When allowances are modelled, \code{salary_col} should be base
+pay, not a gross figure that already includes allowances -- see
+\code{\link{simulate_allowances}}.}
 
-\item{movement_policy}{List or \code{NULL}.  Canonical 3-slot policy passed
-to \code{simulate_promotions_transfers()}: \code{group_cols},
-\code{policy_table}, \code{defaults} (keys: \code{movement_rate},
-\code{movement_strategy}, \code{active_types}, \code{salary_update_rule}).
-Pass \code{NULL} to skip movements.}
-
-\item{hiring_policy}{List or \code{NULL}.  Passed to
-\code{simulate_hiring()}.  Pass \code{NULL} to skip.}
+\item{allowance_dt}{data.table or \code{NULL}.  Accumulated allowance
+ledger from prior periods within \emph{this same} \code{simulate_scenario()}
+chain.  \code{NULL} (default) starts a fresh ledger.  Unlike
+\code{pensioner_register}, \code{simulate_horizon()} does not accept this
+as an input -- it is purely internal there.}
 
 \item{salary_growth_rate}{Numeric scalar.  COLA rate for this period.
 Default \code{0}.}
@@ -76,76 +80,100 @@ Default \code{0}.}
 \code{pensioner_register$pension_amount} this period.  Defaults to
 \code{salary_growth_rate} when \code{NULL}.  Default \code{0}.}
 
-\item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
+\item{allowance_growth_rate}{Numeric scalar.  Growth rate applied to the
+amounts in \code{allowance_policy} this period, before they are assigned,
+so allowances grow in the same year as pay.  Default \code{0}.}
 
-\item{contract_id_col}{Character.  Default \code{"contract_id"}.}
-
-\item{birth_date_col}{Character.  Column holding date of birth.
-Default \code{"birth_date"}.}
-
-\item{start_date_col}{Character.  Default \code{"start_date"}.}
-
-\item{end_date_col}{Character.  Default \code{"end_date"}.}
-
-\item{salary_col}{Character.  Default \code{"gross_salary_lcu"}.}
-
-\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
-
-\item{status_col}{Character.  Default \code{"status"}.}
-
-\item{age_col}{Character or \code{NULL}.  Age column to increment.
-Default \code{"age"}.}
-
-\item{tenure_col}{Character or \code{NULL}.  Tenure column to increment.
-Default \code{"tenure_years"}.}
+\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only
+the ones that differ from the \code{govhr} defaults, e.g.
+\code{define_column_spec(salary_col = "base_salary_lcu")}.  See
+\code{\link{define_column_spec}} for the keys and defaults.  Here,
+\code{age_col} and \code{tenure_col} are the columns aged each period;
+\code{NULL} leaves that column as it is.}
 
 \item{period_fraction}{Numeric.  Fraction of a year each period represents
 (1 for annual, 1/12 for monthly, 1/365.25 for daily).  Used to increment
-\code{age_col} and \code{tenure_col} by the correct amount.  Default 1.}
+the age and tenure columns by the correct amount.  Default 1.}
 
-\item{hire_date_col}{Character or \code{NULL}.  Forwarded to
-\code{simulate_hiring()}.  When supplied, historical hiring rates are
-estimated from this person-level hire-date column rather than from panel
-first-appearance detection.  Only relevant when
-\code{hiring_policy$mode = "status_quo"}.  Default \code{NULL}.}
+\item{seed}{Integer or \code{NULL}.  When supplied, calls
+\code{set.seed(seed)} before any random selection this call performs
+(e.g. \code{exit_strategy}/\code{retire_strategy} \code{"random"}
+draws), making a standalone \code{simulate_scenario()} call
+reproducible.  Default \code{NULL} (no seeding).  When calling this
+function repeatedly from \code{\link{simulate_horizon}}'s own period
+loop, leave this \code{NULL} and pass \code{seed} to
+\code{simulate_horizon()} instead -- seeding once per period would
+create correlated draws across periods rather than a continuous RNG
+stream.  Your own random-number state is restored when the function
+returns, so seeding a run does not change the random draws in code you
+run afterwards.}
 }
 \value{
 Named list:
 \describe{
 \item{summary}{One-row \code{data.table} with columns:
-\code{period_date}, \code{n_headcount_start}, \code{wage_bill_start},
+\code{period_start_date} (the \code{period_date} passed in),
+\code{n_headcount_start}, \code{wage_bill_start},
 \code{n_exits}, \code{exit_savings}, \code{n_non_ret_exits},
 \code{non_ret_exit_savings}, \code{pension_cost_new},
 \code{pension_cost_total}, \code{n_promotions}, \code{n_transfers},
 \code{promotion_effect}, \code{transfer_effect}, \code{n_hires},
-\code{hiring_effect}, \code{inflation_effect},
-\code{n_headcount_end}, \code{wage_bill_end}.}
+\code{hiring_effect}, \code{n_downsized}, \code{downsizing_savings},
+\code{inflation_effect},
+\code{n_headcount_end}, \code{wage_bill_end}, \code{allowance_cost_end}
+(\code{0} when \code{allowance_policy} is \code{NULL}).}
 \item{contract_dt}{Updated contract snapshot.}
 \item{personnel_dt}{Updated personnel snapshot.}
 \item{salary_scale_dt}{Updated pay table (post-COLA).}
 \item{pensioner_register}{Accumulated pensioner ledger including new
 retirees from this period.}
+\item{allowance_dt}{Accumulated allowance ledger including this
+period's rows, or unchanged/\code{NULL} when \code{allowance_policy}
+is \code{NULL}.}
+\item{allowance_policy}{\code{allowance_policy} as supplied, with
+\code{policy_table} grown by \code{allowance_growth_rate} -- pass
+this back in as next period's \code{allowance_policy} to carry the
+growth forward (\code{simulate_horizon()} does this automatically).}
+\item{hiring_policy}{\code{hiring_policy} as supplied, with any
+\code{salary_scale} you passed in it grown by
+\code{salary_growth_rate} -- pass this back in as next period's
+\code{hiring_policy} so new hires keep up with pay
+(\code{simulate_horizon()} does this automatically).}
 }
 }
 \description{
 Runs all govhrcast simulation modules for \emph{one} period (year) and
 returns a one-row wage-bill decomposition summary together with updated
-state objects.  Operations are applied in this order:
+state objects.  \code{\link{simulate_horizon}} calls this once per year;
+most users should use \code{simulate_horizon()} instead, which also
+estimates status-quo policies from historical data.  Operations are
+applied in this order:
 \enumerate{
 \item \strong{Snapshot A} -- record \code{wage_bill_start} and \code{n_headcount_start}.
 \item \strong{Retirement} -- remove retirees; accumulate \code{pensioner_register}.
+\item \strong{Other exits} -- resignations, dismissals, contracts not renewed.
 \item \strong{Movements} -- apply promotions and transfers.
 \item \strong{Hiring} -- fill vacancies.
-\item \strong{Aging} -- increment \code{age} and \code{tenure_years}.
-\item \strong{COLA} -- scale salary table and contract salaries.
+\item \strong{Aging} -- increment \code{age_col} and \code{tenure_col}.
+\item \strong{COLA} -- grow the salary table, contract salaries, a pay table passed
+to the hiring policy (by \code{salary_growth_rate}) and the allowance
+amounts (by \code{allowance_growth_rate}).
+\item \strong{Allowances} -- assign this year's grown allowance amounts to the
+contracts, after movements and hiring have settled who is in which group.
+\item \strong{Pension COLA} -- grow the pensions on the register by
+\code{pension_cola_rate}.
 \item \strong{Snapshot B} -- record \code{wage_bill_end} and \code{n_headcount_end}.
 }
 }
 \details{
 \strong{Wage bill measurement}: \code{wage_bill_start} and \code{wage_bill_end}
-are computed via an internal helper that sums \code{salary_col} over active
-contract rows only -- rows with \code{contract_type = "pensioner"} and
-rows with a missing salary are excluded.  The \code{pensioner_register} is a
+are computed via an internal helper that sums \code{salary_col} over the
+contract rows on the payroll -- rows with \code{contract_type} of
+\code{"pensioner"} or \code{"inactive"} and rows with a missing salary are
+excluded, while a blank contract type counts as staff.  Unlike
+\code{simulate_horizon()}, this function does not look at
+\code{employment_status} to find pensioners, so give their rows the contract
+type \code{"pensioner"} when you call it directly.  The \code{pensioner_register} is a
 separate audit ledger that tracks \code{pension_amount} (the pension formula
 output) and is never folded into the wage-bill totals.
 }
@@ -165,9 +193,9 @@ s <- list(
   personnel_dt = data.table(
     personnel_id = "P1",
     birth_date   = as.Date("1975-01-01"),
-    status       = "active",
+    employment_status = "active",
     age          = 45,
-    tenure_years = 14
+    personnel_tenure = 14
   )
 )
 result <- simulate_scenario(

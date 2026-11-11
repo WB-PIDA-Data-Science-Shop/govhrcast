@@ -36,7 +36,7 @@ create_test_data_for_update <- function() {
 test_that("generate_new_personnel creates correct number of records", {
   result <- generate_new_personnel(
     n = 5,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_s3_class(result, "data.table")
@@ -50,7 +50,7 @@ test_that("generate_new_personnel creates correct number of records", {
 test_that("generate_new_personnel adds group values", {
   result <- generate_new_personnel(
     n = 3,
-    ref_date = as.Date("2024-06-01"),
+    as_of_date = as.Date("2024-06-01"),
     group_vals = list(department = "HR", paygrade = "G5")
   )
   
@@ -65,7 +65,7 @@ test_that("generate_new_personnel adds group values", {
 test_that("generate_new_personnel returns empty for n <= 0", {
   result <- generate_new_personnel(
     n = 0,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_s3_class(result, "data.table")
@@ -75,7 +75,7 @@ test_that("generate_new_personnel returns empty for n <= 0", {
 test_that("generate_new_personnel respects custom column names", {
   result <- generate_new_personnel(
     n = 2,
-    ref_date = as.Date("2024-06-01"),
+    as_of_date = as.Date("2024-06-01"),
     personnel_id_col = "emp_id",
     status_col = "emp_status"
   )
@@ -94,7 +94,7 @@ test_that("generate_new_contracts creates correct number of records", {
   
   result <- generate_new_contracts(
     personnel_ids = personnel_ids,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_s3_class(result, "data.table")
@@ -111,7 +111,7 @@ test_that("generate_new_contracts adds group values", {
   
   result <- generate_new_contracts(
     personnel_ids = personnel_ids,
-    ref_date = as.Date("2024-06-01"),
+    as_of_date = as.Date("2024-06-01"),
     group_vals = list(department = "IT", paygrade = "G6")
   )
   
@@ -124,7 +124,7 @@ test_that("generate_new_contracts adds group values", {
 test_that("generate_new_contracts returns empty for empty personnel_ids", {
   result <- generate_new_contracts(
     personnel_ids = character(0),
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_s3_class(result, "data.table")
@@ -225,7 +225,7 @@ test_that("select_personnel_to_remove with last_hired_first strategy", {
     personnel_dt = test_data$personnel_dt,
     n_remove = 3,
     strategy = "last_hired_first",
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(result, "character")
@@ -243,7 +243,7 @@ test_that("select_personnel_to_remove respects group filtering", {
     n_remove = 2,
     strategy = "last_hired_first",
     group_vals = list(department = "HR"),
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(result, "character")
@@ -262,7 +262,7 @@ test_that("select_personnel_to_remove with random strategy", {
     personnel_dt = test_data$personnel_dt,
     n_remove = 3,
     strategy = "random",
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(result, "character")
@@ -278,7 +278,7 @@ test_that("select_personnel_to_remove returns empty for n_remove <= 0", {
     personnel_dt = test_data$personnel_dt,
     n_remove = 0,
     strategy = "last_hired_first",
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(result, "character")
@@ -315,7 +315,7 @@ test_that("update_state_with_adjustment handles hiring (positive net_change)", {
     personnel_dt = test_data$personnel_dt,
     adjustment_dt = adjustment_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(result, "list")
@@ -351,15 +351,16 @@ test_that("update_state_with_adjustment handles downsizing (negative net_change)
   )
   
   initial_n_active <- test_data$personnel_dt[employment_status == "active", .N]
-  
+  n_inactive_before <- test_data$contract_dt[contract_type == "inactive", .N]
+
   result <- update_state_with_adjustment(
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     adjustment_dt = adjustment_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
-  
+
   # Check no new hires
   expect_equal(nrow(result$new_personnel_dt), 0)
   expect_equal(nrow(result$new_contracts_dt), 0)
@@ -368,9 +369,8 @@ test_that("update_state_with_adjustment handles downsizing (negative net_change)
   final_n_active <- test_data$personnel_dt[employment_status == "active", .N]
   expect_equal(final_n_active, initial_n_active - 2)
   
-  # Verify contracts were terminated
-  n_terminated <- test_data$contract_dt[contract_type == "terminated", .N]
-  expect_equal(n_terminated, 2)
+  # Verify the contracts left the payroll: 2 more inactive contracts than before
+  expect_equal(result$contract_dt[contract_type == "inactive", .N] - n_inactive_before, 2)
 })
 
 test_that("update_state_with_adjustment handles multiple groups", {
@@ -399,7 +399,7 @@ test_that("update_state_with_adjustment handles multiple groups", {
     personnel_dt = test_data$personnel_dt,
     adjustment_dt = adjustment_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   # Total rows increase by 2 (new hires), downsizing doesn't remove rows
@@ -435,7 +435,7 @@ test_that("update_state_with_adjustment handles zero net_change", {
     personnel_dt = test_data$personnel_dt,
     adjustment_dt = adjustment_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   # No changes should occur
@@ -467,7 +467,7 @@ test_that("update_state_with_adjustment handles overall adjustment (no grouping)
     personnel_dt = test_data$personnel_dt,
     adjustment_dt = adjustment_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_equal(nrow(result$new_personnel_dt), 5)
@@ -494,7 +494,7 @@ test_that("update_state_with_adjustment returns terminated_contracts_dt for grou
     personnel_dt = test_data$personnel_dt,
     adjustment_dt = adjustment_dt,
     policy_params = policy_params,
-    ref_date      = as.Date("2024-06-01")
+    as_of_date      = as.Date("2024-06-01")
   )
 
   expect_true("terminated_contracts_dt" %in% names(result))
@@ -521,7 +521,7 @@ test_that("update_state_with_adjustment returns terminated_contracts_dt for ungr
     personnel_dt = test_data$personnel_dt,
     adjustment_dt = adjustment_dt,
     policy_params = policy_params,
-    ref_date      = as.Date("2024-06-01")
+    as_of_date      = as.Date("2024-06-01")
   )
 
   expect_true("terminated_contracts_dt" %in% names(result))
@@ -542,7 +542,7 @@ test_that("update_state_with_adjustment returns empty terminated_contracts_dt fo
     personnel_dt = test_data$personnel_dt,
     adjustment_dt = adjustment_dt,
     policy_params = policy_params,
-    ref_date      = as.Date("2024-06-01")
+    as_of_date      = as.Date("2024-06-01")
   )
 
   expect_true("terminated_contracts_dt" %in% names(result))
@@ -646,7 +646,7 @@ test_that("update_state_with_adjustment does not error when salary_scale key mat
       personnel_dt  = data.table::copy(pt),
       adjustment_dt = adj_dt,
       policy_params = hire_pol,
-      ref_date      = as.Date("2020-01-01")
+      as_of_date      = as.Date("2020-01-01")
     )
   )
 })
@@ -698,8 +698,7 @@ test_that("simulate_scenario hiring errors when salary_scale_dt is finer than gr
       period_date       = as.Date("2020-01-01"),
       retirement_policy = ret_pol,
       hiring_policy     = hire_pol,
-      age_col           = "age",
-      tenure_col        = "tenure_years"
+      column_spec_args  = define_column_spec(age_col = "age", tenure_col = "tenure_years")
     ),
     "Duplicate keys found in salary_scale_dt"
   )

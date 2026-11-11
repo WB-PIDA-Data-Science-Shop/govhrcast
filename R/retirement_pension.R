@@ -4,8 +4,13 @@
 #' Functions for computing pension amounts under different pension systems:
 #' defined-benefit (DB), defined-contribution (DC), flat, and hybrid.
 #'
+#' @section The Pay Column:
+#' Wage-based pensions are always calculated from the pay column
+#' (\code{salary_col}). The same column holds pay for active staff and, in
+#' harmonized data, the pension for retirees.
+#'
 #' @section Missing Salary Data:
-#' If salary values are missing (NA) in the reference wage column, pension
+#' If salary values are missing (NA) in the pay column, pension
 #' calculation will return NA. Future implementations may include imputation
 #' strategies such as:
 #' \itemize{
@@ -38,8 +43,6 @@ NULL
 #'       \code{"dc"}, \code{"flat"}, \code{"hybrid"}.}
 #'     \item{\code{accrual_rate}}{Numeric. DB accrual rate (required for DB
 #'       and hybrid).}
-#'     \item{\code{ref_wage_col}}{Character column-pointer naming the wage
-#'       column (required for DB and hybrid).}
 #'     \item{\code{tenure_years}}{Numeric. Years of service (DB and hybrid).}
 #'     \item{\code{max_years}}{Numeric. Service cap; \code{NA} = uncapped
 #'       (DB and hybrid).}
@@ -51,12 +54,14 @@ NULL
 #'       hybrid).}
 #'     \item{\code{flat_amount}}{Numeric. Uniform pension amount (flat only).}
 #'   }
+#' @param salary_col Character.  The pay column, which wage-based pensions are
+#'   calculated from.  Default \code{"gross_salary_lcu"}.
 #'
 #' @return Numeric vector of length \code{nrow(retirees_dt)} giving the
 #'   periodic pension amount for each retiree.  Order matches the row order
 #'   of \code{retirees_dt}.
 #' @keywords internal
-compute_pension <- function(retirees_dt) {
+compute_pension <- function(retirees_dt, salary_col = "gross_salary_lcu") {
 
   result <- numeric(nrow(retirees_dt))
 
@@ -65,11 +70,12 @@ compute_pension <- function(retirees_dt) {
     dt_sub <- retirees_dt[idx]
     result[idx] <- switch(
       ptype,
-      "db"     = compute_db_pension(dt_sub),
+      "db"     = compute_db_pension(dt_sub, salary_col),
       "dc"     = compute_dc_pension(dt_sub),
       "flat"   = compute_flat_pension(dt_sub),
-      "hybrid" = compute_hybrid_pension(dt_sub),
-      "rate"   = compute_rate_pension(dt_sub),
+      "hybrid" = compute_hybrid_pension(dt_sub, salary_col),
+      "rate"   = compute_rate_pension(dt_sub, salary_col),
+      "custom" = compute_custom_pension(dt_sub),
       stop("Unknown pension policy type: ", ptype, call. = FALSE)
     )
   }
@@ -86,20 +92,21 @@ compute_pension <- function(retirees_dt) {
 #' pre-resolved by \code{\link{resolve_policy_table}}.
 #'
 #' @param dt data.table.  Retiree subset (\code{pension_type == "db"}).
-#'   Required columns: \code{accrual_rate} (numeric), \code{ref_wage_col}
-#'   (character column-pointer), \code{tenure_years} (numeric).  Optional:
-#'   \code{max_years} (numeric or \code{NA}), \code{replacement_cap}
-#'   (numeric or \code{NA}).
+#'   Required columns: \code{accrual_rate} (numeric), \code{tenure_years}
+#'   (numeric) and the pay column.  Optional: \code{max_years} (numeric or
+#'   \code{NA}), \code{replacement_cap} (numeric or \code{NA}).
+#' @param salary_col Character.  The pay column.  Default
+#'   \code{"gross_salary_lcu"}.
 #'
 #' @details
 #' \strong{Formula:}
 #' \deqn{P_i = \min(\alpha_i \cdot \min(s_i, S^{\max}) \cdot w_i,\; c_i \cdot w_i)}
 #' where:
 #' \itemize{
-#'   \item \eqn{\alpha_i} = \code{accrual_rate} (e.g. 0.02 = 2\% per year),
+#'   \item \eqn{\alpha_i} = \code{accrual_rate} (e.g. 0.02 = 2% per year),
 #'   \item \eqn{s_i} = \code{tenure_years},
 #'   \item \eqn{S^{\max}} = \code{max_years} (\code{NA} = uncapped),
-#'   \item \eqn{w_i} = wage from the column named by \code{ref_wage_col},
+#'   \item \eqn{w_i} = wage from the pay column,
 #'   \item \eqn{c_i} = \code{replacement_cap} (\code{NA} = uncapped).
 #' }
 #' \code{pmax(pension, 0)} is applied to prevent negative pensions from
@@ -108,23 +115,19 @@ compute_pension <- function(retirees_dt) {
 #' @return Numeric vector of DB pension amounts (length \code{nrow(dt)}).
 #'   Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 #' @keywords internal
-compute_db_pension <- function(dt) {
+compute_db_pension <- function(dt, salary_col = "gross_salary_lcu") {
 
   if (nrow(dt) == 0L) return(numeric(0))
 
-  # ref_wage_col is a character column naming the actual wage column
-  wage_col <- dt$ref_wage_col[1L]
-  if (is.null(wage_col) || is.na(wage_col))
-    stop("compute_db_pension: 'ref_wage_col' column is missing or NA", call. = FALSE)
-  if (!wage_col %in% names(dt))
-    stop("compute_db_pension: wage column '", wage_col, "' not found in retirees_dt",
+  if (!salary_col %in% names(dt))
+    stop("compute_db_pension: pay column '", salary_col, "' not found in retirees_dt",
          call. = FALSE)
 
   if (!"accrual_rate" %in% names(dt))
     stop("compute_db_pension: 'accrual_rate' column not found in retirees_dt",
          call. = FALSE)
 
-  ref_wage <- dt[[wage_col]]
+  wage <- dt[[salary_col]]
 
   # Apply service cap if present (NA = no cap)
   if ("max_years" %in% names(dt) && !all(is.na(dt$max_years))) {
@@ -133,11 +136,11 @@ compute_db_pension <- function(dt) {
     years <- dt$tenure_years
   }
 
-  gross_pension <- dt$accrual_rate * years * ref_wage
+  gross_pension <- dt$accrual_rate * years * wage
 
   # Apply replacement cap if present (NA = no cap)
   if ("replacement_cap" %in% names(dt) && !all(is.na(dt$replacement_cap))) {
-    max_allowed <- dt$replacement_cap * ref_wage
+    max_allowed <- dt$replacement_cap * wage
     pension     <- pmin(gross_pension, max_allowed)
   } else {
     pension <- gross_pension
@@ -237,12 +240,14 @@ compute_flat_pension <- function(dt) {
 #' @param dt data.table.  Retiree subset (\code{pension_type == "hybrid"}).
 #'   Must contain all columns required by \code{\link{compute_db_pension}} and
 #'   \code{\link{compute_dc_pension}}.
+#' @param salary_col Character.  The pay column, for the DB pillar.  Default
+#'   \code{"gross_salary_lcu"}.
 #'
 #' @return Numeric vector of hybrid pension amounts (length \code{nrow(dt)}).
 #'   Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 #' @keywords internal
-compute_hybrid_pension <- function(dt) {
-  compute_db_pension(dt) + compute_dc_pension(dt)
+compute_hybrid_pension <- function(dt, salary_col = "gross_salary_lcu") {
+  compute_db_pension(dt, salary_col) + compute_dc_pension(dt)
 }
 
 
@@ -253,34 +258,66 @@ compute_hybrid_pension <- function(dt) {
 #' @description
 #' Computes a pension as a fixed proportion of the retiree's reference wage.
 #' Intended for schemes where the periodic pension is a known percentage of
-#' final salary (e.g. Botswana's 15\% defined-contribution scheme).
+#' final salary (e.g. Botswana's 15% defined-contribution scheme).
 #'
 #' @param dt data.table. Retiree subset (\code{pension_type == "rate"}).
-#'   Required columns: \code{pension_rate} (numeric, e.g. \code{0.15}),
-#'   \code{ref_wage_col} (character column-pointer naming the wage column).
+#'   Required columns: \code{pension_rate} (numeric, e.g. \code{0.15}) and the
+#'   pay column.
+#' @param salary_col Character.  The pay column.  Default
+#'   \code{"gross_salary_lcu"}.
 #'
 #' @details
 #' \strong{Formula:}
 #' \deqn{P_i = r_i \cdot w_i}
 #' where \eqn{r_i} = \code{pension_rate} and \eqn{w_i} = wage from the
-#' column named by \code{ref_wage_col}. \code{pmax(pension, 0)} prevents
+#' pay column. \code{pmax(pension, 0)} prevents
 #' negative pensions from non-positive rates or wages.
 #'
 #' @return Numeric vector of pension amounts (length \code{nrow(dt)}).
 #'   Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
 #' @keywords internal
-compute_rate_pension <- function(dt) {
+compute_rate_pension <- function(dt, salary_col = "gross_salary_lcu") {
   if (nrow(dt) == 0L) return(numeric(0))
 
-  wage_col <- dt$ref_wage_col[1L]
-  if (is.null(wage_col) || is.na(wage_col))
-    stop("compute_rate_pension: 'ref_wage_col' column is missing or NA", call. = FALSE)
-  if (!wage_col %in% names(dt))
-    stop("compute_rate_pension: wage column '", wage_col, "' not found in retirees_dt",
+  if (!salary_col %in% names(dt))
+    stop("compute_rate_pension: pay column '", salary_col, "' not found in retirees_dt",
          call. = FALSE)
   if (!"pension_rate" %in% names(dt))
     stop("compute_rate_pension: 'pension_rate' column not found in retirees_dt",
          call. = FALSE)
 
-  pmax(dt$pension_rate * dt[[wage_col]], 0)
+  pmax(dt$pension_rate * dt[[salary_col]], 0)
+}
+
+
+#' Compute Custom Pension
+#'
+#' @description
+#' Computes a customized pension policy based on a user-defined formula.
+#' The formula should be provided in the \code{pension_formula} column of \code{dt}.
+#'
+#' @param dt data.table. Retiree subset (\code{pension_type == "custom"}).
+#'   Required column: \code{pension_formula} (character, non-NA).
+#'
+#' @return Numeric vector of pension amounts (length \code{nrow(dt)}).
+#'   Returns \code{numeric(0)} when \code{nrow(dt) == 0L}.
+#' @keywords internal
+#' 
+compute_custom_pension <- function(dt) {
+  
+  ## This function is a placeholder for user-defined pension calculations.
+  ## it uses the .eval_per_row_expression() function to evaluate a custom 
+  ## expression provided in the 'custom_expr' column of dt.
+
+  if (nrow(dt) == 0L) return(numeric(0))
+  
+  .eval_per_row_expression(dt,
+                           mask = rep(TRUE, nrow(dt)),
+                           expr_col = "pension_formula",
+                           result_col = "pension_amount",
+                           allowed_calls = .ALLOWED_FORMULA_CALLS,
+                           init_value = NA_real_)
+  
+  dt$pension_amount
+
 }

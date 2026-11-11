@@ -137,7 +137,6 @@ statusquo_sim <- simulate_horizon(
       min_age          = 60,
       pension_type     = "rate",
       pension_rate     = 0.15,
-      ref_wage_col     = "gross_salary_lcu",
       active_types     = c("permanent", "short-term", "fixed-term")
     )
   ),
@@ -220,7 +219,7 @@ workforce system while holding everything else at its baseline.
 |----|----|
 | simulate_retirement() | Age- and/or tenure-based retirement eligibility; defined benefit, defined contribution, rate, flat, and hybrid pension formulas |
 | simulate_exits() | Non-retirement attrition at scalar or group-varying rates; random or rank-based exit selection |
-| simulate_hiring() | Demand-driven hiring under four modes: status quo, flow (retirement replacement), stock (headcount target), and combined |
+| simulate_hiring() | Demand-driven hiring under three modes: status quo, flow (replacing the people who left), and stock (headcount target) |
 | simulate_promotions_transfers() | Vertical promotions and lateral transfers via empirical transition matrices or user-specified rates; four mover selection strategies |
 
 ## What can you model:
