@@ -142,8 +142,8 @@ A named list:
 \code{baseline_date}, with people who only hold a pension set aside,
 contracts renewed past their end date, and age and tenure filled in.}
 \item{salary_scale_dt}{A copy of the pay table.}
-\item{pensioner_register}{The register, one row per pension contract,
-holding the people already retired at \code{baseline_date}.}
+\item{pensioner_register}{The register, holding the people already
+retired at \code{baseline_date}.}
 \item{retirement_policy, exit_policy, movement_policy, hiring_policy}{The
 policies, with status-quo rates and the new hire profile filled in.}
 \item{column_spec_args}{The column spec, with a \code{NULL} \code{age_col}
@@ -156,12 +156,6 @@ in, or the latest snapshot.}
 rate per year.}
 \item{period0_allowance_cost}{What allowances cost at the start; period
 1's \code{allowance_cost_start}.  Zero without an allowance policy.}
-\item{pension_contracts}{The pension contract rows at \code{baseline_date},
-as in your data.  They stay out of the simulation and are added back to
-each simulated year of the returned contract table.}
-\item{pension_people}{The people who held only a pension at
-\code{baseline_date}, as in your data, added back the same way to the
-returned personnel table.}
 }
 }
 \description{

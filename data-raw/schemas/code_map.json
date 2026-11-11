@@ -1,7 +1,7 @@
 {
   "about": {
     "package": "govhrcast",
-    "built_from": "git DEV @ d87deee (uncommitted changes, if any, not checked)",
+    "built_from": "git DEV @ 46f6204 (uncommitted changes, if any, not checked)",
     "generator": "data-raw/schemas/build_code_map.R",
     "notes": ["Generated from the source: do not edit by hand, rerun the generator.", "edges$kind: call = called by name; reference = passed by name, e.g. lapply(x, fn); constant = reads a top-level constant.", "visibility: exported (in NAMESPACE), s3_method, internal (no dot, not exported), dot_internal.", "returns: the names of a returned list, or the returned object's name; read with the code, it is a hint.", "changes_by_reference: the function uses := or a data.table set*() function somewhere; copies: it calls copy().", "changes_argument: arguments changed with := or set*() that the function never reassigns, so the caller's table changes."]
   },
@@ -97,22 +97,22 @@
       "file": "horizon_class.R",
       "module": "horizon",
       "role": "class",
-      "n_lines": 146,
+      "n_lines": 148,
       "n_functions": 5
     },
     {
       "file": "horizon_core.R",
       "module": "horizon",
       "role": "core",
-      "n_lines": 863,
-      "n_functions": 13
+      "n_lines": 807,
+      "n_functions": 11
     },
     {
       "file": "horizon_utils.R",
       "module": "horizon",
       "role": "utils",
-      "n_lines": 73,
-      "n_functions": 5
+      "n_lines": 70,
+      "n_functions": 4
     },
     {
       "file": "movement_core.R",
@@ -195,7 +195,7 @@
       "file": "simulate_horizon.R",
       "module": "horizon",
       "role": "orchestrator",
-      "n_lines": 1208,
+      "n_lines": 1207,
       "n_functions": 3
     },
     {
@@ -223,14 +223,14 @@
       "file": "validation.R",
       "module": "shared",
       "role": "validation",
-      "n_lines": 1654,
+      "n_lines": 1653,
       "n_functions": 24
     },
     {
       "file": "zzz.R",
       "module": "package",
       "role": "package",
-      "n_lines": 107,
+      "n_lines": 109,
       "n_functions": 0
     }
   ],
@@ -2854,7 +2854,7 @@
       "called_by": [],
       "calls": [".validate_exit_common"],
       "constants_used": [],
-      "test_files": ["test-characterisation.R", "test-exit_policy_helpers.R", "test-fitness.R", "test-invariants.R", "test-output-continuity.R", "test-period-date.R", "test-renamed-columns.R", "test-run-checks.R", "test-two-contracts.R"],
+      "test_files": ["test-characterisation.R", "test-exit_policy_helpers.R", "test-fitness.R", "test-invariants.R", "test-period-date.R", "test-renamed-columns.R", "test-run-checks.R", "test-two-contracts.R"],
       "data_raw_files": []
     },
     {
@@ -5612,7 +5612,7 @@
       "called_by": [],
       "calls": [".validate_hiring_salary_scale", "validate_positive_number"],
       "constants_used": [],
-      "test_files": ["test-characterisation.R", "test-fitness.R", "test-hiring_policy_helpers.R", "test-invariants.R", "test-new-hires.R", "test-output-continuity.R", "test-pay-column.R", "test-period-date.R", "test-renamed-columns.R", "test-simulate_horizon.R", "test-two-contracts.R"],
+      "test_files": ["test-characterisation.R", "test-fitness.R", "test-hiring_policy_helpers.R", "test-invariants.R", "test-new-hires.R", "test-pay-column.R", "test-period-date.R", "test-renamed-columns.R", "test-simulate_horizon.R", "test-two-contracts.R"],
       "data_raw_files": []
     },
     {
@@ -7351,10 +7351,10 @@
       "file": "horizon_class.R",
       "module": "horizon",
       "role": "class",
-      "line_start": 26,
-      "line_end": 38,
+      "line_start": 27,
+      "line_end": 39,
       "n_lines": 13,
-      "roxygen_lines": 15,
+      "roxygen_lines": 16,
       "title": "Constructor for the `horizon` S3 class",
       "visibility": "internal",
       "documented": true,
@@ -7402,8 +7402,8 @@
       "file": "horizon_class.R",
       "module": "horizon",
       "role": "class",
-      "line_start": 46,
-      "line_end": 64,
+      "line_start": 47,
+      "line_end": 65,
       "n_lines": 19,
       "roxygen_lines": 5,
       "title": "Validate a `horizon` object",
@@ -7446,8 +7446,8 @@
       "file": "horizon_class.R",
       "module": "horizon",
       "role": "class",
-      "line_start": 72,
-      "line_end": 72,
+      "line_start": 73,
+      "line_end": 73,
       "n_lines": 1,
       "roxygen_lines": 5,
       "title": "Test whether an object is a `horizon`",
@@ -7488,9 +7488,9 @@
       "file": "horizon_class.R",
       "module": "horizon",
       "role": "class",
-      "line_start": 89,
-      "line_end": 114,
-      "n_lines": 26,
+      "line_start": 90,
+      "line_end": 116,
+      "n_lines": 27,
       "roxygen_lines": 10,
       "title": "Print a `horizon` object",
       "visibility": "s3_method",
@@ -7522,7 +7522,7 @@
         "steps": [
           {
             "type": "call",
-            "line": 90,
+            "line": 91,
             "fn": "validate_horizon",
             "target": null,
             "base": null,
@@ -7552,8 +7552,8 @@
       "file": "horizon_class.R",
       "module": "horizon",
       "role": "class",
-      "line_start": 126,
-      "line_end": 146,
+      "line_start": 128,
+      "line_end": 148,
       "n_lines": 21,
       "roxygen_lines": 9,
       "title": "One-line summary of a `horizon` object",
@@ -7584,7 +7584,7 @@
         "steps": [
           {
             "type": "call",
-            "line": 127,
+            "line": 129,
             "fn": "validate_horizon",
             "target": null,
             "base": null,
@@ -8482,10 +8482,10 @@
       "file": "horizon_core.R",
       "module": "horizon",
       "role": "core",
-      "line_start": 527,
-      "line_end": 790,
-      "n_lines": 264,
-      "roxygen_lines": 41,
+      "line_start": 521,
+      "line_end": 807,
+      "n_lines": 287,
+      "roxygen_lines": 35,
       "title": "Prepare What simulate_horizon() Needs Before Its First Year",
       "visibility": "internal",
       "documented": true,
@@ -8549,9 +8549,9 @@
       ],
       "n_args": 14,
       "spec_keys": ["age_col", "birth_date_col", "contract_id_col", "contract_type_col", "end_date_col", "personnel_id_col", "ref_date_col", "salary_col", "start_date_col", "status_col", "tenure_col"],
-      "returns": ["list(contract_dt, personnel_dt, salary_scale_dt, pensioner_register, retirement_policy, exit_policy, movement_policy, hiring_policy, column_spec_args, baseline_date, n_periods, salary_growth_rate, pension_cola_rate, allowance_growth_rate, period0_allowance_cost, pension_contracts, pension_people)"],
+      "returns": ["list(contract_dt, personnel_dt, salary_scale_dt, pensioner_register, retirement_policy, exit_policy, movement_policy, hiring_policy, column_spec_args, baseline_date, n_periods, salary_growth_rate, pension_cola_rate, allowance_growth_rate, period0_allowance_cost)"],
       "external_calls": {
-        "data.table": 10
+        "data.table": 9
       },
       "n_stop": 2,
       "n_warning": 0,
@@ -8564,12 +8564,12 @@
         "steps": [
           {
             "type": "section",
-            "line": 543,
+            "line": 537,
             "title": "0. Validate and set up"
           },
           {
             "type": "call",
-            "line": 549,
+            "line": 543,
             "fn": ".check_column_spec",
             "target": null,
             "base": null,
@@ -8584,7 +8584,7 @@
           },
           {
             "type": "call",
-            "line": 550,
+            "line": 544,
             "fn": ".check_spec_columns",
             "target": null,
             "base": null,
@@ -8609,7 +8609,7 @@
           },
           {
             "type": "assign",
-            "line": 555,
+            "line": 549,
             "target": "column_spec_args$age_col",
             "base": "column_spec_args",
             "expr": "\"age\"",
@@ -8622,7 +8622,7 @@
           },
           {
             "type": "assign",
-            "line": 556,
+            "line": 550,
             "target": "column_spec_args$tenure_col",
             "base": "column_spec_args",
             "expr": "\"personnel_tenure\"",
@@ -8635,7 +8635,7 @@
           },
           {
             "type": "assign",
-            "line": 559,
+            "line": 553,
             "target": "personnel_id_col",
             "base": "personnel_id_col",
             "expr": "column_spec_args$personnel_id_col",
@@ -8648,20 +8648,7 @@
           },
           {
             "type": "assign",
-            "line": 560,
-            "target": "contract_id_col",
-            "base": "contract_id_col",
-            "expr": "column_spec_args$contract_id_col",
-            "refs": ["$", "column_spec_args", "contract_id_col"],
-            "builds": null,
-            "list_names": [],
-            "list_values": [],
-            "is_null": false,
-            "context": []
-          },
-          {
-            "type": "assign",
-            "line": 561,
+            "line": 554,
             "target": "ref_date_col",
             "base": "ref_date_col",
             "expr": "column_spec_args$ref_date_col",
@@ -8674,7 +8661,7 @@
           },
           {
             "type": "assign",
-            "line": 562,
+            "line": 555,
             "target": "salary_col",
             "base": "salary_col",
             "expr": "column_spec_args$salary_col",
@@ -8687,7 +8674,7 @@
           },
           {
             "type": "assign",
-            "line": 563,
+            "line": 556,
             "target": "contract_type_col",
             "base": "contract_type_col",
             "expr": "column_spec_args$contract_type_col",
@@ -8700,7 +8687,7 @@
           },
           {
             "type": "assign",
-            "line": 564,
+            "line": 557,
             "target": "age_col",
             "base": "age_col",
             "expr": "column_spec_args$age_col",
@@ -8713,7 +8700,7 @@
           },
           {
             "type": "assign",
-            "line": 565,
+            "line": 558,
             "target": "tenure_col",
             "base": "tenure_col",
             "expr": "column_spec_args$tenure_col",
@@ -8726,7 +8713,7 @@
           },
           {
             "type": "assign",
-            "line": 566,
+            "line": 559,
             "target": "birth_date_col",
             "base": "birth_date_col",
             "expr": "column_spec_args$birth_date_col",
@@ -8739,7 +8726,7 @@
           },
           {
             "type": "assign",
-            "line": 568,
+            "line": 561,
             "target": "n_periods",
             "base": "n_periods",
             "expr": "as.integer(n_periods)",
@@ -8752,7 +8739,7 @@
           },
           {
             "type": "call",
-            "line": 574,
+            "line": 567,
             "fn": ".latest_snapshot",
             "target": "baseline_date",
             "base": "baseline_date",
@@ -8778,7 +8765,7 @@
           },
           {
             "type": "call",
-            "line": 575,
+            "line": 568,
             "fn": "validate_date_format",
             "target": "baseline_date",
             "base": "baseline_date",
@@ -8799,7 +8786,7 @@
           },
           {
             "type": "call",
-            "line": 578,
+            "line": 571,
             "fn": "expand_rate_vector",
             "target": "salary_growth_rate",
             "base": "salary_growth_rate",
@@ -8825,7 +8812,7 @@
           },
           {
             "type": "call",
-            "line": 579,
+            "line": 572,
             "fn": "expand_rate_vector",
             "target": "pension_cola_rate",
             "base": "pension_cola_rate",
@@ -8851,7 +8838,7 @@
           },
           {
             "type": "call",
-            "line": 580,
+            "line": 573,
             "fn": "expand_rate_vector",
             "target": "allowance_growth_rate",
             "base": "allowance_growth_rate",
@@ -8877,7 +8864,7 @@
           },
           {
             "type": "assign",
-            "line": 584,
+            "line": 577,
             "target": "contract_dt",
             "base": "contract_dt",
             "expr": "data.table::as.data.table(contract_dt)",
@@ -8890,7 +8877,7 @@
           },
           {
             "type": "assign",
-            "line": 586,
+            "line": 579,
             "target": "contract_dt",
             "base": "contract_dt",
             "expr": "data.table::copy(contract_dt)",
@@ -8903,7 +8890,7 @@
           },
           {
             "type": "assign",
-            "line": 589,
+            "line": 582,
             "target": "personnel_dt",
             "base": "personnel_dt",
             "expr": "data.table::as.data.table(personnel_dt)",
@@ -8916,7 +8903,7 @@
           },
           {
             "type": "assign",
-            "line": 591,
+            "line": 584,
             "target": "personnel_dt",
             "base": "personnel_dt",
             "expr": "data.table::copy(personnel_dt)",
@@ -8929,7 +8916,7 @@
           },
           {
             "type": "assign",
-            "line": 593,
+            "line": 586,
             "target": "salary_scale_dt",
             "base": "salary_scale_dt",
             "expr": "data.table::copy(salary_scale_dt)",
@@ -8942,7 +8929,7 @@
           },
           {
             "type": "assign",
-            "line": 596,
+            "line": 589,
             "target": "has_panel",
             "base": "has_panel",
             "expr": "ref_date_col %in% names(contract_dt) && data.table::uniqueN(contract_dt[[ref_date_col]]) >= 2L",
@@ -8955,7 +8942,7 @@
           },
           {
             "type": "assign",
-            "line": 602,
+            "line": 595,
             "target": "snapshots",
             "base": "snapshots",
             "expr": "sort(unique(contract_dt[[ref_date_col]]))",
@@ -8968,7 +8955,7 @@
           },
           {
             "type": "call",
-            "line": 614,
+            "line": 607,
             "fn": "precompute_movement_rates",
             "target": "movement_policy",
             "base": "movement_policy",
@@ -8999,7 +8986,7 @@
           },
           {
             "type": "call",
-            "line": 618,
+            "line": 611,
             "fn": "precompute_exit_rates",
             "target": "exit_policy",
             "base": "exit_policy",
@@ -9035,7 +9022,7 @@
           },
           {
             "type": "call",
-            "line": 623,
+            "line": 616,
             "fn": "precompute_retirement_rates",
             "target": "retirement_policy",
             "base": "retirement_policy",
@@ -9066,7 +9053,7 @@
           },
           {
             "type": "call",
-            "line": 627,
+            "line": 620,
             "fn": "precompute_hiring_rates",
             "target": "hiring_policy",
             "base": "hiring_policy",
@@ -9102,7 +9089,7 @@
           },
           {
             "type": "call",
-            "line": 632,
+            "line": 625,
             "fn": "precompute_new_hire_profile",
             "target": "hiring_policy",
             "base": "hiring_policy",
@@ -9138,7 +9125,7 @@
           },
           {
             "type": "assign",
-            "line": 641,
+            "line": 634,
             "target": "contract_dt",
             "base": "contract_dt",
             "expr": "contract_dt[get(ref_date_col) == baseline_date]",
@@ -9151,7 +9138,7 @@
           },
           {
             "type": "assign",
-            "line": 644,
+            "line": 637,
             "target": "personnel_dt",
             "base": "personnel_dt",
             "expr": "personnel_dt[get(ref_date_col) == baseline_date]",
@@ -9164,7 +9151,7 @@
           },
           {
             "type": "assign",
-            "line": 651,
+            "line": 644,
             "target": ".pensioner_ids_",
             "base": ".pensioner_ids_",
             "expr": "personnel_dt[get(column_spec_args$status_col) %in% \"pensioner\"][[personnel_id_col]]",
@@ -9177,7 +9164,7 @@
           },
           {
             "type": "assign",
-            "line": 652,
+            "line": 645,
             "target": ".is_pension_row_",
             "base": ".is_pension_row_",
             "expr": "contract_dt[[contract_type_col]] %in% \"pensioner\" | contract_dt[[personnel_id_col]] %in% .pensioner_ids_",
@@ -9190,7 +9177,7 @@
           },
           {
             "type": "assign",
-            "line": 654,
+            "line": 647,
             "target": "existing_pensioners",
             "base": "existing_pensioners",
             "expr": "contract_dt[.is_pension_row_]",
@@ -9203,7 +9190,7 @@
           },
           {
             "type": "assign",
-            "line": 658,
+            "line": 651,
             "target": "contract_dt",
             "base": "contract_dt",
             "expr": "contract_dt[!.is_pension_row_ & !is.na(get(salary_col))]",
@@ -9216,7 +9203,7 @@
           },
           {
             "type": "assign",
-            "line": 662,
+            "line": 655,
             "target": ".active_ids_",
             "base": ".active_ids_",
             "expr": "personnel_dt[get(column_spec_args$status_col) %in% \"active\"][[personnel_id_col]]",
@@ -9229,21 +9216,21 @@
           },
           {
             "type": "inline",
-            "line": 663,
+            "line": 656,
             "target": "contract_dt",
             "expr": "contract_dt[is.na(get(contract_type_col)) & !get(personnel_id_col) %in% .active_ids_, `:=`((contract_type_c...",
             "context": []
           },
           {
             "type": "inline",
-            "line": 668,
+            "line": 661,
             "target": "contract_dt",
             "expr": "contract_dt[.on_payroll(get(contract_type_col)), `:=`((column_spec_args$end_date_col), as.Date(NA))]",
             "context": []
           },
           {
             "type": "call",
-            "line": 668,
+            "line": 661,
             "fn": ".on_payroll",
             "target": null,
             "base": null,
@@ -9258,7 +9245,7 @@
           },
           {
             "type": "assign",
-            "line": 672,
+            "line": 665,
             "target": ".report_no_rate",
             "base": ".report_no_rate",
             "expr": "function(module, consequence, rate_table, group_cols) { .report_groups_without_rate(module, consequence, ra...",
@@ -9271,7 +9258,7 @@
           },
           {
             "type": "call",
-            "line": 673,
+            "line": 666,
             "fn": ".report_groups_without_rate",
             "target": null,
             "base": null,
@@ -9311,7 +9298,7 @@
           },
           {
             "type": "call",
-            "line": 685,
+            "line": 678,
             "fn": ".empty_pensioner_register",
             "target": "pensioner_register",
             "base": "pensioner_register",
@@ -9320,11 +9307,6 @@
                 "name": "",
                 "expr": "personnel_id_col",
                 "refs": ["personnel_id_col"]
-              },
-              {
-                "name": "",
-                "expr": "contract_id_col",
-                "refs": ["contract_id_col"]
               }
             ],
             "context": [],
@@ -9332,43 +9314,66 @@
           },
           {
             "type": "assign",
-            "line": 686,
-            "target": "pension_people",
-            "base": "pension_people",
-            "expr": "personnel_dt[0L]",
-            "refs": ["[", "personnel_dt"],
-            "builds": null,
-            "list_names": [],
-            "list_values": [],
-            "is_null": false,
-            "context": []
-          },
-          {
-            "type": "assign",
-            "line": 692,
+            "line": 684,
             "target": "seed_reg",
             "base": "seed_reg",
-            "expr": "existing_pensioners[, c(personnel_id_col, contract_id_col, salary_col), with = FALSE]",
-            "refs": ["[", "existing_pensioners", "c", "personnel_id_col", "contract_id_col", "salary_col"],
+            "expr": "existing_pensioners[, { pension <- .total_pay(get(salary_col)) list(pension_amount = pension, final_salary ...",
+            "refs": ["[", "existing_pensioners", "{", "<-", "pension", ".total_pay", "get", "salary_col", "list", "baseline_date", "c", "personnel_id_col"],
             "builds": null,
             "list_names": [],
             "list_values": [],
             "is_null": false,
             "context": ["if (nrow(existing_pensioners) > 0L)"]
+          },
+          {
+            "type": "call",
+            "line": 685,
+            "fn": ".total_pay",
+            "target": "pension",
+            "base": "pension",
+            "args": [
+              {
+                "name": "",
+                "expr": "get(salary_col)",
+                "refs": ["get", "salary_col"]
+              }
+            ],
+            "context": ["if (nrow(existing_pensioners) > 0L)"],
+            "used_later": []
+          },
+          {
+            "type": "assign",
+            "line": 699,
+            "target": "age_lookup",
+            "base": "age_lookup",
+            "expr": "personnel_dt[get(personnel_id_col) %in% seed_reg[[personnel_id_col]], c(personnel_id_col, birth_date_col), ...",
+            "refs": ["[", "personnel_dt", "%in%", "get", "personnel_id_col", "[[", "seed_reg", "c", "birth_date_col"],
+            "builds": null,
+            "list_names": [],
+            "list_values": [],
+            "is_null": false,
+            "context": ["if (nrow(existing_pensioners) > 0L)", "if (!is.null(birth_date_col) && birth_date_col %in% names(personnel_dt))"]
           },
           {
             "type": "inline",
-            "line": 694,
+            "line": 703,
+            "target": "age_lookup",
+            "expr": "age_lookup[, `:=`(age_at_ret, as.numeric(difftime(baseline_date, get(birth_date_col), units = \"days\"))/365....",
+            "context": ["if (nrow(existing_pensioners) > 0L)", "if (!is.null(birth_date_col) && birth_date_col %in% names(personnel_dt))"]
+          },
+          {
+            "type": "inline",
+            "line": 706,
             "target": "seed_reg",
-            "expr": "seed_reg[, `:=`(pension_amount, as.numeric(pension_amount))]",
-            "context": ["if (nrow(existing_pensioners) > 0L)"]
+            "expr": "seed_reg[age_lookup, `:=`(age_at_retirement, i.age_at_ret), on = personnel_id_col]",
+            "context": ["if (nrow(existing_pensioners) > 0L)", "if (!is.null(birth_date_col) && birth_date_col %in% names(personnel_dt))"]
           },
           {
             "type": "assign",
-            "line": 695,
+            "line": 710,
             "target": "pensioner_register",
             "base": "pensioner_register",
-            "expr": "data.table::rbindlist(list(pensioner_register, seed_reg), use.names = TRUE)",
+            "expr": "data.table::rbindlist(list(pensioner_register, seed_reg), use.names = TRUE, fill = TRUE)",
             "refs": ["::", "data.table", "rbindlist", "list", "pensioner_register", "seed_reg"],
             "builds": null,
             "list_names": [],
@@ -9378,11 +9383,11 @@
           },
           {
             "type": "assign",
-            "line": 697,
+            "line": 715,
             "target": ".n_no_pension_",
             "base": ".n_no_pension_",
-            "expr": "seed_reg[, all(is.na(pension_amount)), by = c(personnel_id_col)][, sum(V1)]",
-            "refs": ["[", "seed_reg", "all", "is.na", "pension_amount", "c", "personnel_id_col", "sum", "V1"],
+            "expr": "sum(is.na(seed_reg$pension_amount))",
+            "refs": ["sum", "is.na", "$", "seed_reg", "pension_amount"],
             "builds": null,
             "list_names": [],
             "list_values": [],
@@ -9391,37 +9396,11 @@
           },
           {
             "type": "assign",
-            "line": 706,
-            "target": "pension_only",
-            "base": "pension_only",
-            "expr": "setdiff(existing_pensioners[[personnel_id_col]], contract_dt[[personnel_id_col]])",
-            "refs": ["setdiff", "[[", "existing_pensioners", "personnel_id_col", "contract_dt"],
-            "builds": null,
-            "list_names": [],
-            "list_values": [],
-            "is_null": false,
-            "context": ["if (nrow(existing_pensioners) > 0L)"]
-          },
-          {
-            "type": "assign",
-            "line": 707,
-            "target": "pension_people",
-            "base": "pension_people",
-            "expr": "personnel_dt[get(personnel_id_col) %in% pension_only]",
-            "refs": ["[", "personnel_dt", "%in%", "get", "personnel_id_col", "pension_only"],
-            "builds": null,
-            "list_names": [],
-            "list_values": [],
-            "is_null": false,
-            "context": ["if (nrow(existing_pensioners) > 0L)"]
-          },
-          {
-            "type": "assign",
-            "line": 708,
+            "line": 724,
             "target": "personnel_dt",
             "base": "personnel_dt",
-            "expr": "personnel_dt[!get(personnel_id_col) %in% pension_only]",
-            "refs": ["[", "personnel_dt", "!", "%in%", "get", "personnel_id_col", "pension_only"],
+            "expr": "personnel_dt[!get(personnel_id_col) %in% setdiff(existing_pensioners[[personnel_id_col]], contract_dt[[pers...",
+            "refs": ["[", "personnel_dt", "!", "%in%", "get", "personnel_id_col", "setdiff", "[[", "existing_pensioners", "contract_dt"],
             "builds": null,
             "list_names": [],
             "list_values": [],
@@ -9430,12 +9409,12 @@
           },
           {
             "type": "section",
-            "line": 712,
+            "line": 731,
             "title": "Age and tenure at baseline_date, where the data do not hold them"
           },
           {
             "type": "assign",
-            "line": 718,
+            "line": 737,
             "target": ".age_missing_",
             "base": ".age_missing_",
             "expr": "!(age_col %in% names(personnel_dt)) || all(is.na(personnel_dt[[age_col]]))",
@@ -9448,14 +9427,14 @@
           },
           {
             "type": "inline",
-            "line": 723,
+            "line": 742,
             "target": "personnel_dt",
             "expr": "personnel_dt[, `:=`((age_col), as.numeric(difftime(baseline_date, get(birth_date_col), units = \"days\"))/365...",
             "context": ["if (.age_missing_ && !is.null(birth_date_col) && birth_date_col %in% na...)"]
           },
           {
             "type": "assign",
-            "line": 729,
+            "line": 748,
             "target": ".tenure_missing_",
             "base": ".tenure_missing_",
             "expr": "!(tenure_col %in% names(personnel_dt)) || all(is.na(personnel_dt[[tenure_col]]))",
@@ -9468,7 +9447,7 @@
           },
           {
             "type": "call",
-            "line": 733,
+            "line": 752,
             "fn": "compute_tenure",
             "target": "tenure_init",
             "base": "tenure_init",
@@ -9514,21 +9493,21 @@
           },
           {
             "type": "inline",
-            "line": 746,
+            "line": 765,
             "target": "personnel_dt",
             "expr": "personnel_dt[, `:=`((tenure_col), as.numeric(get(tenure_col)))]",
             "context": ["if (.tenure_missing_)", "if (nrow(tenure_init) > 0L)", "if (is.integer(personnel_dt[[tenure_col]]))"]
           },
           {
             "type": "inline",
-            "line": 748,
+            "line": 767,
             "target": "personnel_dt",
             "expr": "personnel_dt[tenure_init, `:=`((tenure_col), i.tenure_years), on = c(personnel_id_col)]",
             "context": ["if (.tenure_missing_)", "if (nrow(tenure_init) > 0L)"]
           },
           {
             "type": "call",
-            "line": 760,
+            "line": 779,
             "fn": "simulate_allowances",
             "target": "alw0",
             "base": "alw0",
@@ -9569,7 +9548,7 @@
           },
           {
             "type": "assign",
-            "line": 768,
+            "line": 787,
             "target": "period0_allowance_cost",
             "base": "period0_allowance_cost",
             "expr": "alw0$summary$allowance_cost_total",
@@ -9582,139 +9561,15 @@
           }
         ],
         "returned": [],
-        "result_fields": ["allowance_growth_rate", "baseline_date", "column_spec_args", "contract_dt", "exit_policy", "hiring_policy", "movement_policy", "n_periods", "pension_cola_rate", "pension_contracts", "pension_people", "pensioner_register", "period0_allowance_cost", "personnel_dt", "retirement_policy", "salary_growth_rate", "salary_scale_dt"],
+        "result_fields": ["allowance_growth_rate", "baseline_date", "column_spec_args", "contract_dt", "exit_policy", "hiring_policy", "movement_policy", "n_periods", "pension_cola_rate", "pensioner_register", "period0_allowance_cost", "personnel_dt", "retirement_policy", "salary_growth_rate", "salary_scale_dt"],
         "result_list": {
-          "names": ["contract_dt", "personnel_dt", "salary_scale_dt", "pensioner_register", "retirement_policy", "exit_policy", "movement_policy", "hiring_policy", "column_spec_args", "baseline_date", "n_periods", "salary_growth_rate", "pension_cola_rate", "allowance_growth_rate", "period0_allowance_cost", "pension_contracts", "pension_people"],
-          "values": ["contract_dt", "personnel_dt", "salary_scale_dt", "pensioner_register", "retirement_policy", "exit_policy", "movement_policy", "hiring_policy", "column_spec_args", "baseline_date", "n_periods", "salary_growth_rate", "pension_cola_rate", "allowance_growth_rate", "period0_allowance_cost", "existing_pensioners", "pension_people"]
+          "names": ["contract_dt", "personnel_dt", "salary_scale_dt", "pensioner_register", "retirement_policy", "exit_policy", "movement_policy", "hiring_policy", "column_spec_args", "baseline_date", "n_periods", "salary_growth_rate", "pension_cola_rate", "allowance_growth_rate", "period0_allowance_cost"],
+          "values": ["contract_dt", "personnel_dt", "salary_scale_dt", "pensioner_register", "retirement_policy", "exit_policy", "movement_policy", "hiring_policy", "column_spec_args", "baseline_date", "n_periods", "salary_growth_rate", "pension_cola_rate", "allowance_growth_rate", "period0_allowance_cost"]
         },
         "result_columns": []
       },
       "called_by": ["simulate_horizon"],
-      "calls": [".check_column_spec", ".check_spec_columns", ".empty_pensioner_register", ".latest_snapshot", ".on_payroll", ".report_groups_without_rate", "compute_tenure", "expand_rate_vector", "precompute_exit_rates", "precompute_hiring_rates", "precompute_movement_rates", "precompute_new_hire_profile", "precompute_retirement_rates", "simulate_allowances", "validate_date_format"],
-      "constants_used": [],
-      "test_files": [],
-      "data_raw_files": []
-    },
-    {
-      "name": "snapshot_contracts",
-      "file": "horizon_core.R",
-      "module": "horizon",
-      "role": "core",
-      "line_start": 819,
-      "line_end": 837,
-      "n_lines": 19,
-      "roxygen_lines": 27,
-      "title": "Build One Simulated Year's Contract Snapshot",
-      "visibility": "internal",
-      "documented": true,
-      "args": [
-        {
-          "name": "contract_dt",
-          "default": null
-        },
-        {
-          "name": "personnel_dt",
-          "default": null
-        },
-        {
-          "name": "pensioner_register",
-          "default": null
-        },
-        {
-          "name": "pension_contracts",
-          "default": null
-        },
-        {
-          "name": "snapshot_date",
-          "default": null
-        },
-        {
-          "name": "column_spec_args",
-          "default": null
-        }
-      ],
-      "n_args": 6,
-      "spec_keys": ["contract_id_col", "contract_type_col", "personnel_id_col", "ref_date_col", "salary_col", "status_col"],
-      "returns": ["[(...)"],
-      "external_calls": {
-        "data.table": 1
-      },
-      "n_stop": 0,
-      "n_warning": 0,
-      "n_message": 0,
-      "changes_by_reference": true,
-      "copies": false,
-      "changes_argument": [],
-      "local_functions": 0,
-      "process": {
-        "steps": [],
-        "returned": [],
-        "result_fields": [],
-        "result_list": null,
-        "result_columns": []
-      },
-      "called_by": ["simulate_horizon"],
-      "calls": [],
-      "constants_used": [],
-      "test_files": [],
-      "data_raw_files": []
-    },
-    {
-      "name": "snapshot_personnel",
-      "file": "horizon_core.R",
-      "module": "horizon",
-      "role": "core",
-      "line_start": 854,
-      "line_end": 863,
-      "n_lines": 10,
-      "roxygen_lines": 15,
-      "title": "Build One Simulated Year's Personnel Snapshot",
-      "visibility": "internal",
-      "documented": true,
-      "args": [
-        {
-          "name": "personnel_dt",
-          "default": null
-        },
-        {
-          "name": "pension_people",
-          "default": null
-        },
-        {
-          "name": "years_on",
-          "default": null
-        },
-        {
-          "name": "snapshot_date",
-          "default": null
-        },
-        {
-          "name": "column_spec_args",
-          "default": null
-        }
-      ],
-      "n_args": 5,
-      "spec_keys": ["age_col", "ref_date_col", "status_col"],
-      "returns": ["[(...)"],
-      "external_calls": {
-        "data.table": 2
-      },
-      "n_stop": 0,
-      "n_warning": 0,
-      "n_message": 0,
-      "changes_by_reference": true,
-      "copies": true,
-      "changes_argument": [],
-      "local_functions": 0,
-      "process": {
-        "steps": [],
-        "returned": [],
-        "result_fields": [],
-        "result_list": null,
-        "result_columns": []
-      },
-      "called_by": ["simulate_horizon"],
-      "calls": [],
+      "calls": [".check_column_spec", ".check_spec_columns", ".empty_pensioner_register", ".latest_snapshot", ".on_payroll", ".report_groups_without_rate", ".total_pay", "compute_tenure", "expand_rate_vector", "precompute_exit_rates", "precompute_hiring_rates", "precompute_movement_rates", "precompute_new_hire_profile", "precompute_retirement_rates", "simulate_allowances", "validate_date_format"],
       "constants_used": [],
       "test_files": [],
       "data_raw_files": []
@@ -9953,9 +9808,9 @@
       "file": "horizon_utils.R",
       "module": "horizon",
       "role": "utils",
-      "line_start": 48,
-      "line_end": 55,
-      "n_lines": 8,
+      "line_start": 47,
+      "line_end": 57,
+      "n_lines": 11,
       "roxygen_lines": 0,
       "title": null,
       "visibility": "dot_internal",
@@ -9964,13 +9819,9 @@
         {
           "name": "personnel_id_col",
           "default": null
-        },
-        {
-          "name": "contract_id_col",
-          "default": null
         }
       ],
-      "n_args": 2,
+      "n_args": 1,
       "spec_keys": [],
       "returns": ["<expression>"],
       "external_calls": {
@@ -9997,90 +9848,36 @@
       "data_raw_files": []
     },
     {
-      "name": ".history_up_to",
+      "name": ".advance_period",
       "file": "horizon_utils.R",
       "module": "horizon",
       "role": "utils",
-      "line_start": 60,
-      "line_end": 64,
-      "n_lines": 5,
+      "line_start": 62,
+      "line_end": 70,
+      "n_lines": 9,
       "roxygen_lines": 0,
       "title": null,
       "visibility": "dot_internal",
       "documented": false,
       "args": [
         {
-          "name": "dt",
+          "name": "date",
           "default": null
         },
         {
-          "name": "baseline_date",
-          "default": null
+          "name": "n",
+          "default": "1L"
         },
         {
-          "name": "ref_date_col",
-          "default": null
+          "name": "unit",
+          "default": "\"year\""
         }
       ],
       "n_args": 3,
       "spec_keys": [],
-      "returns": ["[(...)"],
-      "external_calls": {
-        "data.table": 2
-      },
-      "n_stop": 0,
-      "n_warning": 0,
-      "n_message": 0,
-      "changes_by_reference": true,
-      "copies": true,
-      "changes_argument": [],
-      "local_functions": 0,
-      "process": {
-        "steps": [],
-        "returned": [],
-        "result_fields": [],
-        "result_list": null,
-        "result_columns": []
-      },
-      "called_by": ["simulate_horizon"],
-      "calls": [],
-      "constants_used": [],
-      "test_files": [],
-      "data_raw_files": []
-    },
-    {
-      "name": ".continue_table",
-      "file": "horizon_utils.R",
-      "module": "horizon",
-      "role": "utils",
-      "line_start": 70,
-      "line_end": 73,
-      "n_lines": 4,
-      "roxygen_lines": 0,
-      "title": null,
-      "visibility": "dot_internal",
-      "documented": false,
-      "args": [
-        {
-          "name": "history",
-          "default": null
-        },
-        {
-          "name": "years",
-          "default": null
-        },
-        {
-          "name": "also_keep",
-          "default": "character(0)"
-        }
-      ],
-      "n_args": 3,
-      "spec_keys": [],
-      "returns": ["[(...)"],
-      "external_calls": {
-        "data.table": 1
-      },
-      "n_stop": 0,
+      "returns": ["switch(...)"],
+      "external_calls": [],
+      "n_stop": 1,
       "n_warning": 0,
       "n_message": 0,
       "changes_by_reference": false,
@@ -16828,7 +16625,7 @@
       "called_by": ["simulate_horizon"],
       "calls": ["validate_positive_number"],
       "constants_used": [],
-      "test_files": ["test-characterisation.R", "test-fitness.R", "test-invariants.R", "test-output-continuity.R", "test-renamed-columns.R", "test-retirement_policy_helpers.R", "test-simulate_horizon.R", "test-two-contracts.R"],
+      "test_files": ["test-characterisation.R", "test-fitness.R", "test-invariants.R", "test-renamed-columns.R", "test-retirement_policy_helpers.R", "test-simulate_horizon.R", "test-two-contracts.R"],
       "data_raw_files": []
     },
     {
@@ -17719,7 +17516,7 @@
       "called_by": ["simulate_horizon"],
       "calls": ["design_retirement_policy", "eligibility_status_quo"],
       "constants_used": [],
-      "test_files": ["test-characterisation.R", "test-fitness.R", "test-invariants.R", "test-output-continuity.R", "test-renamed-columns.R", "test-retirement_policy_helpers.R", "test-run-checks.R", "test-simulate_horizon.R", "test-two-contracts.R"],
+      "test_files": ["test-characterisation.R", "test-fitness.R", "test-invariants.R", "test-renamed-columns.R", "test-retirement_policy_helpers.R", "test-run-checks.R", "test-simulate_horizon.R", "test-two-contracts.R"],
       "data_raw_files": []
     },
     {
@@ -19224,10 +19021,10 @@
       "file": "simulate_horizon.R",
       "module": "horizon",
       "role": "orchestrator",
-      "line_start": 181,
-      "line_end": 546,
-      "n_lines": 366,
-      "roxygen_lines": 176,
+      "line_start": 180,
+      "line_end": 553,
+      "n_lines": 374,
+      "roxygen_lines": 175,
       "title": "Single-Period Simulation",
       "visibility": "exported",
       "documented": true,
@@ -19302,10 +19099,10 @@
         }
       ],
       "n_args": 17,
-      "spec_keys": ["age_col", "contract_id_col", "contract_type_col", "personnel_id_col", "salary_col", "status_col", "tenure_col"],
+      "spec_keys": ["age_col", "contract_type_col", "personnel_id_col", "salary_col", "status_col", "tenure_col"],
       "returns": ["list(summary, contract_dt, personnel_dt, salary_scale_dt, pensioner_register, allowance_dt, allowance_policy, hiring_policy)"],
       "external_calls": {
-        "data.table": 15
+        "data.table": 16
       },
       "n_stop": 0,
       "n_warning": 0,
@@ -19318,12 +19115,12 @@
         "steps": [
           {
             "type": "section",
-            "line": 200,
+            "line": 199,
             "title": "0. Initialise / validate"
           },
           {
             "type": "call",
-            "line": 204,
+            "line": 203,
             "fn": ".save_rng_state",
             "target": "rng_state",
             "base": "rng_state",
@@ -19333,7 +19130,7 @@
           },
           {
             "type": "call",
-            "line": 205,
+            "line": 204,
             "fn": ".restore_rng_state",
             "target": null,
             "base": null,
@@ -19348,7 +19145,7 @@
           },
           {
             "type": "call",
-            "line": 209,
+            "line": 208,
             "fn": "validate_date_format",
             "target": "period_date",
             "base": "period_date",
@@ -19369,7 +19166,7 @@
           },
           {
             "type": "call",
-            "line": 211,
+            "line": 210,
             "fn": ".check_column_spec",
             "target": null,
             "base": null,
@@ -19384,7 +19181,7 @@
           },
           {
             "type": "call",
-            "line": 212,
+            "line": 211,
             "fn": ".check_spec_columns",
             "target": null,
             "base": null,
@@ -19414,7 +19211,7 @@
           },
           {
             "type": "assign",
-            "line": 226,
+            "line": 225,
             "target": "contract_dt",
             "base": "contract_dt",
             "expr": "data.table::setDT(data.table::copy(contract_dt))",
@@ -19427,7 +19224,7 @@
           },
           {
             "type": "assign",
-            "line": 227,
+            "line": 226,
             "target": "personnel_dt",
             "base": "personnel_dt",
             "expr": "data.table::setDT(data.table::copy(personnel_dt))",
@@ -19440,7 +19237,7 @@
           },
           {
             "type": "assign",
-            "line": 228,
+            "line": 227,
             "target": "salary_scale_dt",
             "base": "salary_scale_dt",
             "expr": "data.table::setDT(data.table::copy(salary_scale_dt))",
@@ -19453,7 +19250,7 @@
           },
           {
             "type": "assign",
-            "line": 229,
+            "line": 228,
             "target": "pensioner_register",
             "base": "pensioner_register",
             "expr": "data.table::setDT(data.table::copy(pensioner_register))",
@@ -19466,7 +19263,7 @@
           },
           {
             "type": "call",
-            "line": 234,
+            "line": 233,
             "fn": ".empty_pensioner_register",
             "target": "pensioner_register",
             "base": "pensioner_register",
@@ -19475,11 +19272,6 @@
                 "name": "",
                 "expr": "personnel_id_col",
                 "refs": ["personnel_id_col"]
-              },
-              {
-                "name": "",
-                "expr": "column_spec_args$contract_id_col",
-                "refs": ["$", "column_spec_args", "contract_id_col"]
               }
             ],
             "context": ["if (is.null(pensioner_register))"],
@@ -19487,7 +19279,7 @@
           },
           {
             "type": "call",
-            "line": 237,
+            "line": 236,
             "fn": ".check_pay_column",
             "target": null,
             "base": null,
@@ -19512,12 +19304,12 @@
           },
           {
             "type": "section",
-            "line": 240,
+            "line": 239,
             "title": "SNAPSHOT A  (active employees only -- pensioner rows excluded)"
           },
           {
             "type": "assign",
-            "line": 242,
+            "line": 241,
             "target": "n_headcount_start",
             "base": "n_headcount_start",
             "expr": "data.table::uniqueN(contract_dt[.on_payroll(get(contract_type_col))], by = personnel_id_col)",
@@ -19530,7 +19322,7 @@
           },
           {
             "type": "call",
-            "line": 242,
+            "line": 241,
             "fn": ".on_payroll",
             "target": null,
             "base": null,
@@ -19545,7 +19337,7 @@
           },
           {
             "type": "call",
-            "line": 246,
+            "line": 245,
             "fn": ".active_wage_bill",
             "target": "wage_bill_start",
             "base": "wage_bill_start",
@@ -19576,12 +19368,12 @@
           },
           {
             "type": "section",
-            "line": 251,
+            "line": 250,
             "title": "STEP 1: RETIREMENT"
           },
           {
             "type": "call",
-            "line": 259,
+            "line": 258,
             "fn": "simulate_retirement",
             "target": "ret_result",
             "base": "ret_result",
@@ -19617,7 +19409,7 @@
           },
           {
             "type": "assign",
-            "line": 266,
+            "line": 265,
             "target": "retirees_dt",
             "base": "retirees_dt",
             "expr": "ret_result$retirees_dt",
@@ -19630,7 +19422,7 @@
           },
           {
             "type": "assign",
-            "line": 267,
+            "line": 266,
             "target": "contract_dt",
             "base": "contract_dt",
             "expr": "ret_result$contract_dt",
@@ -19643,7 +19435,7 @@
           },
           {
             "type": "assign",
-            "line": 268,
+            "line": 267,
             "target": "personnel_dt",
             "base": "personnel_dt",
             "expr": "ret_result$personnel_dt",
@@ -19656,7 +19448,7 @@
           },
           {
             "type": "assign",
-            "line": 270,
+            "line": 269,
             "target": "n_exits",
             "base": "n_exits",
             "expr": "if (!is.null(retirees_dt)) nrow(retirees_dt) else 0L",
@@ -19669,7 +19461,7 @@
           },
           {
             "type": "call",
-            "line": 271,
+            "line": 270,
             "fn": "compute_exit_effect",
             "target": "exit_savings",
             "base": "exit_savings",
@@ -19690,7 +19482,7 @@
           },
           {
             "type": "assign",
-            "line": 275,
+            "line": 274,
             "target": "pension_cost_new",
             "base": "pension_cost_new",
             "expr": "sum(retirees_dt$pension, na.rm = TRUE)",
@@ -19703,30 +19495,23 @@
           },
           {
             "type": "assign",
-            "line": 279,
+            "line": 277,
             "target": "new_reg",
             "base": "new_reg",
-            "expr": "retirees_dt[, c(personnel_id_col, column_spec_args$contract_id_col, \"pension\"), with = FALSE]",
-            "refs": ["[", "retirees_dt", "c", "personnel_id_col", "$", "column_spec_args", "contract_id_col"],
-            "builds": null,
-            "list_names": [],
-            "list_values": [],
+            "expr": "data.table::data.table(.id = retirees_dt[[personnel_id_col]], pension_amount = retirees_dt$pension, final_s...",
+            "refs": ["::", "data.table", "[[", "retirees_dt", "personnel_id_col", "$", "pension", "salary_col", "if", "%in%", "names", "tenure_years", "age", "period_date"],
+            "builds": "table",
+            "list_names": [".id", "pension_amount", "final_salary", "tenure_years_at_retirement", "age_at_retirement", "period_date"],
+            "list_values": ["", "", "", "", "", "period_date"],
             "is_null": false,
             "context": ["if (!is.null(retirement_policy))", "if (!is.null(retirees_dt) && nrow(retirees_dt) > 0L && \"pension\" %in% n...)"]
           },
           {
-            "type": "inline",
-            "line": 281,
-            "target": "new_reg",
-            "expr": "new_reg[, `:=`(pension_amount, as.numeric(pension_amount))]",
-            "context": ["if (!is.null(retirement_policy))", "if (!is.null(retirees_dt) && nrow(retirees_dt) > 0L && \"pension\" %in% n...)"]
-          },
-          {
             "type": "assign",
-            "line": 282,
+            "line": 288,
             "target": "pensioner_register",
             "base": "pensioner_register",
-            "expr": "data.table::rbindlist(list(pensioner_register, new_reg), use.names = TRUE)",
+            "expr": "data.table::rbindlist(list(pensioner_register, new_reg), use.names = TRUE, fill = TRUE)",
             "refs": ["::", "data.table", "rbindlist", "list", "pensioner_register", "new_reg"],
             "builds": null,
             "list_names": [],
@@ -19736,12 +19521,12 @@
           },
           {
             "type": "section",
-            "line": 287,
+            "line": 296,
             "title": "STEP 2: NON-RETIREMENT EXITS (Phase 3)"
           },
           {
             "type": "call",
-            "line": 294,
+            "line": 303,
             "fn": "simulate_exits",
             "target": "exit_result",
             "base": "exit_result",
@@ -19777,7 +19562,7 @@
           },
           {
             "type": "assign",
-            "line": 301,
+            "line": 310,
             "target": "contract_dt",
             "base": "contract_dt",
             "expr": "exit_result$contract_dt",
@@ -19790,7 +19575,7 @@
           },
           {
             "type": "assign",
-            "line": 302,
+            "line": 311,
             "target": "personnel_dt",
             "base": "personnel_dt",
             "expr": "exit_result$personnel_dt",
@@ -19803,7 +19588,7 @@
           },
           {
             "type": "assign",
-            "line": 303,
+            "line": 312,
             "target": "n_non_ret_exits",
             "base": "n_non_ret_exits",
             "expr": "exit_result$summary$n_exits",
@@ -19816,7 +19601,7 @@
           },
           {
             "type": "assign",
-            "line": 304,
+            "line": 313,
             "target": "non_ret_exit_savings",
             "base": "non_ret_exit_savings",
             "expr": "exit_result$summary$exit_savings",
@@ -19829,7 +19614,7 @@
           },
           {
             "type": "assign",
-            "line": 305,
+            "line": 314,
             "target": "exits_dt",
             "base": "exits_dt",
             "expr": "exit_result$exits_dt",
@@ -19842,12 +19627,12 @@
           },
           {
             "type": "section",
-            "line": 309,
+            "line": 318,
             "title": "STEP 3: MOVEMENTS"
           },
           {
             "type": "call",
-            "line": 317,
+            "line": 326,
             "fn": "simulate_promotions_transfers",
             "target": "mov_result",
             "base": "mov_result",
@@ -19888,7 +19673,7 @@
           },
           {
             "type": "assign",
-            "line": 326,
+            "line": 335,
             "target": "movers_dt",
             "base": "movers_dt",
             "expr": "mov_result$movers_dt",
@@ -19901,7 +19686,7 @@
           },
           {
             "type": "assign",
-            "line": 327,
+            "line": 336,
             "target": "contract_dt",
             "base": "contract_dt",
             "expr": "mov_result$contract_dt",
@@ -19914,7 +19699,7 @@
           },
           {
             "type": "assign",
-            "line": 328,
+            "line": 337,
             "target": "personnel_dt",
             "base": "personnel_dt",
             "expr": "mov_result$personnel_dt",
@@ -19927,7 +19712,7 @@
           },
           {
             "type": "call",
-            "line": 338,
+            "line": 347,
             "fn": "%||%",
             "target": "movement_type",
             "base": "movement_type",
@@ -19948,7 +19733,7 @@
           },
           {
             "type": "assign",
-            "line": 341,
+            "line": 350,
             "target": "n_movers_val",
             "base": "n_movers_val",
             "expr": "mov_result$summary$n_movers",
@@ -19961,7 +19746,7 @@
           },
           {
             "type": "assign",
-            "line": 342,
+            "line": 351,
             "target": "n_movers",
             "base": "n_movers",
             "expr": "as.integer(if (!is.null(n_movers_val)) n_movers_val else 0L)",
@@ -19974,7 +19759,7 @@
           },
           {
             "type": "assign",
-            "line": 344,
+            "line": 353,
             "target": "n_transfers",
             "base": "n_transfers",
             "expr": "n_movers",
@@ -19987,7 +19772,7 @@
           },
           {
             "type": "assign",
-            "line": 346,
+            "line": 355,
             "target": "n_promotions",
             "base": "n_promotions",
             "expr": "n_movers",
@@ -20000,7 +19785,7 @@
           },
           {
             "type": "call",
-            "line": 350,
+            "line": 359,
             "fn": "compute_movement_effect",
             "target": "mov_effects",
             "base": "mov_effects",
@@ -20031,7 +19816,7 @@
           },
           {
             "type": "assign",
-            "line": 357,
+            "line": 366,
             "target": "transfer_effect",
             "base": "transfer_effect",
             "expr": "mov_effects$movement",
@@ -20044,7 +19829,7 @@
           },
           {
             "type": "assign",
-            "line": 359,
+            "line": 368,
             "target": "promotion_effect",
             "base": "promotion_effect",
             "expr": "mov_effects$movement",
@@ -20057,12 +19842,12 @@
           },
           {
             "type": "section",
-            "line": 364,
+            "line": 373,
             "title": "STEP 4: HIRING"
           },
           {
             "type": "assign",
-            "line": 380,
+            "line": 389,
             "target": "hire_groups",
             "base": "hire_groups",
             "expr": "intersect(hiring_policy$group_cols, names(salary_scale_dt))",
@@ -20075,7 +19860,7 @@
           },
           {
             "type": "assign",
-            "line": 381,
+            "line": 390,
             "target": "hiring_this_year$salary_scale",
             "base": "hiring_this_year",
             "expr": "salary_scale_dt[, lapply(.SD, mean, na.rm = TRUE), keyby = hire_groups, .SDcols = salary_col]",
@@ -20088,7 +19873,7 @@
           },
           {
             "type": "call",
-            "line": 388,
+            "line": 397,
             "fn": "simulate_hiring",
             "target": "hire_result",
             "base": "hire_result",
@@ -20129,7 +19914,7 @@
           },
           {
             "type": "call",
-            "line": 388,
+            "line": 397,
             "fn": ".leavers_this_period",
             "target": null,
             "base": null,
@@ -20164,7 +19949,7 @@
           },
           {
             "type": "assign",
-            "line": 398,
+            "line": 407,
             "target": "contract_dt",
             "base": "contract_dt",
             "expr": "hire_result$contract_dt",
@@ -20177,7 +19962,7 @@
           },
           {
             "type": "assign",
-            "line": 399,
+            "line": 408,
             "target": "personnel_dt",
             "base": "personnel_dt",
             "expr": "hire_result$personnel_dt",
@@ -20190,7 +19975,7 @@
           },
           {
             "type": "call",
-            "line": 402,
+            "line": 411,
             "fn": "compute_hiring_effect",
             "target": "hiring_effect",
             "base": "hiring_effect",
@@ -20211,7 +19996,7 @@
           },
           {
             "type": "assign",
-            "line": 408,
+            "line": 417,
             "target": "n_hires",
             "base": "n_hires",
             "expr": "as.integer(hire_result$summary$n_new_hires)",
@@ -20224,7 +20009,7 @@
           },
           {
             "type": "assign",
-            "line": 410,
+            "line": 419,
             "target": "n_downsized",
             "base": "n_downsized",
             "expr": "hire_result$summary$n_downsized",
@@ -20237,7 +20022,7 @@
           },
           {
             "type": "assign",
-            "line": 411,
+            "line": 420,
             "target": "downsizing_savings",
             "base": "downsizing_savings",
             "expr": "hire_result$summary$downsizing_savings",
@@ -20250,31 +20035,31 @@
           },
           {
             "type": "section",
-            "line": 415,
+            "line": 424,
             "title": "STEP 5: AGING"
           },
           {
             "type": "inline",
-            "line": 420,
+            "line": 427,
             "target": "personnel_dt",
-            "expr": "personnel_dt[get(status_col) %in% c(\"active\", \"pensioner\"), `:=`((age_col), get(age_col) + period_fraction)]",
+            "expr": "personnel_dt[get(status_col) == \"active\", `:=`((age_col), get(age_col) + period_fraction)]",
             "context": ["if (!is.null(age_col) && age_col %in% names(personnel_dt))"]
           },
           {
             "type": "inline",
-            "line": 424,
+            "line": 431,
             "target": "personnel_dt",
             "expr": "personnel_dt[get(status_col) == \"active\", `:=`((tenure_col), get(tenure_col) + period_fraction)]",
             "context": ["if (!is.null(tenure_col) && tenure_col %in% names(personnel_dt))"]
           },
           {
             "type": "section",
-            "line": 429,
+            "line": 436,
             "title": "STEP 6: COLA"
           },
           {
             "type": "call",
-            "line": 434,
+            "line": 441,
             "fn": ".active_wage_bill",
             "target": "pre_cola_wage_bill",
             "base": "pre_cola_wage_bill",
@@ -20305,7 +20090,7 @@
           },
           {
             "type": "call",
-            "line": 437,
+            "line": 444,
             "fn": "compute_inflation_effect",
             "target": "inflation_effect",
             "base": "inflation_effect",
@@ -20326,21 +20111,21 @@
           },
           {
             "type": "inline",
-            "line": 440,
+            "line": 447,
             "target": "salary_scale_dt",
             "expr": "salary_scale_dt[, `:=`((salary_col), get(salary_col) * (1 + growth))]",
             "context": ["if (growth != 0)"]
           },
           {
             "type": "inline",
-            "line": 441,
+            "line": 448,
             "target": "contract_dt",
             "expr": "contract_dt[.on_payroll(get(contract_type_col)), `:=`((salary_col), get(salary_col) * (1 + growth))]",
             "context": ["if (growth != 0)"]
           },
           {
             "type": "call",
-            "line": 441,
+            "line": 448,
             "fn": ".on_payroll",
             "target": null,
             "base": null,
@@ -20355,7 +20140,7 @@
           },
           {
             "type": "assign",
-            "line": 447,
+            "line": 454,
             "target": "hiring_policy$salary_scale",
             "base": "hiring_policy",
             "expr": "data.table::copy(hiring_policy$salary_scale)[, `:=`((salary_col), get(salary_col) * (1 + growth))]",
@@ -20368,7 +20153,7 @@
           },
           {
             "type": "call",
-            "line": 459,
+            "line": 466,
             "fn": "apply_salary_scale_adjustment",
             "target": "allowance_policy$policy_table",
             "base": "allowance_policy",
@@ -20393,7 +20178,7 @@
           },
           {
             "type": "assign",
-            "line": 465,
+            "line": 472,
             "target": "allowance_policy$defaults$amount",
             "base": "allowance_policy",
             "expr": "allowance_policy$defaults$amount * (1 + allowance_growth_rate)",
@@ -20406,12 +20191,12 @@
           },
           {
             "type": "section",
-            "line": 469,
+            "line": 476,
             "title": "STEP 7: ALLOWANCES"
           },
           {
             "type": "call",
-            "line": 478,
+            "line": 485,
             "fn": "simulate_allowances",
             "target": "alw_result",
             "base": "alw_result",
@@ -20452,7 +20237,7 @@
           },
           {
             "type": "assign",
-            "line": 486,
+            "line": 493,
             "target": "allowance_dt",
             "base": "allowance_dt",
             "expr": "alw_result$allowance_dt",
@@ -20465,7 +20250,7 @@
           },
           {
             "type": "assign",
-            "line": 487,
+            "line": 494,
             "target": "allowance_cost_end",
             "base": "allowance_cost_end",
             "expr": "alw_result$summary$allowance_cost_total",
@@ -20478,14 +20263,14 @@
           },
           {
             "type": "inline",
-            "line": 492,
+            "line": 499,
             "target": "pensioner_register",
             "expr": "pensioner_register[, `:=`(pension_amount, pension_amount * (1 + pension_cola_rate))]",
             "context": ["if (pension_cola_rate != 0 && nrow(pensioner_register) > 0L)"]
           },
           {
             "type": "assign",
-            "line": 496,
+            "line": 503,
             "target": "pension_cost_total",
             "base": "pension_cost_total",
             "expr": "sum(pensioner_register$pension_amount, na.rm = TRUE)",
@@ -20498,12 +20283,12 @@
           },
           {
             "type": "section",
-            "line": 499,
+            "line": 506,
             "title": "SNAPSHOT B  (active employees only -- pensioner rows excluded)"
           },
           {
             "type": "assign",
-            "line": 501,
+            "line": 508,
             "target": "n_headcount_end",
             "base": "n_headcount_end",
             "expr": "data.table::uniqueN(contract_dt[.on_payroll(get(contract_type_col))], by = personnel_id_col)",
@@ -20516,7 +20301,7 @@
           },
           {
             "type": "call",
-            "line": 501,
+            "line": 508,
             "fn": ".on_payroll",
             "target": null,
             "base": null,
@@ -20531,7 +20316,7 @@
           },
           {
             "type": "call",
-            "line": 505,
+            "line": 512,
             "fn": ".active_wage_bill",
             "target": "wage_bill_end",
             "base": "wage_bill_end",
@@ -20562,18 +20347,18 @@
           },
           {
             "type": "section",
-            "line": 510,
+            "line": 517,
             "title": "Build summary row"
           },
           {
             "type": "assign",
-            "line": 512,
+            "line": 519,
             "target": "summary_row",
             "base": "summary_row",
-            "expr": "data.table::data.table(period_date = as.Date(period_date), n_headcount_start = as.integer(n_headcount_start...",
+            "expr": "data.table::data.table(period_start_date = as.Date(period_date), n_headcount_start = as.integer(n_headcount...",
             "refs": ["::", "data.table", "as.Date", "period_date", "as.integer", "n_headcount_start", "wage_bill_start", "n_exits", "exit_savings", "n_non_ret_exits", "non_ret_exit_savings", "pension_cost_new", "pension_cost_total", "n_promotions", "n_transfers", "promotion_effect", "transfer_effect", "n_hires", "hiring_effect", "n_downsized", "downsizing_savings", "inflation_effect", "n_headcount_end", "wage_bill_end", "allowance_cost_end"],
             "builds": "table",
-            "list_names": ["period_date", "n_headcount_start", "wage_bill_start", "n_exits", "exit_savings", "n_non_ret_exits", "non_ret_exit_savings", "pension_cost_new", "pension_cost_total", "n_promotions", "n_transfers", "promotion_effect", "transfer_effect", "n_hires", "hiring_effect", "n_downsized", "downsizing_savings", "inflation_effect", "n_headcount_end", "wage_bill_end", "allowance_cost_end"],
+            "list_names": ["period_start_date", "n_headcount_start", "wage_bill_start", "n_exits", "exit_savings", "n_non_ret_exits", "non_ret_exit_savings", "pension_cost_new", "pension_cost_total", "n_promotions", "n_transfers", "promotion_effect", "transfer_effect", "n_hires", "hiring_effect", "n_downsized", "downsizing_savings", "inflation_effect", "n_headcount_end", "wage_bill_end", "allowance_cost_end"],
             "list_values": ["period_date", "n_headcount_start", "wage_bill_start", "n_exits", "exit_savings", "n_non_ret_exits", "non_ret_exit_savings", "pension_cost_new", "pension_cost_total", "n_promotions", "n_transfers", "promotion_effect", "transfer_effect", "n_hires", "hiring_effect", "n_downsized", "downsizing_savings", "inflation_effect", "n_headcount_end", "wage_bill_end", "allowance_cost_end"],
             "is_null": false,
             "context": []
@@ -20598,8 +20383,8 @@
       "file": "simulate_horizon.R",
       "module": "horizon",
       "role": "orchestrator",
-      "line_start": 552,
-      "line_end": 552,
+      "line_start": 559,
+      "line_end": 559,
       "n_lines": 1,
       "roxygen_lines": 0,
       "title": null,
@@ -20636,7 +20421,7 @@
       "called_by": [".exit_types", ".set_new_hire_state", "compute_fixed_rate_exits", "compute_flow_demand", "compute_status_quo_exits", "compute_status_quo_hiring", "compute_status_quo_retirements", "design_retirement_policy", "identify_eligibility", "identify_movers", "precompute_hiring_rates", "resolve_allowance_amounts", "simulate_allowances", "simulate_exits", "simulate_retirement", "simulate_scenario", "update_state_with_movement"],
       "calls": [],
       "constants_used": [],
-      "test_files": ["test-allowance_core.R", "test-allowance_policy_helpers.R", "test-allowance_update.R", "test-characterisation.R", "test-column-spec.R", "test-estimate_retirement_hazard_rates.R", "test-exit_policy_helpers.R", "test-fitness.R", "test-flow-hiring.R", "test-hiring_core.R", "test-hiring_policy_helpers.R", "test-hiring_update.R", "test-invariants.R", "test-movement_core.R", "test-movement_policy_helpers.R", "test-movement_update.R", "test-new-hires.R", "test-output-continuity.R", "test-pay-column.R", "test-payroll-state.R", "test-period-date.R", "test-rates.R", "test-renamed-columns.R", "test-retirement_core.R", "test-retirement_pension.R", "test-retirement_policy_helpers.R", "test-retirement_update.R", "test-run-checks.R", "test-salary_scale_utils.R", "test-sandbox.R", "test-simulate_allowances.R", "test-simulate_exits.R", "test-simulate_hiring.R", "test-simulate_horizon.R", "test-simulate_promotions_transfers.R", "test-simulate_retirement.R", "test-two-contracts.R", "test-utils.R", "test-validation.R"],
+      "test_files": ["test-allowance_core.R", "test-allowance_policy_helpers.R", "test-allowance_update.R", "test-characterisation.R", "test-column-spec.R", "test-estimate_retirement_hazard_rates.R", "test-exit_policy_helpers.R", "test-fitness.R", "test-flow-hiring.R", "test-hiring_core.R", "test-hiring_policy_helpers.R", "test-hiring_update.R", "test-invariants.R", "test-movement_core.R", "test-movement_policy_helpers.R", "test-movement_update.R", "test-new-hires.R", "test-pay-column.R", "test-payroll-state.R", "test-period-date.R", "test-rates.R", "test-renamed-columns.R", "test-retirement_core.R", "test-retirement_pension.R", "test-retirement_policy_helpers.R", "test-retirement_update.R", "test-run-checks.R", "test-salary_scale_utils.R", "test-sandbox.R", "test-simulate_allowances.R", "test-simulate_exits.R", "test-simulate_hiring.R", "test-simulate_horizon.R", "test-simulate_promotions_transfers.R", "test-simulate_retirement.R", "test-two-contracts.R", "test-utils.R", "test-validation.R"],
       "data_raw_files": ["bra_hrmis_data.R", "prep_allowance_module.R"]
     },
     {
@@ -20644,10 +20429,10 @@
       "file": "simulate_horizon.R",
       "module": "horizon",
       "role": "orchestrator",
-      "line_start": 958,
-      "line_end": 1208,
-      "n_lines": 251,
-      "roxygen_lines": 399,
+      "line_start": 960,
+      "line_end": 1207,
+      "n_lines": 248,
+      "roxygen_lines": 394,
       "title": "Project a Public-Sector Workforce and Its Wage Bill Over Several Years",
       "visibility": "exported",
       "documented": true,
@@ -20719,9 +20504,9 @@
       ],
       "n_args": 16,
       "spec_keys": [],
-      "returns": ["out"],
+      "returns": ["[(...)", "out", "return(...)"],
       "external_calls": {
-        "data.table": 7
+        "data.table": 10
       },
       "n_stop": 0,
       "n_warning": 0,
@@ -20729,17 +20514,17 @@
       "changes_by_reference": true,
       "copies": true,
       "changes_argument": [],
-      "local_functions": 0,
+      "local_functions": 1,
       "process": {
         "steps": [
           {
             "type": "section",
-            "line": 978,
+            "line": 980,
             "title": "0. Validate and set up"
           },
           {
             "type": "call",
-            "line": 982,
+            "line": 984,
             "fn": ".check_output_control",
             "target": null,
             "base": null,
@@ -20754,7 +20539,7 @@
           },
           {
             "type": "call",
-            "line": 990,
+            "line": 992,
             "fn": "prepare_horizon_inputs",
             "target": "inputs",
             "base": "inputs",
@@ -20831,78 +20616,13 @@
               }
             ],
             "context": [],
-            "used_later": ["allowance_growth_rate", "baseline_date", "column_spec_args", "contract_dt", "exit_policy", "hiring_policy", "movement_policy", "n_periods", "pension_cola_rate", "pension_contracts", "pension_people", "pensioner_register", "period0_allowance_cost", "personnel_dt", "retirement_policy", "salary_growth_rate", "salary_scale_dt"]
+            "used_later": ["allowance_growth_rate", "baseline_date", "column_spec_args", "contract_dt", "exit_policy", "hiring_policy", "movement_policy", "n_periods", "pension_cola_rate", "pensioner_register", "period0_allowance_cost", "personnel_dt", "retirement_policy", "salary_growth_rate", "salary_scale_dt"]
           },
           {
             "type": "assign",
-            "line": 1006,
-            "target": "ref_date_col",
-            "base": "ref_date_col",
-            "expr": "inputs$column_spec_args$ref_date_col",
-            "refs": ["$", "inputs", "column_spec_args", "ref_date_col"],
-            "builds": null,
-            "list_names": [],
-            "list_values": [],
-            "is_null": false,
-            "context": []
-          },
-          {
-            "type": "call",
             "line": 1011,
-            "fn": ".history_up_to",
-            "target": "history_contracts",
-            "base": "history_contracts",
-            "args": [
-              {
-                "name": "",
-                "expr": "contract_dt",
-                "refs": ["contract_dt"]
-              },
-              {
-                "name": "",
-                "expr": "inputs$baseline_date",
-                "refs": ["$", "inputs", "baseline_date"]
-              },
-              {
-                "name": "",
-                "expr": "ref_date_col",
-                "refs": ["ref_date_col"]
-              }
-            ],
-            "context": ["if (return_microdata)"],
-            "used_later": []
-          },
-          {
-            "type": "call",
-            "line": 1012,
-            "fn": ".history_up_to",
-            "target": "history_personnel",
-            "base": "history_personnel",
-            "args": [
-              {
-                "name": "",
-                "expr": "personnel_dt",
-                "refs": ["personnel_dt"]
-              },
-              {
-                "name": "",
-                "expr": "inputs$baseline_date",
-                "refs": ["$", "inputs", "baseline_date"]
-              },
-              {
-                "name": "",
-                "expr": "ref_date_col",
-                "refs": ["ref_date_col"]
-              }
-            ],
-            "context": ["if (return_microdata)"],
-            "used_later": []
-          },
-          {
-            "type": "assign",
-            "line": 1016,
-            "target": "contract_dt",
-            "base": "contract_dt",
+            "target": "base_contract_dt",
+            "base": "base_contract_dt",
             "expr": "inputs$contract_dt",
             "refs": ["$", "inputs", "contract_dt"],
             "builds": null,
@@ -20913,9 +20633,9 @@
           },
           {
             "type": "assign",
-            "line": 1017,
-            "target": "personnel_dt",
-            "base": "personnel_dt",
+            "line": 1012,
+            "target": "base_personnel_dt",
+            "base": "base_personnel_dt",
             "expr": "inputs$personnel_dt",
             "refs": ["$", "inputs", "personnel_dt"],
             "builds": null,
@@ -20926,7 +20646,7 @@
           },
           {
             "type": "assign",
-            "line": 1018,
+            "line": 1013,
             "target": "salary_scale_dt",
             "base": "salary_scale_dt",
             "expr": "inputs$salary_scale_dt",
@@ -20939,7 +20659,7 @@
           },
           {
             "type": "assign",
-            "line": 1019,
+            "line": 1014,
             "target": "pensioner_register",
             "base": "pensioner_register",
             "expr": "inputs$pensioner_register",
@@ -20952,7 +20672,7 @@
           },
           {
             "type": "assign",
-            "line": 1020,
+            "line": 1015,
             "target": "hiring_policy",
             "base": "hiring_policy",
             "expr": "inputs$hiring_policy",
@@ -20965,7 +20685,7 @@
           },
           {
             "type": "call",
-            "line": 1038,
+            "line": 1033,
             "fn": ".save_rng_state",
             "target": "rng_state",
             "base": "rng_state",
@@ -20975,7 +20695,7 @@
           },
           {
             "type": "call",
-            "line": 1039,
+            "line": 1034,
             "fn": ".restore_rng_state",
             "target": null,
             "base": null,
@@ -20990,12 +20710,12 @@
           },
           {
             "type": "section",
-            "line": 1044,
+            "line": 1039,
             "title": "PERIOD LOOP"
           },
           {
             "type": "assign",
-            "line": 1048,
+            "line": 1042,
             "target": "period_rows",
             "base": "period_rows",
             "expr": "vector(\"list\", inputs$n_periods)",
@@ -21008,20 +20728,7 @@
           },
           {
             "type": "assign",
-            "line": 1049,
-            "target": "register_panel_list",
-            "base": "register_panel_list",
-            "expr": "vector(\"list\", inputs$n_periods)",
-            "refs": ["vector", "$", "inputs", "n_periods"],
-            "builds": null,
-            "list_names": [],
-            "list_values": [],
-            "is_null": false,
-            "context": []
-          },
-          {
-            "type": "assign",
-            "line": 1050,
+            "line": 1043,
             "target": "contract_panel_list",
             "base": "contract_panel_list",
             "expr": "vector(\"list\", inputs$n_periods)",
@@ -21034,7 +20741,7 @@
           },
           {
             "type": "assign",
-            "line": 1051,
+            "line": 1044,
             "target": "personnel_panel_list",
             "base": "personnel_panel_list",
             "expr": "vector(\"list\", inputs$n_periods)",
@@ -21047,46 +20754,7 @@
           },
           {
             "type": "assign",
-            "line": 1054,
-            "target": "year_starts",
-            "base": "year_starts",
-            "expr": "seq(inputs$baseline_date, by = \"year\", length.out = inputs$n_periods + 1L)",
-            "refs": ["seq", "$", "inputs", "baseline_date", "+", "n_periods"],
-            "builds": null,
-            "list_names": [],
-            "list_values": [],
-            "is_null": false,
-            "context": []
-          },
-          {
-            "type": "assign",
-            "line": 1055,
-            "target": "as_of_dates",
-            "base": "as_of_dates",
-            "expr": "year_starts[-length(year_starts)]",
-            "refs": ["[", "year_starts", "-", "length"],
-            "builds": null,
-            "list_names": [],
-            "list_values": [],
-            "is_null": false,
-            "context": []
-          },
-          {
-            "type": "assign",
-            "line": 1056,
-            "target": "snapshot_dates",
-            "base": "snapshot_dates",
-            "expr": "year_starts[-1L]",
-            "refs": ["[", "year_starts", "-"],
-            "builds": null,
-            "list_names": [],
-            "list_values": [],
-            "is_null": false,
-            "context": []
-          },
-          {
-            "type": "assign",
-            "line": 1060,
+            "line": 1048,
             "target": "growth",
             "base": "growth",
             "expr": "inputs$salary_growth_rate[t]",
@@ -21099,7 +20767,7 @@
           },
           {
             "type": "assign",
-            "line": 1061,
+            "line": 1049,
             "target": "cola_rate",
             "base": "cola_rate",
             "expr": "inputs$pension_cola_rate[t]",
@@ -21112,7 +20780,7 @@
           },
           {
             "type": "assign",
-            "line": 1062,
+            "line": 1050,
             "target": "allow_growth",
             "base": "allow_growth",
             "expr": "inputs$allowance_growth_rate[t]",
@@ -21125,20 +20793,72 @@
           },
           {
             "type": "call",
-            "line": 1064,
+            "line": 1051,
+            "fn": ".advance_period",
+            "target": "cur_date",
+            "base": "cur_date",
+            "args": [
+              {
+                "name": "",
+                "expr": "inputs$baseline_date",
+                "refs": ["$", "inputs", "baseline_date"]
+              },
+              {
+                "name": "",
+                "expr": "t - 1L",
+                "refs": ["-", "t"]
+              },
+              {
+                "name": "unit",
+                "expr": "\"year\"",
+                "refs": []
+              }
+            ],
+            "context": ["for each t in seq_len(inputs$n_periods)"],
+            "used_later": []
+          },
+          {
+            "type": "call",
+            "line": 1053,
+            "fn": ".advance_period",
+            "target": "year_end_date",
+            "base": "year_end_date",
+            "args": [
+              {
+                "name": "",
+                "expr": "inputs$baseline_date",
+                "refs": ["$", "inputs", "baseline_date"]
+              },
+              {
+                "name": "",
+                "expr": "t",
+                "refs": ["t"]
+              },
+              {
+                "name": "unit",
+                "expr": "\"year\"",
+                "refs": []
+              }
+            ],
+            "context": ["for each t in seq_len(inputs$n_periods)"],
+            "used_later": []
+          },
+          {
+            "type": "call",
+            "line": 1055,
             "fn": "simulate_scenario",
             "target": "scenario_result",
             "base": "scenario_result",
             "args": [
               {
                 "name": "contract_dt",
-                "expr": "contract_dt",
-                "refs": ["contract_dt"]
+                "expr": "base_contract_dt",
+                "refs": ["base_contract_dt"]
               },
               {
                 "name": "personnel_dt",
-                "expr": "personnel_dt",
-                "refs": ["personnel_dt"]
+                "expr": "base_personnel_dt",
+                "refs": ["base_personnel_dt"]
               },
               {
                 "name": "salary_scale_dt",
@@ -21147,8 +20867,8 @@
               },
               {
                 "name": "period_date",
-                "expr": "as_of_dates[t]",
-                "refs": ["[", "as_of_dates", "t"]
+                "expr": "cur_date",
+                "refs": ["cur_date"]
               },
               {
                 "name": "pensioner_register",
@@ -21216,9 +20936,9 @@
           },
           {
             "type": "assign",
-            "line": 1086,
-            "target": "contract_dt",
-            "base": "contract_dt",
+            "line": 1077,
+            "target": "base_contract_dt",
+            "base": "base_contract_dt",
             "expr": "scenario_result$contract_dt",
             "refs": ["$", "scenario_result", "contract_dt"],
             "builds": null,
@@ -21229,9 +20949,9 @@
           },
           {
             "type": "assign",
-            "line": 1087,
-            "target": "personnel_dt",
-            "base": "personnel_dt",
+            "line": 1078,
+            "target": "base_personnel_dt",
+            "base": "base_personnel_dt",
             "expr": "scenario_result$personnel_dt",
             "refs": ["$", "scenario_result", "personnel_dt"],
             "builds": null,
@@ -21242,7 +20962,7 @@
           },
           {
             "type": "assign",
-            "line": 1088,
+            "line": 1079,
             "target": "salary_scale_dt",
             "base": "salary_scale_dt",
             "expr": "scenario_result$salary_scale_dt",
@@ -21255,7 +20975,7 @@
           },
           {
             "type": "assign",
-            "line": 1089,
+            "line": 1080,
             "target": "pensioner_register",
             "base": "pensioner_register",
             "expr": "scenario_result$pensioner_register",
@@ -21268,7 +20988,7 @@
           },
           {
             "type": "assign",
-            "line": 1090,
+            "line": 1081,
             "target": "allowance_dt",
             "base": "allowance_dt",
             "expr": "scenario_result$allowance_dt",
@@ -21281,7 +21001,7 @@
           },
           {
             "type": "assign",
-            "line": 1091,
+            "line": 1082,
             "target": "allowance_policy",
             "base": "allowance_policy",
             "expr": "scenario_result$allowance_policy",
@@ -21294,7 +21014,7 @@
           },
           {
             "type": "assign",
-            "line": 1092,
+            "line": 1083,
             "target": "hiring_policy",
             "base": "hiring_policy",
             "expr": "scenario_result$hiring_policy",
@@ -21307,24 +21027,90 @@
           },
           {
             "type": "assign",
-            "line": 1096,
-            "target": "period_rows[[t]]",
-            "base": "period_rows",
-            "expr": "scenario_result$summary[, `:=`(period_date, snapshot_dates[t])]",
-            "refs": ["[", "$", "scenario_result", "summary", ":=", "period_date", "snapshot_dates", "t"],
+            "line": 1087,
+            "target": "ref_date_col",
+            "base": "ref_date_col",
+            "expr": "inputs$column_spec_args$ref_date_col",
+            "refs": ["$", "inputs", "column_spec_args", "ref_date_col"],
             "builds": null,
             "list_names": [],
             "list_values": [],
             "is_null": false,
-            "context": ["for each t in seq_len(inputs$n_periods)"]
+            "context": ["for each t in seq_len(inputs$n_periods)", "if (return_microdata)"]
+          },
+          {
+            "type": "assign",
+            "line": 1088,
+            "target": "ct_snap",
+            "base": "ct_snap",
+            "expr": "data.table::copy(base_contract_dt)",
+            "refs": ["::", "data.table", "copy", "base_contract_dt"],
+            "builds": null,
+            "list_names": [],
+            "list_values": [],
+            "is_null": false,
+            "context": ["for each t in seq_len(inputs$n_periods)", "if (return_microdata)"]
+          },
+          {
+            "type": "inline",
+            "line": 1089,
+            "target": "ct_snap",
+            "expr": "ct_snap[, `:=`((ref_date_col), year_end_date)]",
+            "context": ["for each t in seq_len(inputs$n_periods)", "if (return_microdata)"]
+          },
+          {
+            "type": "assign",
+            "line": 1090,
+            "target": "contract_panel_list[[t]]",
+            "base": "contract_panel_list",
+            "expr": "ct_snap",
+            "refs": ["ct_snap"],
+            "builds": null,
+            "list_names": [],
+            "list_values": [],
+            "is_null": false,
+            "context": ["for each t in seq_len(inputs$n_periods)", "if (return_microdata)"]
+          },
+          {
+            "type": "assign",
+            "line": 1092,
+            "target": "pt_snap",
+            "base": "pt_snap",
+            "expr": "data.table::copy(base_personnel_dt)",
+            "refs": ["::", "data.table", "copy", "base_personnel_dt"],
+            "builds": null,
+            "list_names": [],
+            "list_values": [],
+            "is_null": false,
+            "context": ["for each t in seq_len(inputs$n_periods)", "if (return_microdata)"]
+          },
+          {
+            "type": "inline",
+            "line": 1093,
+            "target": "pt_snap",
+            "expr": "pt_snap[, `:=`((ref_date_col), year_end_date)]",
+            "context": ["for each t in seq_len(inputs$n_periods)", "if (return_microdata)"]
+          },
+          {
+            "type": "assign",
+            "line": 1094,
+            "target": "personnel_panel_list[[t]]",
+            "base": "personnel_panel_list",
+            "expr": "pt_snap",
+            "refs": ["pt_snap"],
+            "builds": null,
+            "list_names": [],
+            "list_values": [],
+            "is_null": false,
+            "context": ["for each t in seq_len(inputs$n_periods)", "if (return_microdata)"]
           },
           {
             "type": "assign",
             "line": 1097,
-            "target": "register_panel_list[[t]]",
-            "base": "register_panel_list",
-            "expr": "data.table::setcolorder(data.table::copy(pensioner_register)[, `:=`((ref_date_col), snapshot_dates[t])], c(...",
-            "refs": ["::", "data.table", "setcolorder", "[", "copy", "pensioner_register", ":=", "(", "ref_date_col", "snapshot_dates", "t", "c", "$", "inputs", "column_spec_args", "personnel_id_col", "contract_id_col"],
+            "target": "period_rows[[t]]",
+            "base": "period_rows",
+            "expr": "scenario_result$summary[, `:=`(period = t, period_end_date = year_end_date)]",
+            "refs": ["[", "$", "scenario_result", "summary", ":=", "t", "year_end_date"],
             "builds": null,
             "list_names": [],
             "list_values": [],
@@ -21332,88 +21118,13 @@
             "context": ["for each t in seq_len(inputs$n_periods)"]
           },
           {
-            "type": "call",
-            "line": 1101,
-            "fn": "snapshot_contracts",
-            "target": "contract_panel_list[[t]]",
-            "base": "contract_panel_list",
-            "args": [
-              {
-                "name": "",
-                "expr": "contract_dt",
-                "refs": ["contract_dt"]
-              },
-              {
-                "name": "",
-                "expr": "personnel_dt",
-                "refs": ["personnel_dt"]
-              },
-              {
-                "name": "",
-                "expr": "pensioner_register",
-                "refs": ["pensioner_register"]
-              },
-              {
-                "name": "",
-                "expr": "inputs$pension_contracts",
-                "refs": ["$", "inputs", "pension_contracts"]
-              },
-              {
-                "name": "",
-                "expr": "snapshot_dates[t]",
-                "refs": ["[", "snapshot_dates", "t"]
-              },
-              {
-                "name": "",
-                "expr": "inputs$column_spec_args",
-                "refs": ["$", "inputs", "column_spec_args"]
-              }
-            ],
-            "context": ["for each t in seq_len(inputs$n_periods)", "if (return_microdata)"]
-          },
-          {
-            "type": "call",
-            "line": 1104,
-            "fn": "snapshot_personnel",
-            "target": "personnel_panel_list[[t]]",
-            "base": "personnel_panel_list",
-            "args": [
-              {
-                "name": "",
-                "expr": "personnel_dt",
-                "refs": ["personnel_dt"]
-              },
-              {
-                "name": "",
-                "expr": "inputs$pension_people",
-                "refs": ["$", "inputs", "pension_people"]
-              },
-              {
-                "name": "",
-                "expr": "t",
-                "refs": ["t"]
-              },
-              {
-                "name": "",
-                "expr": "snapshot_dates[t]",
-                "refs": ["[", "snapshot_dates", "t"]
-              },
-              {
-                "name": "",
-                "expr": "inputs$column_spec_args",
-                "refs": ["$", "inputs", "column_spec_args"]
-              }
-            ],
-            "context": ["for each t in seq_len(inputs$n_periods)", "if (return_microdata)"]
-          },
-          {
             "type": "section",
-            "line": 1110,
+            "line": 1101,
             "title": "Assemble output"
           },
           {
             "type": "assign",
-            "line": 1112,
+            "line": 1103,
             "target": "summary_dt",
             "base": "summary_dt",
             "expr": "data.table::rbindlist(period_rows, use.names = TRUE, fill = TRUE)",
@@ -21426,56 +21137,56 @@
           },
           {
             "type": "inline",
-            "line": 1120,
+            "line": 1112,
             "target": "summary_dt",
             "expr": "summary_dt[, `:=`((pct_col), data.table::fifelse(wage_bill_end > 0, get(ec)/wage_bill_end, NA_real_))]",
             "context": ["for each ec in effect_cols"]
           },
           {
             "type": "inline",
-            "line": 1138,
+            "line": 1130,
             "target": "summary_dt",
             "expr": "summary_dt[, `:=`(allowance_cost_start, data.table::shift(allowance_cost_end, n = 1L, fill = inputs$period0...",
             "context": []
           },
           {
             "type": "inline",
-            "line": 1141,
+            "line": 1133,
             "target": "summary_dt",
             "expr": "summary_dt[, `:=`(total_wage_bill_start, wage_bill_start + allowance_cost_start)]",
             "context": []
           },
           {
             "type": "inline",
-            "line": 1142,
+            "line": 1134,
             "target": "summary_dt",
             "expr": "summary_dt[, `:=`(total_wage_bill_end, wage_bill_end + allowance_cost_end)]",
             "context": []
           },
           {
             "type": "inline",
-            "line": 1153,
+            "line": 1145,
             "target": "summary_dt",
             "expr": "summary_dt[, `:=`(scenario_id, scenario_name)]",
             "context": ["if (!is.null(scenario_name))"]
           },
           {
             "type": "inline",
-            "line": 1154,
+            "line": 1146,
             "target": "summary_dt",
             "expr": "summary_dt[, `:=`(scenario_label, scenario_name)]",
             "context": ["if (!is.null(scenario_name))"]
           },
           {
             "type": "inline",
-            "line": 1156,
+            "line": 1148,
             "target": "summary_dt",
             "expr": "summary_dt[, `:=`(is_baseline, isTRUE(is_baseline))]",
             "context": []
           },
           {
             "type": "assign",
-            "line": 1159,
+            "line": 1151,
             "target": "id_cols",
             "base": "id_cols",
             "expr": "intersect(c(\"scenario_id\", \"scenario_label\", \"is_baseline\"), names(summary_dt))",
@@ -21488,7 +21199,7 @@
           },
           {
             "type": "assign",
-            "line": 1161,
+            "line": 1153,
             "target": "other_cols",
             "base": "other_cols",
             "expr": "setdiff(names(summary_dt), id_cols)",
@@ -21501,7 +21212,7 @@
           },
           {
             "type": "assign",
-            "line": 1166,
+            "line": 1158,
             "target": "policy_args",
             "base": "policy_args",
             "expr": "list(retirement_policy = inputs$retirement_policy, exit_policy = inputs$exit_policy, movement_policy = inpu...",
@@ -21514,7 +21225,7 @@
           },
           {
             "type": "call",
-            "line": 1179,
+            "line": 1171,
             "fn": "new_horizon",
             "target": "out",
             "base": "out",
@@ -21535,11 +21246,11 @@
           },
           {
             "type": "assign",
-            "line": 1190,
+            "line": 1182,
             "target": "out$pensioner_register",
             "base": "out",
-            "expr": "data.table::rbindlist(register_panel_list, use.names = TRUE)",
-            "refs": ["::", "data.table", "rbindlist", "register_panel_list"],
+            "expr": "pensioner_register",
+            "refs": ["pensioner_register"],
             "builds": null,
             "list_names": [],
             "list_values": [],
@@ -21547,60 +21258,67 @@
             "context": []
           },
           {
-            "type": "call",
-            "line": 1194,
-            "fn": ".continue_table",
-            "target": "out$contract_dt",
-            "base": "out",
-            "args": [
-              {
-                "name": "",
-                "expr": "history_contracts",
-                "refs": ["history_contracts"]
-              },
-              {
-                "name": "",
-                "expr": "contract_panel_list",
-                "refs": ["contract_panel_list"]
-              }
-            ],
+            "type": "assign",
+            "line": 1186,
+            "target": "ref_date_col",
+            "base": "ref_date_col",
+            "expr": "inputs$column_spec_args$ref_date_col",
+            "refs": ["$", "inputs", "column_spec_args", "ref_date_col"],
+            "builds": null,
+            "list_names": [],
+            "list_values": [],
+            "is_null": false,
             "context": ["if (return_microdata)"]
-          },
-          {
-            "type": "call",
-            "line": 1195,
-            "fn": ".continue_table",
-            "target": "out$personnel_dt",
-            "base": "out",
-            "args": [
-              {
-                "name": "",
-                "expr": "history_personnel",
-                "refs": ["history_personnel"]
-              },
-              {
-                "name": "",
-                "expr": "personnel_panel_list",
-                "refs": ["personnel_panel_list"]
-              },
-              {
-                "name": "also_keep",
-                "expr": "c(inputs$column_spec_args$age_col, inputs$column_spec_args$tenure_col)",
-                "refs": ["c", "$", "inputs", "column_spec_args", "age_col", "tenure_col"]
-              }
-            ],
-            "context": ["if (return_microdata)"]
-          },
-          {
-            "type": "inline",
-            "line": 1202,
-            "target": "allowance_dt",
-            "expr": "allowance_dt[, `:=`(period_date, snapshot_dates[match(period_date, as_of_dates)])]",
-            "context": ["if (return_microdata)", "if (!is.null(allowance_dt))"]
           },
           {
             "type": "assign",
-            "line": 1204,
+            "line": 1187,
+            "target": ".history",
+            "base": ".history",
+            "expr": "function(dt) { dt <- data.table::as.data.table(dt) if (!ref_date_col %in% names(dt)) return(dt[, `:=`((ref_...",
+            "refs": ["function", "{", "<-", "dt", "::", "data.table", "as.data.table", "if", "!", "%in%", "ref_date_col", "names", "return", "[", ":=", "(", "$", "inputs", "baseline_date", "<=", "get"],
+            "builds": null,
+            "list_names": [],
+            "list_values": [],
+            "is_null": false,
+            "context": ["if (return_microdata)"]
+          },
+          {
+            "type": "return",
+            "line": 1189,
+            "expr": "dt[, `:=`((ref_date_col), inputs$baseline_date)]",
+            "base": null,
+            "context": ["if (return_microdata)", "inside a local function", "if (!ref_date_col %in% names(dt))"]
+          },
+          {
+            "type": "assign",
+            "line": 1192,
+            "target": "out$contract_dt",
+            "base": "out",
+            "expr": "data.table::rbindlist(c(list(.history(contract_dt)), contract_panel_list), use.names = TRUE, fill = TRUE)",
+            "refs": ["::", "data.table", "rbindlist", "c", "list", ".history", "contract_dt", "contract_panel_list"],
+            "builds": null,
+            "list_names": [],
+            "list_values": [],
+            "is_null": false,
+            "context": ["if (return_microdata)"]
+          },
+          {
+            "type": "assign",
+            "line": 1195,
+            "target": "out$personnel_dt",
+            "base": "out",
+            "expr": "data.table::rbindlist(c(list(.history(personnel_dt)), personnel_panel_list), use.names = TRUE, fill = TRUE)",
+            "refs": ["::", "data.table", "rbindlist", "c", "list", ".history", "personnel_dt", "personnel_panel_list"],
+            "builds": null,
+            "list_names": [],
+            "list_values": [],
+            "is_null": false,
+            "context": ["if (return_microdata)"]
+          },
+          {
+            "type": "assign",
+            "line": 1203,
             "target": "out$allowance_dt",
             "base": "out",
             "expr": "allowance_dt",
@@ -21610,17 +21328,24 @@
             "list_values": [],
             "is_null": false,
             "context": ["if (return_microdata)"]
+          },
+          {
+            "type": "return",
+            "line": 1206,
+            "expr": "out",
+            "base": "out",
+            "context": []
           }
         ],
         "returned": ["out"],
-        "result_fields": ["allowance_dt", "comparison", "metadata", "pensioner_register", "summary_dt"],
+        "result_fields": ["allowance_dt", "comparison", "contract_dt", "metadata", "pensioner_register", "personnel_dt", "summary_dt"],
         "result_list": null,
         "result_columns": []
       },
       "called_by": [],
-      "calls": [".check_output_control", ".continue_table", ".history_up_to", ".restore_rng_state", ".save_rng_state", "define_column_spec", "define_output_control", "design_retirement_policy_status_quo", "new_horizon", "pension_db", "prepare_horizon_inputs", "simulate_scenario", "snapshot_contracts", "snapshot_personnel"],
+      "calls": [".advance_period", ".check_output_control", ".restore_rng_state", ".save_rng_state", "define_column_spec", "define_output_control", "design_retirement_policy_status_quo", "new_horizon", "pension_db", "prepare_horizon_inputs", "simulate_scenario"],
       "constants_used": [],
-      "test_files": ["test-allowance_policy_helpers.R", "test-characterisation.R", "test-column-spec.R", "test-exit_policy_helpers.R", "test-fitness.R", "test-flow-hiring.R", "test-hiring_policy_helpers.R", "test-invariants.R", "test-movement_policy_helpers.R", "test-new-hires.R", "test-output-continuity.R", "test-pay-column.R", "test-payroll-state.R", "test-period-date.R", "test-rates.R", "test-renamed-columns.R", "test-retirement_policy_helpers.R", "test-run-checks.R", "test-simulate_exits.R", "test-simulate_horizon.R", "test-simulate_promotions_transfers.R", "test-two-contracts.R"],
+      "test_files": ["test-allowance_policy_helpers.R", "test-characterisation.R", "test-column-spec.R", "test-exit_policy_helpers.R", "test-fitness.R", "test-flow-hiring.R", "test-hiring_policy_helpers.R", "test-invariants.R", "test-movement_policy_helpers.R", "test-new-hires.R", "test-pay-column.R", "test-payroll-state.R", "test-period-date.R", "test-rates.R", "test-renamed-columns.R", "test-retirement_policy_helpers.R", "test-run-checks.R", "test-simulate_exits.R", "test-simulate_horizon.R", "test-simulate_promotions_transfers.R", "test-two-contracts.R"],
       "data_raw_files": []
     },
     {
@@ -23797,7 +23522,7 @@
         "result_list": null,
         "result_columns": []
       },
-      "called_by": ["prepare_retiree_data"],
+      "called_by": ["prepare_horizon_inputs", "prepare_retiree_data"],
       "calls": [],
       "constants_used": [],
       "test_files": [],
@@ -26765,10 +26490,10 @@
       "file": "validation.R",
       "module": "shared",
       "role": "validation",
-      "line_start": 1345,
-      "line_end": 1351,
+      "line_start": 1344,
+      "line_end": 1350,
       "n_lines": 7,
-      "roxygen_lines": 46,
+      "roxygen_lines": 45,
       "title": "Say How to Label a Run and What It Returns",
       "visibility": "exported",
       "documented": true,
@@ -26801,7 +26526,7 @@
         "steps": [
           {
             "type": "assign",
-            "line": 1348,
+            "line": 1347,
             "target": "output_control",
             "base": "output_control",
             "expr": "mget(names(formals()))",
@@ -26814,7 +26539,7 @@
           },
           {
             "type": "call",
-            "line": 1349,
+            "line": 1348,
             "fn": ".check_output_control",
             "target": null,
             "base": null,
@@ -26836,7 +26561,7 @@
       "called_by": [".check_output_control", "simulate_horizon"],
       "calls": [".check_output_control"],
       "constants_used": [],
-      "test_files": ["test-column-spec.R", "test-flow-hiring.R", "test-hiring_policy_helpers.R", "test-new-hires.R", "test-output-continuity.R", "test-pay-column.R", "test-payroll-state.R", "test-period-date.R", "test-renamed-columns.R", "test-run-checks.R", "test-simulate_horizon.R", "test-two-contracts.R"],
+      "test_files": ["test-column-spec.R", "test-flow-hiring.R", "test-hiring_policy_helpers.R", "test-new-hires.R", "test-pay-column.R", "test-payroll-state.R", "test-period-date.R", "test-renamed-columns.R", "test-run-checks.R", "test-simulate_horizon.R"],
       "data_raw_files": []
     },
     {
@@ -26844,8 +26569,8 @@
       "file": "validation.R",
       "module": "shared",
       "role": "validation",
-      "line_start": 1363,
-      "line_end": 1382,
+      "line_start": 1362,
+      "line_end": 1381,
       "n_lines": 20,
       "roxygen_lines": 10,
       "title": "Check the Output Options",
@@ -26886,8 +26611,8 @@
       "file": "validation.R",
       "module": "shared",
       "role": "validation",
-      "line_start": 1396,
-      "line_end": 1415,
+      "line_start": 1395,
+      "line_end": 1414,
       "n_lines": 20,
       "roxygen_lines": 12,
       "title": "Check That the Specified Columns Exist in the Data",
@@ -26940,8 +26665,8 @@
       "file": "validation.R",
       "module": "shared",
       "role": "validation",
-      "line_start": 1427,
-      "line_end": 1437,
+      "line_start": 1426,
+      "line_end": 1436,
       "n_lines": 11,
       "roxygen_lines": 10,
       "title": "Check That a Pay Table Holds the Pay Column",
@@ -26990,8 +26715,8 @@
       "file": "validation.R",
       "module": "shared",
       "role": "validation",
-      "line_start": 1507,
-      "line_end": 1548,
+      "line_start": 1506,
+      "line_end": 1547,
       "n_lines": 42,
       "roxygen_lines": 31,
       "title": "Recursively Validate That an Expression Only Uses Safe Calls",
@@ -27026,7 +26751,7 @@
         "steps": [
           {
             "type": "call",
-            "line": 1535,
+            "line": 1534,
             "fn": ".check_safe_calls",
             "target": null,
             "base": null,
@@ -27051,7 +26776,7 @@
           },
           {
             "type": "return",
-            "line": 1539,
+            "line": 1538,
             "expr": "TRUE",
             "base": null,
             "context": ["otherwise, not (is.call(expr))", "if (is.name(expr) || is.atomic(expr))"]
@@ -27073,8 +26798,8 @@
       "file": "validation.R",
       "module": "shared",
       "role": "validation",
-      "line_start": 1570,
-      "line_end": 1601,
+      "line_start": 1569,
+      "line_end": 1600,
       "n_lines": 32,
       "roxygen_lines": 20,
       "title": "Validate a User-Supplied Eligibility Rule String",
@@ -27105,7 +26830,7 @@
         "steps": [
           {
             "type": "call",
-            "line": 1571,
+            "line": 1570,
             "fn": "validate_character_string",
             "target": null,
             "base": null,
@@ -27125,7 +26850,7 @@
           },
           {
             "type": "call",
-            "line": 1583,
+            "line": 1582,
             "fn": ".check_safe_calls",
             "target": null,
             "base": null,
@@ -27155,8 +26880,8 @@
       "file": "validation.R",
       "module": "shared",
       "role": "validation",
-      "line_start": 1622,
-      "line_end": 1654,
+      "line_start": 1621,
+      "line_end": 1653,
       "n_lines": 33,
       "roxygen_lines": 18,
       "title": "Validate a User-Supplied Pension Formula String",
@@ -27187,7 +26912,7 @@
         "steps": [
           {
             "type": "call",
-            "line": 1623,
+            "line": 1622,
             "fn": "validate_character_string",
             "target": null,
             "base": null,
@@ -27207,7 +26932,7 @@
           },
           {
             "type": "call",
-            "line": 1635,
+            "line": 1634,
             "fn": ".check_safe_calls",
             "target": null,
             "base": null,
@@ -27272,16 +26997,16 @@
       "name": ".ALLOWED_RULE_CALLS",
       "file": "validation.R",
       "module": "shared",
-      "line_start": 1442,
-      "line_end": 1458,
+      "line_start": 1441,
+      "line_end": 1457,
       "used_by": [".check_safe_calls", ".eval_per_row_expression", "identify_eligibility"]
     },
     {
       "name": ".ALLOWED_FORMULA_CALLS",
       "file": "validation.R",
       "module": "shared",
-      "line_start": 1461,
-      "line_end": 1474,
+      "line_start": 1460,
+      "line_end": 1473,
       "used_by": ["compute_custom_pension", "validate_pension_formula"]
     }
   ],
@@ -28728,6 +28453,12 @@
     },
     {
       "from": "prepare_horizon_inputs",
+      "to": ".total_pay",
+      "kind": "call",
+      "count": 1
+    },
+    {
+      "from": "prepare_horizon_inputs",
       "to": "compute_tenure",
       "kind": "call",
       "count": 1
@@ -29022,21 +28753,15 @@
     },
     {
       "from": "simulate_horizon",
+      "to": ".advance_period",
+      "kind": "call",
+      "count": 2
+    },
+    {
+      "from": "simulate_horizon",
       "to": ".check_output_control",
       "kind": "call",
       "count": 1
-    },
-    {
-      "from": "simulate_horizon",
-      "to": ".continue_table",
-      "kind": "call",
-      "count": 2
-    },
-    {
-      "from": "simulate_horizon",
-      "to": ".history_up_to",
-      "kind": "call",
-      "count": 2
     },
     {
       "from": "simulate_horizon",
@@ -29089,18 +28814,6 @@
     {
       "from": "simulate_horizon",
       "to": "simulate_scenario",
-      "kind": "call",
-      "count": 1
-    },
-    {
-      "from": "simulate_horizon",
-      "to": "snapshot_contracts",
-      "kind": "call",
-      "count": 1
-    },
-    {
-      "from": "simulate_horizon",
-      "to": "snapshot_personnel",
       "kind": "call",
       "count": 1
     },
@@ -29744,14 +29457,14 @@
       "n_functions": 1
     },
     "prepare_horizon_inputs": {
-      "mermaid": "flowchart TB\n  subgraph G1[\"Comes in\"]\n    N1([\"<b>n_periods<\/b> · vector\"])\n    N2[\"<b>contract_dt<\/b> · table<br/>unit = one row per contract<br/>main columns = contract_id, personnel_id, est_id<br/>#160;#160;#160;#160;#160;#160;#160;#160;contract_type, gross_salary_lcu, base_salary_lcu<br/>#160;#160;#160;#160;#160;#160;#160;#160;start_date, end_date, paygrade\"]\n    N3[\"<b>personnel_dt<\/b> · table<br/>unit = one row per person<br/>main columns = personnel_id, employment_status, age<br/>#160;#160;#160;#160;#160;#160;#160;#160;personnel_tenure, birth_date, gender\"]\n    N4([\"<b>salary_growth_rate<\/b> · vector\"])\n    N5([\"<b>pension_cola_rate<\/b> · vector\"])\n    N6([\"<b>allowance_growth_rate<\/b> · vector\"])\n    N8(\"<b>movement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns that make a group<br/>├─ <b>policy_table<\/b>: table: movement_rate from_group -#gt; to_group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>movement_type<\/b>: promotion or transfer<br/>#160;#160;#160;#160;├─ <b>movement_strategy<\/b>: who moves first<br/>#160;#160;#160;#160;└─ <b>salary_update_rule<\/b>: what happens to pay\")\n    N11(\"<b>exit_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: exit_rate by group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>exit_rate<\/b>: a flat rate, or<br/>#160;#160;#160;#160;├─ <b>exit_multiplier<\/b>: x the status-quo rate<br/>#160;#160;#160;#160;├─ <b>exit_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;└─ <b>active_types<\/b>: contract types that can exit\")\n    N14(\"<b>retirement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: hazard_rate by age_yr_int (x group)<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>eligibility_type<\/b>: e.g. hazard_rate<br/>#160;#160;#160;#160;├─ <b>min_age<\/b>: mandatory age<br/>#160;#160;#160;#160;├─ <b>retire_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;├─ <b>pension_type<\/b>: e.g. db<br/>#160;#160;#160;#160;└─ <b>accrual_rate, max_years, replacement_cap<\/b>: the pension rule\")\n    N17(\"<b>hiring_policy<\/b> · list<br/>├─ <b>mode<\/b>: status_quo, flow or stock<br/>├─ <b>group_cols<\/b>: the columns rates vary by<br/>├─ <b>squorate_dt<\/b>: table: hiring_rate by group (status quo)<br/>├─ <b>rate_mult<\/b>: x the status-quo rate<br/>├─ <b>salary_scale<\/b>: table: pay for new hires, by group<br/>├─ <b>new_hire_profile<\/b>: table: gender share, entry_age, contract_type by group<br/>└─ <b>new_hire_profile_overall<\/b>: the same, across all groups\")\n    N35(\"<b>allowance_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the group columns, with allowance_type<br/>├─ <b>policy_table<\/b>: table: amount by group x allowance_type<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;└─ <b>amount<\/b>: for groups without a row\")\n    N38[\"<b>salary_scale_dt<\/b> · table<br/>unit = one row per pay group<br/>main columns = the group columns, e.g. est_id, gross_salary_lcu\"]\n  end\n  subgraph G2[\"0. Validate and set up\"]\n    N7[\"<b>precompute_movement_rates()<\/b>\"]\n    N9(\"<b>movement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns that make a group<br/>├─ <b>policy_table<\/b>: table: movement_rate from_group -#gt; to_group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>movement_type<\/b>: promotion or transfer<br/>#160;#160;#160;#160;├─ <b>movement_strategy<\/b>: who moves first<br/>#160;#160;#160;#160;└─ <b>salary_update_rule<\/b>: what happens to pay\")\n    N10[\"<b>precompute_exit_rates()<\/b>\"]\n    N12(\"<b>exit_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: exit_rate by group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>exit_rate<\/b>: a flat rate, or<br/>#160;#160;#160;#160;├─ <b>exit_multiplier<\/b>: x the status-quo rate<br/>#160;#160;#160;#160;├─ <b>exit_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;└─ <b>active_types<\/b>: contract types that can exit\")\n    N13[\"<b>precompute_retirement_rates()<\/b>\"]\n    N15(\"<b>retirement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: hazard_rate by age_yr_int (x group)<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>eligibility_type<\/b>: e.g. hazard_rate<br/>#160;#160;#160;#160;├─ <b>min_age<\/b>: mandatory age<br/>#160;#160;#160;#160;├─ <b>retire_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;├─ <b>pension_type<\/b>: e.g. db<br/>#160;#160;#160;#160;└─ <b>accrual_rate, max_years, replacement_cap<\/b>: the pension rule\")\n    N16[\"<b>precompute_hiring_rates()<\/b>\"]\n    N18(\"<b>hiring_policy<\/b> · list<br/>├─ <b>mode<\/b>: status_quo, flow or stock<br/>├─ <b>group_cols<\/b>: the columns rates vary by<br/>├─ <b>squorate_dt<\/b>: table: hiring_rate by group (status quo)<br/>├─ <b>rate_mult<\/b>: x the status-quo rate<br/>├─ <b>salary_scale<\/b>: table: pay for new hires, by group<br/>├─ <b>new_hire_profile<\/b>: table: gender share, entry_age, contract_type by group<br/>└─ <b>new_hire_profile_overall<\/b>: the same, across all groups\")\n    N19[\"<b>precompute_new_hire_profile()<\/b>\"]\n    N20(\"<b>hiring_policy<\/b> · list<br/>├─ <b>new_hire_profile<\/b><br/>└─ <b>new_hire_profile_overall<\/b>\")\n    N23[\"update <b>contract_dt<\/b>\"]\n    N24[\"change <b>contract_dt<\/b> in place\"]\n    N25[\"<b>.empty_pensioner_register()<\/b>\"]\n    N26[\"<b>pensioner_register<\/b> · table<br/>unit = one row per pension contract (returned: per contract per year)<br/>main columns = personnel_id, contract_id, pension_amount<br/>#160;#160;#160;#160;#160;#160;#160;#160;ref_date (returned only)\"]\n  end\n  subgraph G8[\"0. Validate and set up · if contract_dt has the ref_date_col column\"]\n    N21[\"update <b>contract_dt<\/b>\"]\n  end\n  subgraph G9[\"0. Validate and set up · if personnel_dt has the ref_date_col column\"]\n    N22[\"update <b>personnel_dt<\/b>\"]\n  end\n  subgraph G10[\"0. Validate and set up · if nrow(existing_pensioners) #gt; 0L\"]\n    N27[\"change <b>seed_reg<\/b> in place\"]\n    N28[\"update <b>pensioner_register<\/b>\"]\n    N29[\"update <b>personnel_dt<\/b>\"]\n  end\n  subgraph G12[\"Age and tenure at baseline_date, where the data do not hold them · if .age_missing_ and birth_date_col is given and birth_date_col %in% na...\"]\n    N30[\"change <b>personnel_dt<\/b> in place\"]\n  end\n  subgraph G13[\"Age and tenure at baseline_date, where the data do not hold them · if .tenure_missing_\"]\n    N31[\"<b>compute_tenure()<\/b>\"]\n  end\n  subgraph G14[\"Age and tenure at baseline_date, where the data do not hold them · if .tenure_missing_ · if nrow(tenure_init) #gt; 0L · if is.integer(personnel_dt[[tenure_col]])\"]\n    N32[\"change <b>personnel_dt<\/b> in place\"]\n  end\n  subgraph G15[\"Age and tenure at baseline_date, where the data do not hold them · if .tenure_missing_ · if nrow(tenure_init) #gt; 0L\"]\n    N33[\"change <b>personnel_dt<\/b> in place\"]\n  end\n  subgraph G16[\"Age and tenure at baseline_date, where the data do not hold them · if allowance_policy is given\"]\n    N34[\"<b>simulate_allowances()<\/b>\"]\n    N36(\"<b>alw0<\/b> · list<br/>├─ <b>allowance_dt<\/b>: table, one row per contract, allowance type and year <i>(not read here)<\/i><br/>├─ <b>contract_dt<\/b>: table, one row per contract <i>(not read here)<\/i><br/>├─ <b>personnel_dt<\/b>: table, one row per person <i>(not read here)<\/i><br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs\")\n  end\n  subgraph G17[\"Hands back\"]\n    N37(\"<b>result<\/b> · list<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>├─ <b>salary_scale_dt<\/b>: table, one row per pay group<br/>├─ <b>pensioner_register<\/b>: table, one row per pension contract (returned: per contract per year)<br/>├─ <b>retirement_policy<\/b>: list<br/>├─ <b>exit_policy<\/b>: list<br/>├─ <b>movement_policy<\/b>: list<br/>├─ <b>hiring_policy<\/b>: list<br/>├─ <b>column_spec_args<\/b><br/>├─ <b>baseline_date<\/b><br/>├─ <b>n_periods<\/b><br/>├─ <b>salary_growth_rate<\/b><br/>├─ <b>pension_cola_rate<\/b><br/>├─ <b>allowance_growth_rate<\/b><br/>├─ <b>period0_allowance_cost<\/b><br/>├─ <b>pension_contracts<\/b><br/>└─ <b>pension_people<\/b>\")\n  end\n  N8 --> N7\n  N2 -->|\"has_panel\"| N7\n  N7 --> N9\n  N11 --> N10\n  N2 -->|\"has_panel\"| N10\n  N3 --> N10\n  N10 --> N12\n  N14 --> N13\n  N3 --> N13\n  N2 -->|\"has_panel\"| N13\n  N13 --> N15\n  N17 --> N16\n  N2 -->|\"has_panel\"| N16\n  N3 --> N16\n  N16 --> N18\n  N18 --> N19\n  N2 -->|\"has_panel\"| N19\n  N3 --> N19\n  N19 --> N20\n  N2 --> N21\n  N3 -->|\"baseline_date\"| N21\n  N3 -->|\"baseline_date\"| N22\n  N21 -->|\".is_pension_row_\"| N23\n  N23 --> N24\n  N25 --> N26\n  N21 -->|\"seed_reg\"| N27\n  N26 --> N28\n  N27 --> N28\n  N22 --> N29\n  N21 -->|\"pension_only\"| N29\n  N29 --> N30\n  N24 --> N31\n  N3 -->|\"baseline_date\"| N31\n  N30 --> N32\n  N32 --> N33\n  N24 --> N34\n  N33 --> N34\n  N35 --> N34\n  N3 -->|\"baseline_date\"| N34\n  N34 --> N36\n  N24 -->|\"contract_dt\"| N37\n  N33 -->|\"personnel_dt\"| N37\n  N38 -->|\"salary_scale_dt\"| N37\n  N28 -->|\"pensioner_register\"| N37\n  N15 -->|\"retirement_policy\"| N37\n  N12 -->|\"exit_policy\"| N37\n  N9 -->|\"movement_policy\"| N37\n  N20 -->|\"hiring_policy\"| N37\n  N3 -->|\"baseline_date\"| N37\n  N1 -->|\"n_periods, salary_growth_rate, pension_cola_rate, allowance_growth_rate\"| N37\n  N36 -->|\"period0_allowance_cost\"| N37\n  N21 -->|\"pension_contracts\"| N37\n  N22 -->|\"pension_people\"| N37\n  classDef fn fill:#c9eef4,stroke:#2b7a87,color:#10232a\n  classDef tbl fill:#dfe8f7,stroke:#4a6a9e,color:#141c2b\n  classDef lst fill:#e3f1df,stroke:#4f8a45,color:#16240f\n  classDef vec fill:#f3ecd6,stroke:#9a7b25,color:#2a2108\n  classDef inl fill:#ffffff,stroke:#6b7280,stroke-dasharray:5 4,color:#1f2937\n  classDef res fill:#f6d3c8,stroke:#b4573a,color:#2b130b\n  class N7,N10,N13,N16,N19,N25,N31,N34 fn\n  class N2,N3,N26,N38 tbl\n  class N8,N9,N11,N12,N14,N15,N17,N18,N20,N35,N36 lst\n  class N1,N4,N5,N6 vec\n  class N21,N22,N23,N24,N27,N28,N29,N30,N32,N33 inl\n  class N37 res",
+      "mermaid": "flowchart TB\n  subgraph G1[\"Comes in\"]\n    N1([\"<b>n_periods<\/b> · vector\"])\n    N2[\"<b>contract_dt<\/b> · table<br/>unit = one row per contract<br/>main columns = contract_id, personnel_id, est_id<br/>#160;#160;#160;#160;#160;#160;#160;#160;contract_type, gross_salary_lcu, base_salary_lcu<br/>#160;#160;#160;#160;#160;#160;#160;#160;start_date, end_date, paygrade\"]\n    N3[\"<b>personnel_dt<\/b> · table<br/>unit = one row per person<br/>main columns = personnel_id, employment_status, age<br/>#160;#160;#160;#160;#160;#160;#160;#160;personnel_tenure, birth_date, gender\"]\n    N4([\"<b>salary_growth_rate<\/b> · vector\"])\n    N5([\"<b>pension_cola_rate<\/b> · vector\"])\n    N6([\"<b>allowance_growth_rate<\/b> · vector\"])\n    N8(\"<b>movement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns that make a group<br/>├─ <b>policy_table<\/b>: table: movement_rate from_group -#gt; to_group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>movement_type<\/b>: promotion or transfer<br/>#160;#160;#160;#160;├─ <b>movement_strategy<\/b>: who moves first<br/>#160;#160;#160;#160;└─ <b>salary_update_rule<\/b>: what happens to pay\")\n    N11(\"<b>exit_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: exit_rate by group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>exit_rate<\/b>: a flat rate, or<br/>#160;#160;#160;#160;├─ <b>exit_multiplier<\/b>: x the status-quo rate<br/>#160;#160;#160;#160;├─ <b>exit_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;└─ <b>active_types<\/b>: contract types that can exit\")\n    N14(\"<b>retirement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: hazard_rate by age_yr_int (x group)<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>eligibility_type<\/b>: e.g. hazard_rate<br/>#160;#160;#160;#160;├─ <b>min_age<\/b>: mandatory age<br/>#160;#160;#160;#160;├─ <b>retire_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;├─ <b>pension_type<\/b>: e.g. db<br/>#160;#160;#160;#160;└─ <b>accrual_rate, max_years, replacement_cap<\/b>: the pension rule\")\n    N17(\"<b>hiring_policy<\/b> · list<br/>├─ <b>mode<\/b>: status_quo, flow or stock<br/>├─ <b>group_cols<\/b>: the columns rates vary by<br/>├─ <b>squorate_dt<\/b>: table: hiring_rate by group (status quo)<br/>├─ <b>rate_mult<\/b>: x the status-quo rate<br/>├─ <b>salary_scale<\/b>: table: pay for new hires, by group<br/>├─ <b>new_hire_profile<\/b>: table: gender share, entry_age, contract_type by group<br/>└─ <b>new_hire_profile_overall<\/b>: the same, across all groups\")\n    N36(\"<b>allowance_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the group columns, with allowance_type<br/>├─ <b>policy_table<\/b>: table: amount by group x allowance_type<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;└─ <b>amount<\/b>: for groups without a row\")\n    N39[\"<b>salary_scale_dt<\/b> · table<br/>unit = one row per pay group<br/>main columns = the group columns, e.g. est_id, gross_salary_lcu\"]\n  end\n  subgraph G2[\"0. Validate and set up\"]\n    N7[\"<b>precompute_movement_rates()<\/b>\"]\n    N9(\"<b>movement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns that make a group<br/>├─ <b>policy_table<\/b>: table: movement_rate from_group -#gt; to_group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>movement_type<\/b>: promotion or transfer<br/>#160;#160;#160;#160;├─ <b>movement_strategy<\/b>: who moves first<br/>#160;#160;#160;#160;└─ <b>salary_update_rule<\/b>: what happens to pay\")\n    N10[\"<b>precompute_exit_rates()<\/b>\"]\n    N12(\"<b>exit_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: exit_rate by group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>exit_rate<\/b>: a flat rate, or<br/>#160;#160;#160;#160;├─ <b>exit_multiplier<\/b>: x the status-quo rate<br/>#160;#160;#160;#160;├─ <b>exit_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;└─ <b>active_types<\/b>: contract types that can exit\")\n    N13[\"<b>precompute_retirement_rates()<\/b>\"]\n    N15(\"<b>retirement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: hazard_rate by age_yr_int (x group)<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>eligibility_type<\/b>: e.g. hazard_rate<br/>#160;#160;#160;#160;├─ <b>min_age<\/b>: mandatory age<br/>#160;#160;#160;#160;├─ <b>retire_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;├─ <b>pension_type<\/b>: e.g. db<br/>#160;#160;#160;#160;└─ <b>accrual_rate, max_years, replacement_cap<\/b>: the pension rule\")\n    N16[\"<b>precompute_hiring_rates()<\/b>\"]\n    N18(\"<b>hiring_policy<\/b> · list<br/>├─ <b>mode<\/b>: status_quo, flow or stock<br/>├─ <b>group_cols<\/b>: the columns rates vary by<br/>├─ <b>squorate_dt<\/b>: table: hiring_rate by group (status quo)<br/>├─ <b>rate_mult<\/b>: x the status-quo rate<br/>├─ <b>salary_scale<\/b>: table: pay for new hires, by group<br/>├─ <b>new_hire_profile<\/b>: table: gender share, entry_age, contract_type by group<br/>└─ <b>new_hire_profile_overall<\/b>: the same, across all groups\")\n    N19[\"<b>precompute_new_hire_profile()<\/b>\"]\n    N20(\"<b>hiring_policy<\/b> · list<br/>├─ <b>new_hire_profile<\/b><br/>└─ <b>new_hire_profile_overall<\/b>\")\n    N23[\"update <b>contract_dt<\/b>\"]\n    N24[\"change <b>contract_dt<\/b> in place\"]\n    N25[\"<b>.empty_pensioner_register()<\/b>\"]\n    N26[\"<b>pensioner_register<\/b> · table<br/>unit = one row per retiree per year retired<br/>main columns = personnel_id, pension_amount, final_salary<br/>#160;#160;#160;#160;#160;#160;#160;#160;tenure_years_at_retirement, age_at_retirement, period_date\"]\n  end\n  subgraph G8[\"0. Validate and set up · if contract_dt has the ref_date_col column\"]\n    N21[\"update <b>contract_dt<\/b>\"]\n  end\n  subgraph G9[\"0. Validate and set up · if personnel_dt has the ref_date_col column\"]\n    N22[\"update <b>personnel_dt<\/b>\"]\n  end\n  subgraph G10[\"0. Validate and set up · if nrow(existing_pensioners) #gt; 0L\"]\n    N29[\"update <b>pensioner_register<\/b>\"]\n    N30[\"update <b>personnel_dt<\/b>\"]\n  end\n  subgraph G11[\"0. Validate and set up · if nrow(existing_pensioners) #gt; 0L · if birth_date_col is given and personnel_dt has the birth_date_col column\"]\n    N27[\"change <b>age_lookup<\/b> in place\"]\n    N28[\"change <b>seed_reg<\/b> in place\"]\n  end\n  subgraph G13[\"Age and tenure at baseline_date, where the data do not hold them · if .age_missing_ and birth_date_col is given and birth_date_col %in% na...\"]\n    N31[\"change <b>personnel_dt<\/b> in place\"]\n  end\n  subgraph G14[\"Age and tenure at baseline_date, where the data do not hold them · if .tenure_missing_\"]\n    N32[\"<b>compute_tenure()<\/b>\"]\n  end\n  subgraph G15[\"Age and tenure at baseline_date, where the data do not hold them · if .tenure_missing_ · if nrow(tenure_init) #gt; 0L · if is.integer(personnel_dt[[tenure_col]])\"]\n    N33[\"change <b>personnel_dt<\/b> in place\"]\n  end\n  subgraph G16[\"Age and tenure at baseline_date, where the data do not hold them · if .tenure_missing_ · if nrow(tenure_init) #gt; 0L\"]\n    N34[\"change <b>personnel_dt<\/b> in place\"]\n  end\n  subgraph G17[\"Age and tenure at baseline_date, where the data do not hold them · if allowance_policy is given\"]\n    N35[\"<b>simulate_allowances()<\/b>\"]\n    N37(\"<b>alw0<\/b> · list<br/>├─ <b>allowance_dt<\/b>: table, one row per contract, allowance type and year <i>(not read here)<\/i><br/>├─ <b>contract_dt<\/b>: table, one row per contract <i>(not read here)<\/i><br/>├─ <b>personnel_dt<\/b>: table, one row per person <i>(not read here)<\/i><br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs\")\n  end\n  subgraph G18[\"Hands back\"]\n    N38(\"<b>result<\/b> · list<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>├─ <b>salary_scale_dt<\/b>: table, one row per pay group<br/>├─ <b>pensioner_register<\/b>: table, one row per retiree per year retired<br/>├─ <b>retirement_policy<\/b>: list<br/>├─ <b>exit_policy<\/b>: list<br/>├─ <b>movement_policy<\/b>: list<br/>├─ <b>hiring_policy<\/b>: list<br/>├─ <b>column_spec_args<\/b><br/>├─ <b>baseline_date<\/b><br/>├─ <b>n_periods<\/b><br/>├─ <b>salary_growth_rate<\/b><br/>├─ <b>pension_cola_rate<\/b><br/>├─ <b>allowance_growth_rate<\/b><br/>└─ <b>period0_allowance_cost<\/b>\")\n  end\n  N8 --> N7\n  N2 -->|\"has_panel\"| N7\n  N7 --> N9\n  N11 --> N10\n  N2 -->|\"has_panel\"| N10\n  N3 --> N10\n  N10 --> N12\n  N14 --> N13\n  N3 --> N13\n  N2 -->|\"has_panel\"| N13\n  N13 --> N15\n  N17 --> N16\n  N2 -->|\"has_panel\"| N16\n  N3 --> N16\n  N16 --> N18\n  N18 --> N19\n  N2 -->|\"has_panel\"| N19\n  N3 --> N19\n  N19 --> N20\n  N2 --> N21\n  N3 -->|\"baseline_date\"| N21\n  N3 -->|\"baseline_date\"| N22\n  N21 -->|\".is_pension_row_\"| N23\n  N23 --> N24\n  N25 --> N26\n  N22 -->|\"age_lookup\"| N27\n  N21 -->|\"seed_reg\"| N28\n  N26 --> N29\n  N28 --> N29\n  N22 --> N30\n  N21 -->|\"existing_pensioners\"| N30\n  N24 --> N30\n  N30 --> N31\n  N24 --> N32\n  N3 -->|\"baseline_date\"| N32\n  N31 --> N33\n  N33 --> N34\n  N24 --> N35\n  N34 --> N35\n  N36 --> N35\n  N3 -->|\"baseline_date\"| N35\n  N35 --> N37\n  N24 -->|\"contract_dt\"| N38\n  N34 -->|\"personnel_dt\"| N38\n  N39 -->|\"salary_scale_dt\"| N38\n  N29 -->|\"pensioner_register\"| N38\n  N15 -->|\"retirement_policy\"| N38\n  N12 -->|\"exit_policy\"| N38\n  N9 -->|\"movement_policy\"| N38\n  N20 -->|\"hiring_policy\"| N38\n  N3 -->|\"baseline_date\"| N38\n  N1 -->|\"n_periods, salary_growth_rate, pension_cola_rate, allowance_growth_rate\"| N38\n  N37 -->|\"period0_allowance_cost\"| N38\n  classDef fn fill:#c9eef4,stroke:#2b7a87,color:#10232a\n  classDef tbl fill:#dfe8f7,stroke:#4a6a9e,color:#141c2b\n  classDef lst fill:#e3f1df,stroke:#4f8a45,color:#16240f\n  classDef vec fill:#f3ecd6,stroke:#9a7b25,color:#2a2108\n  classDef inl fill:#ffffff,stroke:#6b7280,stroke-dasharray:5 4,color:#1f2937\n  classDef res fill:#f6d3c8,stroke:#b4573a,color:#2b130b\n  class N7,N10,N13,N16,N19,N25,N32,N35 fn\n  class N2,N3,N26,N39 tbl\n  class N8,N9,N11,N12,N14,N15,N17,N18,N20,N36,N37 lst\n  class N1,N4,N5,N6 vec\n  class N21,N22,N23,N24,N27,N28,N29,N30,N31,N33,N34 inl\n  class N38 res",
       "links": {
         "N7": "precompute_movement_rates",
         "N10": "precompute_exit_rates",
         "N13": "precompute_retirement_rates",
         "N16": "precompute_hiring_rates",
         "N19": "precompute_new_hire_profile",
-        "N34": "simulate_allowances"
+        "N35": "simulate_allowances"
       },
       "n_functions": 8
     },
@@ -29903,7 +29616,7 @@
       "n_functions": 6
     },
     "simulate_scenario": {
-      "mermaid": "flowchart TB\n  subgraph G1[\"Comes in\"]\n    N1([\"<b>period_date<\/b> · vector\"])\n    N4[\"<b>contract_dt<\/b> · table<br/>unit = one row per contract<br/>main columns = contract_id, personnel_id, est_id<br/>#160;#160;#160;#160;#160;#160;#160;#160;contract_type, gross_salary_lcu, base_salary_lcu<br/>#160;#160;#160;#160;#160;#160;#160;#160;start_date, end_date, paygrade\"]\n    N7[\"<b>personnel_dt<\/b> · table<br/>unit = one row per person<br/>main columns = personnel_id, employment_status, age<br/>#160;#160;#160;#160;#160;#160;#160;#160;personnel_tenure, birth_date, gender\"]\n    N8(\"<b>retirement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: hazard_rate by age_yr_int (x group)<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>eligibility_type<\/b>: e.g. hazard_rate<br/>#160;#160;#160;#160;├─ <b>min_age<\/b>: mandatory age<br/>#160;#160;#160;#160;├─ <b>retire_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;├─ <b>pension_type<\/b>: e.g. db<br/>#160;#160;#160;#160;└─ <b>accrual_rate, max_years, replacement_cap<\/b>: the pension rule\")\n    N14(\"<b>exit_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: exit_rate by group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>exit_rate<\/b>: a flat rate, or<br/>#160;#160;#160;#160;├─ <b>exit_multiplier<\/b>: x the status-quo rate<br/>#160;#160;#160;#160;├─ <b>exit_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;└─ <b>active_types<\/b>: contract types that can exit\")\n    N17[\"<b>salary_scale_dt<\/b> · table<br/>unit = one row per pay group<br/>main columns = the group columns, e.g. est_id, gross_salary_lcu\"]\n    N18(\"<b>movement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns that make a group<br/>├─ <b>policy_table<\/b>: table: movement_rate from_group -#gt; to_group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>movement_type<\/b>: promotion or transfer<br/>#160;#160;#160;#160;├─ <b>movement_strategy<\/b>: who moves first<br/>#160;#160;#160;#160;└─ <b>salary_update_rule<\/b>: what happens to pay\")\n    N22(\"<b>hiring_policy<\/b> · list<br/>├─ <b>mode<\/b>: status_quo, flow or stock<br/>├─ <b>group_cols<\/b>: the columns rates vary by<br/>├─ <b>squorate_dt<\/b>: table: hiring_rate by group (status quo)<br/>├─ <b>rate_mult<\/b>: x the status-quo rate<br/>├─ <b>salary_scale<\/b>: table: pay for new hires, by group<br/>├─ <b>new_hire_profile<\/b>: table: gender share, entry_age, contract_type by group<br/>└─ <b>new_hire_profile_overall<\/b>: the same, across all groups\")\n    N35(\"<b>allowance_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the group columns, with allowance_type<br/>├─ <b>policy_table<\/b>: table: amount by group x allowance_type<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;└─ <b>amount<\/b>: for groups without a row\")\n    N36([\"<b>allowance_growth_rate<\/b> · vector\"])\n    N39[\"<b>allowance_dt<\/b> · table<br/>unit = one row per contract, allowance type and year<br/>main columns = contract_id, personnel_id, allowance_type<br/>#160;#160;#160;#160;#160;#160;#160;#160;amount, period_date\"]\n  end\n  subgraph G4[\"0. Initialise / validate · if there is no pensioner_register\"]\n    N2[\"<b>.empty_pensioner_register()<\/b>\"]\n    N3[\"<b>pensioner_register<\/b> · table<br/>unit = one row per pension contract (returned: per contract per year)<br/>main columns = personnel_id, contract_id, pension_amount<br/>#160;#160;#160;#160;#160;#160;#160;#160;ref_date (returned only)\"]\n  end\n  subgraph G5[\"SNAPSHOT A  (active employees only -- pensioner rows excluded)\"]\n    N5[\"<b>.active_wage_bill()<\/b>\"]\n  end\n  subgraph G6[\"STEP 1: RETIREMENT · if retirement_policy is given\"]\n    N6[\"<b>simulate_retirement()<\/b>\"]\n    N9(\"<b>ret_result<\/b> · list<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>├─ <b>retirees_dt<\/b>: table, one row per retiree, on their main contract, pay summed over all their contracts<br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs <i>(not read here)<\/i>\")\n    N10[\"<b>compute_exit_effect()<\/b>\"]\n  end\n  subgraph G7[\"STEP 1: RETIREMENT · if retirement_policy is given · if retirees_dt is given and nrow(retirees_dt) #gt; 0L and #quot;pension#quot; %in% n...\"]\n    N11[\"change <b>new_reg<\/b> in place\"]\n    N12[\"update <b>pensioner_register<\/b>\"]\n  end\n  subgraph G8[\"STEP 2: NON-RETIREMENT EXITS (Phase 3) · if exit_policy is given\"]\n    N13[\"<b>simulate_exits()<\/b>\"]\n    N15(\"<b>exit_result<\/b> · list<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>exits_dt<\/b>: table, one row per person leaving<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs\")\n  end\n  subgraph G9[\"STEP 3: MOVEMENTS · if movement_policy is given\"]\n    N16[\"<b>simulate_promotions_transfers()<\/b>\"]\n    N19(\"<b>mov_result<\/b> · list<br/>├─ <b>baseline_matrix<\/b>: table, one row per move between groups <i>(not read here)<\/i><br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>demand_dt<\/b>: table, one row per move between groups <i>(not read here)<\/i><br/>├─ <b>movers_dt<\/b>: table, one row per person moving<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs\")\n    N20[\"<b>compute_movement_effect()<\/b>\"]\n    N21(\"<b>mov_effects<\/b> · list<br/>└─ <b>movement<\/b>\")\n  end\n  subgraph G12[\"STEP 4: HIRING · if hiring_policy is given\"]\n    N23[\"<b>simulate_hiring()<\/b>\"]\n    N24(\"<b>hire_result<\/b> · list<br/>├─ <b>adjustment_dt<\/b> <i>(not read here)<\/i><br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>new_hire_contracts_dt<\/b>: table, one row per new contract<br/>├─ <b>new_hires_dt<\/b>: table, one row per new hire <i>(not read here)<\/i><br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs\")\n    N25[\"<b>.leavers_this_period()<\/b>\"]\n    N26[\"<b>compute_hiring_effect()<\/b>\"]\n  end\n  subgraph G14[\"STEP 5: AGING · if age_col is given and personnel_dt has the age_col column\"]\n    N27[\"change <b>personnel_dt<\/b> in place\"]\n  end\n  subgraph G15[\"STEP 5: AGING · if tenure_col is given and personnel_dt has the tenure_col column\"]\n    N28[\"change <b>personnel_dt<\/b> in place\"]\n  end\n  subgraph G16[\"STEP 6: COLA\"]\n    N29[\"<b>.active_wage_bill()<\/b>\"]\n    N30[\"<b>compute_inflation_effect()<\/b>\"]\n  end\n  subgraph G17[\"STEP 6: COLA · if growth is not 0\"]\n    N31[\"change <b>salary_scale_dt<\/b> in place\"]\n    N32[\"change <b>contract_dt<\/b> in place\"]\n  end\n  subgraph G18[\"STEP 6: COLA · if growth is not 0 · if hiring_policy$salary_scale is given\"]\n    N33[\"update <b>hiring_policy<\/b>\"]\n  end\n  subgraph G19[\"STEP 6: COLA · if allowance_policy is given and allowance_growth_rate is not 0 · if allowance_policy$policy_table is given\"]\n    N34[\"<b>apply_salary_scale_adjustment()<\/b>\"]\n  end\n  subgraph G20[\"STEP 6: COLA · if allowance_policy is given and allowance_growth_rate is not 0\"]\n    N37[\"update <b>allowance_policy<\/b>\"]\n  end\n  subgraph G21[\"STEP 7: ALLOWANCES · if allowance_policy is given\"]\n    N38[\"<b>simulate_allowances()<\/b>\"]\n    N40(\"<b>alw_result<\/b> · list<br/>├─ <b>allowance_dt<\/b>: table, one row per contract, allowance type and year<br/>├─ <b>contract_dt<\/b>: table, one row per contract <i>(not read here)<\/i><br/>├─ <b>personnel_dt<\/b>: table, one row per person <i>(not read here)<\/i><br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs\")\n  end\n  subgraph G22[\"STEP 7: ALLOWANCES · if pension_cola_rate is not 0 and nrow(pensioner_register) #gt; 0L\"]\n    N41[\"change <b>pensioner_register<\/b> in place\"]\n  end\n  subgraph G24[\"SNAPSHOT B  (active employees only -- pensioner rows excluded)\"]\n    N42[\"<b>.active_wage_bill()<\/b>\"]\n  end\n  subgraph G25[\"Build summary row\"]\n    N43[\"<b>summary_row<\/b> · table<br/>unit = one row<br/>main columns = period_date, n_headcount_start, wage_bill_start<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_exits, exit_savings, n_non_ret_exits<br/>#160;#160;#160;#160;#160;#160;#160;#160;non_ret_exit_savings, pension_cost_new, pension_cost_total<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_promotions, n_transfers, promotion_effect<br/>#160;#160;#160;#160;#160;#160;#160;#160;transfer_effect, n_hires, hiring_effect<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_downsized, downsizing_savings, inflation_effect<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_headcount_end, wage_bill_end, allowance_cost_end\"]\n  end\n  subgraph G26[\"Hands back\"]\n    N44(\"<b>result<\/b> · list<br/>├─ <b>summary<\/b>: table, one row: this step's counts and costs<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>├─ <b>salary_scale_dt<\/b>: table, one row per pay group<br/>├─ <b>pensioner_register<\/b>: table, one row per pension contract (returned: per contract per year)<br/>├─ <b>allowance_dt<\/b>: table, one row per contract, allowance type and year<br/>├─ <b>allowance_policy<\/b>: list<br/>└─ <b>hiring_policy<\/b>: list\")\n  end\n  N2 --> N3\n  N4 --> N5\n  N4 --> N6\n  N7 --> N6\n  N8 --> N6\n  N1 -->|\"period_date\"| N6\n  N6 --> N9\n  N9 -->|\"$retirees_dt\"| N10\n  N9 -->|\"new_reg\"| N11\n  N3 --> N12\n  N11 --> N12\n  N9 -->|\"$contract_dt, $personnel_dt\"| N13\n  N14 --> N13\n  N1 -->|\"period_date\"| N13\n  N13 --> N15\n  N15 -->|\"$contract_dt, $personnel_dt\"| N16\n  N17 --> N16\n  N18 --> N16\n  N1 -->|\"period_date\"| N16\n  N16 --> N19\n  N19 -->|\"$movers_dt, $contract_dt\"| N20\n  N20 --> N21\n  N19 -->|\"$contract_dt, $personnel_dt\"| N23\n  N17 -->|\"hiring_this_year\"| N23\n  N9 -->|\"$retirees_dt\"| N23\n  N15 -->|\"$exits_dt\"| N23\n  N22 --> N23\n  N1 -->|\"period_date\"| N23\n  N23 --> N24\n  N9 -->|\"$retirees_dt\"| N25\n  N15 -->|\"$exits_dt\"| N25\n  N19 -->|\"$contract_dt\"| N25\n  N22 -->|\"$group_cols\"| N25\n  N25 -->|\"leavers_dt\"| N23\n  N24 -->|\"$new_hire_contracts_dt\"| N26\n  N24 -->|\"$personnel_dt\"| N27\n  N27 --> N28\n  N24 -->|\"$contract_dt\"| N29\n  N29 -->|\"pre_cola_wage_bill\"| N30\n  N17 --> N31\n  N24 -->|\"$contract_dt\"| N32\n  N22 --> N33\n  N35 -->|\"$policy_table\"| N34\n  N36 --> N34\n  N34 -->|\"$defaults\"| N37\n  N36 --> N37\n  N32 --> N38\n  N28 --> N38\n  N39 --> N38\n  N37 --> N38\n  N1 -->|\"period_date\"| N38\n  N38 --> N40\n  N12 --> N41\n  N32 --> N42\n  N1 -->|\"period_date\"| N43\n  N4 -->|\"n_headcount_start\"| N43\n  N5 -->|\"wage_bill_start\"| N43\n  N9 -->|\"n_exits, pension_cost_new\"| N43\n  N10 -->|\"exit_savings\"| N43\n  N15 -->|\"n_non_ret_exits, non_ret_exit_savings\"| N43\n  N41 -->|\"pension_cost_total\"| N43\n  N19 -->|\"n_promotions, n_transfers\"| N43\n  N21 -->|\"promotion_effect, transfer_effect\"| N43\n  N24 -->|\"n_hires, n_downsized, downsizing_savings\"| N43\n  N26 -->|\"hiring_effect\"| N43\n  N30 -->|\"inflation_effect\"| N43\n  N32 -->|\"n_headcount_end\"| N43\n  N42 -->|\"wage_bill_end\"| N43\n  N40 -->|\"allowance_cost_end\"| N43\n  N43 -->|\"summary\"| N44\n  N32 -->|\"contract_dt\"| N44\n  N28 -->|\"personnel_dt\"| N44\n  N31 -->|\"salary_scale_dt\"| N44\n  N41 -->|\"pensioner_register\"| N44\n  N40 -->|\"allowance_dt\"| N44\n  N37 -->|\"allowance_policy\"| N44\n  N33 -->|\"hiring_policy\"| N44\n  classDef fn fill:#c9eef4,stroke:#2b7a87,color:#10232a\n  classDef tbl fill:#dfe8f7,stroke:#4a6a9e,color:#141c2b\n  classDef lst fill:#e3f1df,stroke:#4f8a45,color:#16240f\n  classDef vec fill:#f3ecd6,stroke:#9a7b25,color:#2a2108\n  classDef inl fill:#ffffff,stroke:#6b7280,stroke-dasharray:5 4,color:#1f2937\n  classDef res fill:#f6d3c8,stroke:#b4573a,color:#2b130b\n  class N2,N5,N6,N10,N13,N16,N20,N23,N25,N26,N29,N30,N34,N38,N42 fn\n  class N3,N4,N7,N17,N39,N43 tbl\n  class N8,N9,N14,N15,N18,N19,N21,N22,N24,N35,N40 lst\n  class N1,N36 vec\n  class N11,N12,N27,N28,N31,N32,N33,N37,N41 inl\n  class N44 res",
+      "mermaid": "flowchart TB\n  subgraph G1[\"Comes in\"]\n    N1([\"<b>period_date<\/b> · vector\"])\n    N4[\"<b>contract_dt<\/b> · table<br/>unit = one row per contract<br/>main columns = contract_id, personnel_id, est_id<br/>#160;#160;#160;#160;#160;#160;#160;#160;contract_type, gross_salary_lcu, base_salary_lcu<br/>#160;#160;#160;#160;#160;#160;#160;#160;start_date, end_date, paygrade\"]\n    N7[\"<b>personnel_dt<\/b> · table<br/>unit = one row per person<br/>main columns = personnel_id, employment_status, age<br/>#160;#160;#160;#160;#160;#160;#160;#160;personnel_tenure, birth_date, gender\"]\n    N8(\"<b>retirement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: hazard_rate by age_yr_int (x group)<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>eligibility_type<\/b>: e.g. hazard_rate<br/>#160;#160;#160;#160;├─ <b>min_age<\/b>: mandatory age<br/>#160;#160;#160;#160;├─ <b>retire_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;├─ <b>pension_type<\/b>: e.g. db<br/>#160;#160;#160;#160;└─ <b>accrual_rate, max_years, replacement_cap<\/b>: the pension rule\")\n    N14(\"<b>exit_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: exit_rate by group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>exit_rate<\/b>: a flat rate, or<br/>#160;#160;#160;#160;├─ <b>exit_multiplier<\/b>: x the status-quo rate<br/>#160;#160;#160;#160;├─ <b>exit_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;└─ <b>active_types<\/b>: contract types that can exit\")\n    N17[\"<b>salary_scale_dt<\/b> · table<br/>unit = one row per pay group<br/>main columns = the group columns, e.g. est_id, gross_salary_lcu\"]\n    N18(\"<b>movement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns that make a group<br/>├─ <b>policy_table<\/b>: table: movement_rate from_group -#gt; to_group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>movement_type<\/b>: promotion or transfer<br/>#160;#160;#160;#160;├─ <b>movement_strategy<\/b>: who moves first<br/>#160;#160;#160;#160;└─ <b>salary_update_rule<\/b>: what happens to pay\")\n    N22(\"<b>hiring_policy<\/b> · list<br/>├─ <b>mode<\/b>: status_quo, flow or stock<br/>├─ <b>group_cols<\/b>: the columns rates vary by<br/>├─ <b>squorate_dt<\/b>: table: hiring_rate by group (status quo)<br/>├─ <b>rate_mult<\/b>: x the status-quo rate<br/>├─ <b>salary_scale<\/b>: table: pay for new hires, by group<br/>├─ <b>new_hire_profile<\/b>: table: gender share, entry_age, contract_type by group<br/>└─ <b>new_hire_profile_overall<\/b>: the same, across all groups\")\n    N35(\"<b>allowance_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the group columns, with allowance_type<br/>├─ <b>policy_table<\/b>: table: amount by group x allowance_type<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;└─ <b>amount<\/b>: for groups without a row\")\n    N36([\"<b>allowance_growth_rate<\/b> · vector\"])\n    N39[\"<b>allowance_dt<\/b> · table<br/>unit = one row per contract, allowance type and year<br/>main columns = contract_id, personnel_id, allowance_type<br/>#160;#160;#160;#160;#160;#160;#160;#160;amount, period_date\"]\n  end\n  subgraph G4[\"0. Initialise / validate · if there is no pensioner_register\"]\n    N2[\"<b>.empty_pensioner_register()<\/b>\"]\n    N3[\"<b>pensioner_register<\/b> · table<br/>unit = one row per retiree per year retired<br/>main columns = personnel_id, pension_amount, final_salary<br/>#160;#160;#160;#160;#160;#160;#160;#160;tenure_years_at_retirement, age_at_retirement, period_date\"]\n  end\n  subgraph G5[\"SNAPSHOT A  (active employees only -- pensioner rows excluded)\"]\n    N5[\"<b>.active_wage_bill()<\/b>\"]\n  end\n  subgraph G6[\"STEP 1: RETIREMENT · if retirement_policy is given\"]\n    N6[\"<b>simulate_retirement()<\/b>\"]\n    N9(\"<b>ret_result<\/b> · list<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>├─ <b>retirees_dt<\/b>: table, one row per retiree, on their main contract, pay summed over all their contracts<br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs <i>(not read here)<\/i>\")\n    N10[\"<b>compute_exit_effect()<\/b>\"]\n  end\n  subgraph G7[\"STEP 1: RETIREMENT · if retirement_policy is given · if retirees_dt is given and nrow(retirees_dt) #gt; 0L and #quot;pension#quot; %in% n...\"]\n    N11[\"<b>new_reg<\/b> · table<br/>unit = one row<br/>main columns = .id, pension_amount, final_salary<br/>#160;#160;#160;#160;#160;#160;#160;#160;tenure_years_at_retirement, age_at_retirement, period_date\"]\n    N12[\"update <b>pensioner_register<\/b>\"]\n  end\n  subgraph G8[\"STEP 2: NON-RETIREMENT EXITS (Phase 3) · if exit_policy is given\"]\n    N13[\"<b>simulate_exits()<\/b>\"]\n    N15(\"<b>exit_result<\/b> · list<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>exits_dt<\/b>: table, one row per person leaving<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs\")\n  end\n  subgraph G9[\"STEP 3: MOVEMENTS · if movement_policy is given\"]\n    N16[\"<b>simulate_promotions_transfers()<\/b>\"]\n    N19(\"<b>mov_result<\/b> · list<br/>├─ <b>baseline_matrix<\/b>: table, one row per move between groups <i>(not read here)<\/i><br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>demand_dt<\/b>: table, one row per move between groups <i>(not read here)<\/i><br/>├─ <b>movers_dt<\/b>: table, one row per person moving<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs\")\n    N20[\"<b>compute_movement_effect()<\/b>\"]\n    N21(\"<b>mov_effects<\/b> · list<br/>└─ <b>movement<\/b>\")\n  end\n  subgraph G12[\"STEP 4: HIRING · if hiring_policy is given\"]\n    N23[\"<b>simulate_hiring()<\/b>\"]\n    N24(\"<b>hire_result<\/b> · list<br/>├─ <b>adjustment_dt<\/b> <i>(not read here)<\/i><br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>new_hire_contracts_dt<\/b>: table, one row per new contract<br/>├─ <b>new_hires_dt<\/b>: table, one row per new hire <i>(not read here)<\/i><br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs\")\n    N25[\"<b>.leavers_this_period()<\/b>\"]\n    N26[\"<b>compute_hiring_effect()<\/b>\"]\n  end\n  subgraph G14[\"STEP 5: AGING · if age_col is given and personnel_dt has the age_col column\"]\n    N27[\"change <b>personnel_dt<\/b> in place\"]\n  end\n  subgraph G15[\"STEP 5: AGING · if tenure_col is given and personnel_dt has the tenure_col column\"]\n    N28[\"change <b>personnel_dt<\/b> in place\"]\n  end\n  subgraph G16[\"STEP 6: COLA\"]\n    N29[\"<b>.active_wage_bill()<\/b>\"]\n    N30[\"<b>compute_inflation_effect()<\/b>\"]\n  end\n  subgraph G17[\"STEP 6: COLA · if growth is not 0\"]\n    N31[\"change <b>salary_scale_dt<\/b> in place\"]\n    N32[\"change <b>contract_dt<\/b> in place\"]\n  end\n  subgraph G18[\"STEP 6: COLA · if growth is not 0 · if hiring_policy$salary_scale is given\"]\n    N33[\"update <b>hiring_policy<\/b>\"]\n  end\n  subgraph G19[\"STEP 6: COLA · if allowance_policy is given and allowance_growth_rate is not 0 · if allowance_policy$policy_table is given\"]\n    N34[\"<b>apply_salary_scale_adjustment()<\/b>\"]\n  end\n  subgraph G20[\"STEP 6: COLA · if allowance_policy is given and allowance_growth_rate is not 0\"]\n    N37[\"update <b>allowance_policy<\/b>\"]\n  end\n  subgraph G21[\"STEP 7: ALLOWANCES · if allowance_policy is given\"]\n    N38[\"<b>simulate_allowances()<\/b>\"]\n    N40(\"<b>alw_result<\/b> · list<br/>├─ <b>allowance_dt<\/b>: table, one row per contract, allowance type and year<br/>├─ <b>contract_dt<\/b>: table, one row per contract <i>(not read here)<\/i><br/>├─ <b>personnel_dt<\/b>: table, one row per person <i>(not read here)<\/i><br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs\")\n  end\n  subgraph G22[\"STEP 7: ALLOWANCES · if pension_cola_rate is not 0 and nrow(pensioner_register) #gt; 0L\"]\n    N41[\"change <b>pensioner_register<\/b> in place\"]\n  end\n  subgraph G24[\"SNAPSHOT B  (active employees only -- pensioner rows excluded)\"]\n    N42[\"<b>.active_wage_bill()<\/b>\"]\n  end\n  subgraph G25[\"Build summary row\"]\n    N43[\"<b>summary_row<\/b> · table<br/>unit = one row<br/>main columns = period_start_date, n_headcount_start, wage_bill_start<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_exits, exit_savings, n_non_ret_exits<br/>#160;#160;#160;#160;#160;#160;#160;#160;non_ret_exit_savings, pension_cost_new, pension_cost_total<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_promotions, n_transfers, promotion_effect<br/>#160;#160;#160;#160;#160;#160;#160;#160;transfer_effect, n_hires, hiring_effect<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_downsized, downsizing_savings, inflation_effect<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_headcount_end, wage_bill_end, allowance_cost_end\"]\n  end\n  subgraph G26[\"Hands back\"]\n    N44(\"<b>result<\/b> · list<br/>├─ <b>summary<\/b>: table, one row: this step's counts and costs<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>├─ <b>salary_scale_dt<\/b>: table, one row per pay group<br/>├─ <b>pensioner_register<\/b>: table, one row per retiree per year retired<br/>├─ <b>allowance_dt<\/b>: table, one row per contract, allowance type and year<br/>├─ <b>allowance_policy<\/b>: list<br/>└─ <b>hiring_policy<\/b>: list\")\n  end\n  N2 --> N3\n  N4 --> N5\n  N4 --> N6\n  N7 --> N6\n  N8 --> N6\n  N1 -->|\"period_date\"| N6\n  N6 --> N9\n  N9 -->|\"$retirees_dt\"| N10\n  N1 -->|\"period_date\"| N11\n  N3 --> N12\n  N11 --> N12\n  N9 -->|\"$contract_dt, $personnel_dt\"| N13\n  N14 --> N13\n  N1 -->|\"period_date\"| N13\n  N13 --> N15\n  N15 -->|\"$contract_dt, $personnel_dt\"| N16\n  N17 --> N16\n  N18 --> N16\n  N1 -->|\"period_date\"| N16\n  N16 --> N19\n  N19 -->|\"$movers_dt, $contract_dt\"| N20\n  N20 --> N21\n  N19 -->|\"$contract_dt, $personnel_dt\"| N23\n  N17 -->|\"hiring_this_year\"| N23\n  N9 -->|\"$retirees_dt\"| N23\n  N15 -->|\"$exits_dt\"| N23\n  N22 --> N23\n  N1 -->|\"period_date\"| N23\n  N23 --> N24\n  N9 -->|\"$retirees_dt\"| N25\n  N15 -->|\"$exits_dt\"| N25\n  N19 -->|\"$contract_dt\"| N25\n  N22 -->|\"$group_cols\"| N25\n  N25 -->|\"leavers_dt\"| N23\n  N24 -->|\"$new_hire_contracts_dt\"| N26\n  N24 -->|\"$personnel_dt\"| N27\n  N27 --> N28\n  N24 -->|\"$contract_dt\"| N29\n  N29 -->|\"pre_cola_wage_bill\"| N30\n  N17 --> N31\n  N24 -->|\"$contract_dt\"| N32\n  N22 --> N33\n  N35 -->|\"$policy_table\"| N34\n  N36 --> N34\n  N34 -->|\"$defaults\"| N37\n  N36 --> N37\n  N32 --> N38\n  N28 --> N38\n  N39 --> N38\n  N37 --> N38\n  N1 -->|\"period_date\"| N38\n  N38 --> N40\n  N12 --> N41\n  N32 --> N42\n  N1 -->|\"period_start_date\"| N43\n  N4 -->|\"n_headcount_start\"| N43\n  N5 -->|\"wage_bill_start\"| N43\n  N9 -->|\"n_exits, pension_cost_new\"| N43\n  N10 -->|\"exit_savings\"| N43\n  N15 -->|\"n_non_ret_exits, non_ret_exit_savings\"| N43\n  N41 -->|\"pension_cost_total\"| N43\n  N19 -->|\"n_promotions, n_transfers\"| N43\n  N21 -->|\"promotion_effect, transfer_effect\"| N43\n  N24 -->|\"n_hires, n_downsized, downsizing_savings\"| N43\n  N26 -->|\"hiring_effect\"| N43\n  N30 -->|\"inflation_effect\"| N43\n  N32 -->|\"n_headcount_end\"| N43\n  N42 -->|\"wage_bill_end\"| N43\n  N40 -->|\"allowance_cost_end\"| N43\n  N43 -->|\"summary\"| N44\n  N32 -->|\"contract_dt\"| N44\n  N28 -->|\"personnel_dt\"| N44\n  N31 -->|\"salary_scale_dt\"| N44\n  N41 -->|\"pensioner_register\"| N44\n  N40 -->|\"allowance_dt\"| N44\n  N37 -->|\"allowance_policy\"| N44\n  N33 -->|\"hiring_policy\"| N44\n  classDef fn fill:#c9eef4,stroke:#2b7a87,color:#10232a\n  classDef tbl fill:#dfe8f7,stroke:#4a6a9e,color:#141c2b\n  classDef lst fill:#e3f1df,stroke:#4f8a45,color:#16240f\n  classDef vec fill:#f3ecd6,stroke:#9a7b25,color:#2a2108\n  classDef inl fill:#ffffff,stroke:#6b7280,stroke-dasharray:5 4,color:#1f2937\n  classDef res fill:#f6d3c8,stroke:#b4573a,color:#2b130b\n  class N2,N5,N6,N10,N13,N16,N20,N23,N25,N26,N29,N30,N34,N38,N42 fn\n  class N3,N4,N7,N11,N17,N39,N43 tbl\n  class N8,N9,N14,N15,N18,N19,N21,N22,N24,N35,N40 lst\n  class N1,N36 vec\n  class N12,N27,N28,N31,N32,N33,N37,N41 inl\n  class N44 res",
       "links": {
         "N6": "simulate_retirement",
         "N13": "simulate_exits",
@@ -29915,12 +29628,12 @@
       "n_functions": 15
     },
     "simulate_horizon": {
-      "mermaid": "flowchart TB\n  subgraph G1[\"Comes in\"]\n    N2[\"<b>contract_dt<\/b> · table<br/>unit = one row per contract<br/>main columns = contract_id, personnel_id, est_id<br/>#160;#160;#160;#160;#160;#160;#160;#160;contract_type, gross_salary_lcu, base_salary_lcu<br/>#160;#160;#160;#160;#160;#160;#160;#160;start_date, end_date, paygrade\"]\n    N3[\"<b>personnel_dt<\/b> · table<br/>unit = one row per person<br/>main columns = personnel_id, employment_status, age<br/>#160;#160;#160;#160;#160;#160;#160;#160;personnel_tenure, birth_date, gender\"]\n    N4[\"<b>salary_scale_dt<\/b> · table<br/>unit = one row per pay group<br/>main columns = the group columns, e.g. est_id, gross_salary_lcu\"]\n    N5([\"<b>n_periods<\/b> · vector\"])\n    N6(\"<b>retirement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: hazard_rate by age_yr_int (x group)<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>eligibility_type<\/b>: e.g. hazard_rate<br/>#160;#160;#160;#160;├─ <b>min_age<\/b>: mandatory age<br/>#160;#160;#160;#160;├─ <b>retire_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;├─ <b>pension_type<\/b>: e.g. db<br/>#160;#160;#160;#160;└─ <b>accrual_rate, max_years, replacement_cap<\/b>: the pension rule\")\n    N7(\"<b>exit_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: exit_rate by group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>exit_rate<\/b>: a flat rate, or<br/>#160;#160;#160;#160;├─ <b>exit_multiplier<\/b>: x the status-quo rate<br/>#160;#160;#160;#160;├─ <b>exit_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;└─ <b>active_types<\/b>: contract types that can exit\")\n    N8(\"<b>movement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns that make a group<br/>├─ <b>policy_table<\/b>: table: movement_rate from_group -#gt; to_group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>movement_type<\/b>: promotion or transfer<br/>#160;#160;#160;#160;├─ <b>movement_strategy<\/b>: who moves first<br/>#160;#160;#160;#160;└─ <b>salary_update_rule<\/b>: what happens to pay\")\n    N9(\"<b>hiring_policy<\/b> · list<br/>├─ <b>mode<\/b>: status_quo, flow or stock<br/>├─ <b>group_cols<\/b>: the columns rates vary by<br/>├─ <b>squorate_dt<\/b>: table: hiring_rate by group (status quo)<br/>├─ <b>rate_mult<\/b>: x the status-quo rate<br/>├─ <b>salary_scale<\/b>: table: pay for new hires, by group<br/>├─ <b>new_hire_profile<\/b>: table: gender share, entry_age, contract_type by group<br/>└─ <b>new_hire_profile_overall<\/b>: the same, across all groups\")\n    N10(\"<b>allowance_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the group columns, with allowance_type<br/>├─ <b>policy_table<\/b>: table: amount by group x allowance_type<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;└─ <b>amount<\/b>: for groups without a row\")\n    N11([\"<b>salary_growth_rate<\/b> · vector\"])\n    N12([\"<b>pension_cola_rate<\/b> · vector\"])\n    N13([\"<b>allowance_growth_rate<\/b> · vector\"])\n    N14([\"<b>baseline_date<\/b> · vector\"])\n  end\n  subgraph G2[\"0. Validate and set up\"]\n    N1[\"<b>prepare_horizon_inputs()<\/b>\"]\n    N15(\"<b>inputs<\/b> · list<br/>├─ <b>allowance_growth_rate<\/b><br/>├─ <b>baseline_date<\/b><br/>├─ <b>column_spec_args<\/b><br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>exit_policy<\/b>: list<br/>├─ <b>hiring_policy<\/b>: list<br/>├─ <b>movement_policy<\/b>: list<br/>├─ <b>n_periods<\/b><br/>├─ <b>pension_cola_rate<\/b><br/>├─ <b>pension_contracts<\/b><br/>├─ <b>pension_people<\/b><br/>├─ <b>pensioner_register<\/b>: table, one row per pension contract (returned: per contract per year)<br/>├─ <b>period0_allowance_cost<\/b><br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>├─ <b>retirement_policy<\/b>: list<br/>├─ <b>salary_growth_rate<\/b><br/>└─ <b>salary_scale_dt<\/b>: table, one row per pay group\")\n  end\n  subgraph G3[\"0. Validate and set up · if return_microdata\"]\n    N16[\"<b>.history_up_to()<\/b>\"]\n    N17[\"<b>.history_up_to()<\/b>\"]\n  end\n  subgraph G5[\"PERIOD LOOP · for each t from 1 to inputs$n_periods\"]\n    N18[\"<b>simulate_scenario()<\/b>\"]\n    N19(\"<b>scenario_result<\/b> · list<br/>├─ <b>allowance_dt<\/b>: table, one row per contract, allowance type and year<br/>├─ <b>allowance_policy<\/b>: list<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>hiring_policy<\/b>: list<br/>├─ <b>pensioner_register<\/b>: table, one row per pension contract (returned: per contract per year)<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>├─ <b>salary_scale_dt<\/b>: table, one row per pay group<br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs\")\n  end\n  subgraph G6[\"PERIOD LOOP · for each t from 1 to inputs$n_periods · if return_microdata\"]\n    N20[\"<b>snapshot_contracts()<\/b>\"]\n    N21[\"<b>snapshot_personnel()<\/b>\"]\n  end\n  subgraph G7[\"Assemble output\"]\n    N22[\"update <b>summary_dt<\/b>\"]\n    N24[\"change <b>summary_dt<\/b> in place\"]\n    N26[\"change <b>summary_dt<\/b> in place\"]\n    N27(\"<b>policy_args<\/b> · list<br/>├─ <b>retirement_policy<\/b>: list<br/>├─ <b>exit_policy<\/b>: list<br/>├─ <b>movement_policy<\/b>: list<br/>├─ <b>hiring_policy<\/b>: list<br/>├─ <b>allowance_policy<\/b>: list<br/>├─ <b>salary_growth_rate<\/b><br/>├─ <b>pension_cola_rate<\/b><br/>├─ <b>allowance_growth_rate<\/b><br/>├─ <b>n_periods<\/b><br/>└─ <b>baseline_date<\/b>\")\n    N28[\"<b>new_horizon()<\/b>\"]\n    N29(\"<b>out<\/b> · list<br/>├─ <b>comparison<\/b>: table, one row per year<br/>├─ <b>metadata<\/b><br/>└─ <b>summary_dt<\/b>: table, one row per year\")\n  end\n  subgraph G8[\"Assemble output · for each ec in effect_cols\"]\n    N23[\"change <b>summary_dt<\/b> in place\"]\n  end\n  subgraph G9[\"Assemble output · if scenario_name is given\"]\n    N25[\"change <b>summary_dt<\/b> in place\"]\n  end\n  subgraph G10[\"Assemble output · if return_microdata\"]\n    N30[\"<b>.continue_table()<\/b>\"]\n    N31[\"<b>.continue_table()<\/b>\"]\n  end\n  subgraph G11[\"Assemble output · if return_microdata · if allowance_dt is given\"]\n    N32[\"change <b>allowance_dt<\/b> in place\"]\n  end\n  N2 --> N1\n  N3 --> N1\n  N4 --> N1\n  N5 --> N1\n  N6 --> N1\n  N7 --> N1\n  N8 --> N1\n  N9 --> N1\n  N10 --> N1\n  N11 --> N1\n  N12 --> N1\n  N13 --> N1\n  N14 --> N1\n  N1 --> N15\n  N2 --> N16\n  N15 -->|\"$baseline_date\"| N16\n  N14 --> N16\n  N3 --> N17\n  N15 -->|\"$baseline_date\"| N17\n  N14 --> N17\n  N15 -->|\"$contract_dt, $personnel_dt, $salary_scale_dt, as_of_dates, $pensioner_register, $retirement_policy, $exit_policy, $movement_policy, $hiring_policy, growth, cola_rate, allow_growth, $column_spec_args\"| N18\n  N6 --> N18\n  N7 --> N18\n  N8 --> N18\n  N10 --> N18\n  N18 --> N19\n  N19 -->|\"$contract_dt, $personnel_dt, $pensioner_register\"| N20\n  N15 -->|\"$pension_contracts, snapshot_dates, $column_spec_args\"| N20\n  N19 -->|\"$personnel_dt\"| N21\n  N15 -->|\"$pension_people, snapshot_dates, $column_spec_args\"| N21\n  N19 -->|\"period_rows\"| N22\n  N22 --> N23\n  N23 --> N24\n  N24 --> N25\n  N25 --> N26\n  N11 -->|\"salary_growth_rate\"| N27\n  N12 -->|\"pension_cola_rate\"| N27\n  N13 -->|\"allowance_growth_rate\"| N27\n  N26 --> N28\n  N27 --> N28\n  N28 --> N29\n  N19 -->|\"pensioner_register\"| N29\n  N16 -->|\"history_contracts\"| N30\n  N20 -->|\"contract_panel_list[[t]]\"| N30\n  N17 -->|\"history_personnel\"| N31\n  N21 -->|\"personnel_panel_list[[t]]\"| N31\n  N15 --> N31\n  N19 -->|\"$allowance_dt\"| N32\n  N32 -->|\"allowance_dt\"| N31\n  classDef fn fill:#c9eef4,stroke:#2b7a87,color:#10232a\n  classDef tbl fill:#dfe8f7,stroke:#4a6a9e,color:#141c2b\n  classDef lst fill:#e3f1df,stroke:#4f8a45,color:#16240f\n  classDef vec fill:#f3ecd6,stroke:#9a7b25,color:#2a2108\n  classDef inl fill:#ffffff,stroke:#6b7280,stroke-dasharray:5 4,color:#1f2937\n  classDef res fill:#f6d3c8,stroke:#b4573a,color:#2b130b\n  class N1,N16,N17,N18,N20,N21,N28,N30,N31 fn\n  class N2,N3,N4 tbl\n  class N6,N7,N8,N9,N10,N15,N19,N27,N29 lst\n  class N5,N11,N12,N13,N14 vec\n  class N22,N23,N24,N25,N26,N32 inl",
+      "mermaid": "flowchart TB\n  subgraph G1[\"Comes in\"]\n    N2[\"<b>contract_dt<\/b> · table<br/>unit = one row per contract<br/>main columns = contract_id, personnel_id, est_id<br/>#160;#160;#160;#160;#160;#160;#160;#160;contract_type, gross_salary_lcu, base_salary_lcu<br/>#160;#160;#160;#160;#160;#160;#160;#160;start_date, end_date, paygrade\"]\n    N3[\"<b>personnel_dt<\/b> · table<br/>unit = one row per person<br/>main columns = personnel_id, employment_status, age<br/>#160;#160;#160;#160;#160;#160;#160;#160;personnel_tenure, birth_date, gender\"]\n    N4[\"<b>salary_scale_dt<\/b> · table<br/>unit = one row per pay group<br/>main columns = the group columns, e.g. est_id, gross_salary_lcu\"]\n    N5([\"<b>n_periods<\/b> · vector\"])\n    N6(\"<b>retirement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: hazard_rate by age_yr_int (x group)<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>eligibility_type<\/b>: e.g. hazard_rate<br/>#160;#160;#160;#160;├─ <b>min_age<\/b>: mandatory age<br/>#160;#160;#160;#160;├─ <b>retire_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;├─ <b>pension_type<\/b>: e.g. db<br/>#160;#160;#160;#160;└─ <b>accrual_rate, max_years, replacement_cap<\/b>: the pension rule\")\n    N7(\"<b>exit_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns rates vary by, or NULL<br/>├─ <b>policy_table<\/b>: table: exit_rate by group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>exit_rate<\/b>: a flat rate, or<br/>#160;#160;#160;#160;├─ <b>exit_multiplier<\/b>: x the status-quo rate<br/>#160;#160;#160;#160;├─ <b>exit_strategy<\/b>: who goes first<br/>#160;#160;#160;#160;└─ <b>active_types<\/b>: contract types that can exit\")\n    N8(\"<b>movement_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the columns that make a group<br/>├─ <b>policy_table<\/b>: table: movement_rate from_group -#gt; to_group<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;├─ <b>movement_type<\/b>: promotion or transfer<br/>#160;#160;#160;#160;├─ <b>movement_strategy<\/b>: who moves first<br/>#160;#160;#160;#160;└─ <b>salary_update_rule<\/b>: what happens to pay\")\n    N9(\"<b>hiring_policy<\/b> · list<br/>├─ <b>mode<\/b>: status_quo, flow or stock<br/>├─ <b>group_cols<\/b>: the columns rates vary by<br/>├─ <b>squorate_dt<\/b>: table: hiring_rate by group (status quo)<br/>├─ <b>rate_mult<\/b>: x the status-quo rate<br/>├─ <b>salary_scale<\/b>: table: pay for new hires, by group<br/>├─ <b>new_hire_profile<\/b>: table: gender share, entry_age, contract_type by group<br/>└─ <b>new_hire_profile_overall<\/b>: the same, across all groups\")\n    N10(\"<b>allowance_policy<\/b> · list<br/>├─ <b>group_cols<\/b>: the group columns, with allowance_type<br/>├─ <b>policy_table<\/b>: table: amount by group x allowance_type<br/>└─ <b>defaults<\/b>: list<br/>#160;#160;#160;#160;└─ <b>amount<\/b>: for groups without a row\")\n    N11([\"<b>salary_growth_rate<\/b> · vector\"])\n    N12([\"<b>pension_cola_rate<\/b> · vector\"])\n    N13([\"<b>allowance_growth_rate<\/b> · vector\"])\n    N14([\"<b>baseline_date<\/b> · vector\"])\n  end\n  subgraph G2[\"0. Validate and set up\"]\n    N1[\"<b>prepare_horizon_inputs()<\/b>\"]\n    N15(\"<b>inputs<\/b> · list<br/>├─ <b>allowance_growth_rate<\/b><br/>├─ <b>baseline_date<\/b><br/>├─ <b>column_spec_args<\/b><br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>exit_policy<\/b>: list<br/>├─ <b>hiring_policy<\/b>: list<br/>├─ <b>movement_policy<\/b>: list<br/>├─ <b>n_periods<\/b><br/>├─ <b>pension_cola_rate<\/b><br/>├─ <b>pensioner_register<\/b>: table, one row per retiree per year retired<br/>├─ <b>period0_allowance_cost<\/b><br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>├─ <b>retirement_policy<\/b>: list<br/>├─ <b>salary_growth_rate<\/b><br/>└─ <b>salary_scale_dt<\/b>: table, one row per pay group\")\n  end\n  subgraph G4[\"PERIOD LOOP · for each t from 1 to inputs$n_periods\"]\n    N16[\"<b>simulate_scenario()<\/b>\"]\n    N17(\"<b>scenario_result<\/b> · list<br/>├─ <b>allowance_dt<\/b>: table, one row per contract, allowance type and year<br/>├─ <b>allowance_policy<\/b>: list<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>hiring_policy<\/b>: list<br/>├─ <b>pensioner_register<\/b>: table, one row per retiree per year retired<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>├─ <b>salary_scale_dt<\/b>: table, one row per pay group<br/>└─ <b>summary<\/b>: table, one row: this step's counts and costs\")\n  end\n  subgraph G5[\"PERIOD LOOP · for each t from 1 to inputs$n_periods · if return_microdata\"]\n    N18[\"change <b>ct_snap<\/b> in place\"]\n    N19[\"change <b>pt_snap<\/b> in place\"]\n  end\n  subgraph G6[\"Assemble output\"]\n    N20[\"update <b>summary_dt<\/b>\"]\n    N22[\"change <b>summary_dt<\/b> in place\"]\n    N24[\"change <b>summary_dt<\/b> in place\"]\n    N25(\"<b>policy_args<\/b> · list<br/>├─ <b>retirement_policy<\/b>: list<br/>├─ <b>exit_policy<\/b>: list<br/>├─ <b>movement_policy<\/b>: list<br/>├─ <b>hiring_policy<\/b>: list<br/>├─ <b>allowance_policy<\/b>: list<br/>├─ <b>salary_growth_rate<\/b><br/>├─ <b>pension_cola_rate<\/b><br/>├─ <b>allowance_growth_rate<\/b><br/>├─ <b>n_periods<\/b><br/>└─ <b>baseline_date<\/b>\")\n    N26[\"<b>new_horizon()<\/b>\"]\n    N27(\"<b>out<\/b> · list<br/>├─ <b>allowance_dt<\/b>: table, one row per contract, allowance type and year<br/>├─ <b>comparison<\/b>: table, one row per year<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>metadata<\/b><br/>├─ <b>pensioner_register<\/b>: table, one row per retiree per year retired<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>└─ <b>summary_dt<\/b>: table, one row per year\")\n  end\n  subgraph G7[\"Assemble output · for each ec in effect_cols\"]\n    N21[\"change <b>summary_dt<\/b> in place\"]\n  end\n  subgraph G8[\"Assemble output · if scenario_name is given\"]\n    N23[\"change <b>summary_dt<\/b> in place\"]\n  end\n  N2 --> N1\n  N3 --> N1\n  N4 --> N1\n  N5 --> N1\n  N6 --> N1\n  N7 --> N1\n  N8 --> N1\n  N9 --> N1\n  N10 --> N1\n  N11 --> N1\n  N12 --> N1\n  N13 --> N1\n  N14 --> N1\n  N1 --> N15\n  N15 -->|\"$contract_dt, $personnel_dt, $salary_scale_dt, cur_date, $pensioner_register, $retirement_policy, $exit_policy, $movement_policy, $hiring_policy, growth, cola_rate, allow_growth, $column_spec_args\"| N16\n  N6 --> N16\n  N7 --> N16\n  N8 --> N16\n  N10 --> N16\n  N16 --> N17\n  N17 -->|\"ct_snap\"| N18\n  N17 -->|\"pt_snap\"| N19\n  N17 -->|\"period_rows\"| N20\n  N20 --> N21\n  N21 --> N22\n  N22 --> N23\n  N23 --> N24\n  N11 -->|\"salary_growth_rate\"| N25\n  N12 -->|\"pension_cola_rate\"| N25\n  N13 -->|\"allowance_growth_rate\"| N25\n  N24 --> N26\n  N25 --> N26\n  N26 --> N27\n  N17 -->|\"pensioner_register, allowance_dt\"| N27\n  N15 -->|\"contract_dt, personnel_dt\"| N27\n  N2 -->|\"contract_dt\"| N27\n  N18 -->|\"contract_dt\"| N27\n  N3 -->|\"personnel_dt\"| N27\n  N19 -->|\"personnel_dt\"| N27\n  classDef fn fill:#c9eef4,stroke:#2b7a87,color:#10232a\n  classDef tbl fill:#dfe8f7,stroke:#4a6a9e,color:#141c2b\n  classDef lst fill:#e3f1df,stroke:#4f8a45,color:#16240f\n  classDef vec fill:#f3ecd6,stroke:#9a7b25,color:#2a2108\n  classDef inl fill:#ffffff,stroke:#6b7280,stroke-dasharray:5 4,color:#1f2937\n  classDef res fill:#f6d3c8,stroke:#b4573a,color:#2b130b\n  class N1,N16,N26 fn\n  class N2,N3,N4 tbl\n  class N6,N7,N8,N9,N10,N15,N17,N25 lst\n  class N5,N11,N12,N13,N14 vec\n  class N18,N19,N20,N21,N22,N23,N24 inl\n  class N27 res",
       "links": {
         "N1": "prepare_horizon_inputs",
-        "N18": "simulate_scenario"
+        "N16": "simulate_scenario"
       },
-      "n_functions": 9
+      "n_functions": 3
     },
     "simulate_promotions_transfers": {
       "mermaid": "flowchart TB\n  subgraph G1[\"Comes in\"]\n    N1([\"<b>as_of_date<\/b> · vector\"])\n    N2[\"<b>contract_dt<\/b> · table<br/>unit = one row per contract<br/>main columns = contract_id, personnel_id, est_id<br/>#160;#160;#160;#160;#160;#160;#160;#160;contract_type, gross_salary_lcu, base_salary_lcu<br/>#160;#160;#160;#160;#160;#160;#160;#160;start_date, end_date, paygrade\"]\n    N7[\"<b>personnel_dt<\/b> · table<br/>unit = one row per person<br/>main columns = personnel_id, employment_status, age<br/>#160;#160;#160;#160;#160;#160;#160;#160;personnel_tenure, birth_date, gender\"]\n    N12(\"<b>policy_params<\/b> · list\")\n    N13[\"<b>salary_scale_dt<\/b> · table<br/>unit = one row per pay group<br/>main columns = the group columns, e.g. est_id, gross_salary_lcu\"]\n  end\n  subgraph G7[\"3. Extract or estimate baseline matrix · otherwise (not: policy_params$policy_table is given and data.table::is.data.table(p...) · if n_snapshots #gt;= 2L and group_cols is given\"]\n    N3[\"<b>estimate_historical_movement_rates()<\/b>\"]\n  end\n  subgraph G8[\"4. Select simulation snapshot (nearest as_of_date not after target) · if contract_dt has the ref_date_col column\"]\n    N4[\"<b>select_nearest_ref_date()<\/b>\"]\n    N5[\"update <b>snap_contract_dt<\/b>\"]\n  end\n  subgraph G9[\"4. Select simulation snapshot (nearest as_of_date not after target) · if contract_dt has the ref_date_col column · if personnel_dt has the ref_date_col column\"]\n    N6[\"update <b>snap_personnel_dt<\/b>\"]\n  end\n  subgraph G10[\"4b. Guard: single snapshot with no pre-computed policy_table · if n_snapshots #lt; 2L and there is no policy_params$policy_table\"]\n    N8[\"<b>.movers_table()<\/b>\"]\n    N9[\"<b>empty_movers<\/b> · table<br/>unit = (not in the catalogue yet)<br/>main columns = .id, from_group, to_group\"]\n  end\n  subgraph G11[\"5. Compute headcount before\"]\n    N10[\"<b>get_active_contracts()<\/b>\"]\n  end\n  subgraph G12[\"6. Compute Movement Demand · if baseline_matrix is given\"]\n    N11[\"<b>compute_movement_demand()<\/b>\"]\n    N14[\"<b>demand_dt<\/b> · table<br/>unit = one row per move between groups<br/>main columns = from_group, to_group, movement_rate<br/>#160;#160;#160;#160;#160;#160;#160;#160;current_stock, n_movers\"]\n  end\n  subgraph G13[\"6. Compute Movement Demand · otherwise (not: baseline_matrix is given) · if there is no policy_params$defaults$movement_rate\"]\n    N15[\"<b>demand_dt<\/b> · table<br/>unit = one row per move between groups<br/>main columns = from_group, to_group, movement_rate<br/>#160;#160;#160;#160;#160;#160;#160;#160;current_stock, n_movers\"]\n  end\n  subgraph G14[\"6. Compute Movement Demand · otherwise (not: baseline_matrix is given) · otherwise (not: there is no policy_params$defaults$movement_rate)\"]\n    N16[\"<b>compute_fixed_rate_movements()<\/b>\"]\n    N17[\"<b>demand_dt<\/b> · table<br/>unit = one row per move between groups<br/>main columns = from_group, to_group, movement_rate<br/>#160;#160;#160;#160;#160;#160;#160;#160;current_stock, n_movers\"]\n  end\n  subgraph G15[\"7. Identify Movers (selection engine) · if is.null(demand_dt) || nrow(demand_dt) == 0 || sum(demand_dt$n_mover...\"]\n    N18[\"<b>.movers_table()<\/b>\"]\n    N19[\"<b>empty_movers<\/b> · table<br/>unit = (not in the catalogue yet)<br/>main columns = .id, from_group, to_group\"]\n    N20[\"<b>compute_movement_summary()<\/b>\"]\n    N21[\"<b>summary_tbl<\/b> · table<br/>unit = (not in the catalogue yet)<br/>main columns = n_movers, n_movers_demanded, hist_avg_movement_rate<br/>#160;#160;#160;#160;#160;#160;#160;#160;headcount_before, headcount_after\"]\n  end\n  subgraph G16[\"7. Identify Movers (selection engine)\"]\n    N22[\"<b>identify_movers()<\/b>\"]\n    N23[\"<b>movers_dt<\/b> · table<br/>unit = one row per person moving<br/>main columns = personnel_id, salary_before, from_group<br/>#160;#160;#160;#160;#160;#160;#160;#160;to_group\"]\n  end\n  subgraph G17[\"8. Update State (ONLY state-modifying step)\"]\n    N24[\"<b>update_state_with_movement()<\/b>\"]\n    N25(\"<b>update_result<\/b> · list<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>movers_dt<\/b>: table, one row per person moving<br/>└─ <b>personnel_dt<\/b>: table, one row per person\")\n  end\n  subgraph G18[\"10. Compute Summary Statistics\"]\n    N26[\"<b>compute_movement_summary()<\/b>\"]\n    N27[\"<b>summary_tbl<\/b> · table<br/>unit = (not in the catalogue yet)<br/>main columns = n_movers, n_movers_demanded, hist_avg_movement_rate<br/>#160;#160;#160;#160;#160;#160;#160;#160;headcount_before, headcount_after\"]\n  end\n  subgraph G19[\"Hands back\"]\n    N28(\"<b>result<\/b> · list<br/>├─ <b>summary<\/b>: table, one row: this step's counts and costs<br/>├─ <b>contract_dt<\/b>: table, one row per contract<br/>├─ <b>personnel_dt<\/b>: table, one row per person<br/>├─ <b>movers_dt<\/b>: table, one row per person moving<br/>├─ <b>baseline_matrix<\/b>: table, one row per move between groups<br/>└─ <b>demand_dt<\/b>: table, one row per move between groups\")\n  end\n  N2 --> N3\n  N2 --> N4\n  N1 -->|\"as_of_date\"| N4\n  N2 --> N5\n  N4 -->|\"selected_ref_date\"| N5\n  N7 --> N6\n  N4 -->|\"selected_ref_date\"| N6\n  N8 --> N9\n  N2 --> N10\n  N4 -->|\"selected_ref_date\"| N10\n  N2 --> N11\n  N7 --> N11\n  N3 -->|\"estimated_baseline\"| N11\n  N12 --> N11\n  N13 --> N11\n  N4 -->|\"selected_ref_date\"| N11\n  N11 --> N14\n  N2 --> N16\n  N7 --> N16\n  N13 --> N16\n  N12 --> N16\n  N4 -->|\"selected_ref_date\"| N16\n  N16 --> N17\n  N18 --> N19\n  N19 --> N20\n  N17 --> N20\n  N3 -->|\"estimated_baseline\"| N20\n  N10 -->|\"stock_before\"| N20\n  N20 --> N21\n  N2 --> N22\n  N7 --> N22\n  N17 --> N22\n  N12 --> N22\n  N4 -->|\"selected_ref_date\"| N22\n  N3 -->|\"estimated_baseline\"| N22\n  N22 --> N23\n  N2 --> N24\n  N7 --> N24\n  N23 --> N24\n  N12 --> N24\n  N13 --> N24\n  N4 -->|\"selected_ref_date\"| N24\n  N24 --> N25\n  N25 -->|\"$movers_dt\"| N26\n  N17 --> N26\n  N3 -->|\"estimated_baseline\"| N26\n  N10 -->|\"stock_before\"| N26\n  N26 --> N27\n  N27 -->|\"summary\"| N28\n  N25 -->|\"contract_dt, personnel_dt, movers_dt\"| N28\n  N17 -->|\"demand_dt\"| N28\n  classDef fn fill:#c9eef4,stroke:#2b7a87,color:#10232a\n  classDef tbl fill:#dfe8f7,stroke:#4a6a9e,color:#141c2b\n  classDef lst fill:#e3f1df,stroke:#4f8a45,color:#16240f\n  classDef vec fill:#f3ecd6,stroke:#9a7b25,color:#2a2108\n  classDef inl fill:#ffffff,stroke:#6b7280,stroke-dasharray:5 4,color:#1f2937\n  classDef res fill:#f6d3c8,stroke:#b4573a,color:#2b130b\n  class N3,N4,N8,N10,N11,N16,N18,N20,N22,N24,N26 fn\n  class N2,N7,N9,N13,N14,N15,N17,N19,N21,N23,N27 tbl\n  class N12,N25 lst\n  class N1 vec\n  class N5,N6 inl\n  class N28 res",

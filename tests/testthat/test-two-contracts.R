@@ -62,19 +62,12 @@ test_that("the pension wage of a retiree with two contracts is both added up", {
   expect_equal(out$retirees_dt$pension, 750)
 })
 
-test_that("the pension counts the pay on both contracts, and sits on the main one", {
+test_that("the register records the pension and final salary on both contracts", {
   d <- two_jobs()
-  run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start,
-                          retirement_policy = retire_at_60(), seed = 1L,
-                          output_control_args = define_output_control(return_microdata = TRUE))
-  reg <- run$pensioner_register
-  expect_equal(nrow(reg), 1L)
-  expect_equal(reg$pension_amount, 750)   # half of 1000 + 500
-  # In the returned tables the main contract carries the pension; the other ended
-  later <- run$contract_dt[ref_date > start & personnel_id == reg$personnel_id]
-  expect_equal(later$contract_id, reg$contract_id)
-  expect_equal(later$gross_salary_lcu, 750)
-  expect_equal(later$contract_type, "pensioner")
+  reg <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start,
+                          retirement_policy = retire_at_60(), seed = 1L)$pensioner_register
+  expect_equal(reg$final_salary, 1500)
+  expect_equal(reg$pension_amount, 750)
 })
 
 test_that("a retiree with no pay on any contract keeps a blank pension wage", {

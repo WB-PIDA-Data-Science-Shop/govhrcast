@@ -42,32 +42,29 @@
   as.Date(max(dates, na.rm = TRUE))
 }
 
-# Internal helper: the pensioner register before anyone is on it. One row per
-# pension contract, keyed by the caller's person and contract ID columns; the
-# amount is this year's pension, grown by the pension COLA every year.
-.empty_pensioner_register <- function(personnel_id_col, contract_id_col) {
+# Internal helper: the pensioner register before anyone is on it, keyed by the
+# caller's person ID column.
+.empty_pensioner_register <- function(personnel_id_col) {
   register <- data.table::data.table(
-    .id            = character(0),
-    .cid           = character(0),
-    pension_amount = numeric(0)
+    .id                        = character(0),
+    pension_amount             = numeric(0),   # COLA-adjusted each period
+    final_salary               = numeric(0),   # salary at moment of retirement
+    tenure_years_at_retirement = numeric(0),
+    age_at_retirement          = numeric(0),
+    period_date                = as.Date(character(0))
   )
-  data.table::setnames(register, c(".id", ".cid"), c(personnel_id_col, contract_id_col))
+  data.table::setnames(register, ".id", personnel_id_col)
 }
 
-# Internal helper: your own rows up to baseline_date, unchanged, which the returned
-# tables continue (ADR 0017). A single snapshot without a date column is dated at
-# baseline_date.
-.history_up_to <- function(dt, baseline_date, ref_date_col) {
-  dt <- data.table::as.data.table(dt)
-  if (ref_date_col %in% names(dt)) return(dt[get(ref_date_col) <= baseline_date])
-  data.table::copy(dt)[, (ref_date_col) := baseline_date][]
-}
-
-# Internal helper: history followed by the simulated years, with your columns in
-# your order. Columns the simulation adds for its own work are left out, except
-# `also_keep` (age and tenure, which it fills in when your data lack them): those
-# come last, blank on the history rows.
-.continue_table <- function(history, years, also_keep = character(0)) {
-  all_rows <- data.table::rbindlist(c(list(history), years), use.names = TRUE, fill = TRUE)
-  all_rows[, c(names(history), setdiff(intersect(also_keep, names(all_rows)), names(history))), with = FALSE]
+# ---------------------------------------------------------------------------
+# Helper: advance Date by n units (year / month / day)
+# ---------------------------------------------------------------------------
+.advance_period <- function(date, n = 1L, unit = "year") {
+  switch(
+    unit,
+    year  = seq(date, by = "year",  length.out = n + 1L)[n + 1L],
+    month = seq(date, by = "month", length.out = n + 1L)[n + 1L],
+    day   = date + as.integer(n),
+    stop(".advance_period: unknown unit '", unit, "'", call. = FALSE)
+  )
 }

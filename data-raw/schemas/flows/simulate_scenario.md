@@ -19,7 +19,7 @@ flowchart TB
   end
   subgraph G4["0. Initialise / validate · if there is no pensioner_register"]
     N2["<b>.empty_pensioner_register()</b>"]
-    N3["<b>pensioner_register</b> · table<br/>unit = one row per pension contract (returned: per contract per year)<br/>main columns = personnel_id, contract_id, pension_amount<br/>#160;#160;#160;#160;#160;#160;#160;#160;ref_date (returned only)"]
+    N3["<b>pensioner_register</b> · table<br/>unit = one row per retiree per year retired<br/>main columns = personnel_id, pension_amount, final_salary<br/>#160;#160;#160;#160;#160;#160;#160;#160;tenure_years_at_retirement, age_at_retirement, period_date"]
   end
   subgraph G5["SNAPSHOT A  (active employees only -- pensioner rows excluded)"]
     N5["<b>.active_wage_bill()</b>"]
@@ -30,7 +30,7 @@ flowchart TB
     N10["<b>compute_exit_effect()</b>"]
   end
   subgraph G7["STEP 1: RETIREMENT · if retirement_policy is given · if retirees_dt is given and nrow(retirees_dt) #gt; 0L and #quot;pension#quot; %in% n..."]
-    N11["change <b>new_reg</b> in place"]
+    N11["<b>new_reg</b> · table<br/>unit = one row<br/>main columns = .id, pension_amount, final_salary<br/>#160;#160;#160;#160;#160;#160;#160;#160;tenure_years_at_retirement, age_at_retirement, period_date"]
     N12["update <b>pensioner_register</b>"]
   end
   subgraph G8["STEP 2: NON-RETIREMENT EXITS (Phase 3) · if exit_policy is given"]
@@ -83,10 +83,10 @@ flowchart TB
     N42["<b>.active_wage_bill()</b>"]
   end
   subgraph G25["Build summary row"]
-    N43["<b>summary_row</b> · table<br/>unit = one row<br/>main columns = period_date, n_headcount_start, wage_bill_start<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_exits, exit_savings, n_non_ret_exits<br/>#160;#160;#160;#160;#160;#160;#160;#160;non_ret_exit_savings, pension_cost_new, pension_cost_total<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_promotions, n_transfers, promotion_effect<br/>#160;#160;#160;#160;#160;#160;#160;#160;transfer_effect, n_hires, hiring_effect<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_downsized, downsizing_savings, inflation_effect<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_headcount_end, wage_bill_end, allowance_cost_end"]
+    N43["<b>summary_row</b> · table<br/>unit = one row<br/>main columns = period_start_date, n_headcount_start, wage_bill_start<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_exits, exit_savings, n_non_ret_exits<br/>#160;#160;#160;#160;#160;#160;#160;#160;non_ret_exit_savings, pension_cost_new, pension_cost_total<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_promotions, n_transfers, promotion_effect<br/>#160;#160;#160;#160;#160;#160;#160;#160;transfer_effect, n_hires, hiring_effect<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_downsized, downsizing_savings, inflation_effect<br/>#160;#160;#160;#160;#160;#160;#160;#160;n_headcount_end, wage_bill_end, allowance_cost_end"]
   end
   subgraph G26["Hands back"]
-    N44("<b>result</b> · list<br/>├─ <b>summary</b>: table, one row: this step's counts and costs<br/>├─ <b>contract_dt</b>: table, one row per contract<br/>├─ <b>personnel_dt</b>: table, one row per person<br/>├─ <b>salary_scale_dt</b>: table, one row per pay group<br/>├─ <b>pensioner_register</b>: table, one row per pension contract (returned: per contract per year)<br/>├─ <b>allowance_dt</b>: table, one row per contract, allowance type and year<br/>├─ <b>allowance_policy</b>: list<br/>└─ <b>hiring_policy</b>: list")
+    N44("<b>result</b> · list<br/>├─ <b>summary</b>: table, one row: this step's counts and costs<br/>├─ <b>contract_dt</b>: table, one row per contract<br/>├─ <b>personnel_dt</b>: table, one row per person<br/>├─ <b>salary_scale_dt</b>: table, one row per pay group<br/>├─ <b>pensioner_register</b>: table, one row per retiree per year retired<br/>├─ <b>allowance_dt</b>: table, one row per contract, allowance type and year<br/>├─ <b>allowance_policy</b>: list<br/>└─ <b>hiring_policy</b>: list")
   end
   N2 --> N3
   N4 --> N5
@@ -96,7 +96,7 @@ flowchart TB
   N1 -->|"period_date"| N6
   N6 --> N9
   N9 -->|"$retirees_dt"| N10
-  N9 -->|"new_reg"| N11
+  N1 -->|"period_date"| N11
   N3 --> N12
   N11 --> N12
   N9 -->|"$contract_dt, $personnel_dt"| N13
@@ -142,7 +142,7 @@ flowchart TB
   N38 --> N40
   N12 --> N41
   N32 --> N42
-  N1 -->|"period_date"| N43
+  N1 -->|"period_start_date"| N43
   N4 -->|"n_headcount_start"| N43
   N5 -->|"wage_bill_start"| N43
   N9 -->|"n_exits, pension_cost_new"| N43
@@ -172,10 +172,10 @@ flowchart TB
   classDef inl fill:#ffffff,stroke:#6b7280,stroke-dasharray:5 4,color:#1f2937
   classDef res fill:#f6d3c8,stroke:#b4573a,color:#2b130b
   class N2,N5,N6,N10,N13,N16,N20,N23,N25,N26,N29,N30,N34,N38,N42 fn
-  class N3,N4,N7,N17,N39,N43 tbl
+  class N3,N4,N7,N11,N17,N39,N43 tbl
   class N8,N9,N14,N15,N18,N19,N21,N22,N24,N35,N40 lst
   class N1,N36 vec
-  class N11,N12,N27,N28,N31,N32,N33,N37,N41 inl
+  class N12,N27,N28,N31,N32,N33,N37,N41 inl
   class N44 res
 ```
 

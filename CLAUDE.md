@@ -213,21 +213,10 @@ by `simulate_scenario()` and the allowance module) is the single
 source of truth for what counts as payroll: sum of `salary_col` over
 contract rows where `contract_type_col` is not `"pensioner"`/`"inactive"`
 and salary is non-NA. Pensioner costs live only in `pensioner_register` (a
-separate ledger tracking `pension_amount`, one row per pension contract,
-keyed by the person and contract ID columns; returned with one row per
-contract per year) and must never be folded into wage-bill totals. Preserve
-this separation in any change that touches wage-bill computation — it's
-asserted throughout the test suite.
-
-### Returned tables continue the input (ADR 0017)
-With `return_microdata = TRUE`, `$contract_dt`/`$personnel_dt` are the caller's
-own rows up to `baseline_date`, unchanged, then one govhr-style snapshot per
-simulated year, built after the year runs (outside the working tables): staff,
-every pensioner with that year's pension in `salary_col`, and nobody who has
-left (absent, as govhr detects exits). Year *t* is dated `baseline_date` + *t*
-years; its rules still run as of the year's start. Tests in
-`test-output-continuity.R` check this against govhr itself
-(`compute_wagebill_analytics()`, `detect_movement()`); keep them passing.
+separate ledger tracking `pension_amount`, keyed by
+`personnel_id`/`period_date`) and must never be folded into wage-bill
+totals. Preserve this separation in any change that touches wage-bill
+computation — it's asserted throughout the test suite.
 
 ### Validation layer
 `R/validation.R` centralizes input checking: generic helpers

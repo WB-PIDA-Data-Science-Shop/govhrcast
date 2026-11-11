@@ -171,11 +171,15 @@ growth); allowances
 (\code{allowance_cost_start}, \code{allowance_cost_end}, both
 \code{0} when allowances are not modelled); and
 \code{total_wage_bill_start}/\code{total_wage_bill_end} (salaries
-plus allowances).  Also \code{period_date}, the date of the snapshot
-the year leaves behind: \code{baseline_date} plus one year for year 1,
-and so on (each year's rules run as of its start).  Also
-\code{is_baseline}, plus \code{scenario_id} and \code{scenario_label}
-when a \code{scenario_name} is given.}
+plus allowances).  Also \code{is_baseline}, plus \code{scenario_id}
+and \code{scenario_label} when a \code{scenario_name} is given.
+The first three columns say which year a row is: \code{period}
+(1, 2, ...), \code{period_start_date} and \code{period_end_date}.
+Year \code{t} runs from \code{baseline_date} plus \code{t - 1} years
+to \code{baseline_date} plus \code{t} years; its \code{_start}
+columns describe the first date and its \code{_end} columns the
+second.  The microdata snapshot for that year is dated
+\code{period_end_date}.}
 \item{\code{$summary_dt}}{The same table as \code{$comparison} (kept
 for backward compatibility).}
 \item{\code{$metadata}}{List recording what produced the run, so results
@@ -186,34 +190,25 @@ allowance amounts is not recorded), the three growth rates as you
 passed them, \code{n_periods} and \code{baseline_date}.  The hiring
 policy includes the new hire profile, which can describe few people in
 small groups.  Also \code{scenario_name} and \code{is_baseline}.}
-\item{\code{$pensioner_register}}{data.table, one row per pension
-contract per simulated year: the person ID, contract ID and date
-columns (under your names for them) and \code{pension_amount}, that
-year's pension.  People retired before \code{baseline_date} are on it
-from year 1; a new retiree from the year they retire, on their main
-contract.  Each year's total is that year's \code{pension_cost_total}.
-Always present (zero rows when nobody is retired).  Nobody leaves the
-register: deaths are not modelled, so long projections overstate
-pension costs.  To chain several runs, combine their registers with
-\code{data.table::rbindlist()}.  This is person-level data: handle it
-like the input microdata before saving or sharing the result.}
-\item{\code{$contract_dt}, \code{$personnel_dt}}{Your data continued
-through the projection, so govhr and govhrapp read history and
-projection alike.  Up to \code{baseline_date} they are your own rows,
-unchanged.  Each simulated year is then one snapshot, dated in
-\code{ref_date_col} as in \code{$comparison}, showing what govhr data
-would: staff; every pensioner, with that year's pension in
-\code{salary_col} (people retired before the baseline as in your data,
-new retirees with \code{contract_type} \code{"pensioner"}); and nobody
-who has left, since government data rarely record an exit and govhr
-detects one as a person who is gone the next year.  Your columns, in
-your order, plus \code{age_col} and \code{tenure_col} when the
-simulation fills them in and your data lack them.  Pensioners grow
-older each year; only staff gain tenure.  Only when
-\code{return_microdata = TRUE}.  Also person-level data.}
+\item{\code{$pensioner_register}}{data.table, one row per retiree per
+year: the person ID (under your name for that column),
+\code{pension_amount}, \code{period_date} and details at retirement.  Always present
+(zero rows when nobody retired).  Nobody leaves the register: deaths are
+not modelled, so long projections overstate pension costs.  To chain several runs, combine
+their registers with \code{data.table::rbindlist()}.  This is
+person-level data: handle it like the input microdata before
+saving or sharing the result.}
+\item{\code{$contract_dt}, \code{$personnel_dt}}{Your tables as you
+passed them, up to \code{baseline_date}, followed by one snapshot per
+projected year, dated in \code{ref_date_col} at the end of that year
+(\code{baseline_date} plus 1 year, plus 2 years, ...).  A table without
+\code{ref_date_col} comes back dated \code{baseline_date}.  Rows up to
+\code{baseline_date} are unchanged, so the result can go through the
+same analysis as the input.  Only when \code{return_microdata = TRUE}.
+Also person-level data.}
 \item{\code{$allowance_dt}}{Allowance ledger: one row per contract x
-allowance type x year, dated like the snapshots.  Only when
-\code{return_microdata = TRUE} and allowances are modelled.}
+allowance type x year.  Only when \code{return_microdata = TRUE}
+and allowances are modelled.}
 }
 }
 \description{
@@ -435,7 +430,7 @@ reform <- simulate_horizon(
 
 # 3. Compare the two side by side
 rbindlist(list(status_quo$comparison, reform$comparison), fill = TRUE)[
-  , .(scenario_label, period_date, n_headcount_end, wage_bill_end)
+  , .(scenario_label, period_end_date, n_headcount_end, wage_bill_end)
 ]
 }
 

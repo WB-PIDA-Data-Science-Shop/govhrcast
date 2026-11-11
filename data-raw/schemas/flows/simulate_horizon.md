@@ -21,40 +21,29 @@ flowchart TB
   end
   subgraph G2["0. Validate and set up"]
     N1["<b>prepare_horizon_inputs()</b>"]
-    N15("<b>inputs</b> · list<br/>├─ <b>allowance_growth_rate</b><br/>├─ <b>baseline_date</b><br/>├─ <b>column_spec_args</b><br/>├─ <b>contract_dt</b>: table, one row per contract<br/>├─ <b>exit_policy</b>: list<br/>├─ <b>hiring_policy</b>: list<br/>├─ <b>movement_policy</b>: list<br/>├─ <b>n_periods</b><br/>├─ <b>pension_cola_rate</b><br/>├─ <b>pension_contracts</b><br/>├─ <b>pension_people</b><br/>├─ <b>pensioner_register</b>: table, one row per pension contract (returned: per contract per year)<br/>├─ <b>period0_allowance_cost</b><br/>├─ <b>personnel_dt</b>: table, one row per person<br/>├─ <b>retirement_policy</b>: list<br/>├─ <b>salary_growth_rate</b><br/>└─ <b>salary_scale_dt</b>: table, one row per pay group")
+    N15("<b>inputs</b> · list<br/>├─ <b>allowance_growth_rate</b><br/>├─ <b>baseline_date</b><br/>├─ <b>column_spec_args</b><br/>├─ <b>contract_dt</b>: table, one row per contract<br/>├─ <b>exit_policy</b>: list<br/>├─ <b>hiring_policy</b>: list<br/>├─ <b>movement_policy</b>: list<br/>├─ <b>n_periods</b><br/>├─ <b>pension_cola_rate</b><br/>├─ <b>pensioner_register</b>: table, one row per retiree per year retired<br/>├─ <b>period0_allowance_cost</b><br/>├─ <b>personnel_dt</b>: table, one row per person<br/>├─ <b>retirement_policy</b>: list<br/>├─ <b>salary_growth_rate</b><br/>└─ <b>salary_scale_dt</b>: table, one row per pay group")
   end
-  subgraph G3["0. Validate and set up · if return_microdata"]
-    N16["<b>.history_up_to()</b>"]
-    N17["<b>.history_up_to()</b>"]
+  subgraph G4["PERIOD LOOP · for each t from 1 to inputs$n_periods"]
+    N16["<b>simulate_scenario()</b>"]
+    N17("<b>scenario_result</b> · list<br/>├─ <b>allowance_dt</b>: table, one row per contract, allowance type and year<br/>├─ <b>allowance_policy</b>: list<br/>├─ <b>contract_dt</b>: table, one row per contract<br/>├─ <b>hiring_policy</b>: list<br/>├─ <b>pensioner_register</b>: table, one row per retiree per year retired<br/>├─ <b>personnel_dt</b>: table, one row per person<br/>├─ <b>salary_scale_dt</b>: table, one row per pay group<br/>└─ <b>summary</b>: table, one row: this step's counts and costs")
   end
-  subgraph G5["PERIOD LOOP · for each t from 1 to inputs$n_periods"]
-    N18["<b>simulate_scenario()</b>"]
-    N19("<b>scenario_result</b> · list<br/>├─ <b>allowance_dt</b>: table, one row per contract, allowance type and year<br/>├─ <b>allowance_policy</b>: list<br/>├─ <b>contract_dt</b>: table, one row per contract<br/>├─ <b>hiring_policy</b>: list<br/>├─ <b>pensioner_register</b>: table, one row per pension contract (returned: per contract per year)<br/>├─ <b>personnel_dt</b>: table, one row per person<br/>├─ <b>salary_scale_dt</b>: table, one row per pay group<br/>└─ <b>summary</b>: table, one row: this step's counts and costs")
+  subgraph G5["PERIOD LOOP · for each t from 1 to inputs$n_periods · if return_microdata"]
+    N18["change <b>ct_snap</b> in place"]
+    N19["change <b>pt_snap</b> in place"]
   end
-  subgraph G6["PERIOD LOOP · for each t from 1 to inputs$n_periods · if return_microdata"]
-    N20["<b>snapshot_contracts()</b>"]
-    N21["<b>snapshot_personnel()</b>"]
-  end
-  subgraph G7["Assemble output"]
-    N22["update <b>summary_dt</b>"]
+  subgraph G6["Assemble output"]
+    N20["update <b>summary_dt</b>"]
+    N22["change <b>summary_dt</b> in place"]
     N24["change <b>summary_dt</b> in place"]
-    N26["change <b>summary_dt</b> in place"]
-    N27("<b>policy_args</b> · list<br/>├─ <b>retirement_policy</b>: list<br/>├─ <b>exit_policy</b>: list<br/>├─ <b>movement_policy</b>: list<br/>├─ <b>hiring_policy</b>: list<br/>├─ <b>allowance_policy</b>: list<br/>├─ <b>salary_growth_rate</b><br/>├─ <b>pension_cola_rate</b><br/>├─ <b>allowance_growth_rate</b><br/>├─ <b>n_periods</b><br/>└─ <b>baseline_date</b>")
-    N28["<b>new_horizon()</b>"]
-    N29("<b>out</b> · list<br/>├─ <b>comparison</b>: table, one row per year<br/>├─ <b>metadata</b><br/>└─ <b>summary_dt</b>: table, one row per year")
+    N25("<b>policy_args</b> · list<br/>├─ <b>retirement_policy</b>: list<br/>├─ <b>exit_policy</b>: list<br/>├─ <b>movement_policy</b>: list<br/>├─ <b>hiring_policy</b>: list<br/>├─ <b>allowance_policy</b>: list<br/>├─ <b>salary_growth_rate</b><br/>├─ <b>pension_cola_rate</b><br/>├─ <b>allowance_growth_rate</b><br/>├─ <b>n_periods</b><br/>└─ <b>baseline_date</b>")
+    N26["<b>new_horizon()</b>"]
+    N27("<b>out</b> · list<br/>├─ <b>allowance_dt</b>: table, one row per contract, allowance type and year<br/>├─ <b>comparison</b>: table, one row per year<br/>├─ <b>contract_dt</b>: table, one row per contract<br/>├─ <b>metadata</b><br/>├─ <b>pensioner_register</b>: table, one row per retiree per year retired<br/>├─ <b>personnel_dt</b>: table, one row per person<br/>└─ <b>summary_dt</b>: table, one row per year")
   end
-  subgraph G8["Assemble output · for each ec in effect_cols"]
+  subgraph G7["Assemble output · for each ec in effect_cols"]
+    N21["change <b>summary_dt</b> in place"]
+  end
+  subgraph G8["Assemble output · if scenario_name is given"]
     N23["change <b>summary_dt</b> in place"]
-  end
-  subgraph G9["Assemble output · if scenario_name is given"]
-    N25["change <b>summary_dt</b> in place"]
-  end
-  subgraph G10["Assemble output · if return_microdata"]
-    N30["<b>.continue_table()</b>"]
-    N31["<b>.continue_table()</b>"]
-  end
-  subgraph G11["Assemble output · if return_microdata · if allowance_dt is given"]
-    N32["change <b>allowance_dt</b> in place"]
   end
   N2 --> N1
   N3 --> N1
@@ -70,52 +59,43 @@ flowchart TB
   N13 --> N1
   N14 --> N1
   N1 --> N15
-  N2 --> N16
-  N15 -->|"$baseline_date"| N16
-  N14 --> N16
-  N3 --> N17
-  N15 -->|"$baseline_date"| N17
-  N14 --> N17
-  N15 -->|"$contract_dt, $personnel_dt, $salary_scale_dt, as_of_dates, $pensioner_register, $retirement_policy, $exit_policy, $movement_policy, $hiring_policy, growth, cola_rate, allow_growth, $column_spec_args"| N18
-  N6 --> N18
-  N7 --> N18
-  N8 --> N18
-  N10 --> N18
-  N18 --> N19
-  N19 -->|"$contract_dt, $personnel_dt, $pensioner_register"| N20
-  N15 -->|"$pension_contracts, snapshot_dates, $column_spec_args"| N20
-  N19 -->|"$personnel_dt"| N21
-  N15 -->|"$pension_people, snapshot_dates, $column_spec_args"| N21
-  N19 -->|"period_rows"| N22
+  N15 -->|"$contract_dt, $personnel_dt, $salary_scale_dt, cur_date, $pensioner_register, $retirement_policy, $exit_policy, $movement_policy, $hiring_policy, growth, cola_rate, allow_growth, $column_spec_args"| N16
+  N6 --> N16
+  N7 --> N16
+  N8 --> N16
+  N10 --> N16
+  N16 --> N17
+  N17 -->|"ct_snap"| N18
+  N17 -->|"pt_snap"| N19
+  N17 -->|"period_rows"| N20
+  N20 --> N21
+  N21 --> N22
   N22 --> N23
   N23 --> N24
-  N24 --> N25
+  N11 -->|"salary_growth_rate"| N25
+  N12 -->|"pension_cola_rate"| N25
+  N13 -->|"allowance_growth_rate"| N25
+  N24 --> N26
   N25 --> N26
-  N11 -->|"salary_growth_rate"| N27
-  N12 -->|"pension_cola_rate"| N27
-  N13 -->|"allowance_growth_rate"| N27
-  N26 --> N28
-  N27 --> N28
-  N28 --> N29
-  N19 -->|"pensioner_register"| N29
-  N16 -->|"history_contracts"| N30
-  N20 -->|"contract_panel_list[[t]]"| N30
-  N17 -->|"history_personnel"| N31
-  N21 -->|"personnel_panel_list[[t]]"| N31
-  N15 --> N31
-  N19 -->|"$allowance_dt"| N32
-  N32 -->|"allowance_dt"| N31
+  N26 --> N27
+  N17 -->|"pensioner_register, allowance_dt"| N27
+  N15 -->|"contract_dt, personnel_dt"| N27
+  N2 -->|"contract_dt"| N27
+  N18 -->|"contract_dt"| N27
+  N3 -->|"personnel_dt"| N27
+  N19 -->|"personnel_dt"| N27
   classDef fn fill:#c9eef4,stroke:#2b7a87,color:#10232a
   classDef tbl fill:#dfe8f7,stroke:#4a6a9e,color:#141c2b
   classDef lst fill:#e3f1df,stroke:#4f8a45,color:#16240f
   classDef vec fill:#f3ecd6,stroke:#9a7b25,color:#2a2108
   classDef inl fill:#ffffff,stroke:#6b7280,stroke-dasharray:5 4,color:#1f2937
   classDef res fill:#f6d3c8,stroke:#b4573a,color:#2b130b
-  class N1,N16,N17,N18,N20,N21,N28,N30,N31 fn
+  class N1,N16,N26 fn
   class N2,N3,N4 tbl
-  class N6,N7,N8,N9,N10,N15,N19,N27,N29 lst
+  class N6,N7,N8,N9,N10,N15,N17,N25 lst
   class N5,N11,N12,N13,N14 vec
-  class N22,N23,N24,N25,N26,N32 inl
+  class N18,N19,N20,N21,N22,N23,N24 inl
+  class N27 res
 ```
 
 Steps with their own flow: 

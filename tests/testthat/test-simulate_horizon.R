@@ -275,7 +275,7 @@ test_that("simulate_scenario: summary has all required columns", {
     salary_scale_dt = make_salary_scale(),
     period_date     = as.Date("2020-01-01")
   )
-  required <- c("period_date", "n_headcount_start", "wage_bill_start",
+  required <- c("period_start_date", "n_headcount_start", "wage_bill_start",
                 "n_exits", "exit_savings", "pension_cost_new", "pension_cost_total",
                 "n_promotions", "n_transfers", "promotion_effect", "transfer_effect",
                 "n_hires", "hiring_effect", "inflation_effect",
@@ -463,7 +463,7 @@ test_that("simulate_horizon: summary_dt has new-API column names", {
     salary_growth_rate = 0,
     baseline_date           = as.Date("2020-01-01")
   )
-  required <- c("period_date", "n_headcount_start", "wage_bill_start",
+  required <- c("period", "period_start_date", "period_end_date", "n_headcount_start", "wage_bill_start",
                 "n_exits", "exit_savings", "pension_cost_new", "pension_cost_total",
                 "n_promotions", "n_transfers", "promotion_effect", "transfer_effect",
                 "n_hires", "hiring_effect", "inflation_effect",
@@ -509,7 +509,7 @@ test_that("simulate_horizon: summary_dt has _pct_of_end_bill share columns", {
   expect_true(all(pct_cols %in% names(res$summary_dt)))
 })
 
-test_that("simulate_horizon: period_date sequences annually from ref_date", {
+test_that("simulate_horizon: each year runs from period_start_date to period_end_date", {
   s <- make_horizon_state()
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
@@ -520,8 +520,12 @@ test_that("simulate_horizon: period_date sequences annually from ref_date", {
     salary_growth_rate = 0,
     baseline_date           = as.Date("2020-01-01")
   )
-  # Each year is dated at its end, so year 1 is a year after the baseline
-  expect_equal(res$summary_dt$period_date, as.Date(c("2021-01-01", "2022-01-01", "2023-01-01")))
+  expect_equal(res$comparison$period, 1:3)
+  expect_equal(res$comparison$period_start_date, as.Date(c("2020-01-01", "2021-01-01", "2022-01-01")))
+  expect_equal(res$comparison$period_end_date,   as.Date(c("2021-01-01", "2022-01-01", "2023-01-01")))
+  # the year columns come first, after the scenario columns
+  year_cols <- setdiff(names(res$comparison), c("scenario_id", "scenario_label", "is_baseline"))[1:3]
+  expect_equal(year_cols, c("period", "period_start_date", "period_end_date"))
 })
 
 test_that("simulate_horizon: return_microdata = FALSE omits contract/personnel", {
@@ -556,6 +560,73 @@ test_that("simulate_horizon: return_microdata = TRUE includes contract/personnel
   expect_true("personnel_dt" %in% names(res))
   expect_true(data.table::is.data.table(res$contract_dt))
   expect_true(data.table::is.data.table(res$personnel_dt))
+})
+
+# The returned microdata: the panel as passed in, up to baseline_date, then one
+# snapshot per simulated year, dated at the end of that year.
+make_three_snapshot_panel <- function() {
+  s <- make_horizon_state()
+  dates <- as.Date(c("2019-01-01", "2020-01-01", "2021-01-01"))
+  stamp <- function(dt) data.table::rbindlist(lapply(dates, function(d) {
+    data.table::copy(dt)[, ref_date := d]
+  }))
+  list(contract_dt = stamp(s$contract_dt), personnel_dt = stamp(s$personnel_dt))
+}
+
+run_three_snapshot_horizon <- function(p) {
+  simulate_horizon(
+    contract_dt         = p$contract_dt,
+    personnel_dt        = p$personnel_dt,
+    salary_scale_dt     = make_salary_scale(),
+    n_periods           = 2L,
+    retirement_policy   = rule_retirement_policy,
+    salary_growth_rate  = 0.03,
+    baseline_date       = as.Date("2020-01-01"),
+    output_control_args = define_output_control(return_microdata = TRUE)
+  )
+}
+
+test_that("simulate_horizon: returned microdata holds the input unchanged up to baseline_date", {
+  p <- make_three_snapshot_panel()
+  p_before <- lapply(p, data.table::copy)
+  res <- run_three_snapshot_horizon(p)
+  baseline <- as.Date("2020-01-01")
+
+  expect_equal(res$contract_dt[ref_date <= baseline, names(p$contract_dt), with = FALSE],
+               p$contract_dt[ref_date <= baseline], ignore_attr = TRUE)
+  expect_equal(res$personnel_dt[ref_date <= baseline, names(p$personnel_dt), with = FALSE],
+               p$personnel_dt[ref_date <= baseline], ignore_attr = TRUE)
+  # the caller's tables are not modified
+  expect_equal(p, p_before)
+})
+
+test_that("simulate_horizon: simulated years follow baseline_date, one snapshot per date", {
+  res <- run_three_snapshot_horizon(make_three_snapshot_panel())
+
+  # 2021 comes from the simulation, not from the input's own 2021 snapshot
+  expected_dates <- as.Date(c("2019-01-01", "2020-01-01", "2021-01-01", "2022-01-01"))
+  expect_equal(sort(unique(res$contract_dt$ref_date)), expected_dates)
+  expect_equal(sort(unique(res$personnel_dt$ref_date)), expected_dates)
+  expect_equal(res$comparison$period_end_date, expected_dates[3:4])
+  expect_equal(anyDuplicated(res$contract_dt, by = c("contract_id", "ref_date")), 0L)
+  expect_equal(anyDuplicated(res$personnel_dt, by = c("personnel_id", "ref_date")), 0L)
+})
+
+test_that("simulate_horizon: a data.frame snapshot without ref_date comes back dated baseline_date", {
+  s <- make_horizon_state()
+  res <- simulate_horizon(
+    contract_dt         = as.data.frame(s$contract_dt),
+    personnel_dt        = as.data.frame(s$personnel_dt),
+    salary_scale_dt     = make_salary_scale(),
+    n_periods           = 1L,
+    retirement_policy   = rule_retirement_policy,
+    baseline_date       = as.Date("2020-01-01"),
+    output_control_args = define_output_control(return_microdata = TRUE)
+  )
+
+  expect_equal(sort(unique(res$contract_dt$ref_date)), as.Date(c("2020-01-01", "2021-01-01")))
+  expect_equal(sort(unique(res$personnel_dt$ref_date)), as.Date(c("2020-01-01", "2021-01-01")))
+  expect_equal(nrow(res$contract_dt[ref_date == as.Date("2020-01-01")]), nrow(s$contract_dt))
 })
 
 test_that("simulate_horizon: errors on invalid n_periods", {
@@ -1242,7 +1313,7 @@ test_that("Phase 1b: simulate_horizon() auto-computes age from birth_date_col", 
   # After the prologue the age column in personnel_dt should ≈ 40 and 30
   # (exact value is difftime in days / 365.25, so ~39.97 and ~29.97 for
   #  365-day approximations, but well above the initial 0)
-  final_pers <- res$personnel_dt[ref_date > d$ref_date]   # the simulated year, not your history
+  final_pers <- res$personnel_dt[ref_date > d$ref_date]
   ages <- final_pers[order(personnel_id), age]
   expect_gt(ages[1], 39)  # P1 ~40 + 1 period increment
   expect_gt(ages[2], 29)  # P2 ~30 + 1 period increment
@@ -1268,7 +1339,7 @@ test_that("Phase 1b: simulate_horizon() auto-computes tenure from contract histo
   # P1 started 10 years before ref_date → tenure ≈ 10 + 1 period increment
   # P2 started  5 years before ref_date → tenure ≈  5 + 1 period increment
   # Written into the default tenure_col, personnel_tenure (govhr dictionary name).
-  final_pers <- res$personnel_dt[ref_date > d$ref_date]   # the simulated year, not your history
+  final_pers <- res$personnel_dt[ref_date > d$ref_date]
   tenures <- final_pers[order(personnel_id), personnel_tenure]
   expect_gt(tenures[1], 9.5)   # P1
   expect_gt(tenures[2], 4.5)   # P2
@@ -1462,7 +1533,7 @@ test_that("Phase 2c: pension_cola_rate > 0 grows pension_cost_total each period"
   expect_equal(total_pensions[2] / total_pensions[1], 1.05, tolerance = 1e-6)
 })
 
-test_that("Phase 2c: the pensioner register has one row per pension contract per year", {
+test_that("Phase 2c: pensioner_register has 5-column expanded schema", {
   d <- make_phase2c_inputs_with_existing_pensioners()
 
   res <- simulate_horizon(
@@ -1476,7 +1547,9 @@ test_that("Phase 2c: the pensioner register has one row per pension contract per
   )
 
   reg <- res$pensioner_register
-  expect_identical(names(reg), c("personnel_id", "contract_id", "ref_date", "pension_amount"))
+  expect_true(all(c("personnel_id", "pension_amount", "final_salary",
+                    "tenure_years_at_retirement", "age_at_retirement",
+                    "period_date") %in% names(reg)))
 })
 
 test_that("Phase 2c: pension_cola_rate as vector of length n_periods is accepted", {

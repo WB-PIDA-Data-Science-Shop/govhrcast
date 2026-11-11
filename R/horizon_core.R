@@ -501,8 +501,8 @@ precompute_new_hire_profile <- function(hiring_policy, contract_dt, personnel_dt
 #'       \code{baseline_date}, with people who only hold a pension set aside,
 #'       contracts renewed past their end date, and age and tenure filled in.}
 #'     \item{salary_scale_dt}{A copy of the pay table.}
-#'     \item{pensioner_register}{The register, one row per pension contract,
-#'       holding the people already retired at \code{baseline_date}.}
+#'     \item{pensioner_register}{The register, holding the people already
+#'       retired at \code{baseline_date}.}
 #'     \item{retirement_policy, exit_policy, movement_policy, hiring_policy}{The
 #'       policies, with status-quo rates and the new hire profile filled in.}
 #'     \item{column_spec_args}{The column spec, with a \code{NULL} \code{age_col}
@@ -515,12 +515,6 @@ precompute_new_hire_profile <- function(hiring_policy, contract_dt, personnel_dt
 #'       rate per year.}
 #'     \item{period0_allowance_cost}{What allowances cost at the start; period
 #'       1's \code{allowance_cost_start}.  Zero without an allowance policy.}
-#'     \item{pension_contracts}{The pension contract rows at \code{baseline_date},
-#'       as in your data.  They stay out of the simulation and are added back to
-#'       each simulated year of the returned contract table.}
-#'     \item{pension_people}{The people who held only a pension at
-#'       \code{baseline_date}, as in your data, added back the same way to the
-#'       returned personnel table.}
 #'   }
 #'
 #' @keywords internal
@@ -557,7 +551,6 @@ prepare_horizon_inputs <- function(contract_dt,
 
   # The columns this function reads itself; the modules take the whole spec
   personnel_id_col  <- column_spec_args$personnel_id_col
-  contract_id_col   <- column_spec_args$contract_id_col
   ref_date_col      <- column_spec_args$ref_date_col
   salary_col        <- column_spec_args$salary_col
   contract_type_col <- column_spec_args$contract_type_col
@@ -681,20 +674,45 @@ prepare_horizon_inputs <- function(contract_dt,
   .report_no_rate("allowances", "They get the policy's default amount.",
                   allowance_policy$policy_table, setdiff(allowance_policy$group_cols, "allowance_type"))
 
-  # The pensioner register: one row per pension contract
-  pensioner_register <- .empty_pensioner_register(personnel_id_col, contract_id_col)
-  pension_people <- personnel_dt[0L]
+  # Initialise pensioner register with expanded schema
+  pensioner_register <- .empty_pensioner_register(personnel_id_col)
 
   # Seed the register from people already retired at baseline_date, so their pensions
-  # appear in period 1's pension_cost_total. Pensions sit in salary_col, one row per
-  # pension contract; a blank amount stays blank.
+  # appear in period 1's pension_cost_total. Pensions sit in salary_col; several
+  # rows add up, and a pensioner with no pay at all has a blank amount.
   if (nrow(existing_pensioners) > 0L) {
-    seed_reg <- existing_pensioners[, c(personnel_id_col, contract_id_col, salary_col), with = FALSE]
-    data.table::setnames(seed_reg, salary_col, "pension_amount")
-    seed_reg[, pension_amount := as.numeric(pension_amount)]
-    pensioner_register <- data.table::rbindlist(list(pensioner_register, seed_reg), use.names = TRUE)
+    seed_reg <- existing_pensioners[, {
+      pension <- .total_pay(get(salary_col))
+      list(
+        pension_amount             = pension,
+        final_salary               = pension,
+        tenure_years_at_retirement = NA_real_,
+        age_at_retirement          = NA_real_,
+        period_date                = baseline_date
+      )
+    }, by = c(personnel_id_col)]
 
-    .n_no_pension_ <- seed_reg[, all(is.na(pension_amount)), by = c(personnel_id_col)][, sum(V1)]
+    # Enrich seed with age at retirement from birth_date in personnel_dt.
+    # Tenure is not reliably available for pre-existing pensioners (their
+    # contracts are already closed), so leave tenure_years_at_retirement as NA.
+    if (!is.null(birth_date_col) && birth_date_col %in% names(personnel_dt)) {
+      age_lookup <- personnel_dt[
+        get(personnel_id_col) %in% seed_reg[[personnel_id_col]],
+        c(personnel_id_col, birth_date_col), with = FALSE
+      ]
+      age_lookup[, age_at_ret := as.numeric(
+        difftime(baseline_date, get(birth_date_col), units = "days")
+      ) / 365.25]
+      seed_reg[age_lookup, age_at_retirement := i.age_at_ret,
+               on = personnel_id_col]
+    }
+
+    pensioner_register <- data.table::rbindlist(
+      list(pensioner_register, seed_reg),
+      use.names = TRUE, fill = TRUE
+    )
+
+    .n_no_pension_ <- sum(is.na(seed_reg$pension_amount))
     if (.n_no_pension_ > 0L) {
       message("simulate_horizon: ", .n_no_pension_, " existing pensioner(s) have no value in '",
               salary_col, "'. They are on the pensioner register with a blank amount, and ",
@@ -702,10 +720,11 @@ prepare_horizon_inputs <- function(contract_dt,
     }
 
     # People who only hold a pension leave the working tables too; someone who
-    # also has a working contract stays. The returned tables add them back each year.
-    pension_only <- setdiff(existing_pensioners[[personnel_id_col]], contract_dt[[personnel_id_col]])
-    pension_people <- personnel_dt[get(personnel_id_col) %in% pension_only]
-    personnel_dt <- personnel_dt[!get(personnel_id_col) %in% pension_only]
+    # also has a working contract stays.
+    personnel_dt <- personnel_dt[
+      !get(personnel_id_col) %in% setdiff(existing_pensioners[[personnel_id_col]],
+                                          contract_dt[[personnel_id_col]])
+    ]
   }
 
   # ====================================================================
@@ -783,81 +802,6 @@ prepare_horizon_inputs <- function(contract_dt,
     salary_growth_rate     = salary_growth_rate,
     pension_cola_rate      = pension_cola_rate,
     allowance_growth_rate  = allowance_growth_rate,
-    period0_allowance_cost = period0_allowance_cost,
-    pension_contracts      = existing_pensioners,
-    pension_people         = pension_people
+    period0_allowance_cost = period0_allowance_cost
   )
-}
-
-#' Build One Simulated Year's Contract Snapshot
-#'
-#' @description
-#' The contract table \code{\link{simulate_horizon}()} returns for one simulated
-#' year, as a govhr snapshot would show it (ADR 0017):
-#' \itemize{
-#'   \item staff on the payroll, as the simulation left them;
-#'   \item every pension contract, with this year's pension in \code{salary_col}:
-#'     those of people retired before \code{baseline_date} (as in your data) and
-#'     the main contract of everyone retired since (\code{contract_type}
-#'     \code{"pensioner"});
-#'   \item nobody who has left, and none of a retiree's other contracts, which
-#'     ended when they retired. Government data rarely record an end, so someone
-#'     who leaves is simply absent from later snapshots, the way govhr detects exits.
-#' }
-#'
-#' @param contract_dt data.table. The simulation's contracts at the end of the year.
-#' @param personnel_dt data.table. The simulation's people at the end of the year.
-#' @param pensioner_register data.table. This year's pensions, one row per pension
-#'   contract.
-#' @param pension_contracts data.table. The pension contract rows at
-#'   \code{baseline_date}, from \code{\link{prepare_horizon_inputs}()}.
-#' @param snapshot_date Date. The date the year's snapshot is stamped with.
-#' @param column_spec_args Column names, from \code{\link{define_column_spec}()}.
-#'
-#' @return data.table: the year's contract rows, dated \code{snapshot_date}.
-#' @keywords internal
-snapshot_contracts <- function(contract_dt, personnel_dt, pensioner_register,
-                               pension_contracts, snapshot_date, column_spec_args) {
-  contract_id_col   <- column_spec_args$contract_id_col
-  contract_type_col <- column_spec_args$contract_type_col
-  salary_col        <- column_spec_args$salary_col
-  personnel_id_col  <- column_spec_args$personnel_id_col
-
-  # People who have left, and contracts off the payroll that are not pensions
-  left <- personnel_dt[get(column_spec_args$status_col) %in% "inactive"][[personnel_id_col]]
-  staff <- contract_dt[!get(contract_type_col) %in% "inactive" & !get(personnel_id_col) %in% left]
-  # A retiree's other contracts ended: only the one carrying the pension stays
-  staff <- staff[!(get(contract_type_col) %in% "pensioner" &
-                     !get(contract_id_col) %in% pensioner_register[[contract_id_col]])]
-
-  year <- data.table::rbindlist(list(staff, pension_contracts), use.names = TRUE, fill = TRUE)
-  if (is.integer(year[[salary_col]])) year[, (salary_col) := as.numeric(get(salary_col))]
-  year[pensioner_register, on = contract_id_col, (salary_col) := i.pension_amount]
-  year[, (column_spec_args$ref_date_col) := snapshot_date][]
-}
-
-#' Build One Simulated Year's Personnel Snapshot
-#'
-#' @description
-#' The personnel table \code{\link{simulate_horizon}()} returns for one simulated
-#' year (ADR 0017): everyone the simulation still has, apart from people who have
-#' left (absent, as in government data), plus the people who held only a pension
-#' at \code{baseline_date}, a year older each year.
-#'
-#' @inheritParams snapshot_contracts
-#' @param pension_people data.table. At \code{baseline_date}, the people who held
-#'   only a pension, from \code{\link{prepare_horizon_inputs}()}.
-#' @param years_on Integer. How many years after \code{baseline_date} this is.
-#'
-#' @return data.table: the year's personnel rows, dated \code{snapshot_date}.
-#' @keywords internal
-snapshot_personnel <- function(personnel_dt, pension_people, years_on, snapshot_date,
-                               column_spec_args) {
-  age_col <- column_spec_args$age_col
-  people <- data.table::copy(pension_people)
-  if (age_col %in% names(people)) people[, (age_col) := get(age_col) + years_on]
-
-  staying <- personnel_dt[!get(column_spec_args$status_col) %in% "inactive"]
-  year <- data.table::rbindlist(list(staying, people), use.names = TRUE, fill = TRUE)
-  year[, (column_spec_args$ref_date_col) := snapshot_date][]
 }

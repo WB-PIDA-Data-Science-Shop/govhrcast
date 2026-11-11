@@ -41,13 +41,13 @@ characterisation_run <- function(salary_col, explicit_hiring_scale) {
 # The parts of a run to pin: the comparison table and a register summary.
 characterise <- function(res) {
   cmp <- as.data.frame(res$comparison)
-  cmp$period_date <- as.character(cmp$period_date)
-  # The register holds every year; its last year is everyone's final pension
-  reg <- res$pensioner_register[ref_date == max(ref_date)]
+  for (col in c("period_start_date", "period_end_date")) cmp[[col]] <- as.character(cmp[[col]])
+  reg <- res$pensioner_register
   list(
     comparison = cmp,
-    register = list(people = data.table::uniqueN(reg$personnel_id),
-                    pension_total = sum(reg$pension_amount, na.rm = TRUE))
+    register = list(rows = nrow(reg),
+                    pension_total = sum(reg$pension_amount, na.rm = TRUE),
+                    final_salary_total = sum(reg$final_salary, na.rm = TRUE))
   )
 }
 

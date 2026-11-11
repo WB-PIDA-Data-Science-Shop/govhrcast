@@ -21,8 +21,9 @@ object_catalogue <- list(
     c("personnel_id", "employment_status", "age", "personnel_tenure", "birth_date", "gender")),
   salary_scale_dt = tbl("one row per pay group",
     c("the group columns, e.g. est_id", "gross_salary_lcu")),
-  pensioner_register = tbl("one row per pension contract (returned: per contract per year)",
-    c("personnel_id", "contract_id", "pension_amount", "ref_date (returned only)")),
+  pensioner_register = tbl("one row per retiree per year retired",
+    c("personnel_id", "pension_amount", "final_salary", "tenure_years_at_retirement",
+      "age_at_retirement", "period_date")),
   allowance_dt = tbl("one row per contract, allowance type and year",
     c("contract_id", "personnel_id", "allowance_type", "amount", "period_date")),
 
@@ -36,7 +37,7 @@ object_catalogue <- list(
   baseline_matrix = tbl("one row per move between groups", c("from_group", "to_group", "movement_rate", "n_periods")),
   demand_dt = tbl("one row per move between groups", c("from_group", "to_group", "movement_rate", "current_stock", "n_movers")),
   summary = tbl("one row: this step's counts and costs", c("depends on the step")),
-  comparison = tbl("one row per year", c("period_date", "wage bill start and end", "one column per effect", "headcounts")),
+  comparison = tbl("one row per year", c("period, period_start_date, period_end_date", "wage bill start and end", "one column per effect", "headcounts")),
   summary_dt = tbl("one row per year", c("the same table as comparison")),
 
   # ---- Policies ---------------------------------------------------------------

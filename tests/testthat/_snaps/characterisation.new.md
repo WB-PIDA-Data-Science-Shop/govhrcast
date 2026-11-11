@@ -1,8 +1,9 @@
 # characterisation A: base salary as pay, hiring scale derived automatically
 
     list(comparison = structure(list(is_baseline = c(FALSE, FALSE, 
-    FALSE, FALSE, FALSE), period_date = c("2013-09-01", "2014-09-01", 
-    "2015-09-01", "2016-09-01", "2017-09-01"), n_headcount_start = c(935L, 
+    FALSE, FALSE, FALSE), period = 1:5, period_start_date = c("2012-09-01", 
+    "2013-09-01", "2014-09-01", "2015-09-01", "2016-09-01"), period_end_date = c("2013-09-01", 
+    "2014-09-01", "2015-09-01", "2016-09-01", "2017-09-01"), n_headcount_start = c(935L, 
     916L, 898L, 892L, 897L), wage_bill_start = c(2004864.43, 2068812.36343729, 
     2127342.75030196, 2216082.54149542, 2355736.83920493), n_exits = c(26L, 
     32L, 31L, 26L, 28L), exit_savings = c(46126.53, 62745.249, 72136.11195, 
@@ -35,13 +36,15 @@
     2525768.19921245, 2552042.15698883, 2627477.95656714, 2738656.931964
     ), total_wage_bill_end = c(2525768.19921245, 2552042.15698883, 
     2627477.95656714, 2738656.931964, 2902955.43860313)), row.names = c(NA, 
-    -5L), class = "data.frame"), register = list(people = 422L, pension_total = 176154.087894015))
+    -5L), class = "data.frame"), register = list(rows = 422L, pension_total = 176154.087894015, 
+        final_salary_total = 303779.719451438))
 
 # characterisation B: default names throughout, gross salary as pay
 
     list(comparison = structure(list(is_baseline = c(FALSE, FALSE, 
-    FALSE, FALSE, FALSE), period_date = c("2013-09-01", "2014-09-01", 
-    "2015-09-01", "2016-09-01", "2017-09-01"), n_headcount_start = c(935L, 
+    FALSE, FALSE, FALSE), period = 1:5, period_start_date = c("2012-09-01", 
+    "2013-09-01", "2014-09-01", "2015-09-01", "2016-09-01"), period_end_date = c("2013-09-01", 
+    "2014-09-01", "2015-09-01", "2016-09-01", "2017-09-01"), n_headcount_start = c(935L, 
     920L, 897L, 894L, 899L), wage_bill_start = c(2478234.16, 2561196.08379479, 
     2593650.17532242, 2668287.28275264, 2789901.37498265), n_exits = c(26L, 
     37L, 26L, 28L, 32L), exit_savings = c(68276.56, 101475.57, 73570.894425, 
@@ -74,5 +77,6 @@
     3023292.75507479, 3024404.18007336, 3082816.38940681, 3196209.14122292
     ), total_wage_bill_end = c(3023292.75507479, 3024404.18007336, 
     3082816.38940681, 3196209.14122292, 3331290.08111461)), row.names = c(NA, 
-    -5L), class = "data.frame"), register = list(people = 428L, pension_total = 1248201.72063681))
+    -5L), class = "data.frame"), register = list(rows = 428L, pension_total = 1248201.72063681, 
+        final_salary_total = 1228282.52204494))
 

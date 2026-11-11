@@ -49,15 +49,14 @@
 #'   the tables passed in (\code{contract_dt}, \code{personnel_dt},
 #'   \code{salary_scale_dt}, \code{pensioner_register}) is changed; the updated
 #'   versions are returned.
-#' @param period_date Date.  The date the period's rules run at (ages, tenure,
-#'   end dates), and the \code{period_date} column of the returned summary row.
-#'   \code{\link{simulate_horizon}()} passes the start of each year, then dates
-#'   the year's results at its end.
-#' @param pensioner_register data.table or \code{NULL}.  The pensions carried
-#'   from earlier periods: one row per pension contract, with the person and
-#'   contract ID columns (under the names \code{column_spec_args} gives) and
-#'   \code{pension_amount}, this year's pension.  Pass \code{NULL} (default) for
-#'   the first period -- an empty register is initialised internally.
+#' @param period_date Date.  The reference date for this simulation period.
+#'   Stored in \code{pensioner_register} for cohort auditing and used as the
+#'   \code{period_date} column in the returned summary row.
+#' @param pensioner_register data.table or \code{NULL}.  Accumulated pensioner
+#'   ledger from prior periods.  Must contain the person ID column (under the
+#'   name \code{personnel_id_col} gives), \code{pension_amount} and
+#'   \code{period_date}.  Pass \code{NULL} (default) for the first period --
+#'   an empty register is initialised internally.
 #' @param retirement_policy,exit_policy,movement_policy,hiring_policy,allowance_policy
 #'   Lists, or \code{NULL} to switch that module off (the default here for
 #'   all five).  Build them with the same helper functions as
@@ -117,7 +116,8 @@
 #' @return Named list:
 #'   \describe{
 #'     \item{summary}{One-row \code{data.table} with columns:
-#'       \code{period_date}, \code{n_headcount_start}, \code{wage_bill_start},
+#'       \code{period_start_date} (the \code{period_date} passed in),
+#'       \code{n_headcount_start}, \code{wage_bill_start},
 #'       \code{n_exits}, \code{exit_savings}, \code{n_non_ret_exits},
 #'       \code{non_ret_exit_savings}, \code{pension_cost_new},
 #'       \code{pension_cost_total}, \code{n_promotions}, \code{n_transfers},
@@ -129,9 +129,8 @@
 #'     \item{contract_dt}{Updated contract snapshot.}
 #'     \item{personnel_dt}{Updated personnel snapshot.}
 #'     \item{salary_scale_dt}{Updated pay table (post-COLA).}
-#'     \item{pensioner_register}{The pensions after this period: every earlier
-#'       pension grown by \code{pension_cola_rate}, plus this period's retirees,
-#'       one row each on their main contract.}
+#'     \item{pensioner_register}{Accumulated pensioner ledger including new
+#'       retirees from this period.}
 #'     \item{allowance_dt}{Accumulated allowance ledger including this
 #'       period's rows, or unchanged/\code{NULL} when \code{allowance_policy}
 #'       is \code{NULL}.}
@@ -231,7 +230,7 @@ simulate_scenario <- function(contract_dt,
 
   # Initialise empty pensioner register on first call
   if (is.null(pensioner_register)) {
-    pensioner_register <- .empty_pensioner_register(personnel_id_col, column_spec_args$contract_id_col)
+    pensioner_register <- .empty_pensioner_register(personnel_id_col)
   }
 
   .check_pay_column(salary_scale_dt, salary_col, "salary_scale_dt")
@@ -274,12 +273,22 @@ simulate_scenario <- function(contract_dt,
         "pension" %in% names(retirees_dt)) {
       pension_cost_new <- sum(retirees_dt$pension, na.rm = TRUE)
 
-      # Add them to the register: one row per retiree, on their main contract,
-      # which carries the pension in the returned tables
-      new_reg <- retirees_dt[, c(personnel_id_col, column_spec_args$contract_id_col, "pension"), with = FALSE]
-      data.table::setnames(new_reg, "pension", "pension_amount")
-      new_reg[, pension_amount := as.numeric(pension_amount)]
-      pensioner_register <- data.table::rbindlist(list(pensioner_register, new_reg), use.names = TRUE)
+      # Append to pensioner register with period_date stamp
+      new_reg <- data.table::data.table(
+        .id                        = retirees_dt[[personnel_id_col]],
+        pension_amount             = retirees_dt$pension,
+        final_salary               = retirees_dt[[salary_col]],
+        tenure_years_at_retirement = if ("tenure_years" %in% names(retirees_dt))
+                                       retirees_dt$tenure_years else NA_real_,
+        age_at_retirement          = if ("age" %in% names(retirees_dt))
+                                       retirees_dt$age else NA_real_,
+        period_date                = period_date
+      )
+      data.table::setnames(new_reg, ".id", personnel_id_col)
+      pensioner_register <- data.table::rbindlist(
+        list(pensioner_register, new_reg),
+        use.names = TRUE, fill = TRUE
+      )
     }
   }
 
@@ -414,10 +423,8 @@ simulate_scenario <- function(contract_dt,
   # ------------------------------------------------------------------
   # STEP 5: AGING
   # ------------------------------------------------------------------
-  # Everyone still here grows older, pensioners included, as in real data; only
-  # staff gain tenure
   if (!is.null(age_col) && age_col %in% names(personnel_dt)) {
-    personnel_dt[get(status_col) %in% c("active", "pensioner"),
+    personnel_dt[get(status_col) == "active",
                  (age_col) := get(age_col) + period_fraction]
   }
   if (!is.null(tenure_col) && tenure_col %in% names(personnel_dt)) {
@@ -510,7 +517,7 @@ simulate_scenario <- function(contract_dt,
   # Build summary row
   # ------------------------------------------------------------------
   summary_row <- data.table::data.table(
-    period_date              = as.Date(period_date),
+    period_start_date        = as.Date(period_date),
     n_headcount_start        = as.integer(n_headcount_start),
     wage_bill_start          = wage_bill_start,
     n_exits                  = as.integer(n_exits),
@@ -831,11 +838,15 @@ simulate_scenario <- function(contract_dt,
 #'       (\code{allowance_cost_start}, \code{allowance_cost_end}, both
 #'       \code{0} when allowances are not modelled); and
 #'       \code{total_wage_bill_start}/\code{total_wage_bill_end} (salaries
-#'       plus allowances).  Also \code{period_date}, the date of the snapshot
-#'       the year leaves behind: \code{baseline_date} plus one year for year 1,
-#'       and so on (each year's rules run as of its start).  Also
-#'       \code{is_baseline}, plus \code{scenario_id} and \code{scenario_label}
-#'       when a \code{scenario_name} is given.}
+#'       plus allowances).  Also \code{is_baseline}, plus \code{scenario_id}
+#'       and \code{scenario_label} when a \code{scenario_name} is given.
+#'       The first three columns say which year a row is: \code{period}
+#'       (1, 2, ...), \code{period_start_date} and \code{period_end_date}.
+#'       Year \code{t} runs from \code{baseline_date} plus \code{t - 1} years
+#'       to \code{baseline_date} plus \code{t} years; its \code{_start}
+#'       columns describe the first date and its \code{_end} columns the
+#'       second.  The microdata snapshot for that year is dated
+#'       \code{period_end_date}.}
 #'     \item{\code{$summary_dt}}{The same table as \code{$comparison} (kept
 #'       for backward compatibility).}
 #'     \item{\code{$metadata}}{List recording what produced the run, so results
@@ -846,34 +857,25 @@ simulate_scenario <- function(contract_dt,
 #'       passed them, \code{n_periods} and \code{baseline_date}.  The hiring
 #'       policy includes the new hire profile, which can describe few people in
 #'       small groups.  Also \code{scenario_name} and \code{is_baseline}.}
-#'     \item{\code{$pensioner_register}}{data.table, one row per pension
-#'       contract per simulated year: the person ID, contract ID and date
-#'       columns (under your names for them) and \code{pension_amount}, that
-#'       year's pension.  People retired before \code{baseline_date} are on it
-#'       from year 1; a new retiree from the year they retire, on their main
-#'       contract.  Each year's total is that year's \code{pension_cost_total}.
-#'       Always present (zero rows when nobody is retired).  Nobody leaves the
-#'       register: deaths are not modelled, so long projections overstate
-#'       pension costs.  To chain several runs, combine their registers with
-#'       \code{data.table::rbindlist()}.  This is person-level data: handle it
-#'       like the input microdata before saving or sharing the result.}
-#'     \item{\code{$contract_dt}, \code{$personnel_dt}}{Your data continued
-#'       through the projection, so govhr and govhrapp read history and
-#'       projection alike.  Up to \code{baseline_date} they are your own rows,
-#'       unchanged.  Each simulated year is then one snapshot, dated in
-#'       \code{ref_date_col} as in \code{$comparison}, showing what govhr data
-#'       would: staff; every pensioner, with that year's pension in
-#'       \code{salary_col} (people retired before the baseline as in your data,
-#'       new retirees with \code{contract_type} \code{"pensioner"}); and nobody
-#'       who has left, since government data rarely record an exit and govhr
-#'       detects one as a person who is gone the next year.  Your columns, in
-#'       your order, plus \code{age_col} and \code{tenure_col} when the
-#'       simulation fills them in and your data lack them.  Pensioners grow
-#'       older each year; only staff gain tenure.  Only when
-#'       \code{return_microdata = TRUE}.  Also person-level data.}
+#'     \item{\code{$pensioner_register}}{data.table, one row per retiree per
+#'       year: the person ID (under your name for that column),
+#'       \code{pension_amount}, \code{period_date} and details at retirement.  Always present
+#'       (zero rows when nobody retired).  Nobody leaves the register: deaths are
+#'       not modelled, so long projections overstate pension costs.  To chain several runs, combine
+#'       their registers with \code{data.table::rbindlist()}.  This is
+#'       person-level data: handle it like the input microdata before
+#'       saving or sharing the result.}
+#'     \item{\code{$contract_dt}, \code{$personnel_dt}}{Your tables as you
+#'       passed them, up to \code{baseline_date}, followed by one snapshot per
+#'       projected year, dated in \code{ref_date_col} at the end of that year
+#'       (\code{baseline_date} plus 1 year, plus 2 years, ...).  A table without
+#'       \code{ref_date_col} comes back dated \code{baseline_date}.  Rows up to
+#'       \code{baseline_date} are unchanged, so the result can go through the
+#'       same analysis as the input.  Only when \code{return_microdata = TRUE}.
+#'       Also person-level data.}
 #'     \item{\code{$allowance_dt}}{Allowance ledger: one row per contract x
-#'       allowance type x year, dated like the snapshots.  Only when
-#'       \code{return_microdata = TRUE} and allowances are modelled.}
+#'       allowance type x year.  Only when \code{return_microdata = TRUE}
+#'       and allowances are modelled.}
 #'   }
 #'
 #' @seealso \code{\link{simulate_scenario}} to run a single year;
@@ -950,7 +952,7 @@ simulate_scenario <- function(contract_dt,
 #'
 #' # 3. Compare the two side by side
 #' rbindlist(list(status_quo$comparison, reform$comparison), fill = TRUE)[
-#'   , .(scenario_label, period_date, n_headcount_end, wage_bill_end)
+#'   , .(scenario_label, period_end_date, n_headcount_end, wage_bill_end)
 #' ]
 #' }
 #'
@@ -1003,18 +1005,11 @@ simulate_horizon <- function(contract_dt,
     baseline_date         = baseline_date,
     column_spec_args      = column_spec_args
   )
-  ref_date_col <- inputs$column_spec_args$ref_date_col
 
-  # The returned tables continue your own rows up to the baseline, unchanged
-  # (ADR 0017), so they are taken here, before anything below replaces them
-  if (return_microdata) {
-    history_contracts <- .history_up_to(contract_dt, inputs$baseline_date, ref_date_col)
-    history_personnel <- .history_up_to(personnel_dt, inputs$baseline_date, ref_date_col)
-  }
-
-  # The state each year hands to the next starts from the prepared inputs
-  contract_dt        <- inputs$contract_dt
-  personnel_dt       <- inputs$personnel_dt
+  # The state each year hands to the next starts from the prepared inputs: the
+  # baseline snapshot. contract_dt and personnel_dt keep the panel as passed in.
+  base_contract_dt   <- inputs$contract_dt
+  base_personnel_dt  <- inputs$personnel_dt
   salary_scale_dt    <- inputs$salary_scale_dt
   pensioner_register <- inputs$pensioner_register
   hiring_policy      <- inputs$hiring_policy
@@ -1043,29 +1038,25 @@ simulate_horizon <- function(contract_dt,
   # ====================================================================
   # PERIOD LOOP
   # ====================================================================
-  # One summary row and one register snapshot per year, and each year's tables
-  # when return_microdata = TRUE
+  # One summary row per year, and each year's tables when return_microdata = TRUE
   period_rows          <- vector("list", inputs$n_periods)
-  register_panel_list  <- vector("list", inputs$n_periods)
   contract_panel_list  <- vector("list", inputs$n_periods)
   personnel_panel_list <- vector("list", inputs$n_periods)
-  # Each year's rules run as of its start; what it leaves behind is the snapshot
-  # at its end, a year later. Year 1 is never dated at the baseline itself.
-  year_starts    <- seq(inputs$baseline_date, by = "year", length.out = inputs$n_periods + 1L)
-  as_of_dates    <- year_starts[-length(year_starts)]
-  snapshot_dates <- year_starts[-1L]
 
   for (t in seq_len(inputs$n_periods)) {
 
     growth        <- inputs$salary_growth_rate[t]
     cola_rate     <- inputs$pension_cola_rate[t]
     allow_growth  <- inputs$allowance_growth_rate[t]
+    cur_date      <- .advance_period(inputs$baseline_date, t - 1L, unit = "year")
+    # Year t runs from cur_date to year_end_date; its microdata snapshot is dated year_end_date
+    year_end_date <- .advance_period(inputs$baseline_date, t, unit = "year")
 
     scenario_result <- simulate_scenario(
-      contract_dt             = contract_dt,
-      personnel_dt            = personnel_dt,
+      contract_dt             = base_contract_dt,
+      personnel_dt            = base_personnel_dt,
       salary_scale_dt         = salary_scale_dt,
-      period_date             = as_of_dates[t],
+      period_date             = cur_date,
       pensioner_register      = pensioner_register,
       retirement_policy       = inputs$retirement_policy,
       exit_policy             = inputs$exit_policy,
@@ -1083,33 +1074,34 @@ simulate_horizon <- function(contract_dt,
     )
 
     # Thread state forward
-    contract_dt          <- scenario_result$contract_dt
-    personnel_dt         <- scenario_result$personnel_dt
+    base_contract_dt     <- scenario_result$contract_dt
+    base_personnel_dt    <- scenario_result$personnel_dt
     salary_scale_dt      <- scenario_result$salary_scale_dt
     pensioner_register   <- scenario_result$pensioner_register
     allowance_dt         <- scenario_result$allowance_dt
     allowance_policy     <- scenario_result$allowance_policy
     hiring_policy        <- scenario_result$hiring_policy
 
-    # The year's snapshot: its summary row, this year's pensions, and the tables
-    # as a govhr snapshot would show them (ADR 0017)
-    period_rows[[t]] <- scenario_result$summary[, period_date := snapshot_dates[t]]
-    register_panel_list[[t]] <- data.table::setcolorder(
-      data.table::copy(pensioner_register)[, (ref_date_col) := snapshot_dates[t]],
-      c(inputs$column_spec_args$personnel_id_col, inputs$column_spec_args$contract_id_col, ref_date_col))
+    # Accumulate period snapshots for panel output: the state at the end of year t
     if (return_microdata) {
-      contract_panel_list[[t]] <- snapshot_contracts(
-        contract_dt, personnel_dt, pensioner_register, inputs$pension_contracts,
-        snapshot_dates[t], inputs$column_spec_args)
-      personnel_panel_list[[t]] <- snapshot_personnel(
-        personnel_dt, inputs$pension_people, t, snapshot_dates[t], inputs$column_spec_args)
+      ref_date_col <- inputs$column_spec_args$ref_date_col
+      ct_snap <- data.table::copy(base_contract_dt)
+      ct_snap[, (ref_date_col) := year_end_date]
+      contract_panel_list[[t]] <- ct_snap
+
+      pt_snap <- data.table::copy(base_personnel_dt)
+      pt_snap[, (ref_date_col) := year_end_date]
+      personnel_panel_list[[t]] <- pt_snap
     }
+
+    period_rows[[t]] <- scenario_result$summary[, `:=`(period = t, period_end_date = year_end_date)]
   }
 
   # ====================================================================
   # Assemble output
   # ====================================================================
   summary_dt <- data.table::rbindlist(period_rows, use.names = TRUE, fill = TRUE)
+  data.table::setcolorder(summary_dt, c("period", "period_start_date", "period_end_date"))
 
   # Add _pct_of_end_bill share columns for each effect driver
   effect_cols <- c("exit_savings", "non_ret_exit_savings", "promotion_effect",
@@ -1185,24 +1177,31 @@ simulate_horizon <- function(contract_dt,
     )
   )
 
-  # The pensioner register is always included: each year's pension per pension
-  # contract, for pension cost audits. It is small: pensioners x years.
-  out$pensioner_register <- data.table::rbindlist(register_panel_list, use.names = TRUE)
+  # Pensioner register is always included: it is needed for pension cost audits
+  # and is lightweight (one row per ever-retired person, not per period).
+  out$pensioner_register <- pensioner_register
 
   if (return_microdata) {
-    # Your rows up to the baseline, then one govhr snapshot per simulated year
-    out$contract_dt  <- .continue_table(history_contracts, contract_panel_list)
-    out$personnel_dt <- .continue_table(history_personnel, personnel_panel_list,
-                                        also_keep = c(inputs$column_spec_args$age_col,
-                                                      inputs$column_spec_args$tenure_col))
-    # The allowance ledger, dated like the snapshots: each year's rows at its end.
-    # NULL when there is no allowance policy. Only with return_microdata: one row
-    # per contract x allowance type x year can get large.
-    if (!is.null(allowance_dt)) {
-      allowance_dt[, period_date := snapshot_dates[match(period_date, as_of_dates)]]
-    }
-    out$allowance_dt <- allowance_dt
+  # The panel as passed in, up to the baseline date, then one snapshot per year
+  ref_date_col <- inputs$column_spec_args$ref_date_col
+  .history <- function(dt) {
+    dt <- data.table::as.data.table(dt)
+    if (!ref_date_col %in% names(dt)) return(dt[, (ref_date_col) := inputs$baseline_date])
+    dt[get(ref_date_col) <= inputs$baseline_date]
   }
+  out$contract_dt  <- data.table::rbindlist(
+    c(list(.history(contract_dt)), contract_panel_list),  use.names = TRUE, fill = TRUE
+  )
+  out$personnel_dt <- data.table::rbindlist(
+    c(list(.history(personnel_dt)), personnel_panel_list), use.names = TRUE, fill = TRUE
+  )
+  # allowance_dt is already the full accumulated ledger (built incrementally
+  # each period by update_allowance_register()), not a list of snapshots --
+  # no rbindlist needed. NULL when allowance_policy was never used. Gated
+  # behind return_microdata (unlike pensioner_register) since it's one row
+  # per contract x allowance_type x period and can get large.
+  out$allowance_dt <- allowance_dt
+}
 
-  out
+  return(out)
 }

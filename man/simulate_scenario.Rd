@@ -36,16 +36,15 @@ the tables passed in (\code{contract_dt}, \code{personnel_dt},
 \code{salary_scale_dt}, \code{pensioner_register}) is changed; the updated
 versions are returned.}
 
-\item{period_date}{Date.  The date the period's rules run at (ages, tenure,
-end dates), and the \code{period_date} column of the returned summary row.
-\code{\link{simulate_horizon}()} passes the start of each year, then dates
-the year's results at its end.}
+\item{period_date}{Date.  The reference date for this simulation period.
+Stored in \code{pensioner_register} for cohort auditing and used as the
+\code{period_date} column in the returned summary row.}
 
-\item{pensioner_register}{data.table or \code{NULL}.  The pensions carried
-from earlier periods: one row per pension contract, with the person and
-contract ID columns (under the names \code{column_spec_args} gives) and
-\code{pension_amount}, this year's pension.  Pass \code{NULL} (default) for
-the first period -- an empty register is initialised internally.}
+\item{pensioner_register}{data.table or \code{NULL}.  Accumulated pensioner
+ledger from prior periods.  Must contain the person ID column (under the
+name \code{personnel_id_col} gives), \code{pension_amount} and
+\code{period_date}.  Pass \code{NULL} (default) for the first period --
+an empty register is initialised internally.}
 
 \item{retirement_policy, exit_policy, movement_policy, hiring_policy, allowance_policy}{Lists, or \code{NULL} to switch that module off (the default here for
 all five).  Build them with the same helper functions as
@@ -113,7 +112,8 @@ run afterwards.}
 Named list:
 \describe{
 \item{summary}{One-row \code{data.table} with columns:
-\code{period_date}, \code{n_headcount_start}, \code{wage_bill_start},
+\code{period_start_date} (the \code{period_date} passed in),
+\code{n_headcount_start}, \code{wage_bill_start},
 \code{n_exits}, \code{exit_savings}, \code{n_non_ret_exits},
 \code{non_ret_exit_savings}, \code{pension_cost_new},
 \code{pension_cost_total}, \code{n_promotions}, \code{n_transfers},
@@ -125,9 +125,8 @@ Named list:
 \item{contract_dt}{Updated contract snapshot.}
 \item{personnel_dt}{Updated personnel snapshot.}
 \item{salary_scale_dt}{Updated pay table (post-COLA).}
-\item{pensioner_register}{The pensions after this period: every earlier
-pension grown by \code{pension_cola_rate}, plus this period's retirees,
-one row each on their main contract.}
+\item{pensioner_register}{Accumulated pensioner ledger including new
+retirees from this period.}
 \item{allowance_dt}{Accumulated allowance ledger including this
 period's rows, or unchanged/\code{NULL} when \code{allowance_policy}
 is \code{NULL}.}
