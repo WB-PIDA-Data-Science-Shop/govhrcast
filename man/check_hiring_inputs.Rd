@@ -8,14 +8,8 @@ check_hiring_inputs(
   contract_dt,
   personnel_dt,
   policy_params,
-  ref_date,
-  personnel_id_col = "personnel_id",
-  birth_date_col = "birth_date",
-  contract_id_col = "contract_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -25,21 +19,10 @@ check_hiring_inputs(
 
 \item{policy_params}{List. Policy parameters}
 
-\item{ref_date}{Date. Reference date}
+\item{as_of_date}{Date. Reference date}
 
-\item{personnel_id_col}{Character. Personnel ID column name}
-
-\item{birth_date_col}{Character. Birth date column name}
-
-\item{contract_id_col}{Character. Contract ID column name}
-
-\item{start_date_col}{Character. Start date column name}
-
-\item{end_date_col}{Character. End date column name}
-
-\item{contract_type_col}{Character. Contract type column name}
-
-\item{status_col}{Character. Status column name}
+\item{column_spec_args}{Complete column specification from
+\code{define_column_spec()}.}
 }
 \value{
 Invisible TRUE if valid, stops with error otherwise

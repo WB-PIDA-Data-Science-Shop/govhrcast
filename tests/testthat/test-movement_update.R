@@ -72,7 +72,7 @@ test_that("identify_movers returns correct columns", {
     personnel_dt = w$personnel_dt,
     demand_dt    = w$demand_dt,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   expect_true(data.table::is.data.table(movers))
   expect_true(all(c("personnel_id", "from_group", "to_group") %in%
@@ -90,7 +90,7 @@ test_that("identify_movers selects correct number of movers", {
     personnel_dt = w$personnel_dt,
     demand_dt    = w$demand_dt,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   # demand asks for 1 mover G1->G2 and 1 mover G2->G1
   expect_equal(nrow(movers), 2L)
@@ -117,7 +117,7 @@ test_that("identify_movers with promotion_strategy=tenure selects longest time-i
     personnel_dt = w$personnel_dt,
     demand_dt    = demand,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   # P1 has earliest start_date (2010) -> longest tenure -> should be selected
   expect_equal(movers$personnel_id, "P1")
@@ -152,7 +152,7 @@ test_that("identify_movers with promotion_strategy=wage_based selects lowest sal
     personnel_dt = pt,
     demand_dt    = demand,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   # P1 has lowest salary ratio -> should be selected
   expect_equal(movers$personnel_id, "P1")
@@ -175,7 +175,7 @@ test_that("identify_movers with transfer_strategy=reverse_tenure selects shortes
     personnel_dt = w$personnel_dt,
     demand_dt    = demand,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   # P6 has latest start_date in G2 (2013) -> shortest tenure -> selected for LIFO
   expect_equal(movers$personnel_id, "P6")
@@ -196,7 +196,7 @@ test_that("identify_movers returns empty dt when demand is empty", {
     personnel_dt = w$personnel_dt,
     demand_dt    = empty_demand,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   expect_equal(nrow(movers), 0L)
 })
@@ -221,7 +221,7 @@ test_that("identify_movers: no person is selected twice", {
     personnel_dt = w$personnel_dt,
     demand_dt    = demand,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   # personnel_ids should be unique
   expect_equal(
@@ -247,7 +247,7 @@ test_that("identify_movers caps selection at pool size", {
     personnel_dt = w$personnel_dt,
     demand_dt    = demand,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   expect_lte(nrow(movers), 3L)
 })
@@ -269,7 +269,7 @@ test_that("update_state_with_movement returns list with required elements", {
     personnel_dt = w$personnel_dt,
     movers_dt    = movers,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   expect_true(is.list(result))
   expect_true(all(c("contract_dt", "personnel_dt", "movers_dt") %in% names(result)))
@@ -289,7 +289,7 @@ test_that("update_state_with_movement changes paygrade for mover", {
     personnel_dt = w$personnel_dt,
     movers_dt    = movers,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   # P1 should now be in G2
   p1_grade <- result$contract_dt[personnel_id == "P1", paygrade]
@@ -310,7 +310,7 @@ test_that("update_state_with_movement assigns new salary", {
     personnel_dt = w$personnel_dt,
     movers_dt    = movers,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   p1_salary <- result$contract_dt[personnel_id == "P1", gross_salary_lcu]
   # G2 salary = 5000
@@ -331,7 +331,7 @@ test_that("update_state_with_movement does not change non-movers", {
     personnel_dt = w$personnel_dt,
     movers_dt    = movers,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   # P2 and P3 (G1, not moved) should still be G1
   unchanged <- result$contract_dt[personnel_id %in% c("P2", "P3"), unique(paygrade)]
@@ -352,7 +352,7 @@ test_that("update_state_with_movement returns unchanged data when no movers", {
     personnel_dt = w$personnel_dt,
     movers_dt    = empty_movers,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   expect_equal(nrow(result$contract_dt), nrow(w$contract_dt))
   expect_equal(result$contract_dt$paygrade, w$contract_dt$paygrade)
@@ -372,7 +372,7 @@ test_that("update_state_with_movement errors on duplicate salary_scale keys", {
       personnel_dt = w$personnel_dt,
       movers_dt    = movers,
       policy_params = pp,
-      ref_date     = "2016-01-01"
+      as_of_date     = "2016-01-01"
     ),
     "[Dd]uplicate"
   )
@@ -391,7 +391,7 @@ test_that("update_state_with_movement errors when salary_scale missing", {
       personnel_dt = w$personnel_dt,
       movers_dt    = movers,
       policy_params = pp,
-      ref_date     = "2016-01-01"
+      as_of_date     = "2016-01-01"
     ),
     "salary_scale"
   )
@@ -429,7 +429,7 @@ test_that("update_state_with_movement handles multi-column group_cols", {
     personnel_dt = pt,
     movers_dt    = movers,
     policy_params = pp,
-    ref_date     = "2016-01-01"
+    as_of_date     = "2016-01-01"
   )
   # P1 should now have est_id=E2 and paygrade=G2
   expect_equal(result$contract_dt[personnel_id == "P1", est_id],   "E2")
@@ -453,7 +453,7 @@ test_that("update_state_with_movement warns on unmatched salary", {
       personnel_dt = w$personnel_dt,
       movers_dt    = movers,
       policy_params = pp,
-      ref_date     = "2016-01-01"
+      as_of_date     = "2016-01-01"
     )
   )
 })
@@ -486,7 +486,7 @@ test_that("promotion_order_col overrides tenure strategy and selects highest sco
       promotion_strategy = "tenure",          # would pick P1 by longest tenure
       promotion_order_col = "promotion_score" # should override -> P3
     ),
-    ref_date = "2016-01-01"
+    as_of_date = "2016-01-01"
   )
 
   expect_equal(movers$personnel_id, "P3")
@@ -513,7 +513,7 @@ test_that("promotion_order_col: highest value wins (verify P2 over P1)", {
       group_cols          = "paygrade",
       promotion_order_col = "score"
     ),
-    ref_date = "2016-01-01"
+    as_of_date = "2016-01-01"
   )
 
   expect_equal(movers$personnel_id, "P2")
@@ -543,7 +543,7 @@ test_that("promotion_order_col does NOT affect transfer selection", {
       transfer_strategy   = "random",
       promotion_order_col = "score"
     ),
-    ref_date = "2016-01-01"
+    as_of_date = "2016-01-01"
   )
 
   # Random transfer should run -- just check it returns one mover from G2
@@ -572,7 +572,7 @@ test_that("promotion_order_col absent from contract_dt warns and falls back", {
         group_cols          = "paygrade",
         promotion_order_col = "nonexistent_col"
       ),
-      ref_date = "2016-01-01"
+      as_of_date = "2016-01-01"
     ),
     regexp = "promotion_order_col"
   )
@@ -600,7 +600,7 @@ test_that("promotion_order_col NULL uses default promotion_strategy", {
       promotion_strategy  = "tenure",
       promotion_order_col = NULL
     ),
-    ref_date = "2016-01-01"
+    as_of_date = "2016-01-01"
   )
 
   # tenure strategy: P1 started 2010, earliest => longest tenure => selected

@@ -4,14 +4,16 @@
 \alias{compute_db_pension}
 \title{Compute Defined-Benefit (DB) Pension}
 \usage{
-compute_db_pension(dt)
+compute_db_pension(dt, salary_col = "gross_salary_lcu")
 }
 \arguments{
 \item{dt}{data.table.  Retiree subset (\code{pension_type == "db"}).
-Required columns: \code{accrual_rate} (numeric), \code{ref_wage_col}
-(character column-pointer), \code{tenure_years} (numeric).  Optional:
-\code{max_years} (numeric or \code{NA}), \code{replacement_cap}
-(numeric or \code{NA}).}
+Required columns: \code{accrual_rate} (numeric), \code{tenure_years}
+(numeric) and the pay column.  Optional: \code{max_years} (numeric or
+\code{NA}), \code{replacement_cap} (numeric or \code{NA}).}
+
+\item{salary_col}{Character.  The pay column.  Default
+\code{"gross_salary_lcu"}.}
 }
 \value{
 Numeric vector of DB pension amounts (length \code{nrow(dt)}).
@@ -27,10 +29,10 @@ pre-resolved by \code{\link{resolve_policy_table}}.
 \deqn{P_i = \min(\alpha_i \cdot \min(s_i, S^{\max}) \cdot w_i,\; c_i \cdot w_i)}
 where:
 \itemize{
-\item \eqn{\alpha_i} = \code{accrual_rate} (e.g. 0.02 = 2\\% per year),
+\item \eqn{\alpha_i} = \code{accrual_rate} (e.g. 0.02 = 2\% per year),
 \item \eqn{s_i} = \code{tenure_years},
 \item \eqn{S^{\max}} = \code{max_years} (\code{NA} = uncapped),
-\item \eqn{w_i} = wage from the column named by \code{ref_wage_col},
+\item \eqn{w_i} = wage from the pay column,
 \item \eqn{c_i} = \code{replacement_cap} (\code{NA} = uncapped).
 }
 \code{pmax(pension, 0)} is applied to prevent negative pensions from

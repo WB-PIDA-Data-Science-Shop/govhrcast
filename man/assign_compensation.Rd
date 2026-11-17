@@ -8,7 +8,7 @@ assign_compensation(
   new_contracts_dt,
   salary_scale_dt,
   join_cols = NULL,
-  salary_col = NULL
+  salary_col = "gross_salary_lcu"
 )
 }
 \arguments{
@@ -17,17 +17,18 @@ assign_compensation(
 \item{salary_scale_dt}{data.table. Salary scale with join columns + salary column}
 
 \item{join_cols}{Character vector. Columns to join on. If NULL (default), uses
-intersection of column names (excluding salary columns)}
+the columns the two tables share, other than \code{salary_col}. With none, a
+one-row scale gives everyone the same pay.}
 
-\item{salary_col}{Character. Salary column name. If NULL (default), auto-detects
-first column matching pattern "salary|wage|pay|compensation"}
+\item{salary_col}{Character. The pay column, in both the scale and the
+contracts. Default \code{"gross_salary_lcu"}.}
 }
 \value{
 Updated new_contracts_dt with salary column
 }
 \description{
-Merges salary scale onto new hire contracts. Automatically detects join columns
-and salary column if not specified. Issues warning (not error) if some contracts
-cannot be matched to salary scale.
+Merges salary scale onto new hire contracts, so new hires are paid in
+\code{salary_col}. Automatically detects join columns if not specified.
+Issues warning (not error) if some contracts cannot be matched to salary scale.
 }
 \keyword{internal}

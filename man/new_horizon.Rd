@@ -8,7 +8,8 @@ new_horizon(comparison, metadata = list())
 }
 \arguments{
 \item{comparison}{data.table.  One row per (scenario × period).  Must
-contain at least \code{period_date} and \code{wage_bill_end}.}
+contain at least \code{period_start_date}, \code{period_end_date} and
+\code{wage_bill_end}.}
 
 \item{metadata}{Named list.  Policy arguments and call context used to
 generate the simulation (captured via \code{match.call()} in the calling

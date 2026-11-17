@@ -8,13 +8,8 @@ compute_status_quo_hiring(
   contract_dt,
   personnel_dt,
   policy_params,
-  ref_date,
-  hire_date_col = NULL,
-  personnel_id_col = "personnel_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -24,39 +19,30 @@ compute_status_quo_hiring(
 
 \item{policy_params}{List. Must contain:
 \itemize{
-\item panel_contract_dt: Full historical contract panel (injected by simulate_horizon).
-\item panel_personnel_dt: Full historical personnel panel (injected by simulate_horizon).
+\item squorate_dt: data.table of historical hiring rates
+(\code{group_cols} plus \code{hiring_rate}), from
+\code{estimate_historical_hiring_rates()}.
 \item group_cols: Character vector or NULL.
 \item rate_mult: Numeric scalar (default 1). Scales the estimated historical rate.
+\item unmatched_rate: Numeric scalar (default 0). Rate for groups with no
+row in \code{squorate_dt}.
 \item salary_scale: data.table used for salary assignment of new hires.
 }}
 
-\item{ref_date}{Date. Reference date for current-period stock calculation.}
+\item{as_of_date}{Date. Reference date for current-period stock calculation.}
 
-\item{hire_date_col}{Character or \code{NULL}.  Forwarded to
-\code{estimate_historical_hiring_rates()}.  When non-\code{NULL}, the
-administrative hire-date column is used instead of panel first-appearance
-detection.  Default \code{NULL}.}
-
-\item{personnel_id_col}{Character. Default \code{"personnel_id"}.}
-
-\item{start_date_col}{Character. Default \code{"start_date"}.}
-
-\item{end_date_col}{Character. Default \code{"end_date"}.}
-
-\item{contract_type_col}{Character. Default \code{"contract_type"}.}
-
-\item{status_col}{Character. Default \code{"status"}.}
+\item{column_spec_args}{Complete column specification from
+\code{define_column_spec()}.}
 }
 \value{
 data.table with \code{group_cols} (if specified) and \code{total_hires} column.
 }
 \description{
 Replicates the historical hiring rate observed in the panel to generate
-period-specific hiring demand.  The rate is estimated once via
-\code{estimate_historical_hiring_rates()} (using panel data injected into
-\code{policy_params} by \code{simulate_horizon()}), then scaled by
-\code{policy_params$rate_mult} (default 1), and applied to the current
-active stock.
+period-specific hiring demand.  The rate table is estimated once by
+\code{estimate_historical_hiring_rates()} (\code{simulate_horizon()} does
+this before the period loop and stores it as \code{policy_params$squorate_dt}),
+then scaled by \code{policy_params$rate_mult} (default 1), and applied to
+the current active stock.
 }
 \keyword{internal}

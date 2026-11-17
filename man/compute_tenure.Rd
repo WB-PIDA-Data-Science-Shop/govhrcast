@@ -6,7 +6,7 @@
 \usage{
 compute_tenure(
   contract_dt,
-  ref_date,
+  as_of_date,
   personnel_id_col = "personnel_id",
   contract_id_col = "contract_id",
   start_date_col = "start_date",
@@ -21,7 +21,7 @@ personnel identifiers, contract identifiers, contract start and end
 dates, contract types, and any grouping variables supplied in
 \code{group_cols}.}
 
-\item{ref_date}{Date. Reference date at which tenure is calculated.}
+\item{as_of_date}{Date. Reference date at which tenure is calculated.}
 
 \item{personnel_id_col}{Character. Name of the personnel identifier column.
 Default is \code{"personnel_id"}.}
@@ -75,7 +75,7 @@ sorting step.
 \dontrun{
 tenure_dt <- compute_tenure(
   contract_dt = contract_data,
-  ref_date = as.Date("2025-01-01")
+  as_of_date = as.Date("2025-01-01")
 )
 }
 }

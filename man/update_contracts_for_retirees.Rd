@@ -7,13 +7,8 @@
 update_contracts_for_retirees(
   contract_dt,
   retirees_dt,
-  ref_date,
-  personnel_id_col = "personnel_id",
-  contract_id_col = "contract_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  salary_col = "gross_salary_lcu",
-  contract_type_col = "contract_type"
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -25,31 +20,17 @@ update_contracts_for_retirees(
 produced by \code{\link{prepare_retiree_data}}.  Only the
 \code{personnel_id_col} column is used here.}
 
-\item{ref_date}{Date.  The simulation period date.  Stamped as
+\item{as_of_date}{Date.  The simulation period date.  Stamped as
 \code{end_date_col} on all closing contracts.}
 
-\item{personnel_id_col}{Character.  Personnel identifier column in both
-\code{contract_dt} and \code{retirees_dt}.  (default: \code{"personnel_id"}).}
-
-\item{contract_id_col}{Character.  Contract identifier column.  Not used in
-this function; retained for API consistency with other update functions.
-(default: \code{"contract_id"}).}
-
-\item{start_date_col}{Character.  Contract start date column.  Not used
-directly; retained for API consistency.  (default: \code{"start_date"}).}
-
-\item{end_date_col}{Character.  Contract end date column.  Set to
-\code{ref_date} for all closing contracts.  (default: \code{"end_date"}).}
-
-\item{salary_col}{Character.  Salary column.  Set to \code{0} to prevent
-double-counting: pension cost is tracked separately via
-\code{pension_amount} in the pensioner register.
-(default: \code{"gross_salary_lcu"}).}
-
-\item{contract_type_col}{Character.  Contract classification column.  Set
-to \code{"pensioner"} for closing contracts.  Contracts already in
-\code{c("inactive", "pensioner", "closed_due_to_retirement", "terminated")}
-are skipped.  (default: \code{"contract_type"}).}
+\item{column_spec_args}{Complete column specification
+(\code{define_column_spec()}), in the caller's column names. Keys read:
+\code{personnel_id_col} (in both tables); \code{end_date_col} (set to
+\code{as_of_date} for all closing contracts); \code{salary_col} (set to
+\code{0} to prevent double-counting: pension cost is tracked separately
+via \code{pension_amount} in the pensioner register);
+\code{contract_type_col} (set to \code{"pensioner"} for closing
+contracts; contracts already off the payroll are skipped).}
 }
 \value{
 \code{contract_dt} (invisibly; the same object, modified in place).
@@ -58,7 +39,7 @@ are skipped.  (default: \code{"contract_type"}).}
 Applies retirement state changes to \code{contract_dt} in a single
 \code{:=} expression.  All open contracts held by retiring personnel are
 simultaneously reclassified as \code{"pensioner"}, their closing date is
-stamped to \code{ref_date}, and their salary is zeroed.
+stamped to \code{as_of_date}, and their salary is zeroed.
 }
 \section{Data Integrity}{
 

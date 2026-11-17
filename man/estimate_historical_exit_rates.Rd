@@ -8,13 +8,7 @@ estimate_historical_exit_rates(
   panel_contract_dt,
   panel_personnel_dt,
   group_cols = NULL,
-  freq = "year",
-  personnel_id_col = "personnel_id",
-  ref_date_col = "ref_date",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -26,29 +20,39 @@ estimate_historical_exit_rates(
 \item{group_cols}{Character vector or \code{NULL}.  Columns to group by
 (e.g. \code{"est_id"}).  Pass \code{NULL} for an overall (ungrouped) rate.}
 
-\item{freq}{Character.  Frequency passed to
-\code{govhr::detect_personnel_event()}.  Default \code{"year"}.}
-
-\item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
-
-\item{ref_date_col}{Character.  Default \code{"ref_date"}.}
-
-\item{start_date_col}{Character.  Default \code{"start_date"}.}
-
-\item{end_date_col}{Character.  Default \code{"end_date"}.}
-
-\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
-
-\item{status_col}{Character.  Default \code{"status"}.}
+\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only
+the ones that differ from the \code{govhr} defaults, e.g.
+\code{define_column_spec(personnel_id_col = "emp_id")}.  Keys read
+here: \code{personnel_id_col}, \code{ref_date_col}, \code{start_date_col},
+\code{end_date_col}, \code{contract_type_col}, \code{status_col}.  See
+\code{\link{define_column_spec}} for the defaults.}
 }
 \value{
 data.table with \code{group_cols} (if specified) and
-\code{exit_rate} column.
+\code{exit_rate} column -- one row per group, or a single row when
+\code{group_cols = NULL}.  A group with no active staff at the start of
+any interval gets a rate of 0.
 }
 \description{
-Uses \code{govhr::detect_personnel_event(event_type = "fire")} to identify
-non-retirement attrition events (voluntary resignation, dismissal, contract
-non-renewal) across the full historical panel.  Computes
-\code{exit_rate = n_exits / n_active} per group per panel snapshot, then
-returns the mean rate per group.
+Uses \code{govhr::detect_movement()} to identify non-retirement attrition
+events (voluntary resignation, dismissal, contract non-renewal) across the
+full historical panel, and turns them into one historical exit rate per
+group.
+
+Each pair of consecutive snapshots is one interval.  Someone active at the
+start of an interval and no longer active at its end counts as an exit in
+that interval, \strong{unless they next appear in the panel as a
+pensioner}: retirements have their own module, so counting them here too
+would remove the same people twice.  The rate is \strong{pooled} across
+intervals:
+
+\code{exit_rate = total exits over all intervals / total active staff at
+the start of each interval}
+
+e.g. 3 exits from 10 staff in the first interval and 0 from 7 in the
+second gives \code{3 / 17}.  Pooling gives steadier rates for small
+groups than averaging each interval's rate, and weights busier years by
+their size.  The last snapshot starts no interval, so it only ever serves
+as an end point.  Exits and staff are counted in the group the person
+was in at the start of the interval.
 }

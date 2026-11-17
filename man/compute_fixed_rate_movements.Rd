@@ -9,12 +9,8 @@ compute_fixed_rate_movements(
   personnel_dt,
   salary_scale_dt,
   policy_params,
-  ref_date,
-  personnel_id_col = "personnel_id",
-  start_date_col = "start_date",
-  end_date_col = "end_date",
-  contract_type_col = "contract_type",
-  status_col = "employment_status"
+  as_of_date,
+  column_spec_args = define_column_spec()
 )
 }
 \arguments{
@@ -25,20 +21,12 @@ compute_fixed_rate_movements(
 \item{salary_scale_dt}{data.table.  Pay table; defines valid destination groups.}
 
 \item{policy_params}{List.  Canonical three-slot movement policy specification.
-Keys consumed: \code{group_cols}, \code{defaults$movement_rate},
-\code{defaults$active_types}.}
+Keys consumed: \code{group_cols}, \code{defaults$movement_rate}.}
 
-\item{ref_date}{Date.  Reference date.}
+\item{as_of_date}{Date.  Reference date.}
 
-\item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
-
-\item{start_date_col}{Character.  Default \code{"start_date"}.}
-
-\item{end_date_col}{Character.  Default \code{"end_date"}.}
-
-\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
-
-\item{status_col}{Character.  Default \code{"status"}.}
+\item{column_spec_args}{Complete column specification from
+\code{define_column_spec()}.}
 }
 \value{
 data.table with columns \code{from_group}, \code{to_group},
@@ -47,9 +35,10 @@ Empty data.table when no active workers or rate produces zero movers.
 }
 \description{
 Applies a single scalar \code{movement_rate} from
-\code{policy_params$defaults} uniformly across the active workforce.
+\code{policy_params$defaults}.
 Called by \code{\link{simulate_promotions_transfers}} when
-\code{policy_params$policy_table} is \code{NULL}.  Movers are distributed
+\code{policy_params$policy_table} is \code{NULL} and estimation from a
+multi-snapshot panel fails or finds zero transitions.  Movers are distributed
 uniformly across all valid destination groups in \code{salary_scale_dt}.
 }
 \keyword{internal}

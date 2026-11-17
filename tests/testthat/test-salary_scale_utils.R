@@ -123,3 +123,29 @@ test_that("Phase 4a: non-data.table input raises error", {
     regexp = "data.table"
   )
 })
+
+test_that("a single-element NAMED vector adjusts only that key, not every row (regression)", {
+  sc <- make_scale()
+  # Named length-1 vector must NOT be treated as a uniform scalar -- only
+  # G2 should change; G1/G3 must stay exactly as they were.
+  result <- suppressWarnings(
+    apply_salary_scale_adjustment(sc, adjustment = c(G2 = 1.5), key_col = "grade")
+  )
+  expect_equal(result[grade == "G1"]$gross_salary_lcu, 40000)
+  expect_equal(result[grade == "G2"]$gross_salary_lcu, 55000 * 1.5)
+  expect_equal(result[grade == "G3"]$gross_salary_lcu, 70000)
+})
+
+test_that("a single-element named vector still requires key_col", {
+  sc <- make_scale()
+  expect_error(
+    suppressWarnings(apply_salary_scale_adjustment(sc, adjustment = c(G2 = 1.5), key_col = NULL)),
+    regexp = "key_col"
+  )
+})
+
+test_that("an unnamed length-1 adjustment is still treated as a uniform scalar", {
+  sc <- make_scale()
+  result <- apply_salary_scale_adjustment(sc, adjustment = 1.05)
+  expect_equal(result$gross_salary_lcu, sc$gross_salary_lcu * 1.05)
+})

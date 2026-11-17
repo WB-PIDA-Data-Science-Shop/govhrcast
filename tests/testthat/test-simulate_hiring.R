@@ -17,7 +17,7 @@ create_complete_test_data <- function() {
     gross_salary_lcu = rep(c(50000, 60000, 70000), 10),
     department = rep(c("HR", "IT", "Finance"), 10),
     paygrade = rep(c("G5", "G6"), 15),
-    contract_type = c(rep("permanent", 25), rep("terminated", 5))
+    contract_type = c(rep("permanent", 25), rep("inactive", 5))
   )
   
   personnel_dt <- data.table(
@@ -57,7 +57,7 @@ test_that("simulate_hiring works with stock mode", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(results, "list")
@@ -99,8 +99,8 @@ test_that("simulate_hiring works with flow mode", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    retirees_dt = retirees_dt,
-    ref_date = as.Date("2024-06-01")
+    leavers_dt = retirees_dt,
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(results, "list")
@@ -108,39 +108,6 @@ test_that("simulate_hiring works with flow mode", {
   
   # Should hire to replace retirees
   expect_true(results$summary$n_new_hires > 0)
-})
-
-test_that("simulate_hiring works with combined mode", {
-  test_data <- create_complete_test_data()
-  
-  stock_targets <- data.table(
-    department = c("HR", "IT", "Finance"),
-    target_stock = c(10, 15, 10)
-  )
-  
-  salary_scale <- data.table(
-    department = c("HR", "IT", "Finance"),
-    gross_salary_lcu = c(50000, 60000, 55000)
-  )
-  
-  policy_params <- list(
-    mode = "combined",
-    group_cols = c("department"),
-    replacement_rate = 0.1,
-    stock_targets = stock_targets,
-    salary_scale = salary_scale
-  )
-  
-  results <- simulate_hiring(
-    contract_dt = test_data$contract_dt,
-    personnel_dt = test_data$personnel_dt,
-    policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
-  )
-  
-  expect_type(results, "list")
-  expect_s3_class(results$summary, "data.table")
-  expect_true(all(is.finite(results$summary$n_new_hires)))
 })
 
 test_that("simulate_hiring handles no adjustments needed", {
@@ -168,7 +135,7 @@ test_that("simulate_hiring handles no adjustments needed", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(results, "list")
@@ -199,7 +166,7 @@ test_that("simulate_hiring handles downsizing", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(results, "list")
@@ -236,7 +203,7 @@ test_that("simulate_hiring preserves input data (copy-once pattern)", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   # Original data should be unchanged
@@ -270,7 +237,7 @@ test_that("simulate_hiring works without grouping (overall)", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01")
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(results, "list")
@@ -304,8 +271,8 @@ test_that("simulate_hiring integrates with retirement module output", {
     contract_dt = test_data$contract_dt,
     personnel_dt = test_data$personnel_dt,
     policy_params = policy_params,
-    retirees_dt = retirees_dt,
-    ref_date = as.Date("2024-06-01")
+    leavers_dt = retirees_dt,
+    as_of_date = as.Date("2024-06-01")
   )
   
   expect_type(results, "list")
@@ -346,8 +313,8 @@ test_that("simulate_hiring handles panel data with ref_date_col", {
     contract_dt = contract_panel,
     personnel_dt = personnel_panel,
     policy_params = policy_params,
-    ref_date = as.Date("2024-06-01"),
-    ref_date_col = "ref_date"
+    as_of_date = as.Date("2024-06-01"),
+    column_spec_args = define_column_spec(ref_date_col = "ref_date")
   )
   
   expect_type(results, "list")
@@ -374,7 +341,7 @@ test_that("simulate_hiring validates inputs correctly", {
       contract_dt = test_data$contract_dt,
       personnel_dt = test_data$personnel_dt,
       policy_params = policy_params_invalid,
-      ref_date = as.Date("2024-06-01")
+      as_of_date = as.Date("2024-06-01")
     ),
     "must contain 'mode'"
   )
@@ -389,7 +356,7 @@ test_that("simulate_hiring validates inputs correctly", {
       contract_dt = test_data$contract_dt,
       personnel_dt = test_data$personnel_dt,
       policy_params = policy_params_invalid2,
-      ref_date = as.Date("2024-06-01")
+      as_of_date = as.Date("2024-06-01")
     ),
     "Invalid mode"
   )
@@ -409,7 +376,7 @@ test_that("simulate_hiring requires stock_targets for stock mode", {
       contract_dt = test_data$contract_dt,
       personnel_dt = test_data$personnel_dt,
       policy_params = policy_params,
-      ref_date = as.Date("2024-06-01")
+      as_of_date = as.Date("2024-06-01")
     ),
     "stock_targets is required"
   )
@@ -429,8 +396,77 @@ test_that("simulate_hiring requires replacement_rate for flow mode", {
       contract_dt = test_data$contract_dt,
       personnel_dt = test_data$personnel_dt,
       policy_params = policy_params,
-      ref_date = as.Date("2024-06-01")
+      as_of_date = as.Date("2024-06-01")
     ),
     "replacement_rate is required"
   )
+})
+
+# =============================================================================
+# Status-quo hiring: rate_mult scales the historical rate once
+# =============================================================================
+
+# 100 active staff on one-row pay; a pre-estimated historical hiring rate of
+# 10% and rate_mult = 0.5 (hire at half the historical pace).
+make_status_quo_hiring_fixture <- function() {
+  ids <- sprintf("P%03d", 1:100)
+  list(
+    contract_dt = data.table(
+      contract_id = sub("P", "C", ids), personnel_id = ids,
+      start_date = as.Date("2010-01-01"), end_date = as.Date(NA),
+      contract_type = "permanent", gross_salary_lcu = 1000
+    ),
+    personnel_dt = data.table(personnel_id = ids, employment_status = "active"),
+    policy = list(
+      mode = "status_quo", group_cols = NULL, rate_mult = 0.5,
+      squorate_dt  = data.table(hiring_rate = 0.10),
+      salary_scale = data.table(gross_salary_lcu = 1000)
+    ),
+    ref_date = as.Date("2025-01-01")
+  )
+}
+
+test_that("status-quo hiring applies rate_mult once, however many periods reuse the policy", {
+  d <- make_status_quo_hiring_fixture()
+  hires <- vapply(1:3, function(i) {
+    simulate_hiring(d$contract_dt, d$personnel_dt, policy_params = d$policy,
+                    as_of_date = d$ref_date)$summary$n_new_hires
+  }, integer(1))
+  # 100 staff x 0.10 historical rate x 0.5 = 5 hires in every period
+  expect_identical(hires, c(5L, 5L, 5L))
+})
+
+test_that("status-quo hiring leaves the policy's historical rates unchanged", {
+  d <- make_status_quo_hiring_fixture()
+  simulate_hiring(d$contract_dt, d$personnel_dt, policy_params = d$policy,
+                  as_of_date = d$ref_date)
+  expect_identical(d$policy$squorate_dt$hiring_rate, 0.10)
+})
+
+test_that("simulate_hiring() in status-quo mode requires the historical rate table", {
+  d <- make_status_quo_hiring_fixture()
+  d$policy$squorate_dt <- NULL
+  expect_error(simulate_hiring(d$contract_dt, d$personnel_dt, policy_params = d$policy,
+                               as_of_date = d$ref_date),
+               "squorate_dt .* is required for mode 'status_quo'")
+})
+
+test_that("flow hiring leaves the caller's retirees table unchanged (custom ID column)", {
+  # Everything keyed by a non-default ID column name, "pid"
+  ids <- sprintf("S%02d", 1:10)
+  contract_dt <- data.table(contract_id = sub("S", "C", ids), pid = ids,
+                            start_date = as.Date("2010-01-01"), end_date = as.Date(NA),
+                            contract_type = "permanent", gross_salary_lcu = 1000)
+  personnel_dt <- data.table(pid = ids, employment_status = "active")
+  retirees_dt  <- data.table(pid = c("R1", "R2"), gross_salary_lcu = c(900, 1100))
+  retirees_before <- copy(retirees_dt)
+  policy <- list(mode = "flow", replacement_rate = 1, group_cols = NULL,
+                 salary_scale = data.table(gross_salary_lcu = 1000))
+
+  res <- simulate_hiring(contract_dt, personnel_dt, policy_params = policy,
+                         leavers_dt = retirees_dt, as_of_date = as.Date("2025-01-01"),
+                         column_spec_args = define_column_spec(personnel_id_col = "pid"))
+
+  expect_identical(retirees_dt, retirees_before)   # still keyed by "pid"
+  expect_identical(res$summary$n_new_hires, 2L)    # 2 retirees x replacement rate 1
 })

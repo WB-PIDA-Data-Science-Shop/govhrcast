@@ -16,9 +16,10 @@ apply_salary_scale_adjustment(
 contain \code{salary_col}.  Modified \strong{in a copy} -- the caller's
 object is not changed.}
 
-\item{adjustment}{Numeric.  Scalar multiplier or named numeric vector where
-\code{names(adjustment)} match values in
-\code{salary_scale_dt[[key_col]]}.}
+\item{adjustment}{Numeric.  An \strong{unnamed} single value applies to
+every row uniformly.  A \strong{named} vector -- even a single named
+value, e.g. \code{c(hazard = 1.20)} -- is matched by name against
+\code{salary_scale_dt[[key_col]]}; only matching rows are adjusted.}
 
 \item{salary_col}{Character.  Name of the salary column to update.
 Default \code{"gross_salary_lcu"}.}
@@ -39,11 +40,14 @@ that can be passed into \code{hiring_policy$salary_scale} or
 
 Behaviour:
 \itemize{
-\item Scalar \code{adjustment} (e.g. \code{1.05}) -- every entry is
-multiplied by the same factor.
-\item Named numeric vector -- matched against
-\code{salary_scale_dt[[key_col]]}; unmatched entries receive multiplier
-\code{1.0} (unchanged) and a warning is issued.
+\item Scalar \code{adjustment} (e.g. \code{1.05}, \strong{unnamed}) --
+every entry is multiplied by the same factor.
+\item Named numeric vector, \strong{of any length including one}
+(e.g. \code{c(hazard = 1.20)} to adjust a single key) -- matched
+against \code{salary_scale_dt[[key_col]]}; unmatched entries receive
+multiplier \code{1.0} (unchanged) and a warning is issued. Dispatch is
+based on whether \code{adjustment} is named, not its length -- a
+single named value is not treated as a scalar.
 \item Zero or negative multipliers raise an error.
 \item Multipliers outside the range \code{(0.9, 1.2)} trigger a warning
 (likely user error -- the limits are not enforced).

@@ -5,7 +5,7 @@
 \title{Core Hiring Logic Functions}
 \description{
 Functions for computing current workforce stock, estimating hiring demand
-based on different policy modes (flow, stock, combined), and calculating
+based on different policy modes (flow, stock, status quo), and calculating
 hiring-related statistics.
 }
 \keyword{internal}

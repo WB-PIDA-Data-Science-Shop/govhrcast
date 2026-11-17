@@ -6,9 +6,8 @@
 \usage{
 update_personnel_for_retirees(
   personnel_dt,
-  contract_dt,
+  retirees_dt,
   personnel_id_col = "personnel_id",
-  contract_type_col = "contract_type",
   status_col = "employment_status"
 )
 }
@@ -16,32 +15,23 @@ update_personnel_for_retirees(
 \item{personnel_dt}{data.table.  Personnel register (modified in place).
 Required columns: \code{personnel_id_col}, \code{status_col}.}
 
-\item{contract_dt}{data.table.  Contract register \emph{after}
-\code{\link{update_contracts_for_retirees}} has been called.
-The function reads \code{contract_type_col} to derive retiring
-\code{personnel_id}s.}
+\item{retirees_dt}{data.table.  Table of confirmed retirees.  Only
+\code{personnel_id_col} is used.}
 
 \item{personnel_id_col}{Character.  Personnel identifier column in both
-\code{personnel_dt} and \code{contract_dt}.
-(default: \code{"personnel_id"}).}
-
-\item{contract_type_col}{Character.  Contract classification column in
-\code{contract_dt}.  Rows with \code{contract_type_col == "pensioner"}
-identify retiring personnel.  (default: \code{"contract_type"}).}
+tables.  (default: \code{"personnel_id"}).}
 
 \item{status_col}{Character.  Employment status column in
-\code{personnel_dt}.  Set to \code{"inactive"} for retirees.
-(default: \code{"status"}).}
+\code{personnel_dt}.  (default: \code{"employment_status"}).}
 }
 \value{
 \code{personnel_dt} (invisibly; the same object, modified in place).
 }
 \description{
-Sets \code{status_col} to \code{"inactive"} in \code{personnel_dt} for
-every person whose contracts have been reclassified as \code{"pensioner"}
-by \code{\link{update_contracts_for_retirees}}.  Derives the retiree set
-from \code{contract_dt} (not from the eligibility or pension tables) to
-guarantee consistency with the already-committed contract state.
+Sets \code{status_col} to \code{"pensioner"} in \code{personnel_dt} for
+every person in \code{retirees_dt}. It goes by who retired this period, not
+by who holds a pension row, because someone can hold a pension and a working
+contract without retiring from the job.
 }
 \section{Data Integrity}{
 

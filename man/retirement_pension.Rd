@@ -7,9 +7,16 @@
 Functions for computing pension amounts under different pension systems:
 defined-benefit (DB), defined-contribution (DC), flat, and hybrid.
 }
+\section{The Pay Column}{
+
+Wage-based pensions are always calculated from the pay column
+(\code{salary_col}). The same column holds pay for active staff and, in
+harmonized data, the pension for retirees.
+}
+
 \section{Missing Salary Data}{
 
-If salary values are missing (NA) in the reference wage column, pension
+If salary values are missing (NA) in the pay column, pension
 calculation will return NA. Future implementations may include imputation
 strategies such as:
 \itemize{

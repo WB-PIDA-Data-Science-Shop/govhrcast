@@ -4,15 +4,15 @@
 \alias{select_nearest_ref_date}
 \title{Select Nearest Reference Date}
 \usage{
-select_nearest_ref_date(x, ref_date)
+select_nearest_ref_date(x, as_of_date)
 }
 \arguments{
 \item{x}{Date vector. Available reference dates to choose from}
 
-\item{ref_date}{Date. Target reference date}
+\item{as_of_date}{Date. Target reference date}
 }
 \value{
-Date. Single date value (closest to ref_date without exceeding it)
+Date. Single date value (closest to as_of_date without exceeding it)
 }
 \description{
 Finds the reference date in a vector that is closest to (but not after)

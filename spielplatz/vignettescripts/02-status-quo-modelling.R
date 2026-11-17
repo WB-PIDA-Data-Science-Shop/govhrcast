@@ -58,10 +58,11 @@ simulate_horizon(contract_dt = contract_dt,
                  retirement_policy = list(group_cols   = NULL,
                                           policy_table = NULL,
                                           defaults     = list(
-                                            eligibility_type = "age_only",
-                                            min_age          = 60,
-                                            pension_type     = "rate",
-                                            pension_rate     = 0.15,          # GoB DC scheme: 15% of final salary (Albertus, 2026-06-08)
+                                            eligibility_type = "custom",
+                                            eligibility_rule = "age >= 60 & contract_type == 'permanent' & 
+                                              employment_status == 'active' & personnel_tenure >= 5",
+                                            pension_type     = "custom",
+                                            pension_formula  = "0.15 * gross_salary_cpi * tenure_years",          # GoB DC scheme: 15% of final salary (Albertus, 2026-06-08)
                                             ref_wage_col     = "gross_salary_cpi",
                                             active_types     = "active")),
                  exit_policy = list(group_cols = "est_id",
@@ -104,8 +105,8 @@ retirement_group_pensionrate_sim <-
 simulate_horizon(contract_dt = contract_dt,
                  personnel_dt = personnel_dt,
                  salary_scale_dt =  salary_scale_dt,
-                 retirement_policy = list(group_cols   = "paygrade",
-                                          policy_table = rate_dt,
+                 retirement_policy = list(group_cols   = NULL,
+                                          policy_table = NULL,
                                           defaults     = list(
                                             eligibility_type = "age_only",
                                             min_age          = 60,

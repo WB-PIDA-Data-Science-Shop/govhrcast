@@ -9,7 +9,8 @@ get_primary_contract(
   personnel_id_col = "personnel_id",
   contract_id_col = "contract_id",
   start_date_col = "start_date",
-  salary_col = "gross_salary_lcu"
+  salary_col = "gross_salary_lcu",
+  snapshot_col = NULL
 )
 }
 \arguments{
@@ -31,6 +32,10 @@ deterministic tie-break (lowest value wins).
 \item{salary_col}{Character.  Salary column for the second priority level
 (highest salary wins when start dates are tied).
 (default: \code{"gross_salary_lcu"}).}
+
+\item{snapshot_col}{Character or \code{NULL}.  With panel data, the snapshot
+date column, to get one main contract per person per snapshot.  With the
+default, \code{NULL}, one per person.}
 }
 \value{
 data.table.  One row per unique \code{personnel_id_col} value,
@@ -44,9 +49,7 @@ Typically called on the output of \code{\link{get_active_contracts}} to
 obtain a unique primary contract per eligible employee.
 }
 \details{
-Sorts \code{contract_dt} in place (\code{data.table::setorderv}) before
-taking \code{.SD[1]} per group.  The caller's table is reordered as a
-side-effect; pass \code{data.table::copy(contract_dt)} if the original
-row order must be preserved.
+A blank start date or salary never wins: it ranks below any real value.  The
+caller's table is not changed.
 }
 \keyword{internal}

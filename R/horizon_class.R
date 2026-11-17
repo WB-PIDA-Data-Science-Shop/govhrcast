@@ -16,7 +16,8 @@
 #' invoked by \code{\link{simulate_horizon}}.
 #'
 #' @param comparison data.table.  One row per (scenario × period).  Must
-#'   contain at least \code{period_date} and \code{wage_bill_end}.
+#'   contain at least \code{period_start_date}, \code{period_end_date} and
+#'   \code{wage_bill_end}.
 #' @param metadata Named list.  Policy arguments and call context used to
 #'   generate the simulation (captured via \code{match.call()} in the calling
 #'   function).
@@ -54,7 +55,7 @@ validate_horizon <- function(x) {
   if (!data.table::is.data.table(x$comparison)) {
     stop("'horizon$comparison' must be a data.table.", call. = FALSE)
   }
-  required_cols <- c("period_date", "wage_bill_end")
+  required_cols <- c("period_start_date", "period_end_date", "wage_bill_end")
   missing_cols  <- setdiff(required_cols, names(x$comparison))
   if (length(missing_cols) > 0L) {
     stop("'horizon$comparison' is missing required columns: ",
@@ -90,12 +91,12 @@ print.horizon <- function(x, ...) {
   validate_horizon(x)
   dt <- x$comparison
 
-  n_scenarios <- if ("scenario" %in% names(dt)) data.table::uniqueN(dt$scenario) else 1L
-  n_periods   <- if ("scenario" %in% names(dt)) {
-    data.table::uniqueN(dt[, .SD, .SDcols = "period_date"])
-  } else nrow(dt)
+  has_label   <- "scenario_label" %in% names(dt)
+  n_scenarios <- if (has_label) data.table::uniqueN(dt$scenario_label) else 1L
+  n_periods   <- data.table::uniqueN(dt$period_start_date)
 
-  date_range <- range(dt$period_date, na.rm = TRUE)
+  # From the start of the first year to the end of the last
+  date_range <- c(min(dt$period_start_date, na.rm = TRUE), max(dt$period_end_date, na.rm = TRUE))
 
   cat("<horizon>\n")
   cat(sprintf("  Scenarios : %d\n", n_scenarios))
@@ -106,7 +107,7 @@ print.horizon <- function(x, ...) {
   cat(sprintf("  Columns   : %d\n", ncol(dt)))
 
   if (n_scenarios <= 4L) {
-    scen_col <- if ("scenario" %in% names(dt)) dt$scenario else rep("(single)", nrow(dt))
+    scen_col <- if (has_label) dt$scenario_label else rep("(single)", nrow(dt))
     cat("  Scenario labels:\n")
     for (s in unique(scen_col)) cat(sprintf("    - %s\n", s))
   }
@@ -129,14 +130,15 @@ summary.horizon <- function(object, ...) {
   dt <- object$comparison
 
   keep_cols <- intersect(
-    c("scenario", "period_date", "n_headcount_end",
-      "wage_bill_end", "pension_cost_total", "n_exits", "n_hires"),
+    c("scenario_label", "period_end_date", "n_headcount_end",
+      "wage_bill_end", "total_wage_bill_end", "allowance_cost_end",
+      "pension_cost_total", "n_exits", "n_hires"),
     names(dt)
   )
 
   # Final period per scenario
-  if ("scenario" %in% names(dt)) {
-    out <- dt[dt[, .I[which.max(period_date)], by = "scenario"]$V1, ..keep_cols]
+  if ("scenario_label" %in% names(dt)) {
+    out <- dt[dt[, .I[which.max(period_end_date)], by = "scenario_label"]$V1, ..keep_cols]
   } else {
     out <- dt[nrow(dt), ..keep_cols]
   }

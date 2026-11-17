@@ -4,12 +4,15 @@
 \alias{compute_hybrid_pension}
 \title{Compute Hybrid Pension}
 \usage{
-compute_hybrid_pension(dt)
+compute_hybrid_pension(dt, salary_col = "gross_salary_lcu")
 }
 \arguments{
 \item{dt}{data.table.  Retiree subset (\code{pension_type == "hybrid"}).
 Must contain all columns required by \code{\link{compute_db_pension}} and
 \code{\link{compute_dc_pension}}.}
+
+\item{salary_col}{Character.  The pay column, for the DB pillar.  Default
+\code{"gross_salary_lcu"}.}
 }
 \value{
 Numeric vector of hybrid pension amounts (length \code{nrow(dt)}).

@@ -4,7 +4,9 @@
 \alias{retirement_core}
 \title{Core Retirement Logic Functions}
 \description{
-Functions for identifying retirement-eligible personnel and computing
-retirement eligibility based on age and/or tenure.
+Who retires: \code{\link[=select_retirees]{select_retirees()}} and the three kinds of policy it runs
+(status quo, eligibility rule, mandatory rule on top of the status quo);
+estimating the status-quo rates from panel data; and the retirees' data the
+pension calculation needs.
 }
 \keyword{internal}

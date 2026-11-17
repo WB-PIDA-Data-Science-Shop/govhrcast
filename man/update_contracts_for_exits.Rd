@@ -7,12 +7,11 @@
 update_contracts_for_exits(
   contract_dt,
   exits_dt,
-  ref_date,
+  as_of_date,
   personnel_id_col = "personnel_id",
   contract_type_col = "contract_type",
   end_date_col = "end_date",
-  active_types = "active",
-  exited_type = "inactive"
+  active_types = .exit_types()
 )
 }
 \arguments{
@@ -21,25 +20,23 @@ update_contracts_for_exits(
 \item{exits_dt}{data.table.  Table of exiting personnel — must contain
 \code{personnel_id_col}.}
 
-\item{ref_date}{Date.  Reference date; becomes the exit date.}
+\item{as_of_date}{Date.  Reference date; becomes the exit date.}
 
 \item{personnel_id_col}{Character.  Default \code{"personnel_id"}.}
 
-\item{contract_type_col}{Character.  Default \code{"contract_type_code"}.}
+\item{contract_type_col}{Character.  Default \code{"contract_type"}.}
 
 \item{end_date_col}{Character.  Default \code{"end_date"}.}
 
-\item{active_types}{Character vector.  Contract type values to update.}
-
-\item{exited_type}{Character.  Value to write into \code{contract_type_col}.
-Default \code{"inactive"}.}
+\item{active_types}{Character vector.  Contract type values to update.
+Default: the \code{govhr} dictionary's working types, plus a blank.}
 }
 \value{
 \code{contract_dt} (invisibly; modified by reference in place).
 }
 \description{
-Marks ALL active contracts for each exiting person as \code{exited_type}
-and sets \code{end_date_col} to \code{ref_date}.  Uses a plain membership
+Marks ALL active contracts for each exiting person as \code{"inactive"}
+and sets \code{end_date_col} to \code{as_of_date}.  Uses a plain membership
 filter on \code{personnel_id} so that multi-contract persons are handled
 correctly in one pass.
 }

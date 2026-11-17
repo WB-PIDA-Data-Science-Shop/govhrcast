@@ -1,0 +1,928 @@
+<title>govhrcast Code Atlas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<!--
+  Generated page. The template is data-raw/schemas/code_atlas_template.html;
+  build_code_map.R fills in the map and writes code_atlas.html. Edit the template.
+-->
+<style>
+/* Layout: a module-by-module atlas of files and their functions on the left,
+   a sticky inspector for the selected function on the right. */
+:root {
+  --bg:        #f4f6f9;
+  --surface:   #fdfdfe;
+  --surface-2: #eceff4;
+  --ink:       #141820;
+  --ink-2:     #485160;
+  --muted:     #788293;
+  --rule:      #d9dee6;
+  --accent:    #0e5a62;
+  --hl:        #dfe9f4;
+  --seq:       #2a78d6;
+  --warn:      #b06a00;
+  --warn-bg:   #fff3dc;
+  --m-retirement: #2a78d6;
+  --m-exit:       #eb6834;
+  --m-movement:   #1baf7a;
+  --m-hiring:     #eda100;
+  --m-allowance:  #e87ba4;
+  --m-shared:     #008300;
+  --m-horizon:    #6250d6;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body:    "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:    "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg:        #0f1217;
+    --surface:   #161a21;
+    --surface-2: #1e232c;
+    --ink:       #e8ebf0;
+    --ink-2:     #b3bbc7;
+    --muted:     #8a93a2;
+    --rule:      #2a303a;
+    --accent:    #6cc0c6;
+    --hl:        #22324a;
+    --seq:       #3987e5;
+    --warn:      #f2b54a;
+    --warn-bg:   #3a2c12;
+    --m-retirement: #3987e5;
+    --m-exit:       #d95926;
+    --m-movement:   #199e70;
+    --m-hiring:     #c98500;
+    --m-allowance:  #d55181;
+    --m-shared:     #008300;
+    --m-horizon:    #9085e9;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg:        #0f1217;
+  --surface:   #161a21;
+  --surface-2: #1e232c;
+  --ink:       #e8ebf0;
+  --ink-2:     #b3bbc7;
+  --muted:     #8a93a2;
+  --rule:      #2a303a;
+  --accent:    #6cc0c6;
+  --hl:        #22324a;
+  --seq:       #3987e5;
+  --warn:      #f2b54a;
+  --warn-bg:   #3a2c12;
+  --m-retirement: #3987e5;
+  --m-exit:       #d95926;
+  --m-movement:   #199e70;
+  --m-hiring:     #c98500;
+  --m-allowance:  #d55181;
+  --m-shared:     #008300;
+  --m-horizon:    #9085e9;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 1520px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 20px; font-weight: 600; }
+h3 { font-size: 16px; font-weight: 600; }
+code, .mono { font-family: var(--font-mono); font-size: 12.5px; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Header */
+.masthead { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; }
+.masthead p { margin: 4px 0 0; color: var(--ink-2); max-width: 70ch; }
+.built { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.counts { display: flex; flex-wrap: wrap; gap: 6px 20px; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.counts b { color: var(--ink); font-weight: 600; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rule); overflow-x: auto; }
+.tab {
+  background: none; border: 0; padding: 8px 14px; cursor: pointer;
+  font-family: var(--font-display); font-size: 15px; font-weight: 500; color: var(--ink-2);
+  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
+}
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab:hover { color: var(--ink); }
+
+/* Controls */
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.controls input[type="search"], .controls select {
+  font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--rule); border-radius: 6px; padding: 6px 10px;
+}
+.controls input[type="search"] { width: min(280px, 100%); font-family: var(--font-mono); font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  border: 1px solid var(--rule); background: var(--surface); border-radius: 999px;
+  padding: 3px 10px 3px 8px; font-size: 13px; color: var(--ink-2);
+}
+.chip[aria-pressed="false"] { opacity: 0.45; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--c, var(--muted)); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--muted); }
+.legend span { white-space: nowrap; }
+
+/* Atlas */
+.atlas-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 440px); gap: 20px; align-items: start; }
+.atlas { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.module { display: flex; flex-direction: column; gap: 10px; }
+.module-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; border-bottom: 1px solid var(--rule); padding-bottom: 6px; }
+.module-head .dot { width: 11px; height: 11px; align-self: center; }
+.module-head .step { font-family: var(--font-display); font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.module-head .tally { margin-left: auto; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.files { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; align-items: start; }
+.file { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.file-head { display: flex; align-items: baseline; gap: 8px; padding: 7px 10px 6px; background: var(--surface-2); border-bottom: 1px solid var(--rule); }
+.file-head .name { font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; overflow-wrap: anywhere; }
+.file-head .role { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.file-head .lines { margin-left: auto; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fn-list { list-style: none; margin: 0; padding: 4px 0; }
+.fn {
+  width: 100%; display: grid; grid-template-columns: 14px minmax(0, 1fr) 16px 40px; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 2px 10px; cursor: pointer; text-align: left;
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.55;
+}
+.fn:hover { background: var(--surface-2); }
+.fn .vis { color: var(--muted); text-align: center; }
+.fn .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fn .rel { color: var(--accent); font-weight: 600; text-align: center; }
+.fn .len { height: 4px; border-radius: 2px; background: var(--rule); position: relative; }
+.fn .len i { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: var(--muted); }
+.fn.dim { opacity: 0.28; }
+.fn.caller, .fn.callee { background: var(--hl); }
+.fn.sel { background: var(--ink); color: var(--bg); }
+.fn.sel .vis, .fn.sel .rel { color: var(--bg); }
+.fn.sel .len { background: color-mix(in oklab, var(--bg) 35%, var(--ink)); }
+.fn.sel .len i { background: var(--bg); }
+
+/* Inspector */
+.inspector {
+  position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px);
+  max-height: calc(100vh - 24px); overflow: auto;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 16px; display: flex; flex-direction: column; gap: 14px;
+}
+.inspector .fname { font-family: var(--font-mono); font-size: 16px; font-weight: 500; overflow-wrap: anywhere; }
+.inspector .title { color: var(--ink-2); margin-top: 2px; }
+.where { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-size: 12px; border: 1px solid var(--rule); border-radius: 4px; padding: 1px 7px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 5px; }
+.flag { font-size: 12.5px; background: var(--warn-bg); color: var(--ink); border-radius: 4px; padding: 4px 8px; display: flex; gap: 8px; align-items: baseline; }
+.flag b { color: var(--warn); font-family: var(--font-mono); }
+.flags { display: flex; flex-direction: column; gap: 6px; }
+.section-label { font-family: var(--font-display); font-size: 12px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.ego { overflow-x: auto; }
+.ego svg { display: block; width: 100%; min-width: 480px; height: auto; }
+.ego text { font-family: var(--font-mono); font-size: 11px; fill: var(--ink); }
+.ego .node rect { fill: var(--surface-2); stroke: var(--rule); }
+.ego .node { cursor: pointer; }
+.ego .node:hover rect, .ego .node:focus-visible rect { stroke: var(--accent); }
+.ego .centre rect { fill: var(--ink); stroke: var(--ink); }
+.ego .centre text { fill: var(--bg); }
+.ego .colhead { font-family: var(--font-body); font-size: 11px; fill: var(--muted); letter-spacing: 0.04em; }
+.ego path { fill: none; stroke: var(--muted); stroke-width: 1; opacity: 0.6; }
+.ego .more { fill: var(--muted); font-family: var(--font-body); }
+table.kv { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+table.kv td { border-top: 1px solid var(--rule); padding: 4px 6px 4px 0; vertical-align: top; }
+table.kv td:first-child { font-family: var(--font-mono); white-space: nowrap; }
+table.kv td:last-child { font-family: var(--font-mono); color: var(--ink-2); overflow-wrap: anywhere; }
+.linklist { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.fnlink {
+  background: none; border: 0; padding: 0; cursor: pointer; color: var(--accent);
+  font-family: var(--font-mono); font-size: 12.5px; text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent); text-underline-offset: 2px;
+}
+.fnlink:hover { text-decoration-color: var(--accent); }
+.none { color: var(--muted); font-size: 12.5px; }
+
+/* Module calls */
+.matrix-wrap { overflow-x: auto; }
+table.matrix { border-collapse: separate; border-spacing: 3px; font-variant-numeric: tabular-nums; }
+table.matrix th { font-weight: 500; font-size: 12.5px; color: var(--ink-2); padding: 4px 8px; white-space: nowrap; }
+table.matrix thead th { vertical-align: bottom; text-align: center; }
+table.matrix tbody th { text-align: right; }
+table.matrix th .dot { display: inline-block; margin-right: 6px; vertical-align: middle; }
+.cell {
+  width: 76px; height: 44px; border: 0; border-radius: 4px; cursor: pointer;
+  font-size: 13px; font-weight: 500;
+  background: color-mix(in oklab, var(--seq) var(--p, 0%), var(--surface-2));
+  color: var(--ink);
+}
+.cell.strong { color: #ffffff; }
+.cell.empty { cursor: default; color: var(--muted); background: var(--surface-2); }
+.cell[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 1px; }
+.cell.diag { box-shadow: inset 0 0 0 1px var(--rule); }
+.matrix-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 24px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.panel p { margin: 0; color: var(--ink-2); max-width: 70ch; }
+.edge-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.edge-list li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: 12.5px; }
+.edge-list .arrow { color: var(--muted); }
+.tooltip {
+  position: fixed; pointer-events: none; z-index: 20;
+  background: var(--ink); color: var(--bg); font-size: 12px; border-radius: 4px; padding: 5px 8px; max-width: 280px;
+}
+
+/* Findings */
+.findings { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap: 14px; align-items: start; }
+.finding-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.finding-table th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase; padding: 0 8px 4px 0; }
+.finding-table td { border-top: 1px solid var(--rule); padding: 4px 8px 4px 0; vertical-align: top; }
+.finding-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.finding-table td.mono { font-family: var(--font-mono); color: var(--ink-2); }
+.count-badge { font-family: var(--font-body); font-size: 12px; font-weight: 500; background: var(--surface-2); color: var(--ink-2); border-radius: 999px; padding: 1px 9px; margin-left: 8px; font-variant-numeric: tabular-nums; }
+.table-scroll { overflow-x: auto; }
+
+/* Flow */
+.flow-wrap { display: flex; flex-direction: column; gap: 12px; }
+.flow-wrap > p { margin: 0; color: var(--ink-2); max-width: 85ch; }
+.trail { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; font-size: 13px; }
+.trail .here { font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; }
+.trail .sep { color: var(--muted); }
+.flow-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.flow-box { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px; overflow: auto; min-height: 120px; }
+.flow-box svg { display: block; max-width: none; height: auto; }
+.flow-box foreignObject div { text-align: left !important; }
+.flow-box g.flow-link { cursor: pointer; }
+.flow-box g.flow-link:hover > rect, .flow-box g.flow-link:focus-visible > rect { stroke-width: 3px !important; }
+.flow-box g.flow-link:focus-visible { outline: 2px solid var(--accent); }
+.flow-key { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); }
+.flow-key span { display: inline-flex; align-items: center; gap: 6px; }
+.flow-key i { width: 16px; height: 11px; border: 1px solid #5b6472; display: inline-block; }
+details.flow-src summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
+details.flow-src pre { background: var(--surface-2); border-radius: 6px; padding: 10px; overflow: auto; font-family: var(--font-mono); font-size: 11.5px; max-height: 360px; }
+
+/* Process */
+.proc-intro { display: flex; flex-direction: column; gap: 10px; }
+.proc-intro p { margin: 0; color: var(--ink-2); max-width: 80ch; }
+.io-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.io-row .section-label { margin: 0 6px 0 0; }
+.proc { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.proc .sec {
+  font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--ink-2); border-bottom: 1px solid var(--rule); padding: 12px 0 3px;
+}
+.proc .sec .ln { font-family: var(--font-mono); font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 8px; }
+.ctx { display: flex; flex-wrap: wrap; gap: 4px; padding-left: 2.9em; }
+.ctx span { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-2); border: 1px dashed var(--rule); border-radius: 4px; padding: 0 6px; overflow-wrap: anywhere; }
+.ctx span.loop { border-style: solid; border-color: var(--accent); color: var(--accent); }
+.step-card { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.step-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.step-head .num { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); min-width: 2.2em; font-variant-numeric: tabular-nums; }
+.step-head .target { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2); }
+.step-head .fn-title { color: var(--muted); font-size: 12.5px; }
+.args { border-collapse: collapse; font-size: 12px; width: 100%; }
+.args td { border-top: 1px solid var(--rule); padding: 2px 8px 2px 0; vertical-align: top; }
+.args td:first-child { font-family: var(--font-mono); color: var(--ink-2); white-space: nowrap; width: 1%; }
+.args td:nth-child(2) { font-family: var(--font-mono); overflow-wrap: anywhere; }
+.args td:last-child { white-space: nowrap; width: 1%; text-align: right; }
+.from { font-family: var(--font-body); font-size: 11px; background: var(--hl); color: var(--ink); border-radius: 3px; padding: 0 5px; white-space: nowrap; }
+.reads { font-size: 12px; color: var(--ink-2); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.reads code { color: var(--ink); }
+.expand {
+  align-self: flex-start; background: none; border: 1px solid var(--rule); border-radius: 4px; cursor: pointer;
+  font-size: 12px; color: var(--accent); padding: 2px 8px;
+}
+.expand[aria-expanded="true"] { background: var(--surface-2); }
+.nested { margin: 4px 0 2px 4px; padding-left: 12px; border-left: 2px solid var(--c, var(--rule)); }
+.handoff { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); padding: 0 0 0 2.9em; display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; overflow-wrap: anywhere; }
+.handoff .sym { color: var(--muted); }
+.handoff b { font-weight: 500; color: var(--ink); }
+.proc-result { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 12px; }
+.proc-wrap.hide-handoffs .handoff { display: none; }
+.proc-wrap.hide-checks .is-check { display: none; }
+.proc-wrap { display: flex; flex-direction: column; gap: 12px; max-width: 1100px; }
+
+@media (max-width: 960px) {
+  .atlas-layout { grid-template-columns: minmax(0, 1fr); }
+  .inspector { position: static; max-height: none; order: -1; }
+  .matrix-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .fn, .chip, .cell { transition: background-color 120ms ease, opacity 120ms ease; }
+}
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <div>
+      <h1>govhrcast Code Atlas</h1>
+      <p>Every function in the package: the order the simulation runs them in, the file each lives in, what it takes, what it calls and what it hands back.</p>
+    </div>
+    <div>
+      <div class="counts" id="counts"></div>
+      <div class="built" id="built"></div>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button class="tab" role="tab" id="tab-flow" aria-controls="view-flow" aria-selected="true">Flow</button>
+    <button class="tab" role="tab" id="tab-process" aria-controls="view-process" aria-selected="false">Process</button>
+    <button class="tab" role="tab" id="tab-atlas" aria-controls="view-atlas" aria-selected="false">Atlas</button>
+    <button class="tab" role="tab" id="tab-matrix" aria-controls="view-matrix" aria-selected="false">Module calls</button>
+    <button class="tab" role="tab" id="tab-findings" aria-controls="view-findings" aria-selected="false">Findings</button>
+  </nav>
+
+  <section id="view-flow" role="tabpanel" aria-labelledby="tab-flow">
+    <div class="flow-wrap">
+      <p>One function as a flowchart: what comes in, the functions it runs, the tables and lists passed between them, and what it hands back. Boxes around steps are the code's own sections and conditions. Click a function box to open its flow.</p>
+      <div class="controls">
+        <select id="flow-start" aria-label="Function to draw"></select>
+        <div class="flow-actions" id="flow-actions"></div>
+      </div>
+      <nav class="trail" id="flow-trail" aria-label="Flows opened"></nav>
+      <div class="flow-key">
+        <span><i style="background:#c9eef4"></i>function</span>
+        <span><i style="background:#dfe8f7"></i>table: unit and main columns</span>
+        <span><i style="background:#e3f1df; border-radius: 5px"></i>list: its parts as a tree</span>
+        <span><i style="background:#f3ecd6; border-radius: 6px"></i>vector coming in</span>
+        <span><i style="background:#ffffff; border-style: dashed"></i>code inside the function, not a function</span>
+        <span><i style="background:#f6d3c8"></i>what it hands back</span>
+        <span>arrow label: the part passed on, or the value</span>
+      </div>
+      <div class="flow-box" id="flow-box"></div>
+      <details class="flow-src"><summary>Mermaid source</summary><pre id="flow-src"></pre></details>
+    </div>
+  </section>
+
+  <section id="view-process" role="tabpanel" aria-labelledby="tab-process" hidden>
+    <div class="proc-wrap" id="proc-wrap">
+      <div class="proc-intro">
+        <p>What a function does, step by step, in the order the code runs. Each numbered step calls another package function: what goes in, where the result is kept, and what is read from it later. The rows in between hand results on to the next step or change a table in place. Open a step to see the steps inside it.</p>
+        <div class="controls">
+          <select id="proc-start" aria-label="Function to follow"></select>
+          <label><input type="checkbox" id="proc-handoffs" checked> Show hand-offs and in-place changes</label>
+          <label><input type="checkbox" id="proc-checks"> Show input checks (validation.R)</label>
+        </div>
+      </div>
+      <div id="proc-body"></div>
+    </div>
+  </section>
+
+  <section id="view-atlas" role="tabpanel" aria-labelledby="tab-atlas" hidden>
+    <div class="wrap" style="gap: 12px">
+      <div class="controls">
+        <input type="search" id="q" placeholder="Find a function" aria-label="Find a function by name or title">
+        <select id="vis" aria-label="Show functions by visibility">
+          <option value="all">All functions</option>
+          <option value="exported">Exported</option>
+          <option value="internal">Internal (no dot)</option>
+          <option value="dot_internal">Dot-internal</option>
+          <option value="s3_method">S3 methods</option>
+          <option value="flagged">Flagged in findings</option>
+        </select>
+        <div class="chips" id="module-chips" aria-label="Modules shown"></div>
+      </div>
+      <div class="legend">
+        <span>● exported</span><span>○ internal</span><span>· dot-internal</span><span>◆ S3 method</span>
+        <span>← calls the selected function</span><span>→ called by it</span><span>bar = length in lines</span>
+      </div>
+      <div class="atlas-layout">
+        <div class="atlas" id="atlas"></div>
+        <aside class="inspector" id="inspector" aria-live="polite"></aside>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-matrix" role="tabpanel" aria-labelledby="tab-matrix" hidden>
+    <div class="matrix-grid">
+      <div class="panel">
+        <h2>Who calls whom, by module</h2>
+        <p>Each cell counts the distinct function-to-function calls from the row's module into the column's module. The diagonal is calls within a module. Pick a cell to list them.</p>
+        <div class="matrix-wrap"><table class="matrix" id="matrix"></table></div>
+      </div>
+      <div class="panel" id="matrix-detail"></div>
+    </div>
+  </section>
+
+  <section id="view-findings" role="tabpanel" aria-labelledby="tab-findings" hidden>
+    <div class="findings" id="findings"></div>
+  </section>
+</div>
+<div class="tooltip" id="tooltip" hidden></div>
+
+<script id="code-map" type="application/json">__CODE_MAP_JSON__</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  const M = JSON.parse(document.getElementById("code-map").textContent);
+  const FNS = M.functions;
+  const BY = new Map(FNS.map(f => [f.name, f]));
+  const CALLS = M.edges.filter(e => e.kind !== "constant");
+
+  // Modules in the order simulate_scenario()'s code runs them (its STEP banners);
+  // colour follows the module
+  const MODULES = [
+    { id: "horizon",    label: "Orchestrators",           step: "Runs the steps" },
+    { id: "retirement", label: "Retirement",              step: "Step 1" },
+    { id: "exit",       label: "Other exits",             step: "Step 2" },
+    { id: "movement",   label: "Promotions & transfers",  step: "Step 3" },
+    { id: "hiring",     label: "Hiring",                  step: "Step 4" },
+    { id: "allowance",  label: "Allowances",              step: "Step 7, after aging and COLA" },
+    { id: "shared",     label: "Shared",                  step: "Utilities, validation, govhr adapters" }
+  ].filter(m => FNS.some(f => f.module === m.id));
+  const MOD = new Map(MODULES.map(m => [m.id, m]));
+  const SHARED = new Set(M.layout.shared_modules);
+  const ROLE_ORDER = ["orchestrator", "simulate", "core", "update", "pension", "policy_helpers", "class", "utils", "validation", "adapters", "other"];
+  const ROLE_LABEL = { orchestrator: "orchestrator", simulate: "wrapper", core: "core", update: "update", pension: "pension",
+    policy_helpers: "policy helpers", class: "S3 class", utils: "utils", validation: "validation", adapters: "govhr adapters", other: "other" };
+  const VIS_GLYPH = { exported: "●", internal: "○", dot_internal: "·", s3_method: "◆" };
+  const VIS_LABEL = { exported: "exported", internal: "internal", dot_internal: "dot-internal", s3_method: "S3 method" };
+  const maxLines = Math.max(...FNS.map(f => f.n_lines));
+  const col = id => `var(--m-${id})`;
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const arr = x => Array.isArray(x) ? x : (x == null ? [] : [x]);
+
+  // ---------- Findings (same rules as findings.md) ----------
+  const isApi = f => f.visibility === "exported" || f.visibility === "s3_method";
+  const hooks = new Set([".onLoad", ".onAttach", ".onUnload"]);
+  const unused = FNS.filter(f => !isApi(f) && arr(f.called_by).length === 0 && !hooks.has(f.name))
+    .map(f => ({ f, used: arr(f.data_raw_files).length ? "data-raw scripts" : arr(f.test_files).length ? "tests only" : "nowhere" }));
+  const crossEdges = CALLS.filter(e => {
+    const a = BY.get(e.from), b = BY.get(e.to);
+    return a && b && a.module !== b.module && !SHARED.has(b.module) && a.module !== "horizon";
+  });
+  const crossByCallee = new Map();
+  crossEdges.forEach(e => { if (!crossByCallee.has(e.to)) crossByCallee.set(e.to, []); crossByCallee.get(e.to).push(e.from); });
+  const long = FNS.filter(f => f.n_lines >= 150).sort((a, b) => b.n_lines - a.n_lines);
+  const wide = FNS.filter(f => f.n_args >= 8).sort((a, b) => b.n_args - a.n_args);
+  const inPlace = FNS.filter(f => arr(f.changes_argument).length)
+    .sort((a, b) => (a.role !== "core") - (b.role !== "core") || a.file.localeCompare(b.file));
+  const untested = FNS.filter(f => f.visibility === "exported" && arr(f.test_files).length === 0);
+
+  function flagsFor(f) {
+    const out = [];
+    const u = unused.find(x => x.f === f);
+    if (u) out.push(["unused", `Nothing in the package calls it (used in: ${u.used}).`]);
+    if (crossByCallee.has(f.name)) {
+      const mods = [...new Set(crossByCallee.get(f.name).map(n => MOD.get(BY.get(n).module)?.label ?? BY.get(n).module))];
+      out.push(["cross-module", `Called from other modules (${mods.join(", ")}). A shared helper belongs in utils.R.`]);
+    }
+    if (arr(f.changes_argument).length) out.push(["in place", `Changes the caller's table: ${arr(f.changes_argument).join(", ")}.`]);
+    if (f.n_lines >= 150) out.push(["long", `${f.n_lines} lines.`]);
+    if (f.n_args >= 8) out.push(["arguments", `${f.n_args} arguments.`]);
+    if (f.visibility === "exported" && arr(f.test_files).length === 0) out.push(["untested", "No test file mentions it."]);
+    return out;
+  }
+  const FLAGGED = new Set(FNS.filter(f => flagsFor(f).length).map(f => f.name));
+
+  // ---------- Header ----------
+  const nCalls = M.edges.filter(e => e.kind === "call").length;
+  document.getElementById("counts").innerHTML =
+    `<span><b>${FNS.length}</b> functions</span><span><b>${M.files.length}</b> files</span>` +
+    `<span><b>${nCalls}</b> calls</span><span><b>${FNS.filter(f => f.visibility === "exported").length}</b> exported</span>`;
+  document.getElementById("built").textContent = `Built from ${M.about.built_from} · rerun ${M.about.generator}`;
+
+  // ---------- Atlas ----------
+  const shownModules = new Set(MODULES.map(m => m.id));
+  const chips = document.getElementById("module-chips");
+  MODULES.forEach(m => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.id = `chip-${m.id}`; b.setAttribute("aria-pressed", "true");
+    b.innerHTML = `<span class="dot" style="--c:${col(m.id)}"></span>${esc(m.label)}`;
+    b.addEventListener("click", () => {
+      const on = b.getAttribute("aria-pressed") === "true";
+      b.setAttribute("aria-pressed", on ? "false" : "true");
+      on ? shownModules.delete(m.id) : shownModules.add(m.id);
+      document.querySelectorAll(".module").forEach(s => { s.hidden = !shownModules.has(s.dataset.module); });
+    });
+    chips.appendChild(b);
+  });
+
+  const atlas = document.getElementById("atlas");
+  const rowOf = new Map();
+  MODULES.forEach(m => {
+    const fns = FNS.filter(f => f.module === m.id);
+    const files = M.files.filter(f => f.module === m.id && f.n_functions > 0)
+      .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || a.file.localeCompare(b.file));
+    const sec = document.createElement("section");
+    sec.className = "module"; sec.dataset.module = m.id;
+    const lines = files.reduce((s, f) => s + f.n_lines, 0);
+    sec.innerHTML = `<div class="module-head"><span class="dot" style="--c:${col(m.id)}"></span>` +
+      `<h2>${esc(m.label)}</h2><span class="step">${esc(m.step)}</span>` +
+      `<span class="tally">${fns.length} functions · ${files.length} files · ${lines.toLocaleString("en")} lines</span></div>`;
+    const grid = document.createElement("div"); grid.className = "files";
+    files.forEach(file => {
+      const card = document.createElement("div"); card.className = "file";
+      card.innerHTML = `<div class="file-head"><span class="name">${esc(file.file)}</span>` +
+        `<span class="role">${esc(ROLE_LABEL[file.role] ?? file.role)}</span><span class="lines">${file.n_lines} ln</span></div>`;
+      const ul = document.createElement("ul"); ul.className = "fn-list";
+      FNS.filter(f => f.file === file.file).sort((a, b) => a.line_start - b.line_start).forEach(f => {
+        const li = document.createElement("li");
+        const b = document.createElement("button");
+        b.className = "fn"; b.type = "button"; b.dataset.name = f.name;
+        b.title = `${f.name} — ${VIS_LABEL[f.visibility]}, ${f.n_lines} lines`;
+        b.innerHTML = `<span class="vis" aria-label="${VIS_LABEL[f.visibility]}">${VIS_GLYPH[f.visibility]}</span>` +
+          `<span class="nm">${esc(f.name)}</span><span class="rel"></span>` +
+          `<span class="len" aria-hidden="true"><i style="width:${Math.max(4, Math.round(100 * f.n_lines / maxLines))}%"></i></span>`;
+        b.addEventListener("click", () => select(f.name));
+        rowOf.set(f.name, b);
+        li.appendChild(b); ul.appendChild(li);
+      });
+      card.appendChild(ul); grid.appendChild(card);
+    });
+    sec.appendChild(grid); atlas.appendChild(sec);
+  });
+
+  const q = document.getElementById("q"), vis = document.getElementById("vis");
+  function applyFilter() {
+    const term = q.value.trim().toLowerCase(), v = vis.value;
+    FNS.forEach(f => {
+      const textOk = !term || f.name.toLowerCase().includes(term) || (f.title ?? "").toLowerCase().includes(term);
+      const visOk = v === "all" || (v === "flagged" ? FLAGGED.has(f.name) : f.visibility === v);
+      rowOf.get(f.name)?.classList.toggle("dim", !(textOk && visOk));
+    });
+  }
+  q.addEventListener("input", applyFilter); vis.addEventListener("change", applyFilter);
+
+  // ---------- Inspector ----------
+  const inspector = document.getElementById("inspector");
+  const link = n => BY.has(n) ? `<button class="fnlink" type="button" data-go="${esc(n)}">${esc(n)}</button>` : `<code>${esc(n)}</code>`;
+  const links = list => list.length ? `<div class="linklist">${list.map(link).join("")}</div>` : `<div class="none">None</div>`;
+
+  function egoSvg(f) {
+    const callers = arr(f.called_by), callees = arr(f.calls), CAP = 16;
+    const L = callers.slice(0, CAP), R = callees.slice(0, CAP);
+    const rows = Math.max(L.length + (callers.length > CAP), R.length + (callees.length > CAP), 1);
+    const RH = 24, TOP = 26, W = 640, H = TOP + rows * RH + 8, BW = 196, CX = 240, CW = 160;
+    const cy = TOP + (rows * RH) / 2;
+    const trunc = s => s.length > 27 ? s.slice(0, 26) + "…" : s;
+    const node = (name, x, y, w) =>
+      `<g class="node" tabindex="0" role="button" data-go="${esc(name)}"><title>${esc(name)}</title>` +
+      `<rect x="${x}" y="${y - 9}" width="${w}" height="19" rx="3"></rect>` +
+      `<text x="${x + 7}" y="${y + 4}">${esc(trunc(name))}</text></g>`;
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Callers and callees of ${esc(f.name)}">`;
+    s += `<text class="colhead" x="0" y="12">CALLED BY (${callers.length})</text>`;
+    s += `<text class="colhead" x="${W}" y="12" text-anchor="end">CALLS (${callees.length})</text>`;
+    const yL = i => TOP + RH * (i + 0.5) + (rows - L.length - (callers.length > CAP)) * RH / 2;
+    const yR = i => TOP + RH * (i + 0.5) + (rows - R.length - (callees.length > CAP)) * RH / 2;
+    L.forEach((n, i) => { s += `<path d="M${BW},${yL(i)} C${BW + 24},${yL(i)} ${CX - 24},${cy} ${CX},${cy}"></path>`; });
+    R.forEach((n, i) => { s += `<path d="M${CX + CW},${cy} C${CX + CW + 24},${cy} ${W - BW - 24},${yR(i)} ${W - BW},${yR(i)}"></path>`; });
+    L.forEach((n, i) => { s += node(n, 0, yL(i), BW); });
+    R.forEach((n, i) => { s += node(n, W - BW, yR(i), BW); });
+    if (callers.length > CAP) s += `<text class="more" x="0" y="${yL(L.length) + 4}">+${callers.length - CAP} more, listed below</text>`;
+    if (callees.length > CAP) s += `<text class="more" x="${W - BW}" y="${yR(R.length) + 4}">+${callees.length - CAP} more, listed below</text>`;
+    // The selected function: name broken at underscores to fit the box
+    const parts = []; let cur = "";
+    f.name.split(/(?<=_)/).forEach(p => { if ((cur + p).length > 21 && cur) { parts.push(cur); cur = p; } else cur += p; });
+    parts.push(cur);
+    const bh = 12 + parts.length * 14;
+    s += `<g class="centre"><rect x="${CX}" y="${cy - bh / 2}" width="${CW}" height="${bh}" rx="4"></rect>`;
+    parts.forEach((p, i) => { s += `<text x="${CX + CW / 2}" y="${cy - bh / 2 + 18 + i * 14}" text-anchor="middle">${esc(p)}</text>`; });
+    return s + `</g></svg>`;
+  }
+
+  function renderInspector(f) {
+    const m = MOD.get(f.module);
+    const flags = flagsFor(f);
+    const args = (f.args ?? []).map(a => `<tr><td>${esc(a.name)}</td><td>${a.default == null ? "<span class='none'>required</span>" : esc(a.default)}</td></tr>`).join("");
+    const ext = Object.entries(f.external_calls ?? {}).map(([k, v]) => `<span class="tag mono">${esc(k)}:: ×${v}</span>`).join("");
+    const chips = list => list.length ? `<div class="tags">${list.map(x => `<span class="tag mono">${esc(x)}</span>`).join("")}</div>` : `<div class="none">None</div>`;
+    inspector.innerHTML = `
+      <div>
+        <div class="fname">${esc(f.name)}</div>
+        ${f.title ? `<div class="title">${esc(f.title)}</div>` : ""}
+        <div class="where">R/${esc(f.file)}:${f.line_start}–${f.line_end} · ${f.n_lines} lines${f.roxygen_lines ? ` + ${f.roxygen_lines} roxygen` : ""}</div>
+      </div>
+      <div class="flow-actions">
+        ${(M.flows || {})[f.name] ? `<button class="expand" type="button" data-flow="${esc(f.name)}">See it as a flow ▸</button>` : ""}
+        ${stepsOf(f).length ? `<button class="expand" type="button" data-proc="${esc(f.name)}">Follow it as a process ▸</button>` : ""}
+      </div>
+      <div class="tags">
+        <span class="tag"><span class="dot" style="--c:${col(f.module)}"></span>${esc(m?.label ?? f.module)}</span>
+        <span class="tag">${esc(ROLE_LABEL[f.role] ?? f.role)}</span>
+        <span class="tag">${VIS_GLYPH[f.visibility]} ${VIS_LABEL[f.visibility]}</span>
+        ${f.n_stop ? `<span class="tag">${f.n_stop} stop()</span>` : ""}
+        ${f.n_message ? `<span class="tag">${f.n_message} message()</span>` : ""}
+        ${f.n_warning ? `<span class="tag">${f.n_warning} warning()</span>` : ""}
+      </div>
+      ${flags.length ? `<div class="flags">${flags.map(([k, t]) => `<div class="flag"><b>!</b><span><strong>${esc(k)}</strong> · ${esc(t)}</span></div>`).join("")}</div>` : ""}
+      <div class="ego">${egoSvg(f)}</div>
+      <div><div class="section-label">Arguments (${f.n_args})</div>${args ? `<table class="kv"><tbody>${args}</tbody></table>` : `<div class="none">None</div>`}</div>
+      <div><div class="section-label">Column spec keys read</div>${chips(arr(f.spec_keys))}</div>
+      <div><div class="section-label">Returns</div>${chips(arr(f.returns))}</div>
+      <div><div class="section-label">Called by (${arr(f.called_by).length})</div>${links(arr(f.called_by))}</div>
+      <div><div class="section-label">Calls (${arr(f.calls).length})</div>${links(arr(f.calls))}</div>
+      ${ext ? `<div><div class="section-label">Other packages</div><div class="tags">${ext}</div></div>` : ""}
+      ${arr(f.constants_used).length ? `<div><div class="section-label">Constants read</div>${chips(arr(f.constants_used))}</div>` : ""}
+      <div><div class="section-label">Test files that mention it</div>${chips(arr(f.test_files))}</div>
+      ${arr(f.data_raw_files).length ? `<div><div class="section-label">data-raw scripts that use it</div>${chips(arr(f.data_raw_files))}</div>` : ""}`;
+  }
+
+  let selected = null;
+  function select(name, opts = {}) {
+    const f = BY.get(name); if (!f) return;
+    if (selected) {
+      rowOf.forEach(r => r.classList.remove("sel", "caller", "callee"));
+      rowOf.forEach(r => { r.querySelector(".rel").textContent = ""; });
+    }
+    selected = name;
+    arr(f.called_by).forEach(n => { const r = rowOf.get(n); if (r) { r.classList.add("caller"); r.querySelector(".rel").textContent = "←"; } });
+    arr(f.calls).forEach(n => { const r = rowOf.get(n); if (r) { r.classList.add("callee"); r.querySelector(".rel").textContent = r.classList.contains("caller") ? "↔" : "→"; } });
+    const row = rowOf.get(name); row.classList.add("sel");
+    renderInspector(f);
+    if (!opts.quiet) history.replaceState(null, "", `#fn=${encodeURIComponent(name)}`);
+    if (opts.scroll) {
+      const sec = row.closest(".module");
+      if (sec.hidden) { sec.hidden = false; shownModules.add(sec.dataset.module); document.getElementById(`chip-${sec.dataset.module}`).setAttribute("aria-pressed", "true"); }
+      row.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    }
+  }
+
+  document.addEventListener("click", e => {
+    const t = e.target.closest("[data-go]"); if (!t) return;
+    showTab("atlas"); select(t.dataset.go, { scroll: true });
+  });
+  document.addEventListener("keydown", e => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("g.node[data-go]")) {
+      e.preventDefault(); showTab("atlas"); select(e.target.dataset.go, { scroll: true });
+    }
+  });
+
+  // ---------- Module calls ----------
+  const counts = new Map();
+  CALLS.forEach(e => {
+    const a = BY.get(e.from), b = BY.get(e.to); if (!a || !b) return;
+    const k = `${a.module}>${b.module}`;
+    if (!counts.has(k)) counts.set(k, []);
+    counts.get(k).push(e);
+  });
+  const maxCell = Math.max(...[...counts.values()].map(v => v.length));
+  const matrix = document.getElementById("matrix");
+  let mh = `<thead><tr><th scope="col"><span class="none">caller ↓ · callee →</span></th>`;
+  MODULES.forEach(m => { mh += `<th scope="col"><span class="dot" style="--c:${col(m.id)}"></span>${esc(m.label)}</th>`; });
+  mh += `</tr></thead><tbody>`;
+  MODULES.forEach(r => {
+    mh += `<tr><th scope="row"><span class="dot" style="--c:${col(r.id)}"></span>${esc(r.label)}</th>`;
+    MODULES.forEach(c => {
+      const n = (counts.get(`${r.id}>${c.id}`) ?? []).length;
+      const p = n ? Math.round(12 + 78 * Math.sqrt(n / maxCell)) : 0;
+      const cls = ["cell", n ? "" : "empty", p > 55 ? "strong" : "", r.id === c.id ? "diag" : ""].join(" ");
+      mh += `<td><button class="${cls}" type="button" id="cell-${r.id}-${c.id}" data-k="${r.id}>${c.id}" style="--p:${p}%"` +
+        ` aria-pressed="false" aria-label="${esc(r.label)} calls ${esc(c.label)}: ${n}" ${n ? "" : "disabled"}>${n || "·"}</button></td>`;
+    });
+    mh += `</tr>`;
+  });
+  matrix.innerHTML = mh + `</tbody>`;
+
+  const tip = document.getElementById("tooltip");
+  matrix.addEventListener("mousemove", e => {
+    const b = e.target.closest(".cell"); if (!b || b.disabled) { tip.hidden = true; return; }
+    const [r, c] = b.dataset.k.split(">");
+    const n = counts.get(b.dataset.k).length;
+    tip.textContent = r === c ? `${MOD.get(r).label}: ${n} calls within the module`
+                              : `${MOD.get(r).label} → ${MOD.get(c).label}: ${n} call${n === 1 ? "" : "s"}`;
+    tip.hidden = false;
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + "px";
+    tip.style.top = (e.clientY + 14) + "px";
+  });
+  matrix.addEventListener("mouseleave", () => { tip.hidden = true; });
+
+  const mdet = document.getElementById("matrix-detail");
+  function showCell(k) {
+    document.querySelectorAll(".cell").forEach(b => b.setAttribute("aria-pressed", b.dataset.k === k ? "true" : "false"));
+    const [r, c] = k.split(">");
+    const list = (counts.get(k) ?? []).slice().sort((a, b) => a.to.localeCompare(b.to) || a.from.localeCompare(b.from));
+    const note = r === c ? "Calls within the module."
+      : r === "horizon" ? "The orchestrators calling into a module: expected."
+      : SHARED.has(c) ? "Calls into the shared utilities: expected."
+      : "One module calling into another module's files. Each is a lead: either a real dependency between steps, or a helper that belongs in utils.R.";
+    mdet.innerHTML = `<h2>${esc(MOD.get(r).label)} → ${esc(MOD.get(c).label)}<span class="count-badge">${list.length}</span></h2><p>${note}</p>` +
+      `<ul class="edge-list">${list.map(e => `<li>${link(e.from)}<span class="arrow">→</span>${link(e.to)}${e.kind === "reference" ? `<span class="none">(passed by name)</span>` : ""}</li>`).join("")}</ul>`;
+  }
+  matrix.addEventListener("click", e => { const b = e.target.closest(".cell"); if (b && !b.disabled) showCell(b.dataset.k); });
+  // Open on the largest call count between two different modules, leaving out the orchestrators and shared helpers
+  const firstCell = [...counts.entries()]
+    .filter(([k]) => { const [r, c] = k.split(">"); return r !== c && r !== "horizon" && !SHARED.has(c); })
+    .sort((a, b) => b[1].length - a[1].length)[0];
+  if (firstCell) showCell(firstCell[0]);
+
+  // ---------- Findings ----------
+  const fwhere = f => `<td class="mono">${esc(f.file)}:${f.line_start}</td>`;
+  const card = (title, blurb, n, head, body) =>
+    `<div class="panel"><h3>${esc(title)}<span class="count-badge">${n}</span></h3><p>${blurb}</p>` +
+    (n ? `<div class="table-scroll"><table class="finding-table"><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>` : `<div class="none">None.</div>`) + `</div>`;
+  const crossRows = [...crossByCallee.entries()].sort((a, b) => b[1].length - a[1].length).map(([to, froms]) => {
+    const f = BY.get(to);
+    const mods = [...new Set(froms.map(n => MOD.get(BY.get(n).module)?.label))].join(", ");
+    return `<tr><td>${link(to)}</td><td>${esc(MOD.get(f.module)?.label)}</td><td>${esc(mods)}</td><td class="num">${froms.length}</td></tr>`;
+  }).join("");
+  document.getElementById("findings").innerHTML = [
+    card("Used by other modules", "Defined in one module and called from another (orchestrators and shared files left out). A helper several modules need belongs in <code>utils.R</code>; a real dependency between steps should be a deliberate one.",
+      crossByCallee.size, ["Function", "Lives in", "Called from", "Callers"], crossRows),
+    card("Not exported and never called", "\"tests only\": only <code>tests/</code> uses it. \"data-raw scripts\": a script that builds the bundled data uses it. \"nowhere\": nothing does.",
+      unused.length, ["Function", "Where", "Used in"],
+      unused.map(u => `<tr><td>${link(u.f.name)}</td>${fwhere(u.f)}<td>${u.used}</td></tr>`).join("")),
+    card("Changes a table it was given", "Changed with <code>:=</code> or a <code>set*()</code> function and never reassigned first, so the caller's table changes. Expected in update helpers; check any in core files.",
+      inPlace.length, ["Function", "Role", "Argument"],
+      inPlace.map(f => `<tr><td>${link(f.name)}</td><td>${esc(ROLE_LABEL[f.role])}</td><td class="mono">${esc(arr(f.changes_argument).join(", "))}</td></tr>`).join("")),
+    card("Long functions", "150 lines or more, roxygen not counted.",
+      long.length, ["Function", "Where", "Lines"], long.map(f => `<tr><td>${link(f.name)}</td>${fwhere(f)}<td class="num">${f.n_lines}</td></tr>`).join("")),
+    card("Many arguments", "Eight or more.",
+      wide.length, ["Function", "Where", "Arguments"], wide.map(f => `<tr><td>${link(f.name)}</td>${fwhere(f)}<td class="num">${f.n_args}</td></tr>`).join("")),
+    card("Exported, no test mentions it", "An exported function no file in <code>tests/testthat</code> names.",
+      untested.length, ["Function", "Where"], untested.map(f => `<tr><td>${link(f.name)}</td>${fwhere(f)}</tr>`).join(""))
+  ].join("");
+
+  // ---------- Process ----------
+  const stepsOf = f => (f && f.process && Array.isArray(f.process.steps)) ? f.process.steps : [];
+  const isCheck = name => BY.get(name)?.file === "validation.R";
+  const procStart = document.getElementById("proc-start");
+  const procBody = document.getElementById("proc-body");
+  const procWrap = document.getElementById("proc-wrap");
+  MODULES.forEach(m => {
+    const og = document.createElement("optgroup"); og.label = m.label;
+    FNS.filter(f => f.module === m.id && stepsOf(f).length).sort((a, b) => a.name.localeCompare(b.name)).forEach(f => {
+      const o = document.createElement("option"); o.value = f.name; o.textContent = `${f.name}()`; og.appendChild(o);
+    });
+    if (og.children.length) procStart.appendChild(og);
+  });
+
+  const fromTags = ks => ks.map(k => `<span class="from">from #${k}</span>`).join(" ");
+  function renderSteps(f, depth, path) {
+    let n = 0, prevCtx = "", html = `<ol class="proc">`;
+    const source = new Map();   // variable -> the numbered step it came from
+    const sourcesOf = refs => [...new Set(arr(refs).filter(r => source.has(r)).map(r => source.get(r)))];
+    for (const s of stepsOf(f)) {
+      if (s.type === "section") {
+        html += `<li class="sec">${esc(s.title)}<span class="ln">line ${s.line}</span></li>`;
+        prevCtx = ""; continue;
+      }
+      const ctx = arr(s.context), key = ctx.join(" / ");
+      const ctxHtml = key && key !== prevCtx
+        ? `<div class="ctx">${ctx.map(c => { const loop = /^(for each|while)/.test(c);
+            return `<span class="${loop ? "loop" : ""}">${loop ? "↻ " : ""}${esc(c)}</span>`; }).join("")}</div>` : "";
+      prevCtx = key;
+      if (s.type === "call") {
+        n++;
+        const callee = BY.get(s.fn);
+        const rows = (s.args || []).map(a => `<tr><td>${esc(a.name || "·")}</td><td>${esc(a.expr)}</td><td>${fromTags(sourcesOf(a.refs))}</td></tr>`).join("");
+        if (s.base) source.set(s.base, n);
+        const reads = arr(s.used_later), parts = arr(callee?.process?.result_fields);
+        const inner = stepsOf(callee).length;
+        const canOpen = inner > 0 && depth < 8 && !path.includes(s.fn);
+        html += `<li>${ctxHtml}<div class="step-card${isCheck(s.fn) ? " is-check" : ""}">` +
+          `<div class="step-head"><span class="num">#${n}</span><span class="dot" style="--c:${col(callee?.module)}"></span>${link(s.fn)}` +
+          `${s.target ? `<span class="target">→ ${esc(s.target)}</span>` : ""}${callee?.title ? `<span class="fn-title">${esc(callee.title)}</span>` : ""}</div>` +
+          (rows ? `<table class="args"><tbody>${rows}</tbody></table>` : "") +
+          (parts.length ? `<div class="reads"><span>Hands back</span>${parts.map(p => `<code>${esc(p)}</code>`).join(" ")}</div>` : "") +
+          (reads.length ? `<div class="reads"><span>Read from it afterwards</span>${reads.map(p => `<code>$${esc(p)}</code>`).join(" ")}</div>` : "") +
+          (canOpen ? `<button class="expand" type="button" aria-expanded="false" data-open="${esc(s.fn)}" data-depth="${depth + 1}" data-path="${esc([...path, s.fn].join("|"))}" data-n="${inner}">Show its ${inner} steps ▸</button>` +
+                     `<div class="nested" style="--c:${col(callee.module)}" hidden></div>` : "") +
+          `</div></li>`;
+      } else if (s.type === "assign") {
+        const ks = sourcesOf(s.refs);
+        if (s.base && ks.length) source.set(s.base, Math.max(...ks));
+        html += `<li>${ctxHtml}<div class="handoff"><span class="sym">↳</span><b>${esc(s.target)}</b><span class="sym">←</span><span>${esc(s.expr)}</span>${fromTags(ks)}</div></li>`;
+      } else if (s.type === "inline") {
+        html += `<li>${ctxHtml}<div class="handoff"><span class="sym">✎</span><b>${esc(s.target)}</b><span class="sym">changed in place:</span><span>${esc(s.expr)}</span></div></li>`;
+      } else if (s.type === "return") {
+        html += `<li>${ctxHtml}<div class="handoff"><span class="sym">⏎ returns</span><b>${esc(s.expr)}</b></div></li>`;
+      }
+    }
+    return html + `</ol>`;
+  }
+
+  function renderProcess(name, opts = {}) {
+    const f = BY.get(name); if (!f || !stepsOf(f).length) return;
+    procStart.value = name;
+    const parts = arr(f.process.result_fields), ret = arr(f.process.returned);
+    procBody.innerHTML =
+      `<div class="proc-result"><div class="io-row"><span class="section-label">${esc(name)}() takes</span>` +
+      `${(f.args || []).map(a => `<code class="tag mono">${esc(a.name)}</code>`).join("")}</div></div>` +
+      renderSteps(f, 0, [name]) +
+      `<div class="proc-result"><div class="io-row"><span class="section-label">Hands back${ret.length ? ` ${esc(ret.join(", "))}` : ""}</span>` +
+      `${parts.length ? parts.map(p => `<code class="tag mono">${esc(p)}</code>`).join("") : `<span class="none">See the returns above</span>`}</div></div>`;
+    if (!opts.quiet) history.replaceState(null, "", `#proc=${encodeURIComponent(name)}`);
+  }
+  procStart.addEventListener("change", () => renderProcess(procStart.value));
+  const handoffs = document.getElementById("proc-handoffs"), checks = document.getElementById("proc-checks");
+  const applyProcToggles = () => {
+    procWrap.classList.toggle("hide-handoffs", !handoffs.checked);
+    procWrap.classList.toggle("hide-checks", !checks.checked);
+  };
+  handoffs.addEventListener("change", applyProcToggles); checks.addEventListener("change", applyProcToggles);
+  applyProcToggles();
+
+  procBody.addEventListener("click", e => {
+    const b = e.target.closest("button[data-open]"); if (!b) return;
+    const box = b.nextElementSibling;
+    const open = b.getAttribute("aria-expanded") === "true";
+    if (!open && !box.dataset.done) {
+      box.innerHTML = renderSteps(BY.get(b.dataset.open), +b.dataset.depth, b.dataset.path.split("|"));
+      box.dataset.done = "1";
+    }
+    box.hidden = open;
+    b.setAttribute("aria-expanded", open ? "false" : "true");
+    b.textContent = `${open ? "Show" : "Hide"} its ${b.dataset.n} steps ${open ? "▸" : "▾"}`;
+  });
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-proc]"); if (!b) return;
+    showTab("process"); renderProcess(b.dataset.proc); window.scrollTo({ top: 0 });
+  });
+
+  // ---------- Flow ----------
+  const FLOWS = M.flows || {};
+  const flowStart = document.getElementById("flow-start");
+  const flowBox = document.getElementById("flow-box");
+  const flowTrail = document.getElementById("flow-trail");
+  MODULES.forEach(m => {
+    const og = document.createElement("optgroup"); og.label = m.label;
+    FNS.filter(f => f.module === m.id && FLOWS[f.name]).sort((a, b) => a.name.localeCompare(b.name)).forEach(f => {
+      const o = document.createElement("option"); o.value = f.name; o.textContent = `${f.name}()`; og.appendChild(o);
+    });
+    if (og.children.length) flowStart.appendChild(og);
+  });
+  const isDark = () => {
+    const t = document.documentElement.getAttribute("data-theme");
+    return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  };
+  let trail = [], renderSeq = 0, currentFlow = null, mermaidReady = false, flowPending = null;
+
+  async function renderFlow(name, opts = {}) {
+    const fl = FLOWS[name]; if (!fl) return;
+    flowPending = null; currentFlow = name; flowStart.value = name;
+    const at = trail.indexOf(name);
+    trail = at >= 0 ? trail.slice(0, at + 1) : [...trail, name];
+    flowTrail.innerHTML = trail.map((n, i) => i === trail.length - 1
+      ? `<span class="here">${esc(n)}()</span>`
+      : `<button class="fnlink" type="button" data-flow="${esc(n)}">${esc(n)}()</button>`).join(`<span class="sep">›</span>`);
+    document.getElementById("flow-src").textContent = fl.mermaid;
+    document.getElementById("flow-actions").innerHTML =
+      `<button class="expand" type="button" data-go="${esc(name)}">Open in the atlas</button>` +
+      (stepsOf(BY.get(name)).length ? `<button class="expand" type="button" data-proc="${esc(name)}">Follow it as a process</button>` : "");
+    if (!opts.quiet) history.replaceState(null, "", `#flow=${encodeURIComponent(name)}`);
+    if (!window.mermaid) {
+      flowBox.innerHTML = `<p class="none">The diagram library did not load, so the diagram cannot be drawn here. Its Mermaid source is below; the same diagram is in data-raw/schemas/flows/.</p>`;
+      return;
+    }
+    if (!mermaidReady) {
+      mermaid.initialize({
+        startOnLoad: false, securityLevel: "strict", theme: isDark() ? "dark" : "neutral",
+        flowchart: { htmlLabels: true, useMaxWidth: false, curve: "basis", nodeSpacing: 28, rankSpacing: 42 },
+        themeVariables: { fontFamily: "IBM Plex Sans, system-ui, sans-serif", fontSize: "13px" }
+      });
+      mermaidReady = true;
+    }
+    flowBox.innerHTML = `<p class="none">Drawing ${esc(name)}()…</p>`;
+    try {
+      const { svg } = await mermaid.render(`flow-svg-${++renderSeq}`, fl.mermaid);
+      if (currentFlow !== name) return;
+      flowBox.innerHTML = svg;
+      const links = fl.links || {};
+      flowBox.querySelectorAll("g.node").forEach(g => {
+        const m = g.id.match(/flowchart-(N\d+)-/); if (!m) return;
+        const target = links[m[1]]; if (!target || target === name) return;
+        g.classList.add("flow-link"); g.setAttribute("tabindex", "0"); g.setAttribute("role", "button");
+        g.setAttribute("aria-label", `Open the flow of ${target}()`);
+        g.addEventListener("click", () => renderFlow(target));
+        g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); renderFlow(target); } });
+      });
+    } catch (err) {
+      flowBox.innerHTML = `<p class="none">Mermaid could not draw this diagram (${esc(err && err.message || err)}). Its source is below.</p>`;
+    }
+  }
+  flowStart.addEventListener("change", () => { trail = []; renderFlow(flowStart.value); });
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-flow]"); if (!b) return;
+    showTab("flow"); renderFlow(b.dataset.flow); window.scrollTo({ top: 0 });
+  });
+
+  // ---------- Tabs ----------
+  const TABS = ["flow", "process", "atlas", "matrix", "findings"];
+  function showTab(id) {
+    TABS.forEach(t => {
+      document.getElementById(`tab-${t}`).setAttribute("aria-selected", t === id ? "true" : "false");
+      document.getElementById(`view-${t}`).hidden = t !== id;
+    });
+    // Mermaid measures the page, so a flow is drawn once its tab is showing
+    if (id === "flow" && flowPending) renderFlow(flowPending, { quiet: true });
+  }
+  TABS.forEach(t => document.getElementById(`tab-${t}`).addEventListener("click", () => showTab(t)));
+
+  // Open on the link's function (#fn= in the atlas, #proc= as a process, #flow=
+  // as a flow), or on simulate_horizon()'s flow
+  const fromLink = key => decodeURIComponent((location.hash.match(new RegExp(`^#${key}=(.+)$`)) || [])[1] || "");
+  const hashFn = fromLink("fn"), hashProc = fromLink("proc"), hashFlow = fromLink("flow");
+  const home = BY.has("simulate_horizon") ? "simulate_horizon" : FNS[0].name;
+  select(BY.has(hashFn) ? hashFn : home, { quiet: !hashFn });
+  renderProcess(stepsOf(BY.get(hashProc)).length ? hashProc : home, { quiet: true });
+  flowPending = FLOWS[hashFlow] ? hashFlow : (FLOWS[home] ? home : Object.keys(FLOWS)[0]);
+  if (BY.has(hashFn)) { showTab("atlas"); select(hashFn, { scroll: true }); }
+  else if (hashProc && stepsOf(BY.get(hashProc)).length) showTab("process");
+  else showTab("flow");
+})();
+</script>

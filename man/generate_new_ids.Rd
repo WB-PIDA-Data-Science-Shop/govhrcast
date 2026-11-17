@@ -4,12 +4,12 @@
 \alias{generate_new_ids}
 \title{Generate New Personnel IDs}
 \usage{
-generate_new_ids(n, ref_date, prefix = "NEW", group_key = NULL)
+generate_new_ids(n, as_of_date, prefix = "NEW", group_key = NULL)
 }
 \arguments{
 \item{n}{Integer. Number of IDs to generate}
 
-\item{ref_date}{Date. Reference date for ID stamping}
+\item{as_of_date}{Date. Reference date for ID stamping}
 
 \item{prefix}{Character. Prefix for IDs (default "NEW")}
 
@@ -26,7 +26,7 @@ scheme.  Calling with the same inputs always produces the same IDs, making
 period-over-period microdata joins and snapshot tests reproducible.
 If \code{group_key} is supplied it is sanitised (non-alphanumeric chars → "_") and
 embedded in the ID to prevent collisions when called multiple times on the same
-\code{ref_date} (e.g. once per group in a loop).
+\code{as_of_date} (e.g. once per group in a loop).
 }
 \examples{
 \dontrun{

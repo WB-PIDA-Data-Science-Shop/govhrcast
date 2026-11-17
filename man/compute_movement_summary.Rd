@@ -17,7 +17,7 @@ compute_movement_summary(
 
 \item{demand_dt}{data.table. Output of \code{compute_movement_demand()}}
 
-\item{baseline_matrix}{data.table. Output of \code{estimate_movement_baseline()}}
+\item{baseline_matrix}{data.table. Output of \code{estimate_historical_movement_rates()}}
 
 \item{stock_before}{Integer. Total active headcount before movements}
 
