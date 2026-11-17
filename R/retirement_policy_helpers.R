@@ -455,18 +455,75 @@ pension_custom <- function(pension_formula) {
 
 
 
-pension_status_quo <- function(replacement_rates, group_cols = NULL){
+#' Pension at the Replacement Rates Seen in the Data
+#'
+#' @description
+#' Builds the pension half of a retirement policy that pays new retirees what
+#' people who retired in the past were paid, as a share of their last salary:
+#' the median replacement rate measured by [estimate_replacement_rates()]. Each
+#' retiree's pension is that rate times their pay (the run's `salary_col`), as
+#' in [pension_rate()].
+#'
+#' It works with any of the three kinds of policy:
+#' [design_retirement_policy_status_quo()],
+#' [design_retirement_policy_eligibility()] and
+#' [design_retirement_policy_mandatory()]. With a rule, it answers questions
+#' like "what would retiring everyone at 60 cost if pensions stay as generous
+#' as they have been?".
+#'
+#' @param replacement_rates data.table. The output of
+#'   [estimate_replacement_rates()]: one row per past retiree, with a
+#'   `replacement_rate` column. Retirees with a blank rate (a blank pension or
+#'   salary) are left out.
+#' @param group_cols Character vector or `NULL` (default). Columns to measure a
+#'   separate rate for, e.g. `"est_id"` for one rate per establishment; they
+#'   must be in `replacement_rates` (pass the same `group_cols` to
+#'   [estimate_replacement_rates()]). New retirees are matched to their group
+#'   on their main contract, so use contract columns: a personnel column such
+#'   as gender, or age in years, will not match. A new retiree whose group has
+#'   no rate gets the overall median. `NULL` gives everyone the overall median.
+#'
+#' @return A pension list (`group_cols`, `policy_table` with one
+#'   `pension_rate` per group or `NULL`, and `defaults` with
+#'   `pension_type = "rate"` and the overall median) -- pass it as the
+#'   `pension` argument of a `design_retirement_policy_*()` function.
+#' @seealso [estimate_replacement_rates()], [pension_rate()],
+#'   [compute_rate_pension()]
+#' @examples
+#' library(data.table)
+#' rates <- estimate_replacement_rates(bra_hrmis_contract, bra_hrmis_personnel,
+#'                                     group_cols = "est_id")
+#'
+#' # One rate for everyone, or one per establishment
+#' pension_status_quo(rates)
+#' pension <- pension_status_quo(rates, group_cols = "est_id")
+#'
+#' # With any kind of policy
+#' design_retirement_policy_status_quo(pension)
+#' design_retirement_policy_eligibility(retirement_rule_age(60), pension)
+#' @export
+pension_status_quo <- function(replacement_rates, group_cols = NULL) {
+  validate_datatable(replacement_rates, "replacement_rates")
+  validate_columns_exist(replacement_rates, c("replacement_rate", group_cols), "replacement_rates")
 
-  policy_dt <- 
-    replacement_rates[!is.na(replacement_rate), 
-                      .(pension_rate = stats::median(replacement_rate)), 
-                      by = group_cols]
+  # A retiree with a blank pension or salary has no rate
+  usable <- replacement_rates[!is.na(replacement_rate)]
+  if (nrow(usable) == 0L) {
+    stop("pension_status_quo: there is no retiree with a replacement rate in ",
+         "replacement_rates.", call. = FALSE)
+  }
 
-  list(group_cols   = group_cols,
-       policy_table = policy_dt,
-       defaults     = list(pension_type = "rate",
-                           pension_rate = stats::median(policy_dt$replacement_rate)))
-
+  list(
+    group_cols   = group_cols,
+    # One rate per group, only when there are groups (validate_policy_table()
+    # rejects a table without group_cols)
+    policy_table = if (length(group_cols) > 0L)
+                     usable[, .(pension_rate = stats::median(replacement_rate)), by = group_cols],
+    # Everyone else: the median over all retirees, so a small group counts no
+    # more than its retirees
+    defaults     = list(pension_type = "rate",
+                        pension_rate = stats::median(usable$replacement_rate))
+  )
 }
 
 # =============================================================================

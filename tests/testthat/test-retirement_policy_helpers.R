@@ -155,6 +155,57 @@ test_that("pension_custom validates the formula at construction time", {
   expect_error(pension_custom("system('id')"), regexp = "disallowed")
 })
 
+# Replacement rates as estimate_replacement_rates() returns them: E1's rates
+# have a median of 0.6, E2's 1.0; over everyone with a rate the median is 0.65
+# (not 0.8, the median of the two group medians). E3's only retiree has no rate.
+replacement_fixture <- function() {
+  data.table(personnel_id     = c("A", "B", "C", "D", "E", "F"),
+             est_id           = c("E1", "E1", "E1", "E1", "E2", "E3"),
+             replacement_rate = c(0.5, 0.6, 0.7, NA, 1.0, NA))
+}
+
+test_that("pension_status_quo with no groups pays everyone the median rate", {
+  pension <- pension_status_quo(replacement_fixture())
+  expect_null(pension$group_cols)
+  expect_null(pension$policy_table)
+  expect_equal(pension$defaults, list(pension_type = "rate", pension_rate = 0.65))
+  # Accepted as the pension of a policy
+  expect_true(check_retirement_pension_inputs(list(pension = pension)))
+})
+
+test_that("pension_status_quo by group: each group's median, the overall median as default", {
+  pension <- pension_status_quo(replacement_fixture(), group_cols = "est_id")
+  expect_identical(pension$group_cols, "est_id")
+  # E3 has no rate, so it is not in the table and its retirees get the default
+  expect_equal(pension$policy_table, data.table(est_id = c("E1", "E2"), pension_rate = c(0.6, 1.0)))
+  expect_equal(pension$defaults$pension_rate, 0.65)
+  expect_true(check_retirement_pension_inputs(list(pension = pension)))
+})
+
+test_that("pension_status_quo stops on rates it cannot use", {
+  rates <- replacement_fixture()
+  expect_error(pension_status_quo(as.data.frame(rates)), "must be a data.table")
+  expect_error(pension_status_quo(rates, group_cols = "paygrade"),
+               "Columns not found in replacement_rates: paygrade")
+  expect_error(pension_status_quo(rates[is.na(replacement_rate)]),
+               "no retiree with a replacement rate")
+})
+
+test_that("pension_status_quo works with any kind of retirement policy", {
+  contract_dt <- data.table(
+    contract_id = c("C1", "C2"), personnel_id = c("P1", "P2"), est_id = c("E1", "E9"),
+    start_date = as.Date("2000-01-01"), end_date = as.Date(NA),
+    contract_type = "permanent", gross_salary_lcu = 1000
+  )
+  personnel_dt <- data.table(personnel_id = c("P1", "P2"), age = 65, employment_status = "active")
+  pension <- pension_status_quo(replacement_fixture(), group_cols = "est_id")
+
+  res <- simulate_retirement(contract_dt, personnel_dt, as_of_date = as.Date("2025-01-01"),
+                             policy_params = design_retirement_policy_eligibility(retirement_rule_age(60), pension))
+  # P1 retires from E1 at E1's rate; E9 has no rate of its own, so P2 gets the default
+  expect_equal(res$retirees_dt[order(personnel_id), pension], c(600, 650))
+})
+
 # =============================================================================
 # Policies: one per kind
 # =============================================================================
