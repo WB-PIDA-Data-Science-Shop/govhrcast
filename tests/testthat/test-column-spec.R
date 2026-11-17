@@ -128,6 +128,8 @@ entry_points <- function(spec) {
       allowance, d$hc, group_cols = "est_id", baseline_date = d$start, column_spec_args = spec),
     movement_policy_template = function() movement_policy_template(
       d$hc, group_cols = "est_id", column_spec_args = spec),
+    prepare_salary_scale = function() prepare_salary_scale(
+      d$hc, d$start, "est_id", mean, na.rm = TRUE, column_spec_args = spec),
     make_status_quo_policies = function() suppressWarnings(make_status_quo_policies(
       d$hc, d$hp, d$scale, column_spec_args = spec))
   )
