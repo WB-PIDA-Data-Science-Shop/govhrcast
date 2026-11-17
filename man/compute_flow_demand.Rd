@@ -25,6 +25,10 @@ compute_flow_demand(
 \item defaults: Only when \code{leavers_dt} is \code{NULL}: the retirement
 rule to work out who leaves, e.g.
 \code{list(eligibility_type = "age_only", min_age = 60)}.
+\code{eligibility_type} is \code{"age_only"}, \code{"tenure_only"},
+\code{"age_and_tenure"} or \code{"custom"} (with
+\code{eligibility_rule}); it is passed to \code{\link{select_retirees}()},
+which reads age and tenure from \code{personnel_dt}.
 }}
 
 \item{leavers_dt}{data.table or \code{NULL}. The people who left, with the

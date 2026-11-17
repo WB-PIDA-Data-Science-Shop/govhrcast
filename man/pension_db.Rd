@@ -18,8 +18,8 @@ replacement rate as a fraction of wage; \code{NA} = uncapped.}
 }
 \value{
 A list with a single \code{defaults} element -- pass this as the
-\code{pension} argument to \code{\link{design_retirement_policy}} (or a
-preset), or as \code{\link{pension_hybrid}}'s \code{db} argument.
+\code{pension} argument to a \code{design_retirement_policy_*()}
+function, or as \code{\link{pension_hybrid}}'s \code{db} argument.
 }
 \description{
 Builds the pension half of a retirement policy for a final-salary
@@ -31,5 +31,5 @@ optionally capped as a replacement rate).  Pay is the run's \code{salary_col}.
 pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80)
 }
 \seealso{
-\code{\link{design_retirement_policy}}, \code{\link{compute_db_pension}}
+\code{\link{design_retirement_policy_eligibility}}, \code{\link{compute_db_pension}}
 }

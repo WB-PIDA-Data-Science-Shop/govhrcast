@@ -15,8 +15,8 @@ time, if the formula is malformed or uses a disallowed function.}
 }
 \value{
 A list with a single \code{defaults} element -- pass this as the
-\code{pension} argument to \code{\link{design_retirement_policy}} (or a
-preset).
+\code{pension} argument to a \code{design_retirement_policy_*()}
+function.
 }
 \description{
 Builds the pension half of a retirement policy from a user-defined,
@@ -31,5 +31,5 @@ your data is called.
 pension_custom("pmin(base_salary_lcu * 0.02 * tenure_years, base_salary_lcu * 0.8)")
 }
 \seealso{
-\code{\link{design_retirement_policy}}, \code{\link{validate_pension_formula}}
+\code{\link{design_retirement_policy_eligibility}}, \code{\link{validate_pension_formula}}
 }

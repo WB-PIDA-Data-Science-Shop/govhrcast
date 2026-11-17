@@ -23,8 +23,8 @@ characterisation_run <- function(salary_col, explicit_hiring_scale) {
   suppressMessages(suppressWarnings(simulate_horizon(
     contract_dt = hc, personnel_dt = hp, salary_scale_dt = scale,
     n_periods = 5L, baseline_date = start,
-    retirement_policy = design_retirement_policy_status_quo(
-      pension = pension_db(0.02, 35, 0.80), mandatory_age = 75),
+    retirement_policy = design_retirement_policy_mandatory(
+      retirement_rule_age(75), pension_db(0.02, 35, 0.80)),
     exit_policy     = design_exit_policy_status_quo(group_cols = "est_id"),
     movement_policy = design_movement_policy_status_quo(
       group_cols = "est_id", movement_type = "transfer", salary_update_rule = "keep"),

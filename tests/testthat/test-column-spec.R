@@ -96,6 +96,9 @@ entry_points <- function(spec) {
       d$hc, d$hp, d$scale, period_date = d$start, column_spec_args = spec),
     simulate_retirement = function() simulate_retirement(
       d$hc, d$hp, as_of_date = d$start, column_spec_args = spec),
+    select_retirees = function() select_retirees(
+      d$hc, d$hp, design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(1)),
+      as_of_date = d$start, column_spec_args = spec),
     simulate_exits = function() simulate_exits(
       d$hc, d$hp, policy_params = flat_exits, as_of_date = d$start, column_spec_args = spec),
     simulate_promotions_transfers = function() simulate_promotions_transfers(
@@ -117,6 +120,8 @@ entry_points <- function(spec) {
       d$hc, d$hp, column_spec_args = spec),
     estimate_retirement_hazard_rates = function() estimate_retirement_hazard_rates(
       d$hp, group_cols = "age_yr_int", column_spec_args = spec),
+    estimate_replacement_rates = function() estimate_replacement_rates(
+      d$hc, d$hp, column_spec_args = spec),
     estimate_baseline_allowance_scale = function() estimate_baseline_allowance_scale(
       allowance, d$hc, group_cols = "est_id", baseline_date = d$start, column_spec_args = spec),
     design_allowance_policy_status_quo = function() design_allowance_policy_status_quo(

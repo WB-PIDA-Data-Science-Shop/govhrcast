@@ -1,7 +1,7 @@
 # Custom formulas and rules never run code outside the allow-list
 #
 # Users may write a custom pension formula (pension_type = "custom") or a
-# custom eligibility rule (eligibility_type = "custom") as an R expression in
+# custom retirement rule (retirement_rule_custom()) as an R expression in
 # a string. Whatever path the string arrives by -- a helper, a hand-written
 # policy list, or a policy_table column -- it must be checked against the
 # allow-list before anything evaluates it. Each harmful string below tries to
@@ -23,17 +23,20 @@ sandbox_fixture <- function() {
     personnel_dt = data.table(
       personnel_id = c("P1", "P2"),
       birth_date = as.Date(c("1955-01-01", "1990-01-01")),
+      age = c(70, 35),
       employment_status = "active"
     ),
     ref_date = as.Date("2025-01-01")
   )
 }
 
-# A hand-written retirement policy: P1 (age 70) retires under age_only 60.
+# A retirement policy with a hand-written pension (not pension_custom(), which
+# would reject the formula itself): P1 (age 70) retires under an age-60 rule.
 custom_pension_policy <- function(formula, policy_table = NULL, group_cols = NULL) {
-  list(group_cols = group_cols, policy_table = policy_table,
-       defaults = list(eligibility_type = "age_only", min_age = 60,
-                       pension_type = "custom", pension_formula = formula))
+  design_retirement_policy_eligibility(
+    retirement_rule_age(60),
+    list(group_cols = group_cols, policy_table = policy_table,
+         defaults = list(pension_type = "custom", pension_formula = formula)))
 }
 
 test_that("a hand-written policy with a disallowed pension_formula is rejected before it runs", {
@@ -81,8 +84,8 @@ test_that("a disallowed eligibility_rule reached through flow hiring is rejected
   Sys.unsetenv(probe_var); on.exit(Sys.unsetenv(probe_var), add = TRUE)
   d <- sandbox_fixture()
   # With no retirees passed in, flow hiring re-derives leavers from the
-  # eligibility rule on the hiring policy -- a path that bypasses
-  # check_retirement_inputs().
+  # eligibility rule on the hiring policy -- a rule that never went through
+  # retirement_rule_custom().
   hiring <- list(mode = "flow", replacement_rate = 1, group_cols = NULL,
                  defaults = list(eligibility_type = "custom",
                                  eligibility_rule = paste("age >= 60 |", harmful)))
@@ -99,9 +102,9 @@ test_that("pension_custom() names pension_formula, not eligibility_rule, when it
 })
 
 test_that("namespaced and anonymous calls are rejected with a clear message", {
-  expect_error(eligibility_custom("base::system('ls')"),
+  expect_error(retirement_rule_custom("base::system('ls')"),
                "eligibility_rule.*only plain function names")
-  expect_error(eligibility_custom("(function() TRUE)()"),
+  expect_error(retirement_rule_custom("(function() TRUE)()"),
                "eligibility_rule.*only plain function names")
   expect_error(pension_custom("base::abs(gross_salary_lcu)"),
                "pension_formula.*only plain function names")

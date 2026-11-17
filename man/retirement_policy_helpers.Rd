@@ -4,30 +4,30 @@
 \alias{retirement_policy_helpers}
 \title{Retirement Policy Constructor Helpers}
 \description{
-Small, composable constructors for building the \code{retirement_policy}
-argument to \code{\link{simulate_retirement}}/\code{\link{simulate_horizon}}
-without hand-writing the full three-slot list.  Each constructor validates
-its own inputs immediately (at construction time) rather than deferring to
-a runtime error deep inside the simulation.
+Small, composable constructors for building the \code{retirement_policy} argument
+to \code{\link[=simulate_retirement]{simulate_retirement()}}, \code{\link[=select_retirees]{select_retirees()}} and \code{\link[=simulate_horizon]{simulate_horizon()}}
+without hand-writing the list. Each checks its own inputs when you call it,
+so a mistake stops where you made it rather than deep inside a simulation.
 
-Three layers, composed together:
-\enumerate{
-\item \strong{Eligibility constructors} (\code{eligibility_*()}) --
-which employees are eligible to retire.
-\item \strong{Pension constructors} (\code{pension_*()}) -- how much
-they receive.
-\item \code{\link{design_retirement_policy}} combines one of each into
-the final policy list, or use a \code{design_retirement_policy_*()}
-preset to skip building the eligibility piece by hand.
+A retirement policy has three kinds, one constructor each:
+\itemize{
+\item \code{\link[=design_retirement_policy_status_quo]{design_retirement_policy_status_quo()}}: people retire at the rates seen in
+the history.
+\item \code{\link[=design_retirement_policy_eligibility]{design_retirement_policy_eligibility()}}: everyone who meets a rule retires.
+\item \code{\link[=design_retirement_policy_mandatory]{design_retirement_policy_mandatory()}}: everyone who meets a rule retires,
+and the rest retire at the historical rates.
 }
 
-Every constructor here returns a \strong{plain list} -- the same shape a
-hand-written \code{retirement_policy} already has.  Nothing is hidden
-behind a class: any \code{retirement_policy} configuration not reachable
-through these constructors (e.g. the eligibility or pension \emph{type}
-itself varying by group, rather than just its parameters) remains fully
-reachable by passing a hand-built \code{policy_table} to
-\code{\link{design_retirement_policy}}, or by editing the returned list
-directly.
+They are built from three parts:
+\enumerate{
+\item \strong{Who retires}: a rule from a \verb{retirement_rule_*()} function (by age,
+tenure, both, or your own expression), and/or rates from
+\code{\link[=retirement_rates_status_quo]{retirement_rates_status_quo()}}.
+\item \strong{What they are paid}: a pension from a \verb{pension_*()} function.
+\item Optionally, \code{active_types}: the contract types the policy covers.
+}
+
+Every constructor returns a plain list, so you can also edit what it returns,
+or write the list yourself.
 }
 \keyword{internal}

@@ -51,18 +51,12 @@ make_salary_scale <- function() {
 # The pre-status-quo default of simulate_horizon(): retire at 60 with 10+ years,
 # DB pension. Tests on single-snapshot fixtures pass it explicitly, because the
 # status-quo default needs a multi-snapshot panel to estimate retirement rates.
-rule_retirement_policy <- design_retirement_policy_age_tenure(
-  min_age = 60, min_tenure = 10,
-  pension = pension_db(accrual_rate = 0.02,
-                       max_years = 35, replacement_cap = 0.80)
+rule_retirement_policy <- design_retirement_policy_eligibility(
+  retirement_rule_age_tenure(min_age = 60, min_tenure = 10),
+  pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80)
 )
 
-null_retirement_policy <- list(
-  defaults = list(
-    eligibility_type = "age_only", min_age = 999,
-    pension_type = "flat", flat_amount = 1000
-    )
-)
+null_retirement_policy <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(1000))
 
 null_movement_policy <- list(
   group_cols   = "est_id",
@@ -353,12 +347,7 @@ test_that("simulate_scenario: inflation_effect = pre_cola_bill * rate", {
 test_that("simulate_scenario: pensioner_register gains rows after retirements", {
   n <- 2L; sal <- 10000
   s <- make_horizon_state(n = n, salary = sal, ages = rep(65L, n))
-  retire_policy <- list(
-    defaults = list(
-      eligibility_type = "age_only", min_age = 60,
-      pension_type = "flat", flat_amount = 5000
-      )
-  )
+  retire_policy <- design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(5000))
   r <- simulate_scenario(
     contract_dt        = s$contract_dt,
     personnel_dt       = s$personnel_dt,
@@ -377,12 +366,7 @@ test_that("simulate_scenario: pensioner_register gains rows after retirements", 
 
 test_that("simulate_scenario: exit_savings positive when retirees have salary", {
   s <- make_horizon_state(n = 2L, salary = 10000, ages = rep(65L, 2L))
-  retire_policy <- list(
-    defaults = list(
-      eligibility_type = "age_only", min_age = 60,
-      pension_type = "flat", flat_amount = 1000
-      )
-  )
+  retire_policy <- design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(1000))
   r <- simulate_scenario(
     contract_dt        = s$contract_dt,
     personnel_dt       = s$personnel_dt,
@@ -701,12 +685,7 @@ test_that("pension_cost_total >= pension_cost_new from period 2 onwards", {
   # Two workers retire in period 1; pension register carries forward
   s <- make_horizon_state(n = 4L, salary = 10000,
                           ages = c(64L, 64L, 40L, 40L))
-  retire_policy <- list(
-    defaults = list(
-      eligibility_type = "age_only", min_age = 65,
-      pension_type = "flat", flat_amount = 1000
-      )
-  )
+  retire_policy <- design_retirement_policy_eligibility(retirement_rule_age(65), pension_flat(1000))
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
     personnel_dt       = s$personnel_dt,
@@ -880,12 +859,7 @@ test_that("n_headcount_start excludes pensioner rows", {
   # 2 active workers, 2 near-retirement; pensioners should not inflate headcount
   n_active <- 2L
   s <- make_horizon_state(n = n_active, salary = 10000, ages = rep(30L, n_active))
-  retire_policy <- list(
-    defaults = list(
-      eligibility_type = "age_only", min_age = 65,
-      pension_type = "flat", flat_amount = 1000
-      )
-  )
+  retire_policy <- design_retirement_policy_eligibility(retirement_rule_age(65), pension_flat(1000))
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
     personnel_dt       = s$personnel_dt,
@@ -906,12 +880,7 @@ test_that("n_headcount_end decreases after retirements (pensioners excluded)", {
   # 4 workers all above retirement age → all retire in period 1, no hires
   n <- 4L
   s <- make_horizon_state(n = n, salary = 10000, ages = rep(66L, n))
-  retire_policy <- list(
-    defaults = list(
-      eligibility_type = "age_only", min_age = 65,
-      pension_type = "flat", flat_amount = 1000
-      )
-  )
+  retire_policy <- design_retirement_policy_eligibility(retirement_rule_age(65), pension_flat(1000))
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
     personnel_dt       = s$personnel_dt,
@@ -931,12 +900,7 @@ test_that("wage_bill_start is 0 after all workers become pensioners", {
   # All workers retire in period 1; period 2 should have wage_bill_start == 0
   n <- 2L
   s <- make_horizon_state(n = n, salary = 10000, ages = rep(66L, n))
-  retire_policy <- list(
-    defaults = list(
-      eligibility_type = "age_only", min_age = 65,
-      pension_type = "flat", flat_amount = 500
-      )
-  )
+  retire_policy <- design_retirement_policy_eligibility(retirement_rule_age(65), pension_flat(500))
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
     personnel_dt       = s$personnel_dt,
@@ -955,12 +919,7 @@ test_that("wage_bill_start is 0 after all workers become pensioners", {
 test_that("exit_savings equals pre-retirement salary bill when all workers retire", {
   n <- 2L; sal <- 10000
   s <- make_horizon_state(n = n, salary = sal, ages = rep(66L, n))
-  retire_policy <- list(
-    defaults = list(
-      eligibility_type = "age_only", min_age = 65,
-      pension_type = "flat", flat_amount = 500
-      )
-  )
+  retire_policy <- design_retirement_policy_eligibility(retirement_rule_age(65), pension_flat(500))
   res <- simulate_horizon(
     contract_dt        = s$contract_dt,
     personnel_dt       = s$personnel_dt,
@@ -1068,12 +1027,7 @@ test_that("simulate_horizon: status_quo mode produces hires close to historical 
     salary_scale = salary_scale
   )
 
-  retire_policy_off <- list(
-    defaults = list(
-      eligibility_type = "age_only", min_age = 999,
-      pension_type = "flat", flat_amount = 500
-      )
-  )
+  retire_policy_off <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(500))
 
   res <- simulate_horizon(
     contract_dt        = p$contract_panel,   # full panel
@@ -1110,12 +1064,7 @@ test_that("simulate_horizon: movement_policy without movement_rate on a panel wi
       movement_type      = "transfer"
     )
   )
-  retire_policy_off <- list(
-    defaults = list(
-      eligibility_type = "age_only", min_age = 999,
-      pension_type = "flat", flat_amount = 500
-    )
-  )
+  retire_policy_off <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(500))
 
   expect_message(
     res <- simulate_horizon(
@@ -1232,9 +1181,9 @@ test_that("simulate_horizon: with no observed retirements, a mandatory age still
   expect_message(
     res <- run_hazard_horizon(
       make_hazard_panel(with_pensioner = FALSE),
-      retirement_policy = design_retirement_policy_status_quo(pension = pen, mandatory_age = 60)
+      retirement_policy = design_retirement_policy_mandatory(retirement_rule_age(60), pen)
     ),
-    "apart from the mandatory age of 60"
+    "apart from the mandatory rule"
   )
   expect_equal(res$summary_dt$n_exits, 2L)
 })
@@ -1278,12 +1227,7 @@ make_phase1b_inputs <- function(ref_date = as.Date("2020-01-01")) {
     est_id           = "E1",
     gross_salary_lcu = 10000
   )
-  retire_off <- list(
-    defaults = list(
-      eligibility_type = "age_only", min_age = 999L,
-      pension_type = "flat", flat_amount = 500
-      )
-  )
+  retire_off <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(500))
   list(
     contract_dt     = contract_dt,
     personnel_dt    = personnel_dt,
@@ -1795,16 +1739,7 @@ test_that("Block F: canonical 3-slot retirement_policy (scalar defaults) works",
   d <- make_block_f_inputs()
 
   # Nobody is old enough to retire (max age = 55 < 60)
-  ret_policy <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "age_only",
-      pension_type     = "flat",
-      flat_amount      = 500,
-      min_age          = 60
-    )
-  )
+  ret_policy <- design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(500))
   res <- simulate_horizon(
     contract_dt        = d$contract_dt,
     personnel_dt       = d$personnel_dt,
@@ -1828,15 +1763,9 @@ test_that("Block F: canonical 3-slot retirement_policy with group_cols + policy_
     paygrade = c("G1", "G2"),
     min_age  = c(60,   44)
   )
-  ret_policy <- list(
-    group_cols   = "paygrade",
-    policy_table = pt,
-    defaults = list(
-      eligibility_type = "age_only",
-      pension_type     = "flat",
-      flat_amount      = 500,
-      min_age          = 60
-    )
+  ret_policy <- design_retirement_policy_eligibility(
+    retirement_rule_age(60, group_cols = "paygrade", policy_table = pt),
+    pension_flat(500)
   )
   res <- simulate_horizon(
     contract_dt        = d$contract_dt,
@@ -1861,15 +1790,9 @@ test_that("Block F: retirement policy_table overrides defaults per group", {
     paygrade = c("G1", "G2"),
     min_age  = c(999,   40)
   )
-  ret_policy <- list(
-    group_cols   = "paygrade",
-    policy_table = pt,
-    defaults = list(
-      eligibility_type = "age_only",
-      pension_type     = "flat",
-      flat_amount      = 500,
-      min_age          = 999
-    )
+  ret_policy <- design_retirement_policy_eligibility(
+    retirement_rule_age(999, group_cols = "paygrade", policy_table = pt),
+    pension_flat(500)
   )
   res <- simulate_horizon(
     contract_dt        = d$contract_dt,
@@ -1891,12 +1814,7 @@ test_that("Block F: retirement policy_table overrides defaults per group", {
 test_that("Block F: canonical 3-slot exit_policy (flat rate) produces exits", {
   d <- make_block_f_inputs()
 
-  no_retire <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
-                        flat_amount = 0, min_age = 999)
-  )
+  no_retire <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(0))
   exit_policy <- list(
     group_cols   = NULL,
     policy_table = NULL,
@@ -1927,12 +1845,7 @@ test_that("Block F: canonical 3-slot exit_policy (flat rate) produces exits", {
 test_that("Block F: exit_rate = 0 produces no non-retirement exits", {
   d <- make_block_f_inputs()
 
-  no_retire <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
-                        flat_amount = 0, min_age = 999)
-  )
+  no_retire <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(0))
   exit_policy <- list(
     group_cols   = NULL,
     policy_table = NULL,
@@ -1961,12 +1874,7 @@ test_that("Block F: exit_rate = 0 produces no non-retirement exits", {
 test_that("Block F: canonical exit_policy with group_cols + policy_table", {
   d <- make_block_f_inputs()
 
-  no_retire <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
-                        flat_amount = 0, min_age = 999)
-  )
+  no_retire <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(0))
   # G1: 100% exit; G2: 0% exit
   exit_pt <- data.table::data.table(
     paygrade  = c("G1", "G2"),
@@ -2005,12 +1913,7 @@ test_that("Block F: canonical exit_policy with group_cols + policy_table", {
 test_that("Block F: canonical 3-slot movement_policy (flat rate = 0) gives no movers", {
   d <- make_block_f_inputs()
 
-  no_retire <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
-                        flat_amount = 0, min_age = 999)
-  )
+  no_retire <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(0))
   mov_policy <- list(
     group_cols   = "paygrade",
     policy_table = NULL,
@@ -2041,12 +1944,7 @@ test_that("Block F: canonical 3-slot movement_policy (flat rate > 0) produces mo
   set.seed(42)
   d <- make_block_f_inputs()
 
-  no_retire <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
-                        flat_amount = 0, min_age = 999)
-  )
+  no_retire <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(0))
   mov_policy <- list(
     group_cols   = "paygrade",
     policy_table = NULL,
@@ -2077,12 +1975,7 @@ test_that("Block F: canonical 3-slot movement_policy (flat rate > 0) produces mo
 test_that("Block F: movement_type defaults to promotion when unset", {
   d <- make_block_f_inputs()
 
-  no_retire <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
-                        flat_amount = 0, min_age = 999)
-  )
+  no_retire <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(0))
   # Explicit policy_table with rate = 1.0 -- deterministic (no stochastic
   # rounding ambiguity) and sidesteps simulate_promotions_transfers()'s
   # single-snapshot + NULL-policy_table short-circuit (a separate,
@@ -2120,12 +2013,7 @@ test_that("Block F: movement_type defaults to promotion when unset", {
 test_that("Block F: movement_type = 'transfer' reports under n_transfers, not n_promotions", {
   d <- make_block_f_inputs()
 
-  no_retire <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
-                        flat_amount = 0, min_age = 999)
-  )
+  no_retire <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(0))
   mov_policy <- list(
     group_cols   = "est_id",
     policy_table = data.table::data.table(
@@ -2185,12 +2073,7 @@ test_that("check_movement_inputs validates movement_type", {
 test_that("Block F: movement_policy NULL gives zero promotion and transfer effects", {
   d <- make_block_f_inputs()
 
-  no_retire <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
-                        flat_amount = 0, min_age = 999)
-  )
+  no_retire <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(0))
   res <- simulate_horizon(
     contract_dt        = d$contract_dt,
     personnel_dt       = d$personnel_dt,
@@ -2213,12 +2096,11 @@ test_that("Block F: all 3 canonical policies active simultaneously — no error"
   set.seed(7)
   d <- make_block_f_inputs()
 
-  ret_policy <- list(
-    group_cols   = "paygrade",
-    policy_table = data.table::data.table(paygrade = c("G1", "G2"),
-                                          min_age  = c(999,   45)),
-    defaults = list(eligibility_type = "age_only", pension_type = "flat",
-                    flat_amount = 500, min_age = 999)
+  ret_policy <- design_retirement_policy_eligibility(
+    retirement_rule_age(999, group_cols = "paygrade",
+                        policy_table = data.table::data.table(paygrade = c("G1", "G2"),
+                                                              min_age  = c(999,   45))),
+    pension_flat(500)
   )
   exit_policy <- list(
     group_cols   = NULL,
@@ -2251,12 +2133,7 @@ test_that("Block F: all 3 canonical policies active simultaneously — no error"
 test_that("Block F: non-retirement exits remove the leavers' salaries before COLA", {
   d <- make_block_f_inputs()
 
-  no_retire <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults     = list(eligibility_type = "age_only", pension_type = "flat",
-                        flat_amount = 0, min_age = 999)
-  )
+  no_retire <- design_retirement_policy_eligibility(retirement_rule_age(999), pension_flat(0))
   # Deterministic selection: exit_strategy names a column, so the lowest
   # salaries leave first. round(6 * 0.5) = 3 leavers: the three G1 staff
   # (P1-P3, 30,000 each).
@@ -2521,16 +2398,8 @@ make_hazard_retirement_panel <- function() {
 }
 
 make_hazard_retirement_policy <- function() {
-  list(
-    group_cols   = "age_yr_int",
-    policy_table = NULL, # forces auto-estimation from the panel
-    defaults = list(
-      eligibility_type = "hazard_rate",
-      retire_strategy  = "random",
-      pension_type     = "flat",
-      flat_amount      = 500
-    )
-  )
+  # No rate table: simulate_horizon() estimates it from the panel
+  design_retirement_policy_status_quo(pension_flat(500))
 }
 
 test_that("simulate_horizon: hazard_rate auto-estimates policy_table from the panel", {
@@ -2566,7 +2435,7 @@ test_that("simulate_horizon: hazard_rate errors on a single-snapshot panel", {
       retirement_policy = make_hazard_retirement_policy(),
       baseline_date = snap2, output_control_args = define_output_control(return_microdata = FALSE)
     ),
-    regexp = "requires panel data"
+    regexp = "needs panel data"
   )
 })
 

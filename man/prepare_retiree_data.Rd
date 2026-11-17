@@ -13,9 +13,9 @@ prepare_retiree_data(
 )
 }
 \arguments{
-\item{eligibility_dt}{data.table.  Output of \code{\link{identify_eligibility}}
+\item{eligibility_dt}{data.table.  Output of \code{\link{select_retirees}}
 with columns \code{personnel_id_col}, \code{retire}, \code{age},
-\code{tenure_years}.  Only rows where \code{retire == 1} are processed;
+\code{tenure_years} (and \code{retire_reason}, which is kept).  Only rows where \code{retire == 1} are processed;
 the rest are ignored.}
 
 \item{contract_dt}{data.table.  Full contract register (not pre-filtered).
@@ -42,11 +42,11 @@ Returns an empty \code{data.table()} (zero rows, no columns) when
 \code{eligibility_dt} contains no retirees.
 }
 \description{
-Enriches the eligibility table from \code{\link{identify_eligibility}} with
+Enriches the retirees from \code{\link{select_retirees}} with
 salary and contract information required for pension formula evaluation.
-Fills any \code{NA} age or tenure values left by the eligibility stage
-(e.g. when \code{eligibility_type = "tenure_only"} left \code{age} as
-\code{NA}) and selects one primary contract per retiree via
+Fills any \code{NA} age or tenure values (e.g. when the data hold no tenure
+column, so \code{select_retirees()} left \code{tenure_years} blank) from the
+source data, and selects one primary contract per retiree via
 \code{\link{get_primary_contract}}.  Their \code{salary_col} is then replaced
 by their pay on all their active contracts added up, because a retiree leaves
 every job they hold.  Their other columns come from the main contract.

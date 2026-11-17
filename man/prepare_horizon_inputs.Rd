@@ -50,8 +50,9 @@ Staff retire at the rates observed in the panel for their age, and ages
 above the oldest age with a rate take that age's rate.  They get a
 defined-benefit pension of 2\% of \code{salary_col} (on all their contracts) per year of
 service, counting at most 35 years and paying at most 80\% of salary.
-There is no mandatory retirement age -- pass your own policy with
-\code{mandatory_age} to add one.  Needs at least two snapshots.
+There is no mandatory retirement age -- use
+\code{\link{design_retirement_policy_mandatory}()} to add one.  Needs at
+least two snapshots.
 
 \code{NULL} means nobody retires.}
 

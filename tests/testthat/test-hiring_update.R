@@ -670,6 +670,7 @@ test_that("simulate_scenario hiring errors when salary_scale_dt is finer than gr
   pt <- data.table(
     personnel_id = paste0("P", 1:4),
     birth_date   = as.Date("1958-01-01"),
+    age          = 62,  # retirement reads age; 62 at 2020-01-01
     employment_status = "active"
   )
 
@@ -681,14 +682,7 @@ test_that("simulate_scenario hiring errors when salary_scale_dt is finer than gr
     replacement_rate = 1,
     salary_scale     = data.table::copy(ss_fine)  # overwritten by salary_scale_dt
   )
-  ret_pol <- list(
-    defaults = list(
-      eligibility_type = "age_only",
-      min_age          = 60,
-      pension_type     = "flat",
-      flat_amount      = 0
-    )
-  )
+  ret_pol <- design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(0))
 
   expect_error(
     simulate_scenario(

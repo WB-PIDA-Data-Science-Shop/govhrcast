@@ -6,6 +6,7 @@
 \usage{
 precompute_retirement_rates(
   retirement_policy,
+  contract_dt,
   personnel_dt,
   has_panel,
   column_spec_args
@@ -14,6 +15,8 @@ precompute_retirement_rates(
 \arguments{
 \item{retirement_policy}{The retirement policy list, or \code{NULL} for no
 retirements.}
+
+\item{contract_dt}{data.table. The full contract panel: every snapshot.}
 
 \item{personnel_dt}{data.table. The full personnel panel: every snapshot,
 not only the baseline date.}
@@ -24,22 +27,18 @@ snapshots. Rates can only be estimated from a panel.}
 \item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.}
 }
 \value{
-\code{retirement_policy}, with \code{policy_table} filled in if it was
+\code{retirement_policy}, with its rate table filled in if it was
 estimated, unchanged otherwise. Stops with an error when rates are needed
 but there is no panel.
 }
 \description{
 \code{simulate_horizon()} calls this once, before it cuts the data to the
-baseline date. Retirement with \code{eligibility_type = "hazard_rate"} needs
-the share of people who retire at each age; this estimates those rates from
-the panel, with \code{\link{estimate_retirement_hazard_rates}()}, and puts
-them in \code{retirement_policy$policy_table}.
+baseline date. A status-quo or mandatory retirement policy needs the share of
+people who retire at each age (or tenure, or both); this estimates those
+rates from the panel, with \code{\link{estimate_retirement_hazard_rates}()},
+and puts them in \code{retirement_policy$rates$policy_table}.
 
-Nothing is estimated for other eligibility types (age or tenure rules need no
-rates), or when the policy already holds a rate table (your own).
-
-Rates are grouped by age at each snapshot. If the panel has no ages but has
-birth dates, the age at each snapshot is worked out on a copy used only
-here.
+Nothing is estimated when the policy has no rates (an eligibility policy),
+or when its rates already hold a table (your own).
 }
 \keyword{internal}

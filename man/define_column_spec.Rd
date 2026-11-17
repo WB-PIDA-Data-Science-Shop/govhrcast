@@ -82,12 +82,11 @@ default everywhere. If your data differ, name only the columns that differ.
 Your names are used all the way through: nothing is renamed, so the tables
 that come back keep them.
 
-\code{NULL} for \code{age_col} and \code{tenure_col} does not mean the same everywhere.
-\code{simulate_retirement()} then ignores any such column and calculates the value
-itself. \code{simulate_horizon()} treats \code{NULL} as the default name, and
-\code{estimate_retirement_hazard_rates()} does the same for \code{age_col}, so an \code{age}
-column that is already filled in is still used. \code{simulate_scenario()} leaves
-the value as it is and does not add a year.
+\code{NULL} for \code{age_col} or \code{tenure_col} means the default name, \code{"age"} or
+\code{"personnel_tenure"}, everywhere: \code{simulate_horizon()} fills that column in
+when it is missing or empty, and the retirement functions read it.
+\code{simulate_scenario()} called on its own with \code{NULL} leaves the value as it is
+and does not add a year.
 
 This function checks the names only, not your data: it cannot tell whether a
 column exists. Each function checks the columns it reads when it runs.

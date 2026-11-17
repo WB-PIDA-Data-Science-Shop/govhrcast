@@ -1,10 +1,31 @@
 # Internal helpers used only by simulate_scenario() / simulate_horizon().
 
-# Internal helper: tells the user once, per module, which groups on the payroll
-# have no row in a rate table, so a frozen group is not a silent one.
+#' Say Which Payroll Groups Have No Rate
+#'
+#' @description
+#' Called once per module by `prepare_horizon_inputs()`, so a group that a rate
+#' table leaves out (and that therefore never exits, moves or retires by rate)
+#' is reported rather than frozen silently. Groups are compared by the rate
+#' table's keys other than whole-year age and tenure, which are not on
+#' contracts. Prints a message naming up to five such groups; prints nothing
+#' when every group has a rate, when there is no table, or when the table has
+#' no other keys.
+#'
+#' @param module Character. The module's name, for the message.
+#' @param consequence Character. What happens to those groups, for the message.
+#' @param rate_table data.table or `NULL`. The module's rate table.
+#' @param group_cols Character. The rate table's keys.
+#' @param contract_dt data.table. The contracts at the baseline date.
+#' @param contract_type_col Character. The contract type column, to find who is
+#'   on the payroll.
+#'
+#' @return `NULL`, invisibly.
+#'
+#' @keywords internal
 .report_groups_without_rate <- function(module, consequence, rate_table, group_cols,
                                         contract_dt, contract_type_col) {
-  group_cols <- setdiff(group_cols, "age_yr_int")
+  # Whole-year age and tenure are not on contracts: the check is by the other keys
+  group_cols <- setdiff(group_cols, c("age_yr_int", "tenure_yr_int"))
   if (is.null(rate_table) || length(group_cols) == 0L) return(invisible(NULL))
 
   group_key <- function(dt) do.call(paste, c(dt[, group_cols, with = FALSE], sep = "||"))
@@ -51,6 +72,7 @@
     final_salary               = numeric(0),   # salary at moment of retirement
     tenure_years_at_retirement = numeric(0),
     age_at_retirement          = numeric(0),
+    retire_reason              = character(0), # "rule" or "status_quo"; blank for people retired before the projection
     period_date                = as.Date(character(0))
   )
   data.table::setnames(register, ".id", personnel_id_col)

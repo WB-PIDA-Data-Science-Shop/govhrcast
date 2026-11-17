@@ -53,8 +53,9 @@ Staff retire at the rates observed in the panel for their age, and ages
 above the oldest age with a rate take that age's rate.  They get a
 defined-benefit pension of 2\% of \code{salary_col} (on all their contracts) per year of
 service, counting at most 35 years and paying at most 80\% of salary.
-There is no mandatory retirement age -- pass your own policy with
-\code{mandatory_age} to add one.  Needs at least two snapshots.
+There is no mandatory retirement age -- use
+\code{\link{design_retirement_policy_mandatory}()} to add one.  Needs at
+least two snapshots.
 
 \code{NULL} means nobody retires.}
 
@@ -192,7 +193,10 @@ policy includes the new hire profile, which can describe few people in
 small groups.  Also \code{scenario_name} and \code{is_baseline}.}
 \item{\code{$pensioner_register}}{data.table, one row per retiree per
 year: the person ID (under your name for that column),
-\code{pension_amount}, \code{period_date} and details at retirement.  Always present
+\code{pension_amount}, \code{period_date} and details at retirement,
+including \code{retire_reason}: \code{"rule"} (met the policy's rule),
+\code{"status_quo"} (drawn at the historical rate), or blank for
+people already retired at the start.  Always present
 (zero rows when nobody retired).  Nobody leaves the register: deaths are
 not modelled, so long projections overstate pension costs.  To chain several runs, combine
 their registers with \code{data.table::rbindlist()}.  This is
@@ -242,7 +246,7 @@ Pass \code{NULL} for any module to switch it off: nobody leaves, moves,
 is hired or receives modelled allowances through that module.  Only
 retirement is on by default.\tabular{llll}{
    Module \tab Argument \tab Status quo (from history) \tab Reform / your own assumptions \cr
-   Retirement \tab \code{retirement_policy} \tab \code{\link{design_retirement_policy_status_quo}} (default) \tab \code{\link{design_retirement_policy_age}}, \code{\link{design_retirement_policy_tenure}}, \code{\link{design_retirement_policy_age_tenure}}, or \code{\link{design_retirement_policy}} for any \code{eligibility_*()} + \code{pension_*()} combination \cr
+   Retirement \tab \code{retirement_policy} \tab \code{\link{design_retirement_policy_status_quo}} (default) \tab \code{\link{design_retirement_policy_eligibility}} (everyone who meets a \code{retirement_rule_*()} retires) or \code{\link{design_retirement_policy_mandatory}} (a rule on top of the historical rates), each with a \code{pension_*()} \cr
    Other exits \tab \code{exit_policy} \tab \code{\link{design_exit_policy_status_quo}} \tab \code{\link{design_exit_policy_flat}}, \code{\link{design_exit_policy_adjustment}} \cr
    Promotions / transfers \tab \code{movement_policy} \tab \code{\link{design_movement_policy_status_quo}} \tab \code{\link{design_movement_policy_adjustment}} (start from \code{\link{movement_policy_template}}) \cr
    Hiring \tab \code{hiring_policy} \tab \code{\link{design_hiring_policy_status_quo}} \tab \code{\link{design_hiring_policy_adjustment}}, \code{\link{design_hiring_policy_flow}}, \code{\link{design_hiring_policy_stock}} \cr
@@ -386,8 +390,8 @@ status_quo <- simulate_horizon(
   salary_scale_dt   = salary_scale,
   n_periods         = 3L,
   baseline_date          = sim_start,
-  retirement_policy = design_retirement_policy_status_quo(
-    pension = pension, mandatory_age = 75
+  retirement_policy = design_retirement_policy_mandatory(
+    rule = retirement_rule_age(75), pension = pension
   ),
   exit_policy       = design_exit_policy_status_quo(group_cols = "est_id"),
   movement_policy   = design_movement_policy_status_quo(
@@ -414,8 +418,9 @@ reform <- simulate_horizon(
   salary_scale_dt   = salary_scale,
   n_periods         = 3L,
   baseline_date          = sim_start,
-  retirement_policy = design_retirement_policy_age_tenure(
-    min_age = 65, min_tenure = 10, pension = pension
+  retirement_policy = design_retirement_policy_eligibility(
+    rule = retirement_rule_age_tenure(min_age = 65, min_tenure = 10),
+    pension = pension
   ),
   exit_policy       = design_exit_policy_status_quo(group_cols = "est_id"),
   hiring_policy     = design_hiring_policy_flow(replacement_rate = 0.5,

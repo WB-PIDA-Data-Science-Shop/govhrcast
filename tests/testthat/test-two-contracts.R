@@ -33,7 +33,7 @@ two_jobs <- function(p1_age = 70) {
 }
 
 retire_at_60 <- function(pension = pension_rate(0.5)) {
-  design_retirement_policy_age(min_age = 60, pension = pension)
+  design_retirement_policy_eligibility(retirement_rule_age(60), pension)
 }
 
 everyone_moves <- function(rule = "scale") {
@@ -148,8 +148,8 @@ test_that("the decomposition holds on the bundled data, with two-contract staff"
               .(gross_salary_lcu = mean(gross_salary_lcu)), by = est_id]
   cmp <- suppressMessages(suppressWarnings(simulate_horizon(
     hc, hp, scale, n_periods = 5L, baseline_date = sim_start,
-    retirement_policy = design_retirement_policy_status_quo(
-      pension = pension_db(0.02, 35, 0.80), mandatory_age = 75
+    retirement_policy = design_retirement_policy_mandatory(
+      retirement_rule_age(75), pension_db(0.02, 35, 0.80)
     ),
     exit_policy = design_exit_policy_status_quo(group_cols = "est_id"),
     movement_policy = design_movement_policy_status_quo(

@@ -11,8 +11,8 @@ pension_flat(flat_amount)
 }
 \value{
 A list with a single \code{defaults} element -- pass this as the
-\code{pension} argument to \code{\link{design_retirement_policy}} (or a
-preset).
+\code{pension} argument to a \code{design_retirement_policy_*()}
+function.
 }
 \description{
 Builds the pension half of a retirement policy that pays every retiree the
@@ -23,5 +23,5 @@ same nominal amount -- e.g. a universal social pension.  See
 pension_flat(flat_amount = 500)
 }
 \seealso{
-\code{\link{design_retirement_policy}}, \code{\link{compute_flat_pension}}
+\code{\link{design_retirement_policy_eligibility}}, \code{\link{compute_flat_pension}}
 }

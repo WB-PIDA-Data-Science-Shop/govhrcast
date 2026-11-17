@@ -2,39 +2,38 @@
 % Please edit documentation in R/retirement_policy_helpers.R
 \name{design_retirement_policy_status_quo}
 \alias{design_retirement_policy_status_quo}
-\title{Status-Quo (Hazard-Rate) Retirement Policy (Preset)}
+\title{Retirement Policy: As in the History}
 \usage{
 design_retirement_policy_status_quo(
   pension,
-  hazard_table = NULL,
-  mandatory_age = NULL,
-  group_cols = NULL,
-  retire_strategy = "random"
+  rates = retirement_rates_status_quo(),
+  active_types = NULL
 )
 }
 \arguments{
-\item{pension}{List. Output of a \code{pension_*()} constructor -- see
-\code{\link{design_retirement_policy}}.}
+\item{pension}{List. What retirees are paid, from a \verb{pension_*()} function,
+e.g. \code{\link[=pension_db]{pension_db()}}.}
 
-\item{hazard_table, mandatory_age, group_cols, retire_strategy}{See
-\code{\link{eligibility_status_quo}}.}
+\item{rates}{List. The rates, from \code{\link[=retirement_rates_status_quo]{retirement_rates_status_quo()}}. The
+default is rates by age, estimated from your panel by \code{\link[=simulate_horizon]{simulate_horizon()}}.}
+
+\item{active_types}{Character or \code{NULL}. The contract types the policy
+covers, e.g. \code{"permanent"}: only people holding a contract of these types
+can retire (a blank type counts as staff). \code{NULL} (default) covers everyone
+on the payroll.}
 }
 \value{
-Same shape as \code{\link{design_retirement_policy}}.
+A retirement policy list, for \code{\link[=simulate_horizon]{simulate_horizon()}},
+\code{\link[=simulate_retirement]{simulate_retirement()}} or \code{\link[=select_retirees]{select_retirees()}}.
 }
 \description{
-Shortcut for
-\code{design_retirement_policy(eligibility_status_quo(...), pension)}. See
-\code{\link{eligibility_status_quo}} for the auto-estimation caveat
-(only fires inside \code{\link{simulate_horizon}}, not standalone
-\code{\link{simulate_retirement}}).
+People retire at the rates seen in your panel data: in each age (or tenure
+year, or both), the share that retired in the past retire each year of the
+projection. Nobody is forced to retire at any age. This is the default in
+\code{\link[=simulate_horizon]{simulate_horizon()}}, and the baseline to compare reforms against.
 }
 \examples{
-design_retirement_policy_status_quo(
-  mandatory_age = 75,
-  pension       = pension_rate(pension_rate = 0.15)
-)
-}
-\seealso{
-\code{\link{design_retirement_policy}}, \code{\link{eligibility_status_quo}}
+design_retirement_policy_status_quo(pension_db(0.02, max_years = 35, replacement_cap = 0.80))
+design_retirement_policy_status_quo(pension_flat(1000),
+                                    rates = retirement_rates_status_quo(by = "age_tenure"))
 }

@@ -275,6 +275,8 @@ test_that("compute_stock_demand handles overall target (no grouping)", {
 
 test_that("estimate_hiring_demand routes to correct function based on mode", {
   test_data <- create_test_data_for_hiring()
+  # Flow mode with no leavers works them out from the age rule, which reads age
+  test_data$personnel_dt[, age := as.numeric(as.Date("2024-06-01") - birth_date) / 365.25]
 
   # Test flow mode
   policy_params_flow <- list(

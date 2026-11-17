@@ -1,31 +1,27 @@
 #' Retirement Policy Constructor Helpers
 #'
 #' @description
-#' Small, composable constructors for building the \code{retirement_policy}
-#' argument to \code{\link{simulate_retirement}}/\code{\link{simulate_horizon}}
-#' without hand-writing the full three-slot list.  Each constructor validates
-#' its own inputs immediately (at construction time) rather than deferring to
-#' a runtime error deep inside the simulation.
+#' Small, composable constructors for building the `retirement_policy` argument
+#' to [simulate_retirement()], [select_retirees()] and [simulate_horizon()]
+#' without hand-writing the list. Each checks its own inputs when you call it,
+#' so a mistake stops where you made it rather than deep inside a simulation.
 #'
-#' Three layers, composed together:
-#' \enumerate{
-#'   \item \strong{Eligibility constructors} (\code{eligibility_*()}) --
-#'     which employees are eligible to retire.
-#'   \item \strong{Pension constructors} (\code{pension_*()}) -- how much
-#'     they receive.
-#'   \item \code{\link{design_retirement_policy}} combines one of each into
-#'     the final policy list, or use a \code{design_retirement_policy_*()}
-#'     preset to skip building the eligibility piece by hand.
-#' }
+#' A retirement policy has three kinds, one constructor each:
+#' * [design_retirement_policy_status_quo()]: people retire at the rates seen in
+#'   the history.
+#' * [design_retirement_policy_eligibility()]: everyone who meets a rule retires.
+#' * [design_retirement_policy_mandatory()]: everyone who meets a rule retires,
+#'   and the rest retire at the historical rates.
 #'
-#' Every constructor here returns a \strong{plain list} -- the same shape a
-#' hand-written \code{retirement_policy} already has.  Nothing is hidden
-#' behind a class: any \code{retirement_policy} configuration not reachable
-#' through these constructors (e.g. the eligibility or pension \emph{type}
-#' itself varying by group, rather than just its parameters) remains fully
-#' reachable by passing a hand-built \code{policy_table} to
-#' \code{\link{design_retirement_policy}}, or by editing the returned list
-#' directly.
+#' They are built from three parts:
+#' 1. **Who retires**: a rule from a `retirement_rule_*()` function (by age,
+#'    tenure, both, or your own expression), and/or rates from
+#'    [retirement_rates_status_quo()].
+#' 2. **What they are paid**: a pension from a `pension_*()` function.
+#' 3. Optionally, `active_types`: the contract types the policy covers.
+#'
+#' Every constructor returns a plain list, so you can also edit what it returns,
+#' or write the list yourself.
 #'
 #' @import data.table
 #' @name retirement_policy_helpers
@@ -34,211 +30,238 @@ NULL
 
 
 # =============================================================================
-# Eligibility constructors
+# Who retires: rules and rates
 # =============================================================================
 
-#' Age-Threshold Retirement Eligibility
+#' Assemble a Retirement Rule
 #'
 #' @description
-#' Builds the eligibility half of a retirement policy: everyone at or above
-#' \code{min_age} is eligible to retire (100% take-up, no partial
-#' probability). Combine with a pension constructor (e.g.
-#' \code{\link{pension_flat}}) via \code{\link{design_retirement_policy}}, or
-#' use \code{\link{design_retirement_policy_age}} to skip this step entirely.
+#' Shared by the `retirement_rule_*()` functions: checks the group columns and
+#' the rule table, and returns the rule in the three-slot shape
+#' (`group_cols`, `policy_table`, `defaults`). Thresholds left `NULL` are dropped
+#' from `defaults`, so a rule only carries the ones it sets.
 #'
-#' @param min_age Numeric. Minimum retirement age.
+#' @param fn Character. The calling function's name, for error messages.
+#' @param defaults List. `kind` plus the thresholds the rule sets.
+#' @param group_cols Character or `NULL`. Columns the rule table is keyed by.
+#' @param policy_table data.table or `NULL`. Thresholds per group.
 #'
-#' @return A list with a single \code{defaults} element -- pass this as the
-#'   \code{eligibility} argument to \code{\link{design_retirement_policy}}.
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{identify_eligibility}}
-#' @examples
-#' eligibility_age(min_age = 60)
-#' @export
-eligibility_age <- function(min_age) {
-  validate_positive_number(min_age, "min_age")
-  list(defaults = list(eligibility_type = "age_only", min_age = min_age))
-}
-
-
-#' Tenure-Threshold Retirement Eligibility
+#' @return The rule list.
 #'
-#' @description
-#' Builds the eligibility half of a retirement policy: everyone with at least
-#' \code{min_tenure} years of service is eligible to retire.  Combine with a
-#' pension constructor via \code{\link{design_retirement_policy}}, or use
-#' \code{\link{design_retirement_policy_tenure}} to skip this step.
-#'
-#' @param min_tenure Numeric. Minimum years of service.
-#'
-#' @return A list with a single \code{defaults} element -- pass this as the
-#'   \code{eligibility} argument to \code{\link{design_retirement_policy}}.
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{identify_eligibility}}
-#' @examples
-#' eligibility_tenure(min_tenure = 30)
-#' @export
-eligibility_tenure <- function(min_tenure) {
-  validate_positive_number(min_tenure, "min_tenure", allow_zero = TRUE)
-  list(defaults = list(eligibility_type = "tenure_only", min_tenure = min_tenure))
-}
-
-
-#' Combined Age-and-Tenure Retirement Eligibility
-#'
-#' @description
-#' Builds the eligibility half of a retirement policy: eligible only once
-#' \emph{both} \code{min_age} and \code{min_tenure} are met.  Combine with a
-#' pension constructor via \code{\link{design_retirement_policy}}, or use
-#' \code{\link{design_retirement_policy_age_tenure}} to skip this step.
-#'
-#' @param min_age Numeric. Minimum retirement age.
-#' @param min_tenure Numeric. Minimum years of service.
-#'
-#' @return A list with a single \code{defaults} element -- pass this as the
-#'   \code{eligibility} argument to \code{\link{design_retirement_policy}}.
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{identify_eligibility}}
-#' @examples
-#' eligibility_age_tenure(min_age = 60, min_tenure = 10)
-#' @export
-eligibility_age_tenure <- function(min_age, min_tenure) {
-  validate_positive_number(min_age, "min_age")
-  validate_positive_number(min_tenure, "min_tenure", allow_zero = TRUE)
-  list(defaults = list(
-    eligibility_type = "age_and_tenure",
-    min_age          = min_age,
-    min_tenure       = min_tenure
-  ))
-}
-
-
-#' Status-Quo (Hazard-Rate) Retirement Eligibility
-#'
-#' @description
-#' Builds the eligibility half of a retirement policy driven by a group-level
-#' retirement \emph{rate} (typically per integer age) rather than a fixed
-#' threshold -- the "status quo" mechanism, since the rate is calibrated to
-#' reproduce recently observed retirement behavior instead of imposing a
-#' rule. Combine with a pension constructor via
-#' \code{\link{design_retirement_policy}}, or use
-#' \code{\link{design_retirement_policy_status_quo}} to skip this step.
-#'
-#' @param hazard_table data.table or \code{NULL} (default).  A table with
-#'   \code{group_cols} and a \code{hazard_rate} column, as produced by
-#'   \code{\link{estimate_retirement_hazard_rates}}.
-#'
-#'   \code{NULL} defers estimation to \code{\link{simulate_horizon}}, which
-#'   automatically calls \code{\link{estimate_retirement_hazard_rates}} on
-#'   the historical panel before the first period.  \strong{This
-#'   auto-estimation only happens inside \code{simulate_horizon()}}, which
-#'   has access to the full multi-snapshot panel.  If the resulting policy is
-#'   instead passed to \code{\link{simulate_retirement}} directly (a single
-#'   snapshot, no panel), \code{NULL} silently resolves to a hazard rate of
-#'   \code{0} for every group -- no one retires via the rate mechanism that
-#'   period, only \code{mandatory_age} (if set) still forces retirement. This
-#'   is quiet, not an error, so supply your own \code{hazard_table} (e.g. via
-#'   \code{\link{estimate_retirement_hazard_rates}} called ahead of time) if
-#'   you plan to call \code{simulate_retirement()} standalone.
-#'
-#'   Supplying a table in either calling context also lets you model a
-#'   shocked or hand-built rate curve instead of the historical one.
-#' @param mandatory_age Numeric or \code{NULL} (default).  A hard ceiling:
-#'   everyone at or above this age retires with certainty, resolved
-#'   \emph{before} the hazard-rate draw so they aren't double-counted against
-#'   their group's rate-driven quota.  \code{NULL} means no ceiling.
-#' @param group_cols Character vector or \code{NULL} (default).  Additional
-#'   columns to stratify by beyond age (e.g. \code{"est_id"}) -- hazard rates
-#'   are \emph{always} estimated/applied per integer age regardless of what
-#'   you pass here, that bucketing is handled internally and you never need
-#'   to name it yourself.  Whatever you supply is combined with it
-#'   automatically.
-#' @param retire_strategy Character.  \code{"random"} (default), or the name
-#'   of a numeric column to rank ascending (lowest values selected first)
-#'   within each group's quota.
-#'
-#' @return A list with \code{group_cols}, \code{policy_table}, and
-#'   \code{defaults} elements -- pass this as the \code{eligibility} argument
-#'   to \code{\link{design_retirement_policy}}.
-#' @seealso \code{\link{design_retirement_policy}},
-#'   \code{\link{estimate_retirement_hazard_rates}},
-#'   \code{\link{compute_status_quo_retirements}}
-#' @examples
-#' eligibility_status_quo(mandatory_age = 75)
-#' eligibility_status_quo(mandatory_age = 75, group_cols = "est_id")
-#' @export
-eligibility_status_quo <- function(hazard_table      = NULL,
-                                   mandatory_age      = NULL,
-                                   group_cols         = NULL,
-                                   retire_strategy    = "random") {
+#' @keywords internal
+.build_retirement_rule <- function(fn, defaults, group_cols, policy_table) {
   if (!is.null(group_cols) && !is.character(group_cols)) {
-    stop("eligibility_status_quo: group_cols must be a character vector or NULL.", call. = FALSE)
+    stop(fn, ": group_cols must be a character vector of column names, or NULL.", call. = FALSE)
   }
-  # age_yr_int is never something the caller names -- hazard rates are
-  # always bucketed by integer age internally (estimate_retirement_hazard_rates()/
-  # compute_status_quo_retirements() both derive it from age). Whatever the
-  # caller passes in group_cols is combined with it automatically.
-  group_cols <- unique(c("age_yr_int", group_cols))
+  if (!is.null(policy_table)) {
+    if (!data.table::is.data.table(policy_table)) {
+      stop(fn, ": policy_table must be a data.table.", call. = FALSE)
+    }
+    missing_cols <- setdiff(group_cols, names(policy_table))
+    if (length(missing_cols) > 0L) {
+      stop(fn, ": policy_table is missing the group column(s) ",
+           paste(missing_cols, collapse = ", "), ".", call. = FALSE)
+    }
+  }
+  list(group_cols   = group_cols,
+       policy_table = policy_table,
+       defaults     = Filter(Negate(is.null), defaults))
+}
+
+
+#' Retirement Rule: By Age
+#'
+#' @description
+#' Everyone aged `min_age` or over retires. To set a different age for some
+#' groups (e.g. teachers at 70, everyone else at 75), give a `policy_table` with
+#' the group column and a `min_age` column; `min_age` here applies to every
+#' group the table does not list.
+#'
+#' Use the rule in [design_retirement_policy_eligibility()] (everyone who meets
+#' it retires) or [design_retirement_policy_mandatory()] (the same, on top of
+#' the historical rates).
+#'
+#' @param min_age Numeric. The retirement age, for everyone or for every group
+#'   not in `policy_table`.
+#' @param group_cols Character or `NULL`. Columns `policy_table` is keyed by,
+#'   e.g. `"occupation"`. A column held on contracts is taken from each person's
+#'   main contract.
+#' @param policy_table data.table or `NULL`. One row per group, with the
+#'   `group_cols` and `min_age`.
+#'
+#' @return A rule list, to pass as `rule` to a `design_retirement_policy_*()`
+#'   function.
+#' @seealso [retirement_rule_tenure()], [retirement_rule_age_tenure()],
+#'   [retirement_rule_custom()]
+#' @examples
+#' retirement_rule_age(60)
+#' retirement_rule_age(75, group_cols = "occupation",
+#'                     policy_table = data.table::data.table(occupation = "teacher", min_age = 70))
+#' @export
+retirement_rule_age <- function(min_age, group_cols = NULL, policy_table = NULL) {
+  validate_positive_number(min_age, "min_age")
+  .build_retirement_rule("retirement_rule_age", list(kind = "age", min_age = min_age),
+                         group_cols, policy_table)
+}
+
+
+#' Retirement Rule: By Tenure
+#'
+#' @description
+#' Everyone with `min_tenure` years of service or more retires. A `policy_table`
+#' with the group column and a `min_tenure` column sets a different number of
+#' years for some groups. See [retirement_rule_age()] for how the parts fit.
+#'
+#' @param min_tenure Numeric. Years of service needed, for everyone or for every
+#'   group not in `policy_table`.
+#' @inheritParams retirement_rule_age
+#' @param policy_table data.table or `NULL`. One row per group, with the
+#'   `group_cols` and `min_tenure`.
+#'
+#' @return A rule list, to pass as `rule` to a `design_retirement_policy_*()`
+#'   function.
+#' @examples
+#' retirement_rule_tenure(35)
+#' @export
+retirement_rule_tenure <- function(min_tenure, group_cols = NULL, policy_table = NULL) {
+  validate_positive_number(min_tenure, "min_tenure", allow_zero = TRUE)
+  .build_retirement_rule("retirement_rule_tenure", list(kind = "tenure", min_tenure = min_tenure),
+                         group_cols, policy_table)
+}
+
+
+#' Retirement Rule: By Age and Tenure
+#'
+#' @description
+#' Everyone aged `min_age` or over **and** with `min_tenure` years of service or
+#' more retires. A `policy_table` can set either threshold by group. For "age
+#' or tenure", use [retirement_rule_custom()].
+#'
+#' @inheritParams retirement_rule_age
+#' @inheritParams retirement_rule_tenure
+#' @param policy_table data.table or `NULL`. One row per group, with the
+#'   `group_cols` and `min_age` and/or `min_tenure`.
+#'
+#' @return A rule list, to pass as `rule` to a `design_retirement_policy_*()`
+#'   function.
+#' @examples
+#' retirement_rule_age_tenure(min_age = 60, min_tenure = 10)
+#' @export
+retirement_rule_age_tenure <- function(min_age, min_tenure, group_cols = NULL, policy_table = NULL) {
+  validate_positive_number(min_age, "min_age")
+  validate_positive_number(min_tenure, "min_tenure", allow_zero = TRUE)
+  .build_retirement_rule("retirement_rule_age_tenure",
+                         list(kind = "age_tenure", min_age = min_age, min_tenure = min_tenure),
+                         group_cols, policy_table)
+}
+
+
+#' Retirement Rule: Your Own Expression
+#'
+#' @description
+#' Everyone for whom `rule` is true retires. Write it with `age`,
+#' `tenure_years`, any column of the personnel data, and `min_age` and
+#' `min_tenure` when you set them here. Only comparisons and logic are allowed
+#' (`>=`, `<`, `==`, `&`, `|`, `!`, `%in%`, `is.na()`, ...); anything else is
+#' refused when you call this function.
+#'
+#' Setting `min_age` or `min_tenure` here, with a `policy_table`, lets one rule
+#' use a different threshold per group. For example
+#' `"age >= min_age | tenure_years >= min_tenure"`, with a table of thresholds by
+#' occupation, retires each occupation at its own age or its own years of
+#' service, whichever comes first.
+#'
+#' @param rule Character. The expression, e.g. `"age >= 65 | tenure_years >= 35"`.
+#' @param min_age,min_tenure Numeric or `NULL`. Thresholds the rule can refer
+#'   to, for everyone or for every group not in `policy_table`.
+#' @inheritParams retirement_rule_age
+#' @param policy_table data.table or `NULL`. One row per group, with the
+#'   `group_cols` and `min_age` and/or `min_tenure`.
+#'
+#' @return A rule list, to pass as `rule` to a `design_retirement_policy_*()`
+#'   function.
+#' @examples
+#' retirement_rule_custom("age >= 65 | tenure_years >= 35")
+#' retirement_rule_custom("age >= min_age | tenure_years >= min_tenure",
+#'                        min_age = 65, min_tenure = 35)
+#' @export
+retirement_rule_custom <- function(rule, min_age = NULL, min_tenure = NULL,
+                                   group_cols = NULL, policy_table = NULL) {
+  validate_eligibility_rule(rule)
+  if (!is.null(min_age))    validate_positive_number(min_age, "min_age")
+  if (!is.null(min_tenure)) validate_positive_number(min_tenure, "min_tenure", allow_zero = TRUE)
+  .build_retirement_rule("retirement_rule_custom",
+                         list(kind = "custom", custom_rule = rule,
+                              min_age = min_age, min_tenure = min_tenure),
+                         group_cols, policy_table)
+}
+
+
+#' Retirement Rates: As in the History
+#'
+#' @description
+#' The share of people who retired in the past, by age, by tenure, or by both,
+#' to apply in the projection. [simulate_horizon()] estimates the rates from
+#' your panel data unless you give your own `hazard_table`.
+#'
+#' Ages and years of service are whole years. A group with no rate in the table
+#' retires nobody, except that groups older than the oldest age seen retiring
+#' take that age's rate.
+#'
+#' Use the rates in [design_retirement_policy_status_quo()] or
+#' [design_retirement_policy_mandatory()].
+#'
+#' @param by Character. What the rates vary by: `"age"` (default), `"tenure"`
+#'   or `"age_tenure"`.
+#' @param group_cols Character or `NULL`. Further columns the rates vary by,
+#'   e.g. `"est_id"` for a rate per establishment.
+#' @param hazard_table data.table or `NULL`. Your own rates: one row per group,
+#'   with `age_yr_int` and/or `tenure_yr_int` (as `by` says), the `group_cols`,
+#'   and `hazard_rate` (the share who retire in a year, 0 to 1). `NULL`
+#'   (default) means [simulate_horizon()] estimates them.
+#' @param retire_strategy Character. Who retires within a group once the number
+#'   is known: `"random"` (default), or a column name to retire the lowest
+#'   values first.
+#'
+#' @return A rates list, to pass as `rates` to
+#'   [design_retirement_policy_status_quo()] or
+#'   [design_retirement_policy_mandatory()].
+#' @examples
+#' retirement_rates_status_quo()
+#' retirement_rates_status_quo(by = "age_tenure", group_cols = "est_id")
+#' @export
+retirement_rates_status_quo <- function(by = "age", group_cols = NULL,
+                                        hazard_table = NULL, retire_strategy = "random") {
+  fn <- "retirement_rates_status_quo"
+  validate_choice(by, c("age", "tenure", "age_tenure"), "by")
+  if (!is.null(group_cols) && !is.character(group_cols)) {
+    stop(fn, ": group_cols must be a character vector of column names, or NULL.", call. = FALSE)
+  }
+  if (!is.character(retire_strategy) || length(retire_strategy) != 1L) {
+    stop(fn, ": retire_strategy must be \"random\" or one column name.", call. = FALSE)
+  }
+
+  # The keys the rates are looked up by: whole-year age and/or tenure, then the
+  # caller's own columns
+  keys <- unique(c(if (by %in% c("age", "age_tenure"))    "age_yr_int",
+                   if (by %in% c("tenure", "age_tenure")) "tenure_yr_int",
+                   group_cols))
 
   if (!is.null(hazard_table)) {
     if (!data.table::is.data.table(hazard_table)) {
-      stop("eligibility_status_quo: hazard_table must be a data.table.", call. = FALSE)
+      stop(fn, ": hazard_table must be a data.table.", call. = FALSE)
     }
-    .missing_cols <- setdiff(c(group_cols, "hazard_rate"), names(hazard_table))
-    if (length(.missing_cols) > 0L) {
-      stop(
-        "eligibility_status_quo: hazard_table is missing column(s): ",
-        paste(.missing_cols, collapse = ", "), ".",
-        call. = FALSE
-      )
+    missing_cols <- setdiff(c(keys, "hazard_rate"), names(hazard_table))
+    if (length(missing_cols) > 0L) {
+      stop(fn, ": hazard_table is missing column(s) ",
+           paste(missing_cols, collapse = ", "), ".", call. = FALSE)
     }
   }
-  if (!is.null(mandatory_age)) {
-    validate_positive_number(mandatory_age, "mandatory_age")
-  }
-  if (!is.character(retire_strategy) || length(retire_strategy) != 1L) {
-    stop("eligibility_status_quo: retire_strategy must be a single character string.", call. = FALSE)
-  }
 
-  list(
-    group_cols   = group_cols,
-    policy_table = hazard_table,
-    defaults = list(
-      eligibility_type = "hazard_rate",
-      min_age          = mandatory_age,
-      retire_strategy  = retire_strategy
-    )
-  )
-}
-
-
-#' Custom-Rule Retirement Eligibility
-#'
-#' @description
-#' Builds the eligibility half of a retirement policy from a user-defined
-#' rule string, evaluated safely against a restricted set of operators
-#' (comparisons, boolean logic, \code{\%in\%}, \code{is.na}) -- see
-#' \code{\link{validate_eligibility_rule}} for the full allow-list.  The rule
-#' may reference any column present on the workforce data at simulation time
-#' (e.g. \code{"paygrade"}).  \code{age} and \code{tenure_years} (years of
-#' service) are always available, whatever your age and tenure columns are
-#' called -- e.g. tenure supplied as \code{personnel_tenure} can be written
-#' either as \code{tenure_years} or as \code{personnel_tenure}.  Combine with
-#' a pension constructor via \code{\link{design_retirement_policy}}.
-#'
-#' @param rule Character scalar.  An R expression string evaluating to
-#'   \code{TRUE}/\code{FALSE} per person, e.g.
-#'   \code{"age >= 62 | (tenure_years >= 30 & age >= 55)"}.  Validated
-#'   immediately (parsed and checked against the safety allow-list) -- errors
-#'   here, not buried at simulation time, if the rule is malformed or uses a
-#'   disallowed function.
-#'
-#' @return A list with a single \code{defaults} element -- pass this as the
-#'   \code{eligibility} argument to \code{\link{design_retirement_policy}}.
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{validate_eligibility_rule}}
-#' @examples
-#' eligibility_custom("age >= 62 | (tenure_years >= 30 & age >= 55)")
-#' @export
-eligibility_custom <- function(rule) {
-  validate_eligibility_rule(rule)
-  list(defaults = list(eligibility_type = "custom", eligibility_rule = rule))
+  # hazard_rate = 0 is the rate for a group the table has no row for
+  list(group_cols   = keys,
+       policy_table = hazard_table,
+       defaults     = list(hazard_rate = 0, retire_strategy = retire_strategy))
 }
 
 
@@ -262,9 +285,9 @@ eligibility_custom <- function(rule) {
 #'   replacement rate as a fraction of wage; \code{NA} = uncapped.
 #'
 #' @return A list with a single \code{defaults} element -- pass this as the
-#'   \code{pension} argument to \code{\link{design_retirement_policy}} (or a
-#'   preset), or as \code{\link{pension_hybrid}}'s \code{db} argument.
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{compute_db_pension}}
+#'   \code{pension} argument to a \code{design_retirement_policy_*()}
+#'   function, or as \code{\link{pension_hybrid}}'s \code{db} argument.
+#' @seealso \code{\link{design_retirement_policy_eligibility}}, \code{\link{compute_db_pension}}
 #' @examples
 #' pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80)
 #' @export
@@ -300,9 +323,9 @@ pension_db <- function(accrual_rate, max_years = NA, replacement_cap = NA) {
 #'   applied to the balance before annuitisation; \code{NA} = none.
 #'
 #' @return A list with a single \code{defaults} element -- pass this as the
-#'   \code{pension} argument to \code{\link{design_retirement_policy}} (or a
-#'   preset), or as \code{\link{pension_hybrid}}'s \code{dc} argument.
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{compute_dc_pension}}
+#'   \code{pension} argument to a \code{design_retirement_policy_*()}
+#'   function, or as \code{\link{pension_hybrid}}'s \code{dc} argument.
+#' @seealso \code{\link{design_retirement_policy_eligibility}}, \code{\link{compute_dc_pension}}
 #' @examples
 #' pension_dc(balance_col = "dc_balance", annuity_factor = 12)
 #' @export
@@ -330,9 +353,9 @@ pension_dc <- function(balance_col, annuity_factor, notional_rate = NA) {
 #' @param flat_amount Numeric.  Uniform pension amount paid to every retiree.
 #'
 #' @return A list with a single \code{defaults} element -- pass this as the
-#'   \code{pension} argument to \code{\link{design_retirement_policy}} (or a
-#'   preset).
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{compute_flat_pension}}
+#'   \code{pension} argument to a \code{design_retirement_policy_*()}
+#'   function.
+#' @seealso \code{\link{design_retirement_policy_eligibility}}, \code{\link{compute_flat_pension}}
 #' @examples
 #' pension_flat(flat_amount = 500)
 #' @export
@@ -352,9 +375,9 @@ pension_flat <- function(flat_amount) {
 #' @param pension_rate Numeric.  Proportion of pay paid (e.g. \code{0.15}).
 #'
 #' @return A list with a single \code{defaults} element -- pass this as the
-#'   \code{pension} argument to \code{\link{design_retirement_policy}} (or a
-#'   preset).
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{compute_rate_pension}}
+#'   \code{pension} argument to a \code{design_retirement_policy_*()}
+#'   function.
+#' @seealso \code{\link{design_retirement_policy_eligibility}}, \code{\link{compute_rate_pension}}
 #' @examples
 #' pension_rate(pension_rate = 0.15)
 #' @export
@@ -380,8 +403,8 @@ pension_rate <- function(pension_rate) {
 #' @return A list with a single \code{defaults} element (the union of
 #'   \code{db}'s and \code{dc}'s fields, with \code{pension_type} set to
 #'   \code{"hybrid"}) -- pass this as the \code{pension} argument to
-#'   \code{\link{design_retirement_policy}} (or a preset).
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{compute_hybrid_pension}}
+#'   a \code{design_retirement_policy_*()} function.
+#' @seealso \code{\link{design_retirement_policy_eligibility}}, \code{\link{compute_hybrid_pension}}
 #' @examples
 #' pension_hybrid(
 #'   db = pension_db(accrual_rate = 0.015),
@@ -419,9 +442,9 @@ pension_hybrid <- function(db, dc) {
 #'   time, if the formula is malformed or uses a disallowed function.
 #'
 #' @return A list with a single \code{defaults} element -- pass this as the
-#'   \code{pension} argument to \code{\link{design_retirement_policy}} (or a
-#'   preset).
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{validate_pension_formula}}
+#'   \code{pension} argument to a \code{design_retirement_policy_*()}
+#'   function.
+#' @seealso \code{\link{design_retirement_policy_eligibility}}, \code{\link{validate_pension_formula}}
 #' @examples
 #' pension_custom("pmin(base_salary_lcu * 0.02 * tenure_years, base_salary_lcu * 0.8)")
 #' @export
@@ -431,217 +454,136 @@ pension_custom <- function(pension_formula) {
 }
 
 
+
+pension_status_quo <- function(replacement_rates, group_cols = NULL){
+
+  policy_dt <- 
+    replacement_rates[!is.na(replacement_rate), 
+                      .(pension_rate = stats::median(replacement_rate)), 
+                      by = group_cols]
+
+  list(group_cols   = group_cols,
+       policy_table = policy_dt,
+       defaults     = list(pension_type = "rate",
+                           pension_rate = stats::median(policy_dt$replacement_rate)))
+
+}
+
 # =============================================================================
-# Combiner
+# Policies: one per kind
 # =============================================================================
 
-#' Combine an Eligibility and Pension Spec into a Retirement Policy
+#' Assemble a Retirement Policy
 #'
 #' @description
-#' Combines the output of an \code{eligibility_*()} constructor and a
-#' \code{pension_*()} constructor into the canonical three-slot
-#' \code{retirement_policy} list consumed by \code{\link{simulate_retirement}}
-#' and \code{\link{simulate_horizon}}.  This is a plain list combiner: the
-#' result is identical in shape to a hand-written \code{retirement_policy},
-#' so anything not reachable through these constructors remains reachable by
-#' editing the returned list directly (e.g. \code{policy$policy_table <- ...}).
+#' Shared by the three `design_retirement_policy_*()` functions: checks that
+#' each part came from the right constructor, and returns the policy list. A
+#' part a kind does not use (the rule of a status-quo policy, say) is left out.
 #'
-#' @param eligibility List.  Output of an \code{eligibility_*()} constructor:
-#'   \code{\link{eligibility_age}}, \code{\link{eligibility_tenure}},
-#'   \code{\link{eligibility_age_tenure}}, \code{\link{eligibility_status_quo}},
-#'   or \code{\link{eligibility_custom}}.
-#' @param pension List.  Output of a \code{pension_*()} constructor:
-#'   \code{\link{pension_db}}, \code{\link{pension_dc}},
-#'   \code{\link{pension_flat}}, \code{\link{pension_rate}},
-#'   \code{\link{pension_hybrid}}, or \code{\link{pension_custom}}.
-#' @param group_cols Character vector or \code{NULL} (default).  Columns
-#'   defining policy groups for group-varying parameters (e.g.
-#'   \code{"grade"}) -- see \code{\link{resolve_policy_table}}. If
-#'   \code{eligibility} already set \code{group_cols} (only
-#'   \code{\link{eligibility_status_quo}} does this), passing a different,
-#'   non-\code{NULL} value here raises an error rather than silently picking
-#'   one.
-#' @param policy_table data.table or \code{NULL} (default).  Group-level
-#'   overrides matching \code{group_cols}; only columns present here override
-#'   the corresponding \code{defaults} value -- any column absent falls back
-#'   to its constructor default.  Same conflict rule as \code{group_cols}
-#'   applies when \code{eligibility} already set one.
+#' @param type Character. `"status_quo"`, `"eligibility"` or `"mandatory"`.
+#' @param pension List. From a `pension_*()` function.
+#' @param rates List or `NULL`. From [retirement_rates_status_quo()].
+#' @param rule List or `NULL`. From a `retirement_rule_*()` function.
+#' @param active_types Character or `NULL`. Contract types the policy covers.
 #'
-#' @return A list with \code{group_cols}, \code{policy_table}, and
-#'   \code{defaults} elements -- directly usable as \code{simulate_retirement()}'s
-#'   or \code{simulate_horizon()}'s \code{retirement_policy} argument.
-#' @seealso \code{\link{simulate_retirement}}, \code{\link{simulate_horizon}}
-#' @examples
-#' design_retirement_policy(
-#'   eligibility = eligibility_age(min_age = 60),
-#'   pension     = pension_rate(pension_rate = 0.15)
-#' )
+#' @return The retirement policy list.
 #'
-#' # group-varying accrual_rate by grade
-#' design_retirement_policy(
-#'   eligibility  = eligibility_age(min_age = 60),
-#'   pension      = pension_db(accrual_rate = 0.02),
-#'   group_cols   = "grade",
-#'   policy_table = data.table::data.table(grade = c("A", "B"), accrual_rate = c(0.02, 0.03))
-#' )
-#' @export
-design_retirement_policy <- function(eligibility, pension, group_cols = NULL, policy_table = NULL) {
-  if (!is.list(eligibility) || is.null(eligibility$defaults)) {
-    stop(
-      "design_retirement_policy: 'eligibility' must be the output of an ",
-      "eligibility_*() constructor.",
-      call. = FALSE
-    )
+#' @keywords internal
+.build_retirement_policy <- function(type, pension, rates = NULL, rule = NULL,
+                                     active_types = NULL) {
+  fn <- paste0("design_retirement_policy_", type)
+  if (!is.null(rule) && is.null(rule$defaults$kind)) {
+    stop(fn, ": 'rule' must come from a retirement_rule_*() function.", call. = FALSE)
   }
-  if (!is.list(pension) || is.null(pension$defaults)) {
-    stop(
-      "design_retirement_policy: 'pension' must be the output of a ",
-      "pension_*() constructor.",
-      call. = FALSE
-    )
+  if (!is.null(rates) && !any(c("age_yr_int", "tenure_yr_int") %in% rates$group_cols)) {
+    stop(fn, ": 'rates' must come from retirement_rates_status_quo().", call. = FALSE)
   }
-
-  .elig_group_cols   <- eligibility$group_cols
-  .elig_policy_table <- eligibility$policy_table
-
-  if (!is.null(.elig_group_cols) && !is.null(group_cols) &&
-      !identical(.elig_group_cols, group_cols)) {
-    stop(
-      "design_retirement_policy: 'eligibility' already specifies group_cols (",
-      paste(.elig_group_cols, collapse = ", "), ") -- passing a different ",
-      "group_cols here is ambiguous. Omit one, or make them match.",
-      call. = FALSE
-    )
+  if (is.null(pension$defaults$pension_type)) {
+    stop(fn, ": 'pension' must come from a pension_*() function.", call. = FALSE)
   }
-  if (!is.null(.elig_policy_table) && !is.null(policy_table)) {
-    stop(
-      "design_retirement_policy: 'eligibility' already specifies a ",
-      "policy_table (e.g. via eligibility_status_quo()'s hazard_table) -- ",
-      "passing another policy_table here is ambiguous. Omit one.",
-      call. = FALSE
-    )
+  if (!is.null(active_types) &&
+      (!is.character(active_types) || length(active_types) == 0L || anyNA(active_types))) {
+    stop(fn, ": active_types must be contract type values, e.g. \"permanent\", or NULL.",
+         call. = FALSE)
   }
-
-  list(
-    group_cols   = .elig_group_cols   %||% group_cols,
-    policy_table = .elig_policy_table %||% policy_table,
-    defaults     = utils::modifyList(eligibility$defaults, pension$defaults)
-  )
+  Filter(Negate(is.null), list(type = type, rates = rates, rule = rule,
+                               pension = pension, active_types = active_types))
 }
 
 
-# =============================================================================
-# Presets
-# =============================================================================
-
-#' Age-Threshold Retirement Policy (Preset)
+#' Retirement Policy: As in the History
 #'
 #' @description
-#' Shortcut for \code{design_retirement_policy(eligibility_age(min_age), pension)}.
+#' People retire at the rates seen in your panel data: in each age (or tenure
+#' year, or both), the share that retired in the past retire each year of the
+#' projection. Nobody is forced to retire at any age. This is the default in
+#' [simulate_horizon()], and the baseline to compare reforms against.
 #'
-#' @param min_age Numeric. Minimum retirement age.
-#' @param pension List. Output of a \code{pension_*()} constructor -- see
-#'   \code{\link{design_retirement_policy}}.
-#' @param group_cols,policy_table Optional group-varying overrides, forwarded
-#'   to \code{\link{design_retirement_policy}} -- e.g. a grade-varying
-#'   \code{min_age}. See there for details.
+#' @param pension List. What retirees are paid, from a `pension_*()` function,
+#'   e.g. [pension_db()].
+#' @param rates List. The rates, from [retirement_rates_status_quo()]. The
+#'   default is rates by age, estimated from your panel by [simulate_horizon()].
+#' @param active_types Character or `NULL`. The contract types the policy
+#'   covers, e.g. `"permanent"`: only people holding a contract of these types
+#'   can retire (a blank type counts as staff). `NULL` (default) covers everyone
+#'   on the payroll.
 #'
-#' @return Same shape as \code{\link{design_retirement_policy}}.
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{eligibility_age}}
+#' @return A retirement policy list, for [simulate_horizon()],
+#'   [simulate_retirement()] or [select_retirees()].
 #' @examples
-#' design_retirement_policy_age(min_age = 60, pension = pension_flat(500))
-#' @export
-design_retirement_policy_age <- function(min_age, pension, group_cols = NULL, policy_table = NULL) {
-  design_retirement_policy(eligibility_age(min_age), pension,
-                           group_cols = group_cols, policy_table = policy_table)
-}
-
-
-#' Tenure-Threshold Retirement Policy (Preset)
-#'
-#' @description
-#' Shortcut for \code{design_retirement_policy(eligibility_tenure(min_tenure), pension)}.
-#'
-#' @param min_tenure Numeric. Minimum years of service.
-#' @param pension List. Output of a \code{pension_*()} constructor -- see
-#'   \code{\link{design_retirement_policy}}.
-#' @param group_cols,policy_table Optional group-varying overrides, forwarded
-#'   to \code{\link{design_retirement_policy}} -- e.g. a grade-varying
-#'   \code{min_tenure}. See there for details.
-#'
-#' @return Same shape as \code{\link{design_retirement_policy}}.
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{eligibility_tenure}}
-#' @examples
-#' design_retirement_policy_tenure(min_tenure = 30, pension = pension_flat(500))
-#' @export
-design_retirement_policy_tenure <- function(min_tenure, pension, group_cols = NULL, policy_table = NULL) {
-  design_retirement_policy(eligibility_tenure(min_tenure), pension,
-                           group_cols = group_cols, policy_table = policy_table)
-}
-
-
-#' Combined Age-and-Tenure Retirement Policy (Preset)
-#'
-#' @description
-#' Shortcut for
-#' \code{design_retirement_policy(eligibility_age_tenure(min_age, min_tenure), pension)}.
-#'
-#' @param min_age Numeric. Minimum retirement age.
-#' @param min_tenure Numeric. Minimum years of service.
-#' @param pension List. Output of a \code{pension_*()} constructor -- see
-#'   \code{\link{design_retirement_policy}}.
-#' @param group_cols,policy_table Optional group-varying overrides, forwarded
-#'   to \code{\link{design_retirement_policy}}. See there for details.
-#'
-#' @return Same shape as \code{\link{design_retirement_policy}}.
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{eligibility_age_tenure}}
-#' @examples
-#' design_retirement_policy_age_tenure(
-#'   min_age = 60, min_tenure = 10,
-#'   pension = pension_db(accrual_rate = 0.02)
-#' )
-#' @export
-design_retirement_policy_age_tenure <- function(min_age, min_tenure, pension,
-                                                group_cols = NULL, policy_table = NULL) {
-  design_retirement_policy(eligibility_age_tenure(min_age, min_tenure), pension,
-                           group_cols = group_cols, policy_table = policy_table)
-}
-
-
-#' Status-Quo (Hazard-Rate) Retirement Policy (Preset)
-#'
-#' @description
-#' Shortcut for
-#' \code{design_retirement_policy(eligibility_status_quo(...), pension)}. See
-#' \code{\link{eligibility_status_quo}} for the auto-estimation caveat
-#' (only fires inside \code{\link{simulate_horizon}}, not standalone
-#' \code{\link{simulate_retirement}}).
-#'
-#' @param pension List. Output of a \code{pension_*()} constructor -- see
-#'   \code{\link{design_retirement_policy}}.
-#' @param hazard_table,mandatory_age,group_cols,retire_strategy See
-#'   \code{\link{eligibility_status_quo}}.
-#'
-#' @return Same shape as \code{\link{design_retirement_policy}}.
-#' @seealso \code{\link{design_retirement_policy}}, \code{\link{eligibility_status_quo}}
-#' @examples
-#' design_retirement_policy_status_quo(
-#'   mandatory_age = 75,
-#'   pension       = pension_rate(pension_rate = 0.15)
-#' )
+#' design_retirement_policy_status_quo(pension_db(0.02, max_years = 35, replacement_cap = 0.80))
+#' design_retirement_policy_status_quo(pension_flat(1000),
+#'                                     rates = retirement_rates_status_quo(by = "age_tenure"))
 #' @export
 design_retirement_policy_status_quo <- function(pension,
-                                                hazard_table  = NULL,
-                                                mandatory_age  = NULL,
-                                                group_cols     = NULL,
-                                                retire_strategy = "random") {
-  design_retirement_policy(
-    eligibility_status_quo(
-      hazard_table    = hazard_table,
-      mandatory_age    = mandatory_age,
-      group_cols       = group_cols,
-      retire_strategy  = retire_strategy
-    ),
-    pension
-  )
+                                                rates = retirement_rates_status_quo(),
+                                                active_types = NULL) {
+  .build_retirement_policy("status_quo", pension, rates = rates, active_types = active_types)
+}
+
+
+#' Retirement Policy: Everyone Who Meets a Rule
+#'
+#' @description
+#' Everyone who meets the rule retires, every year: e.g. everyone aged 60 or
+#' over. Use it to see what a retirement age, or a years-of-service
+#' requirement, would do.
+#'
+#' @param rule List. Who retires, from a `retirement_rule_*()` function, e.g.
+#'   [retirement_rule_age()].
+#' @inheritParams design_retirement_policy_status_quo
+#'
+#' @return A retirement policy list, for [simulate_horizon()],
+#'   [simulate_retirement()] or [select_retirees()].
+#' @examples
+#' design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(1000))
+#' design_retirement_policy_eligibility(retirement_rule_age_tenure(60, 10),
+#'                                      pension_db(0.02), active_types = "permanent")
+#' @export
+design_retirement_policy_eligibility <- function(rule, pension, active_types = NULL) {
+  .build_retirement_policy("eligibility", pension, rule = rule, active_types = active_types)
+}
+
+
+#' Retirement Policy: A Mandatory Rule on Top of the History
+#'
+#' @description
+#' Everyone who meets the rule retires (e.g. everyone aged 75 or over), and the
+#' rest retire at the rates seen in your panel data, as in
+#' [design_retirement_policy_status_quo()]. Use it to see what imposing a
+#' compulsory retirement age would change against the status quo.
+#'
+#' @inheritParams design_retirement_policy_eligibility
+#' @inheritParams design_retirement_policy_status_quo
+#'
+#' @return A retirement policy list, for [simulate_horizon()],
+#'   [simulate_retirement()] or [select_retirees()].
+#' @examples
+#' design_retirement_policy_mandatory(retirement_rule_age(75), pension_db(0.02))
+#' @export
+design_retirement_policy_mandatory <- function(rule, pension,
+                                               rates = retirement_rates_status_quo(),
+                                               active_types = NULL) {
+  .build_retirement_policy("mandatory", pension, rates = rates, rule = rule,
+                           active_types = active_types)
 }

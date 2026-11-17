@@ -35,6 +35,13 @@ small_groups <- function(n_groups = 40L, age = 40) {
   )
 }
 
+# A status-quo retirement policy with these rates by age (and group_cols)
+status_quo_policy <- function(table, group_cols = NULL) {
+  design_retirement_policy_status_quo(
+    pension_flat(1),
+    retirement_rates_status_quo(group_cols = group_cols, hazard_table = table))
+}
+
 # The average of f() over 30 seeds. Set up so that plain rounding gives 0.
 average_over_seeds <- function(f) {
   mean(vapply(1:30, function(seed) { set.seed(seed); as.numeric(f()) }, numeric(1)))
@@ -79,12 +86,12 @@ test_that("flat and ungrouped exit rates are rounded the same way", {
 
 test_that("retirement rates give the expected total, however small the groups", {
   d <- small_groups(age = 60)
-  policy <- eligibility_status_quo(
-    hazard_table = data.table(age_yr_int = 60L, est_id = unique(d$c$est_id), hazard_rate = 0.05),
+  policy <- status_quo_policy(
+    data.table(age_yr_int = 60L, est_id = unique(d$c$est_id), hazard_rate = 0.05),
     group_cols = "est_id"
   )
   n <- average_over_seeds(function() {
-    nrow(compute_status_quo_retirements(d$c, d$p, policy, start))
+    nrow(select_retirees(d$c, d$p, policy, start))
   })
   expect_gt(n, 8.5)
   expect_lt(n, 11.5)
@@ -226,49 +233,39 @@ older_than_the_table <- function() {
   d
 }
 
-hazard_with_ceiling <- function(table, group_cols = NULL) {
-  eligibility_status_quo(hazard_table = table, group_cols = group_cols)
-}
 
 test_that("ages above the oldest retirement age take that age's rate", {
   d <- older_than_the_table()
-  policy <- hazard_with_ceiling(data.table(age_yr_int = c(60L, 65L), hazard_rate = c(0.1, 1)))
-  expect_equal(nrow(compute_status_quo_retirements(d$c, d$p, policy, start)), 10L)
+  policy <- status_quo_policy(data.table(age_yr_int = c(60L, 65L), hazard_rate = c(0.1, 1)))
+  expect_equal(nrow(select_retirees(d$c, d$p, policy, start)), 10L)
 })
 
 test_that("the oldest age is worked out for each group", {
   d <- older_than_the_table()
   table <- data.table(est_id = c("E1", "E2"), age_yr_int = c(60L, 69L), hazard_rate = c(1, 0))
-  policy <- hazard_with_ceiling(table, "est_id")
-  out <- compute_status_quo_retirements(d$c, d$p, policy, start)
+  policy <- status_quo_policy(table, "est_id")
+  out <- select_retirees(d$c, d$p, policy, start)
   # E2's only rate is zero, so E2 has no oldest age with a rate
   expect_setequal(out$personnel_id, d$c[est_id == "E1", personnel_id])
 })
 
 test_that("the oldest age is the oldest with a rate above zero", {
   d <- older_than_the_table()
-  policy <- hazard_with_ceiling(data.table(age_yr_int = c(60L, 75L), hazard_rate = c(1, 0)))
-  expect_equal(nrow(compute_status_quo_retirements(d$c, d$p, policy, start)), 10L)
+  policy <- status_quo_policy(data.table(age_yr_int = c(60L, 75L), hazard_rate = c(1, 0)))
+  expect_equal(nrow(select_retirees(d$c, d$p, policy, start)), 10L)
 })
 
 test_that("ages below or between the ages in the table are not filled in", {
   d <- small_groups(n_groups = 1L, age = 50)
-  policy <- hazard_with_ceiling(data.table(age_yr_int = 60L, hazard_rate = 1))
-  expect_equal(nrow(compute_status_quo_retirements(d$c, d$p, policy, start)), 0L)
+  policy <- status_quo_policy(data.table(age_yr_int = 60L, hazard_rate = 1))
+  expect_equal(nrow(select_retirees(d$c, d$p, policy, start)), 0L)
   d <- small_groups(n_groups = 1L, age = 62)
-  policy <- hazard_with_ceiling(data.table(age_yr_int = c(60L, 65L), hazard_rate = c(1, 1)))
-  expect_equal(nrow(compute_status_quo_retirements(d$c, d$p, policy, start)), 0L)
-})
-
-test_that("a rate you set for unmatched groups still applies above the oldest age", {
-  d <- older_than_the_table()
-  policy <- hazard_with_ceiling(data.table(age_yr_int = 60L, hazard_rate = 1))
-  policy$defaults$hazard_rate <- 0
-  expect_equal(nrow(compute_status_quo_retirements(d$c, d$p, policy, start)), 0L)
+  policy <- status_quo_policy(data.table(age_yr_int = c(60L, 65L), hazard_rate = c(1, 1)))
+  expect_equal(nrow(select_retirees(d$c, d$p, policy, start)), 0L)
 })
 
 test_that("a retirement table with no rates retires nobody", {
   d <- older_than_the_table()
-  policy <- hazard_with_ceiling(data.table(age_yr_int = integer(0), hazard_rate = numeric(0)))
-  expect_equal(nrow(compute_status_quo_retirements(d$c, d$p, policy, start)), 0L)
+  policy <- status_quo_policy(data.table(age_yr_int = integer(0), hazard_rate = numeric(0)))
+  expect_equal(nrow(select_retirees(d$c, d$p, policy, start)), 0L)
 })

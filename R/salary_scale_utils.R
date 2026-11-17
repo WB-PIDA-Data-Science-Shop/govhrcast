@@ -165,3 +165,16 @@ apply_salary_scale_adjustment <- function(salary_scale_dt,
 
   out
 }
+
+
+prepare_salary_scale <- function(contract_dt,
+                                 column_spec_args,
+                                 group_cols){
+  
+  ## 
+
+
+
+
+
+}

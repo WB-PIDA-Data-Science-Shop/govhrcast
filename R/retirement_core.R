@@ -1,222 +1,292 @@
 #' Core Retirement Logic Functions
 #'
 #' @description
-#' Functions for identifying retirement-eligible personnel and computing
-#' retirement eligibility based on age and/or tenure.
+#' Who retires: [select_retirees()] and the three kinds of policy it runs
+#' (status quo, eligibility rule, mandatory rule on top of the status quo);
+#' estimating the status-quo rates from panel data; and the retirees' data the
+#' pension calculation needs.
 #'
 #' @import data.table
 #' @name retirement_core
 #' @keywords internal
 NULL
 
-# Suppress R CMD check NOTEs for data.table column names used in identify_eligibility().
+# Suppress R CMD check NOTEs for data.table column names used in this file.
 utils::globalVariables(c(
-  "eligibility_type", # per-row eligibility type column (resolved via resolve_policy_table)
-  "min_age", # per-row minimum age threshold
-  "min_tenure", # per-row minimum tenure threshold
-  "retire", # eligibility flag computed by fcase
+  "retire", # always 1 on select_retirees() output, for prepare_retiree_data()
   "age", # age in years
   "tenure_years", # tenure in years
-  "tenure_days", # tenure in days (intermediate)
-  "age_yr_int", # integer-truncated age used to key hazard_rate group_cols
+  "age_yr_int", # whole-year age, a key of the status-quo rate tables
   "hazard_rate", # per-group retirement hazard rate resolved onto working tables
   "n_retire", # per-group retirement count computed in compute_status_quo_retirements
-  "n_active" # per-group active headcount computed in compute_status_quo_retirements
+  "n_active", # per-group active headcount computed in compute_status_quo_retirements
+  "retire_reason", # why each retiree retires: "rule" or "status_quo"
+  # estimate_replacement_rates(): its working table and output
+  "id", "date", "x.date", "pension_date", "last_date", "periods_apart",
+  "last_salary", "first_pension", "replacement_rate"
 ))
 
 
-#' Determine Which Eligibility Metrics Must Be Computed
+#' Select Who Retires This Year
 #'
 #' @description
-#' Inspects retirement policy parameters and determines whether age and/or
-#' tenure must be computed for this run. It also extracts all column names
-#' referenced by any custom eligibility rules, so caller code can enrich the
-#' working table only with fields that are actually needed.
+#' Picks the people who retire at `as_of_date` under a retirement policy, without
+#' calculating their pensions. [simulate_retirement()] calls it and then pays the
+#' pensions.
 #'
-#' @param policy_params List. Unified policy specification containing
-#'   \code{defaults} and optionally \code{policy_table}.
+#' Who can retire: everyone holding an active contract who does not already draw
+#' a pension. A blank contract type or status counts as staff. A policy with
+#' `active_types` (e.g. `"permanent"`) narrows this to people holding a contract
+#' of those types.
 #'
-#' @return Named list with elements \code{default_etype}, \code{etype_varies},
-#'   \code{rule_all_cols}, \code{needs_age}, and \code{needs_tenure}.
+#' Who does retire depends on the policy's `type`:
+#' * `"status_quo"`: in each group of the rate table (e.g. each age), the share
+#'   that retired in the past, drawn at random or by `retire_strategy`.
+#' * `"eligibility"`: everyone who meets the rule (e.g. aged 60 or over).
+#' * `"mandatory"`: everyone who meets the rule, then the status quo among the
+#'   rest.
 #'
-#' @keywords internal
-.determine_required_metrics <- function(policy_params, 
-                                        age_col = "age", 
-                                        tenure_col = "personnel_tenure") {
-  
-  .defaults <- if (is.null(policy_params$defaults)) {
-    list()
-  } else {
-    policy_params$defaults
+#' Build the policy with [design_retirement_policy_status_quo()],
+#' [design_retirement_policy_eligibility()] or
+#' [design_retirement_policy_mandatory()].
+#'
+#' @param contract_dt data.table. Contracts at `as_of_date`.
+#' @param personnel_dt data.table. People at `as_of_date`, with an age column
+#'   and a tenure column (named in `column_spec_args`) when the policy uses age
+#'   or tenure. [simulate_horizon()] fills both in for you.
+#' @param policy_params List. A retirement policy; its `pension` part is not used
+#'   here, so the policy you pass to [simulate_retirement()] works as it is.
+#' @param as_of_date Date. The date at which people retire.
+#' @param column_spec_args Column names, from [define_column_spec()].
+#'
+#' @return A data.table with one row per retiree: the person ID, `retire` (always
+#'   1), `age`, `tenure_years` and `retire_reason` (`"rule"` or `"status_quo"`).
+#'   No rows when nobody retires.
+#'
+#' @export
+select_retirees <- function(contract_dt,
+                            personnel_dt,
+                            policy_params,
+                            as_of_date,
+                            column_spec_args = define_column_spec()) {
+  # A NULL age_col / tenure_col means the default name, as in simulate_horizon()
+  cols   <- .fill_age_tenure_col_names(column_spec_args)
+
+  # Stop early, with a message that says what to fix, if the policy or the data
+  # cannot work (e.g. a rule with no age, or no age column in personnel_dt)
+  check_retirement_selection_inputs(contract_dt, personnel_dt, policy_params,
+                                    as_of_date, cols)
+  id_col <- cols$personnel_id_col
+
+  # 1. The contracts that count: started, not ended, and not already a pension
+  #    or inactive. This and the pool below are subsets, so new tables: the
+  #    caller's data is never changed.
+  active <- get_active_contracts(contract_dt, as_of_date,
+                                 cols$start_date_col, cols$end_date_col,
+                                 cols$contract_type_col)
+
+  # 2. A policy for some contract types only (e.g. "permanent") keeps those
+  #    types. A blank type is missing data, so it counts as staff and stays.
+  if (!is.null(policy_params$active_types)) {
+    active <- active[get(cols$contract_type_col) %in% c(policy_params$active_types, NA)]
   }
-  .default_etype <- .defaults$eligibility_type
-  if (is.null(.default_etype) || length(.default_etype) == 0L) {
-    .default_etype <- "age_only"
-  }
 
-  .etype_varies <- !is.null(policy_params$policy_table) &&
-    "eligibility_type" %in% names(policy_params$policy_table)
+  # 3. The pool: one row per person who holds one of those contracts and does
+  #    not already draw a pension. %in% keeps a blank status (== would drop it).
+  pool <- personnel_dt[
+    get(id_col) %in% active[[id_col]] & !get(cols$status_col) %in% "pensioner"
+  ]
 
-  .rule_candidates <- character(0)
-  if (!is.null(.defaults$eligibility_rule)) {
-    .rule_candidates <- c(.rule_candidates, .defaults$eligibility_rule)
-  }
-  if (
-    !is.null(policy_params$policy_table) &&
-      "eligibility_rule" %in% names(policy_params$policy_table)
-  ) {
-    .rule_candidates <- c(
-      .rule_candidates,
-      unique(policy_params$policy_table$eligibility_rule)
-    )
-  }
-  .rule_candidates <- unique(.rule_candidates)
+  # 4. Add what the policy looks people up by: whole-year age and tenure, and
+  #    any group column held on contracts (e.g. occupation), taken from each
+  #    person's main contract. `active` is passed so it is not worked out again.
+  pool <- .add_policy_columns(pool, active, policy_params, cols)
 
-  .rule_all_cols <- if (length(.rule_candidates) > 0L) {
-    unique(unlist(lapply(.rule_candidates, function(r) all.vars(str2lang(r)))))
-  } else {
-    character(0)
-  }
-
-  list(
-    default_etype = .default_etype,
-    etype_varies = .etype_varies,
-    rule_all_cols = .rule_all_cols,
-    needs_age = .etype_varies ||
-      .default_etype %in% c("age_only", "age_and_tenure") ||
-      any(c("age", age_col) %in% .rule_all_cols),
-    needs_tenure = .etype_varies ||
-      .default_etype %in% c("tenure_only", "age_and_tenure") ||
-      any(c("tenure_years", tenure_col) %in% .rule_all_cols))
-  
-}
-
-#' Filter Personnel to Active Retirement Candidates
-#'
-#' @description
-#' Restricts the candidate pool to personnel who hold an active, non-pensioner
-#' contract at \code{as_of_date}. Returns both the filtered table and identifier
-#' vectors used later to restore inactive personnel with \code{retire = 0}.
-#'
-#' @param contract_dt data.table. Contract register.
-#' @param personnel_dt data.table. Personnel register.
-#' @param as_of_date Date. Reference date for active-contract filtering.
-#' @param column_spec_args Complete column specification
-#'   (\code{define_column_spec()}). Keys read: \code{personnel_id_col},
-#'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
-#'   \code{status_col}.
-#' @param policy_params List. Retirement policy; \code{defaults$active_types},
-#'   if set, limits the pool to people on those contract types.
-#'
-#' @return Named list with \code{personnel_dt}, \code{all_pid}, and
-#'   \code{active_pid}.
-#'
-#' @keywords internal
-.filter_active_candidate_pool <- function(contract_dt,
-                                          personnel_dt,
-                                          as_of_date,
-                                          column_spec_args = define_column_spec(),
-                                          policy_params = list()) {
-  personnel_id_col  <- column_spec_args$personnel_id_col
-  start_date_col    <- column_spec_args$start_date_col
-  end_date_col      <- column_spec_args$end_date_col
-  contract_type_col <- column_spec_args$contract_type_col
-  status_col        <- column_spec_args$status_col
-
-  all_pid <- unique(personnel_dt[[personnel_id_col]])
-  active_contracts <- get_active_contracts(
-    contract_dt = contract_dt,
-    as_of_date = as_of_date,
-    start_date_col = start_date_col,
-    end_date_col = end_date_col,
-    contract_type_col = contract_type_col
-  )
-  active_pid <- unique(
-    .covered_by_policy(active_contracts, policy_params, contract_type_col)[[personnel_id_col]]
+  # 5. Who retires, by the kind of policy. Each returns a subset of the pool's
+  #    rows (ID, age, tenure_years, retire_reason), so an empty pool or nobody
+  #    retiring gives 0 rows of the same shape, with no special case needed.
+  retirees <- 
+    switch(policy_params$type,
+           status_quo  = compute_status_quo_retirements(pool, policy_params$rates, cols),
+           eligibility = compute_eligibility_retirements(pool, policy_params$rule, cols),
+           mandatory   = compute_mandatory_retirements(pool, policy_params$rates,
+                                                      policy_params$rule, cols)
   )
 
-  filtered_dt <- personnel_dt[get(personnel_id_col) %in% active_pid]
-  if (!is.null(status_col) && status_col %in% names(filtered_dt)) {
-    filtered_dt <- filtered_dt[!get(status_col) == "pensioner", ]
-  }
-
-  list(personnel_dt = filtered_dt, all_pid = all_pid, active_pid = active_pid)
+  # 6. The shape prepare_retiree_data() expects: ID, retire = 1, age,
+  #    tenure_years (plus retire_reason, which it ignores). Both are set by
+  #    reference, so nothing is copied.
+  retirees[, retire := 1L]
+  data.table::setcolorder(retirees, c(id_col, "retire"))
+  retirees
 }
 
-#' Enrich a Working Table with Required Columns
+
+#' Add the Columns a Retirement Policy Looks People Up By
 #'
 #' @description
-#' Adds requested columns to a working \code{data.table} by joining from
-#' \code{contract_dt} and/or \code{personnel_dt}. Existing columns are left
-#' untouched. The function modifies \code{working_dt} by reference.
+#' The pool comes from `personnel_dt`, one row per person. The policy's rate
+#' table and rule look people up by columns the pool may not have yet, or has
+#' under the data's own names. This adds them:
+#' * `age` and `tenure_years`: the age and tenure columns under fixed names, so
+#'   a rule can always say `age >= min_age`, whatever the data call them. They
+#'   are read, not computed: [simulate_horizon()] sets them once at the start
+#'   and adds a year each year.
+#' * `age_yr_int` and `tenure_yr_int`: the same in whole years, which the rate
+#'   tables are keyed by.
+#' * Group columns kept on contracts rather than on people (e.g. `occupation`,
+#'   `est_id`), and the `retire_strategy` column when it is one of those. They
+#'   are taken from each person's main contract ([get_primary_contract()], the
+#'   same contract [prepare_retiree_data()] takes pay from), so someone with two
+#'   contracts still gets one value.
 #'
-#' @param working_dt data.table. Table to enrich in-place.
-#' @param needed_cols Character vector. Columns to add when absent.
-#' @param contract_dt data.table. Contract source table.
-#' @param personnel_dt data.table. Personnel source table.
-#' @param as_of_date Date. Reference date for active contract extraction.
-#' @param column_spec_args Complete column specification
-#'   (\code{define_column_spec()}). Keys read: \code{personnel_id_col},
-#'   \code{contract_id_col}, \code{start_date_col}, \code{end_date_col},
-#'   \code{contract_type_col}, \code{salary_col} (picks the primary contract).
+#' An age or tenure column the data do not have is left blank; the input check
+#' in [select_retirees()] stops first if the policy needs it.
 #'
-#' @return Invisibly returns \code{working_dt} after in-place modification.
+#' @param pool data.table. The people who can retire, one row per person, from
+#'   `personnel_dt`. The age and tenure columns are added to it in place.
+#' @param active data.table. Their active contracts, from [select_retirees()].
+#' @param policy_params List. The retirement policy; its `rates` and `rule`
+#'   say which group columns are needed.
+#' @param column_spec_args Column names, from [define_column_spec()].
+#'
+#' @return The pool with the added columns. Use the returned table: when
+#'   contract columns are added it is a new table, not `pool`.
 #'
 #' @keywords internal
-.enrich_working_table <- function(working_dt,
-                                  needed_cols,
-                                  contract_dt,
-                                  personnel_dt,
-                                  as_of_date,
-                                  column_spec_args = define_column_spec()) {
-  personnel_id_col  <- column_spec_args$personnel_id_col
-  contract_id_col   <- column_spec_args$contract_id_col
-  start_date_col    <- column_spec_args$start_date_col
-  end_date_col      <- column_spec_args$end_date_col
-  contract_type_col <- column_spec_args$contract_type_col
+.add_policy_columns <- function(pool, active, policy_params, column_spec_args) {
+  cols   <- column_spec_args
+  id_col <- cols$personnel_id_col
 
-  # Add only missing requested columns.
-  needed_cols <- setdiff(unique(needed_cols), names(working_dt))
-  if (length(needed_cols) == 0L) {
-    return(invisible(working_dt))
-  }
+  # 1. Age and tenure under fixed names, and in whole years. A column the data
+  #    do not have gives NA (isTRUE() also covers a column name set to NULL).
+  .age    <- if (isTRUE(cols$age_col    %in% names(pool))) pool[[cols$age_col]]    else NA_real_
+  .tenure <- if (isTRUE(cols$tenure_col %in% names(pool))) pool[[cols$tenure_col]] else NA_real_
+  pool[, `:=`(age           = .age,
+              tenure_years  = .tenure,
+              age_yr_int    = as.integer(.age),
+              tenure_yr_int = as.integer(.tenure))]
 
-  from_contract <- intersect(needed_cols, names(contract_dt))
-  from_personnel <- intersect(needed_cols, names(personnel_dt))
+  # 2. The columns the rates, the rule and the draw use that the pool does not
+  #    have yet: these live on contracts
+  strategy      <- policy_params$rates$defaults$retire_strategy %||% "random"
+  wanted        <- unique(c(policy_params$rates$group_cols, policy_params$rule$group_cols,
+                            setdiff(strategy, "random")))
+  from_contract <- setdiff(wanted, names(pool))
+  if (length(from_contract) == 0L) return(pool)
 
-  # Contract-level columns are sourced from the primary active contract.
-  if (length(from_contract) > 0L) {
-    primary <- get_primary_contract(
-      contract_dt = get_active_contracts(
-        contract_dt = contract_dt,
-        as_of_date = as_of_date,
-        start_date_col = start_date_col,
-        end_date_col = end_date_col,
-        contract_type_col = contract_type_col
-      ),
-      personnel_id_col = personnel_id_col,
-      contract_id_col = contract_id_col,
-      start_date_col = start_date_col,
-      salary_col = column_spec_args$salary_col
-    )[, c(personnel_id_col, from_contract), with = FALSE]
+  # 3. Take them from each person's main contract: one row per person, so the
+  #    join keeps one row per person in the pool
+  main <- get_primary_contract(active, id_col, cols$contract_id_col,
+                               cols$start_date_col, cols$salary_col)
+  main[, c(id_col, from_contract), with = FALSE][pool, on = id_col]
+}
 
-    working_dt[
-      primary,
-      (from_contract) := mget(paste0("i.", from_contract)),
-      on = personnel_id_col
-    ]
-  }
 
-  # Personnel-level columns are sourced directly from personnel_dt.
-  if (length(from_personnel) > 0L) {
-    working_dt[
-      personnel_dt[, c(personnel_id_col, from_personnel), with = FALSE],
-      (from_personnel) := mget(paste0("i.", from_personnel)),
-      on = personnel_id_col
-    ]
-  }
+#' Retire Everyone Who Meets a Rule
+#'
+#' @description
+#' Everyone in the pool who meets the retirement rule retires, with certainty.
+#' [select_retirees()] calls it for an eligibility policy, and
+#' [compute_mandatory_retirements()] calls it as the first step of a mandatory
+#' one.
+#'
+#' The rule is one of four kinds, set in `rule$defaults$kind`:
+#' * `"age"`: `age >= min_age`
+#' * `"tenure"`: `tenure_years >= min_tenure`
+#' * `"age_tenure"`: both
+#' * `"custom"`: the user's own expression in `rule$defaults$custom_rule`, e.g.
+#'   `"age >= min_age | tenure_years >= min_tenure"`. It is checked against an
+#'   allow-list of safe calls before it runs, and can use only the pool's
+#'   columns, `min_age` and `min_tenure`.
+#'
+#' `min_age` and `min_tenure` can differ by group: a row of `rule$policy_table`
+#' (keyed by `rule$group_cols`, e.g. occupation) sets them for that group, and
+#' `rule$defaults` sets them for everyone else. A person whose age or tenure is
+#' missing cannot be tested, and does not retire.
+#'
+#' @param pool data.table. The people who can retire, one row per person, with
+#'   `age`, `tenure_years` and the rule's group columns (see [select_retirees()]).
+#'   Not changed.
+#' @param rule List. The rule part of a retirement policy, from a
+#'   `retirement_rule_*()` constructor.
+#' @param column_spec_args Column names, from [define_column_spec()].
+#'
+#' @return A data.table with one row per retiree: the person ID, `age`,
+#'   `tenure_years` and `retire_reason = "rule"`. No rows when nobody meets the
+#'   rule.
+#'
+#' @keywords internal
+compute_eligibility_retirements <- function(pool, rule, column_spec_args) {
+  id_col <- column_spec_args$personnel_id_col
 
-  invisible(working_dt)
+  # 1. Each person's thresholds: their group's row in the rule table (e.g. 70
+  #    for teachers), or the rule's default for everyone else. Only the
+  #    thresholds the rule sets are looked up; a custom rule may set none.
+  params     <- intersect(c("min_age", "min_tenure"),
+                          c(names(rule$defaults), names(rule$policy_table)))
+  thresholds <- resolve_policy_table(rule, pool, params)
+
+  # 2. The rule as an R expression over the columns age, tenure_years, min_age
+  #    and min_tenure. A custom rule is the user's own text: parsed and checked
+  #    against the allow-list of safe calls, and its column names against the
+  #    pool, here where it runs.
+  rule_expr <- switch(rule$defaults$kind,
+    age        = quote(age >= min_age),
+    tenure     = quote(tenure_years >= min_tenure),
+    age_tenure = quote(age >= min_age & tenure_years >= min_tenure),
+    custom     = validate_eligibility_rule(rule$defaults$custom_rule,
+                                           c(names(pool), params))
+  )
+
+  # 3. Test everyone at once. The rule sees only the pool's columns and the
+  #    thresholds (enclos = baseenv() keeps it from reaching the caller's
+  #    variables), and nothing is added to the pool.
+  meets <- eval(rule_expr, c(pool, thresholds), enclos = baseenv())
+
+  # 4. which() drops a missing result (e.g. no age): a person the rule cannot
+  #    be tested on does not retire.
+  retirees <- pool[which(meets), c(id_col, "age", "tenure_years"), with = FALSE]
+  retirees[, retire_reason := "rule"]
+  retirees
+}
+
+
+#' Retire by a Mandatory Rule, Then by the Status Quo
+#'
+#' @description
+#' A mandatory rule on top of the status quo. Everyone who meets the rule (e.g.
+#' everyone aged 75 or over) retires with certainty; the rest of the pool then
+#' retire at the status-quo rates, as in [compute_status_quo_retirements()].
+#'
+#' The people retired by the rule leave the pool before the rates are applied,
+#' so they are not counted a second time in their group's draw: a 76-year-old
+#' retired by the rule does not also use up one of the age-76 retirements.
+#'
+#' @param pool data.table. The people who can retire, one row per person (see
+#'   [select_retirees()]). Not changed.
+#' @param rates List. The rates part of a retirement policy, from
+#'   [retirement_rates_status_quo()].
+#' @param rule List. The rule part of a retirement policy, from a
+#'   `retirement_rule_*()` constructor.
+#' @param column_spec_args Column names, from [define_column_spec()].
+#'
+#' @return A data.table with one row per retiree: the person ID, `age`,
+#'   `tenure_years` and `retire_reason` (`"rule"` or `"status_quo"`).
+#'
+#' @keywords internal
+compute_mandatory_retirements <- function(pool, rates, rule, column_spec_args) {
+  id_col <- column_spec_args$personnel_id_col
+
+  # 1. Everyone who meets the rule retires for certain
+  forced <- compute_eligibility_retirements(pool, rule, column_spec_args)
+
+  # 2. The forced retirees leave the pool before the rates are applied, so they
+  #    are not counted a second time in their group's draw
+  rest <- compute_status_quo_retirements(pool[!get(id_col) %in% forced[[id_col]]],
+                                         rates, column_spec_args)
+
+  rbind(forced, rest)
 }
 
 
@@ -269,317 +339,6 @@ utils::globalVariables(c(
   }
 
   invisible(dt)
-}
-
-#' Identify Personnel Eligible for Retirement
-#'
-#' @description
-#' Determines which personnel are eligible for retirement based on age and/or
-#' tenure criteria specified in \code{policy_params}.  Supports scalar and
-#' group-level policy variation via \code{\link{resolve_policy_table}}, and
-#' uses \code{data.table::fcase()} for fully vectorised per-row eligibility
-#' dispatch across mixed \code{eligibility_type} values.
-#'
-#' @param contract_dt data.table.  Active workforce contracts in govhr format.
-#'   Required columns: \code{personnel_id_col}, \code{contract_id_col},
-#'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col}.
-#'   When \code{group_cols} are non-null, must also include those columns.
-#' @param personnel_dt data.table.  Personnel register.  Required columns:
-#'   \code{personnel_id_col}, \code{birth_date_col}.  Optional:
-#'   \code{age_col}, \code{tenure_col}.
-#' @param policy_params List.  Unified policy specification.  See
-#'   \code{\link{simulate_retirement}} for the full three-slot specification.
-#'   Eligibility-relevant keys in \code{defaults}:
-#'   \itemize{
-#'     \item \code{eligibility_type}: Character scalar.  One of
-#'       \code{"age_only"}, \code{"tenure_only"}, \code{"age_and_tenure"}.
-#'     \item \code{min_age}: Numeric scalar.  Required when
-#'       \code{eligibility_type} is \code{"age_only"} or
-#'       \code{"age_and_tenure"}.
-#'     \item \code{min_tenure}: Numeric scalar.  Required when
-#'       \code{eligibility_type} is \code{"tenure_only"} or
-#'       \code{"age_and_tenure"}.
-#'   }
-#' @param as_of_date Date.  Reference date for age and tenure computation.
-#' @param column_spec_args Complete column specification
-#'   (\code{define_column_spec()}), in the caller's column names. Keys read:
-#'   \code{personnel_id_col}, \code{contract_id_col}, \code{birth_date_col},
-#'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
-#'   \code{status_col}, and \code{age_col} / \code{tenure_col}: columns in
-#'   \code{personnel_dt} with pre-computed age and tenure in years. When
-#'   present they are used instead of \code{\link{compute_age}} /
-#'   \code{\link{compute_tenure}}; \code{NULL} means always compute. Whichever
-#'   supplies them, they are copied to the working columns \code{age} and
-#'   \code{tenure_years}, which eligibility checks, custom rules and pension
-#'   formulas read.
-#'
-#' @details
-#' \strong{Computation strategy:}
-#' \enumerate{
-#'   \item Only active contracts (\code{\link{get_active_contracts}}) are
-#'     candidates.  Personnel with only inactive/pensioner contracts receive
-#'     \code{retire = 0L} immediately.
-#'   \item Age and tenure are computed only for the metric(s) required by the
-#'     effective \code{eligibility_type}.  If \code{policy_table} contains an
-#'     \code{eligibility_type} column (i.e. the type varies by group), both
-#'     metrics are always computed defensively.
-#'   \item Group-level parameters are resolved onto \code{eligibility_dt} via
-#'     \code{\link{resolve_policy_table}}, a single join that stamps
-#'     \code{eligibility_type}, \code{min_age}, and \code{min_tenure} as
-#'     per-row columns.
-#'   \item \code{data.table::fcase()} performs the eligibility dispatch in one
-#'     vectorised pass.  \code{NA} comparisons evaluate to \code{NA} and fall
-#'     through to \code{default = 0L} (not eligible).
-#'   \item NA validation (missing required thresholds) fires only when the
-#'     caller explicitly supplied \code{eligibility_type} in
-#'     \code{policy_params$defaults}.  This prevents false positives when
-#'     \code{identify_eligibility()} is invoked from non-retirement contexts
-#'     (e.g. hiring demand estimation) that omit eligibility configuration.
-#' }
-#'
-#' @return data.table (one row per person) with columns:
-#'   \describe{
-#'     \item{\emph{\code{personnel_id_col}}}{Personnel identifier, under the
-#'       caller's column name.  All IDs from \code{personnel_dt} are present
-#'       — inactive personnel are not dropped.}
-#'     \item{\code{retire}}{Integer (0/1).  1 = eligible and assumed to retire;
-#'       0 = not eligible, already inactive, or a threshold was \code{NA}.}
-#'     \item{\code{age}}{Numeric.  Age in years at \code{as_of_date}.
-#'       \code{NA} for personnel inactive at \code{as_of_date} or when age
-#'       computation was skipped (tenure-only eligibility).}
-#'     \item{\code{tenure_years}}{Numeric.  Cumulative service in years at
-#'       \code{as_of_date}.  \code{NA} analogously to \code{age}.}
-#'   }
-#'
-#' @section Retirement eligibility vs. retirement choice:
-#' This function equates \emph{eligibility} with \emph{retirement} — all
-#' personnel who meet the policy thresholds are assumed to retire
-#' (100% take-up).  In practice, not all eligible personnel choose to retire
-#' immediately; take-up depends on individual incentives, pension wealth, and
-#' labour market conditions.  A future extension will add an optional second
-#' stage where a retirement choice model (e.g. probit on age, tenure, salary
-#' relative to expected pension) is applied to the eligible pool to produce a
-#' probabilistic retirement indicator.  This would be passed as an optional
-#' \code{choice_model} argument and default to \code{NULL} (100% take-up).
-#'
-#' @keywords internal
-#'
-
-identify_eligibility <- function(contract_dt,
-                                 personnel_dt,
-                                 policy_params,
-                                 as_of_date,
-                                 column_spec_args = define_column_spec()) {
-  personnel_id_col  <- column_spec_args$personnel_id_col
-  contract_id_col   <- column_spec_args$contract_id_col
-  birth_date_col    <- column_spec_args$birth_date_col
-  start_date_col    <- column_spec_args$start_date_col
-  end_date_col      <- column_spec_args$end_date_col
-  contract_type_col <- column_spec_args$contract_type_col
-  age_col           <- column_spec_args$age_col
-  tenure_col        <- column_spec_args$tenure_col
-
-  .defaults <- if (is.null(policy_params$defaults)) {
-    list()
-  } else {
-    policy_params$defaults
-  }
-
-  .metrics <- .determine_required_metrics(policy_params, age_col, tenure_col)
-
-  # Restrict candidate pool to personnel with an active, non-pensioner
-  # contract. Personnel filtered out here still appear in the final result
-  # with retire = 0.
-  .pool <- .filter_active_candidate_pool(
-    contract_dt = contract_dt,
-    personnel_dt = personnel_dt,
-    as_of_date = as_of_date,
-    column_spec_args = column_spec_args,
-    policy_params = policy_params
-  )
-  personnel_dt <- .pool$personnel_dt
-
-  # Every working table below is keyed by the caller's ID column. Compute age
-  # if needed — prefer pre-computed column on personnel_dt. The goal is to
-  # ensure at the end of the day we have a column named "age"
-  if (.metrics$needs_age) {
-    if (!is.null(age_col) && age_col %in% names(personnel_dt)) {
-      age_dt <- personnel_dt[, c(personnel_id_col, age_col), with = FALSE]
-      data.table::setnames(
-        age_dt,
-        c(personnel_id_col, age_col),
-        c(personnel_id_col, "age")
-      )
-    } else {
-      age_dt <- compute_age(
-        personnel_dt = personnel_dt,
-        as_of_date = as_of_date,
-        birth_date_col = birth_date_col,
-        personnel_id_col = personnel_id_col
-      )
-    }
-  } else {
-    age_dt <- unique(personnel_dt[, personnel_id_col, with = FALSE])
-    age_dt[, age := NA_real_]
-  }
-
-  # Compute tenure if needed — prefer pre-computed column on personnel_dt.
-  # but also make sure at the end whatever the case, tenure_years and tenure_days
-  # are the names of the tenure column
-  if (.metrics$needs_tenure) {
-    if (!is.null(tenure_col) && tenure_col %in% names(personnel_dt)) {
-      tenure_dt <- personnel_dt[, c(personnel_id_col, tenure_col), with = FALSE]
-      data.table::setnames(
-        tenure_dt,
-        c(personnel_id_col, tenure_col),
-        c(personnel_id_col, "tenure_years")
-      )
-      tenure_dt[, tenure_days := tenure_years * 365.25]
-    } else {
-      tenure_dt <- compute_tenure(
-        contract_dt = contract_dt,
-        as_of_date = as_of_date,
-        personnel_id_col = personnel_id_col,
-        start_date_col = start_date_col,
-        end_date_col = end_date_col,
-        contract_type_col = contract_type_col
-      )
-    }
-  } else {
-    tenure_dt <- unique(contract_dt[, personnel_id_col, with = FALSE])
-    tenure_dt[, c("tenure_years", "tenure_days") := NA_real_]
-  }
-
-  all_ids <- unique(c(
-    age_dt[[personnel_id_col]],
-    tenure_dt[[personnel_id_col]]
-  ))
-  eligibility_dt <- data.table::data.table(id = all_ids)
-  data.table::setnames(eligibility_dt, "id", personnel_id_col)
-  eligibility_dt <- age_dt[eligibility_dt, on = personnel_id_col]
-  eligibility_dt <- tenure_dt[eligibility_dt, on = personnel_id_col]
-
-  # One join call covers both .group_cols (parameter grouping) and any
-  # columns a custom eligibility_rule references -- .enrich_working_table()
-  # skips whatever's already present, so there's no risk of double-joining
-  # age/tenure_years even though they're technically in .rule_all_cols too.
-  .needed_cols <- union(policy_params$group_cols, .metrics$rule_all_cols)
-  .enrich_working_table(
-    working_dt = eligibility_dt,
-    needed_cols = .needed_cols,
-    contract_dt = contract_dt,
-    personnel_dt = personnel_dt,
-    as_of_date = as_of_date,
-    column_spec_args = column_spec_args
-  )
-
-  # Resolve eligibility params to per-row vectors in a single call.
-  .elig_resolved <- resolve_policy_table(
-    policy_params,
-    eligibility_dt,
-    c("eligibility_type", "min_age", "min_tenure", "eligibility_rule")
-  )
-  eligibility_dt[,
-    eligibility_type := .elig_resolved$eligibility_type %||%
-      rep("age_only", nrow(eligibility_dt))
-  ]
-  eligibility_dt[,
-    min_age := .elig_resolved$min_age %||%
-      rep(NA_real_, nrow(eligibility_dt))
-  ]
-  eligibility_dt[,
-    min_tenure := .elig_resolved$min_tenure %||%
-      rep(NA_real_, nrow(eligibility_dt))
-  ]
-  eligibility_dt[,
-    eligibility_rule := .elig_resolved$eligibility_rule %||%
-      rep(NA_character_, nrow(eligibility_dt))
-  ]
-
-  # Validate that mandatory thresholds are present — only when the caller
-  # explicitly supplied an eligibility_type (see original comment: this
-  # keeps non-retirement callers, e.g. hiring demand, from erroring on a
-  # substituted default that was never really "configured").
-  .etype_explicit <- !is.null(.defaults$eligibility_type) &&
-    length(.defaults$eligibility_type) > 0L
-  if (.etype_explicit) {
-    .bad_age <- eligibility_dt[
-      eligibility_type %in% c("age_only", "age_and_tenure") & is.na(min_age)
-    ]
-    .bad_ten <- eligibility_dt[
-      eligibility_type %in%
-        c("tenure_only", "age_and_tenure") &
-        is.na(min_tenure)
-    ]
-    if (nrow(.bad_age) > 0L) {
-      stop(
-        "identify_eligibility: ",
-        nrow(.bad_age),
-        " rows have eligibility_type requiring 'min_age' but min_age is NA. ",
-        "Check policy_params$defaults$min_age or policy_table.",
-        call. = FALSE
-      )
-    }
-    if (nrow(.bad_ten) > 0L) {
-      stop(
-        "identify_eligibility: ",
-        nrow(.bad_ten),
-        " rows have eligibility_type requiring 'min_tenure' but min_tenure is NA. ",
-        "Check policy_params$defaults$min_tenure or policy_table.",
-        call. = FALSE
-      )
-    }
-  }
-
-  # Custom rules: grouped-by-unique-string evaluation, reusing the same
-  # helper compute_custom_pension() will use later.
-  .eval_per_row_expression(
-    dt = eligibility_dt,
-    mask = eligibility_dt$eligibility_type == "custom",
-    expr_col = "eligibility_rule",
-    allowed_calls = .ALLOWED_RULE_CALLS,
-    result_col = "custom_eligible"
-  )
-
-  eligibility_dt[,
-    retire := data.table::fcase(
-      eligibility_type == "age_only",
-      as.integer(!is.na(age) & !is.na(min_age) & age >= min_age),
-      eligibility_type == "tenure_only",
-      as.integer(!is.na(tenure_years) & !is.na(min_tenure) & tenure_years >= min_tenure),
-      eligibility_type == "age_and_tenure",
-      as.integer(!is.na(age) & !is.na(tenure_years) & 
-        !is.na(min_age) & !is.na(min_tenure) & age >= min_age & tenure_years >= min_tenure),
-      eligibility_type == "custom",
-      as.integer(!is.na(custom_eligible) & custom_eligible),                                                                               
-      default = 0L
-    )
-  ]
-  eligibility_dt[is.na(retire), retire := 0L]
-
-  result <- eligibility_dt[,
-    c(personnel_id_col, "retire", "age", "tenure_years"),
-    with = FALSE
-  ]
-
-  # Personnel without an active contract are listed as not retiring
-  inactive_pids <- setdiff(.pool$all_pid, .pool$active_pid)
-  if (length(inactive_pids) > 0L) {
-    inactive_rows <- data.table::data.table(
-      id = inactive_pids,
-      retire = 0L,
-      age = NA_real_,
-      tenure_years = NA_real_
-    )
-    data.table::setnames(inactive_rows, "id", personnel_id_col)
-    result <- data.table::rbindlist(
-      list(result, inactive_rows),
-      use.names = TRUE,
-      fill = TRUE
-    )
-  }
-
-  return(result)
 }
 
 
@@ -642,18 +401,18 @@ compute_retirement_summary <- function(retirees_dt, contract_dt = NULL) {
 #' Prepare Retiree Data for Pension Calculation
 #'
 #' @description
-#' Enriches the eligibility table from \code{\link{identify_eligibility}} with
+#' Enriches the retirees from \code{\link{select_retirees}} with
 #' salary and contract information required for pension formula evaluation.
-#' Fills any \code{NA} age or tenure values left by the eligibility stage
-#' (e.g. when \code{eligibility_type = "tenure_only"} left \code{age} as
-#' \code{NA}) and selects one primary contract per retiree via
+#' Fills any \code{NA} age or tenure values (e.g. when the data hold no tenure
+#' column, so \code{select_retirees()} left \code{tenure_years} blank) from the
+#' source data, and selects one primary contract per retiree via
 #' \code{\link{get_primary_contract}}.  Their \code{salary_col} is then replaced
 #' by their pay on all their active contracts added up, because a retiree leaves
 #' every job they hold.  Their other columns come from the main contract.
 #'
-#' @param eligibility_dt data.table.  Output of \code{\link{identify_eligibility}}
+#' @param eligibility_dt data.table.  Output of \code{\link{select_retirees}}
 #'   with columns \code{personnel_id_col}, \code{retire}, \code{age},
-#'   \code{tenure_years}.  Only rows where \code{retire == 1} are processed;
+#'   \code{tenure_years} (and \code{retire_reason}, which is kept).  Only rows where \code{retire == 1} are processed;
 #'   the rest are ignored.
 #' @param contract_dt data.table.  Full contract register (not pre-filtered).
 #'   Active contracts are extracted internally via
@@ -707,10 +466,9 @@ prepare_retiree_data <- function(eligibility_dt,
     return(data.table::data.table())
   }
 
-  # Always compute both age and tenure here, regardless of eligibility_type.
-  # identify_eligibility() only computes whichever field the eligibility rule needs,
-  # leaving the other as NA. Pension formulas (e.g. DB) may need both, so we
-  # fill any missing values now from the source data.
+  # select_retirees() reads age and tenure from the data and leaves them NA when
+  # the data hold none. Pension formulas (e.g. DB) may need both, so fill any
+  # missing values now from the source data.
   if (anyNA(retirees_only$age)) {
     age_dt <- compute_age(
       personnel_dt = personnel_dt,
@@ -766,348 +524,372 @@ prepare_retiree_data <- function(eligibility_dt,
   total_pay <- retiree_contracts[, .(pay = .total_pay(get(salary_col))), by = personnel_id_col]
   primary_contracts[, (salary_col) := total_pay[.SD, on = personnel_id_col, pay]]
 
-  # Merge with eligibility data (age, tenure) using data.table join
-  retirees_dt <- primary_contracts[
-    retirees_only[, c(personnel_id_col, "age", "tenure_years"), with = FALSE],
-    on = personnel_id_col
-  ]
+  # Add age, tenure and, from select_retirees(), why each person retires
+  keep <- intersect(c(personnel_id_col, "age", "tenure_years", "retire_reason"),
+                    names(retirees_only))
+  retirees_dt <- primary_contracts[retirees_only[, keep, with = FALSE], on = personnel_id_col]
 
   return(retirees_dt)
 }
 
 
 # =============================================================================
-# Hazard-rate retirement — estimate_retirement_hazard_rates()
+# Status-quo rates — estimate_retirement_hazard_rates()
 # =============================================================================
 
-#' Estimate Age-Specific Retirement Hazard Rates from Panel Data
+#' Estimate Retirement Rates from Panel Data
 #'
 #' @description
-#' Thin adapter over \code{govhr::estimate_decrement_rates()} (and, optionally,
-#' \code{govhr::smooth_decrement_rates()}): estimates the empirical,
-#' exposure-weighted probability that an active employee transitions to
-#' \code{retire_status} (default \code{"pensioner"}) between consecutive panel
-#' snapshots, stratified by integer age (\code{age_yr_int}) and any additional
-#' \code{group_cols}. The result is a \code{data.table} directly usable as
-#' \code{policy_table} for \code{\link{simulate_retirement}} when
-#' \code{policy_params$defaults$eligibility_type = "hazard_rate"}.
+#' The share of people who retired between one snapshot and the next, by
+#' whole-year age, whole-year tenure, or both, and by any other `group_cols`.
+#' Everyone active at a snapshot counts towards their group's total; those who
+#' are pensioners at the next snapshot count as retiring. The rates are pooled
+#' over every pair of snapshots, weighted by how many people each pair had. The
+#' counting is done by `govhr::estimate_decrement_rates()`.
 #'
-#' @param panel_personnel_dt data.table.  Full panel of personnel data (all
-#'   snapshots).  Must contain the age, status, person ID and snapshot-date
-#'   columns (see \code{column_spec_args}), and any columns named in
-#'   \code{group_cols} other than \code{"age_yr_int"} (which this function
-#'   derives internally).  \code{govhr::estimate_decrement_rates()}
-#'   works from this table alone, so any contract-level grouping column (e.g.
-#'   \code{est_id}) must already be joined onto \code{panel_personnel_dt}
-#'   before calling.
-#' @param group_cols Character vector.  Must include \code{"age_yr_int"} —
-#'   hazard rates are always estimated per integer age.  Additional columns
-#'   (e.g. \code{"est_id"}) further stratify the estimate.  Default \code{NULL}
-#'   is invalid and triggers an error, since \code{"age_yr_int"} is required.
-#' @param retire_status Character.  The value of the status column that marks
-#'   retirement.  Default \code{"pensioner"}.
-#' @param smooth Logical.  When \code{TRUE}, pass the full per-age decrement
-#'   table through \code{govhr::smooth_decrement_rates()} (loess graduation,
-#'   falling back to linear interpolation / flat-fill for thin data) before
-#'   extracting the retirement rate.  When \code{FALSE} (default), unmatched
-#'   or thin age/group cells are effectively zero-filled downstream by
-#'   \code{\link{compute_status_quo_retirements}} — meaning "no historical
-#'   retirements observed at this age/group" is taken at face value. This is
-#'   most likely to bite when \code{group_cols} is granular (e.g. per
-#'   establishment): consider \code{smooth = TRUE} whenever a group/age cell
-#'   is likely to have thin exposure in the historical panel.
-#' @param column_spec_args Column names, from \code{\link{define_column_spec}()}.  Change only
-#'   the ones that differ from the \code{govhr} defaults, e.g.
-#'   \code{define_column_spec(personnel_id_col = "emp_id")}.  Keys read
-#'   here: \code{age_col} (fractional age; \code{NULL} means \code{"age"}),
-#'   \code{personnel_id_col}, \code{ref_date_col}, \code{status_col}.  See
-#'   \code{\link{define_column_spec}} for the defaults.
+#' The result is the rate table of [retirement_rates_status_quo()]:
+#' [simulate_horizon()] calls this function for you (through
+#' `precompute_retirement_rates()`) when a status-quo or mandatory policy has no
+#' rates of its own.
 #'
-#' @return data.table with \code{group_cols} and \code{hazard_rate}.  One row
-#'   per unique combination of \code{group_cols} observed in the panel.
+#' @param panel_personnel_dt data.table. The personnel panel: every snapshot,
+#'   with the person ID, snapshot date and status columns, and every column in
+#'   `group_cols`. `age_yr_int` and `tenure_yr_int` are worked out from the age
+#'   and tenure columns when the panel does not hold them. A group column kept
+#'   on contracts (e.g. `est_id`) must already be on the panel;
+#'   [simulate_horizon()] adds it for you.
+#' @param group_cols Character. What the rates vary by: `"age_yr_int"`,
+#'   `"tenure_yr_int"` or both, plus any other columns (e.g. `"est_id"`). The
+#'   `group_cols` of [retirement_rates_status_quo()].
+#' @param retire_status Character. The status that marks a retiree. Default
+#'   `"pensioner"`.
+#' @param smooth Logical. `TRUE` smooths the rates along age (or tenure) with
+#'   `govhr::smooth_decrement_rates()` before they are returned, which helps
+#'   when groups are small. Default `FALSE`: the rates as observed.
+#' @param column_spec_args Column names, from [define_column_spec()]. Keys read:
+#'   `personnel_id_col`, `ref_date_col`, `status_col`, and `age_col` /
+#'   `tenure_col` when `age_yr_int` / `tenure_yr_int` must be worked out
+#'   (`NULL` means the default name, `"age"` / `"personnel_tenure"`).
 #'
-#' @seealso
-#' \code{\link{compute_status_quo_retirements}} for how this table is applied.
-#' \code{\link{simulate_retirement}} for the full policy specification.
+#' @return A data.table with the `group_cols` and `hazard_rate`: one row per
+#'   group seen in the panel.
+#'
+#' @seealso [retirement_rates_status_quo()] for using the rates,
+#'   [compute_status_quo_retirements()] for how they are applied.
 #'
 #' @export
 estimate_retirement_hazard_rates <- function(panel_personnel_dt,
-                                             group_cols       = NULL,
-                                             retire_status    = "pensioner",
-                                             smooth           = FALSE,
-                                             column_spec_args = define_column_spec()) {
-
-  if (!"age_yr_int" %in% group_cols) {
-    stop(
-      "estimate_retirement_hazard_rates: group_cols must include ",
-      "'age_yr_int' (hazard rates are always estimated per integer age).",
-      call. = FALSE
-    )
+                                             group_cols         = NULL,
+                                             retire_status      = "pensioner",
+                                             smooth             = FALSE,
+                                             column_spec_args   = define_column_spec()) {
+  fn <- "estimate_retirement_hazard_rates"
+  if (!any(c("age_yr_int", "tenure_yr_int") %in% group_cols)) {
+    stop(fn, ": group_cols must include 'age_yr_int', 'tenure_yr_int' or both: ",
+         "retirement rates vary by age, tenure, or both.", call. = FALSE)
   }
-
   .check_column_spec(column_spec_args)
-  cols <- column_spec_args
-  if (is.null(cols$age_col)) cols$age_col <- "age"
+  # A NULL age_col / tenure_col means the default name, as in simulate_horizon()
+  cols <- .fill_age_tenure_col_names(column_spec_args)
   .check_spec_columns(NULL, panel_personnel_dt, cols, required = list(
-    personnel_dt = c("age_col", "personnel_id_col", "ref_date_col", "status_col")
+    personnel_dt = c("personnel_id_col", "ref_date_col", "status_col")
   ))
-  age_col    <- cols$age_col
-  status_col <- cols$status_col
 
-  panel_personnel_dt <- if (!data.table::is.data.table(panel_personnel_dt)) {
-    data.table::as.data.table(panel_personnel_dt)
-  } else {
-    data.table::copy(panel_personnel_dt)
+  # 1. Whole-year age and tenure, from the age and tenure columns, where the
+  #    panel does not hold them yet. On a copy: the caller's panel is not changed.
+  panel <- data.table::setDT(data.table::copy(panel_personnel_dt))
+  for (key in intersect(c("age_yr_int", "tenure_yr_int"), group_cols)) {
+    if (key %in% names(panel)) next
+    source_key <- if (key == "age_yr_int") "age_col" else "tenure_col"
+    .check_spec_columns(NULL, panel, cols, required = list(personnel_dt = source_key))
+    panel[, (key) := as.integer(get(cols[[source_key]]))]
   }
-  panel_personnel_dt[, age_yr_int := as.integer(get(age_col))]
 
-  # govhr::estimate_decrement_rates() already stratifies by duration_col
-  # internally (its `by` clause is c(duration_col, group_cols, ...)), so
-  # passing our pre-truncated age_yr_int as govhr's duration_col -- and only
-  # the *other* caller-supplied group columns as govhr's group_cols -- avoids
-  # carrying a redundant duplicate age column through the join. age_yr_int
-  # still ends up as a returned column (from govhr's own duration_col output),
-  # matching what compute_status_quo_retirements() groups personnel by.
-  govhr_group_cols <- setdiff(group_cols, "age_yr_int")
+  # 2. The rates run along age when they use age, along tenure otherwise; govhr
+  #    calls that the duration, and groups by it as well as by the other keys
+  duration_col <- if ("age_yr_int" %in% group_cols) "age_yr_int" else "tenure_yr_int"
+  other_cols   <- setdiff(group_cols, duration_col)
 
   decrements <- govhr::estimate_decrement_rates(
-    personnel         = panel_personnel_dt,
-    duration_col      = "age_yr_int",
-    status_col        = status_col,
-    personnel_id_col  = cols$personnel_id_col,
-    ref_date_col      = cols$ref_date_col,
-    group_cols        = govhr_group_cols
+    personnel        = panel,
+    duration_col     = duration_col,
+    status_col       = cols$status_col,
+    personnel_id_col = cols$personnel_id_col,
+    ref_date_col     = cols$ref_date_col,
+    group_cols       = other_cols
   )
 
+  # 3. Optional smoothing. It must see every outcome (retired, left, stayed)
+  #    for each duration, so it runs before the retirements are picked out.
   if (isTRUE(smooth)) {
-    # Smooth the FULL outcome vocabulary before filtering to retire_status --
-    # smooth_decrement_rates() derives the "active"/stayed rate as the
-    # complement of the smoothed exit rates, so it needs every outcome type
-    # per age to graduate correctly. Mirrors compute_service_table()'s own
-    # call order in govhr.
     decrements <- govhr::smooth_decrement_rates(
       decrements   = decrements,
-      duration_col = "age_yr_int",
-      status_col   = status_col,
-      group_cols   = govhr_group_cols
+      duration_col = duration_col,
+      status_col   = cols$status_col,
+      group_cols   = other_cols
     )
   }
 
-  result <- decrements[get(status_col) == retire_status]
+  # 4. Keep the retirements: their rate is the hazard rate
+  result <- decrements[get(cols$status_col) == retire_status]
   data.table::setnames(result, "decrement_rate", "hazard_rate")
   result[, c(group_cols, "hazard_rate"), with = FALSE]
 }
 
 
-# Ages above the oldest age with a retirement rate take that age's rate, so the
-# oldest staff do not stop retiring just because the history stops there. Worked
-# out for each group. Changes groups_dt in place.
-.apply_oldest_age_rate <- function(groups_dt, rate_table, group_cols) {
+#' Give Groups Older Than the History the Oldest Rate
+#'
+#' @description
+#' Status-quo rates come from the history, so an age only has a rate if someone
+#' that age was seen retiring. Without this step, everyone older than that would
+#' get a rate of 0 and never retire. Here, groups past the oldest age with a rate
+#' above 0 take that rate instead: if 71 is the oldest age seen retiring, a
+#' 75-year-old retires at the age-71 rate.
+#'
+#' This is not a mandatory age: the rate carries on, so only that share retire
+#' each year. Groups inside the history's range with no rate keep the default.
+#'
+#' The rates run along `duration_col`: age, or tenure when the rates are by
+#' tenure only. The oldest rate is found separately for each combination of the
+#' other keys, e.g. for each tenure year when the rates are by age and tenure.
+#'
+#' @param groups_dt data.table. One row per group, with the `group_cols` and a
+#'   `hazard_rate` column. Changed in place.
+#' @param rate_table data.table. The rate table, with the `group_cols` and
+#'   `hazard_rate`. `NULL` leaves `groups_dt` as it is.
+#' @param group_cols Character. The keys of the rate table.
+#' @param duration_col Character. The key the rates run along:
+#'   `"age_yr_int"` (default) or `"tenure_yr_int"`.
+#'
+#' @return `groups_dt`, invisibly, with `hazard_rate` filled in past the oldest
+#'   rate.
+#'
+#' @keywords internal
+.apply_oldest_age_rate <- function(groups_dt, rate_table, group_cols,
+                                   duration_col = "age_yr_int") {
   if (is.null(rate_table)) return(invisible(groups_dt))
   rated <- rate_table[hazard_rate > 0]
   if (nrow(rated) == 0L) return(invisible(groups_dt))
 
-  other_cols <- setdiff(group_cols, "age_yr_int")
-  oldest <- rated[rated[, .I[which.max(age_yr_int)], by = other_cols]$V1]
-  data.table::setnames(oldest, c("age_yr_int", "hazard_rate"), c(".oldest_age", ".oldest_rate"))
+  # The last duration with a rate above 0, and that rate, per combination of
+  # the other keys
+  other_cols <- setdiff(group_cols, duration_col)
+  last <- rated[rated[, .I[which.max(get(duration_col))], by = other_cols]$V1,
+                c(other_cols, duration_col, "hazard_rate"), with = FALSE]
+  data.table::setnames(last, c(duration_col, "hazard_rate"), c(".last_duration", ".last_rate"))
 
+  # Groups past that duration take that rate
   if (length(other_cols) > 0L) {
-    groups_dt[oldest, c(".oldest_age", ".oldest_rate") := list(i..oldest_age, i..oldest_rate),
+    groups_dt[last, c(".last_duration", ".last_rate") := list(i..last_duration, i..last_rate),
               on = other_cols]
   } else {
-    groups_dt[, c(".oldest_age", ".oldest_rate") := list(oldest$.oldest_age, oldest$.oldest_rate)]
+    groups_dt[, c(".last_duration", ".last_rate") := list(last$.last_duration, last$.last_rate)]
   }
-  groups_dt[age_yr_int > .oldest_age, hazard_rate := .oldest_rate]
-  groups_dt[, c(".oldest_age", ".oldest_rate") := NULL]
+  groups_dt[get(duration_col) > .last_duration, hazard_rate := .last_rate]
+  groups_dt[, c(".last_duration", ".last_rate") := NULL]
   invisible(groups_dt)
 }
 
 
-#' Select Personnel for Hazard-Rate-Based Retirement
+#' Retire at the Status-Quo Rates
 #'
 #' @description
-#' Group-level hazard-rate analog of \code{\link{compute_status_quo_exits}}:
-#' resolves a mandatory retirement-age ceiling and a per-group
-#' \code{hazard_rate} from \code{policy_params}, force-retires everyone at or
-#' above the ceiling, then selects \code{n_active * hazard_rate} individuals
-#' (rounded up or down at random, see \code{\link{stochastic_round}}) per
-#' remaining group via the shared \code{\link{.select_personnel_subset}} helper.
-#' Ages above the oldest age with a rate take that age's rate, worked out for each
-#' group, unless the policy sets \code{defaults$hazard_rate}.  Other ages with no
-#' row in the table get a rate of 0.
+#' In each group of the rate table (e.g. each age, or each age and tenure year),
+#' the share of people that retired in the past retire now. [select_retirees()]
+#' calls it for a status-quo policy, and [compute_mandatory_retirements()] calls
+#' it after the rule.
 #'
-#' @param contract_dt data.table.  Active workforce contracts in govhr format.
-#' @param personnel_dt data.table.  Personnel register.
-#' @param policy_params List.  Canonical three-slot retirement policy
-#'   specification (see \code{\link{simulate_retirement}}).  Keys consumed:
-#'   \code{group_cols} (must include \code{"age_yr_int"}), \code{policy_table}
-#'   (with a \code{hazard_rate} column keyed by \code{group_cols}),
-#'   \code{defaults$min_age} (optional mandatory-retirement ceiling — everyone
-#'   at or above it retires with certainty, resolved before the hazard-rate
-#'   draw so forced retirees aren't double-counted against a group's budget),
-#'   and \code{defaults$retire_strategy} (\code{"random"} or a rank-by-column
-#'   name, passed to \code{.select_personnel_subset}; default \code{"random"}).
-#'   A rank-by-column strategy may name either a \code{personnel_dt} or a
-#'   \code{contract_dt} column (e.g. a salary column) — the latter is
-#'   enriched onto the working table automatically, the same way
-#'   \code{group_cols} are.
-#' @param as_of_date Date.  Reference date for active-contract filtering and age
-#'   computation.
-#' @param column_spec_args Complete column specification
-#'   (\code{define_column_spec()}), in the caller's column names. Keys read:
-#'   \code{personnel_id_col}, \code{contract_id_col}, \code{birth_date_col},
-#'   \code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
-#'   \code{status_col}, and \code{age_col}: pre-computed age in years on
-#'   \code{personnel_dt}, used when present and non-missing instead of
-#'   \code{\link{compute_age}} — same precedence
-#'   \code{\link{identify_eligibility}} uses.
+#' For each group:
+#' 1. Count the people in it.
+#' 2. Look up its rate in `rates$policy_table`. A group with no row gets the
+#'    default rate (0); a group older than the history gets the oldest rate (see
+#'    [.apply_oldest_age_rate()]).
+#' 3. Multiply people by rate, and round up or down at random in proportion to
+#'    the fraction (see [stochastic_round()]): 40 people at 0.0625 is 2.5, so 2
+#'    or 3 retire, each half the time.
+#' 4. Pick that many members with [.select_personnel_subset()]: at random, or
+#'    lowest first on the column named in `rates$defaults$retire_strategy`.
 #'
-#' @return data.table with the \code{personnel_id_col} and \code{age} columns
-#'   identifying personnel selected to retire this period (forced +
-#'   hazard-rate-selected, deduplicated), with the age already computed
-#'   internally (avoids recomputing from \code{birth_date_col} downstream,
-#'   which matters when age was pre-computed and \code{birth_date_col} isn't
-#'   even available on \code{personnel_dt}).  Empty (0-row) \code{data.table}
-#'   when no one is selected.
+#' The draw is random, so set a seed (e.g. `simulate_horizon(seed = )`) for
+#' results you can reproduce.
+#'
+#' @param pool data.table. The people who can retire, one row per person, with
+#'   `age`, `tenure_years` and the rate table's keys (see [select_retirees()]).
+#'   Not changed.
+#' @param rates List. The rates part of a retirement policy, from
+#'   [retirement_rates_status_quo()]: `group_cols` (always `age_yr_int` or
+#'   `tenure_yr_int`, plus any others), `policy_table` (a `hazard_rate` per
+#'   group) and `defaults` (`hazard_rate`, `retire_strategy`).
+#' @param column_spec_args Column names, from [define_column_spec()].
+#'
+#' @return A data.table with one row per retiree: the person ID, `age`,
+#'   `tenure_years` and `retire_reason = "status_quo"`. No rows when nobody is
+#'   drawn.
+#'
 #' @keywords internal
-compute_status_quo_retirements <- function(contract_dt,
-                                           personnel_dt,
-                                           policy_params,
-                                           as_of_date,
-                                           column_spec_args = define_column_spec()) {
-  personnel_id_col <- column_spec_args$personnel_id_col
-  birth_date_col   <- column_spec_args$birth_date_col
-  age_col          <- column_spec_args$age_col
+compute_status_quo_retirements <- function(pool, rates, column_spec_args) {
+  id_col     <- column_spec_args$personnel_id_col
+  group_cols <- rates$group_cols
+  strategy   <- rates$defaults$retire_strategy %||% "random"
 
-  .defaults       <- policy_params$defaults %||% list()
-  retire_strategy <- .defaults$retire_strategy %||% "random"
-  group_cols      <- policy_params$group_cols
+  # 1. How many people are in each group (e.g. 40 people aged 58)
+  groups <- pool[, .(n_active = .N), by = group_cols]
 
-  if (is.null(group_cols) || !("age_yr_int" %in% group_cols)) {
-    stop(
-      "compute_status_quo_retirements: policy_params$group_cols must ",
-      "include 'age_yr_int'.",
-      call. = FALSE
-    )
+  # 2. Each group's rate: its row in the rate table, or the default (0) for a
+  #    group the history has no rate for. Groups older than the history take the
+  #    oldest rate (see .apply_oldest_age_rate()).
+  groups[, hazard_rate := resolve_policy_table(rates, groups, "hazard_rate")$hazard_rate]
+  .apply_oldest_age_rate(groups, rates$policy_table, group_cols,
+                         duration_col = if ("age_yr_int" %in% group_cols) "age_yr_int"
+                                        else "tenure_yr_int")
+
+  # 3. How many retire in each group: people x rate, rounded up or down at
+  #    random in proportion to the fraction (40 x 0.0625 = 2.5 gives 2 or 3,
+  #    each half the time), so the expected number is right
+  groups[, n_retire := stochastic_round(n_active * hazard_rate)]
+
+  # 4. Who retires: in each group with someone to retire, pick n_retire of its
+  #    members, at random or lowest first on the retire_strategy column. Only
+  #    the ID and that column are passed to the picker, to keep each group small.
+  #    When no group has anyone to retire (an empty pool, or every rate 0),
+  #    picked stays NULL: data.table would otherwise still run the picker once
+  #    on the empty table, with no n_retire to give it.
+  sd_cols <- unique(c(id_col, setdiff(strategy, "random")))
+  to_pick <- groups[n_retire > 0L]
+  picked  <- if (nrow(to_pick) > 0L) {
+    pool[to_pick, on = group_cols, nomatch = NULL][,
+      .(id = .select_personnel_subset(get(id_col), .SD, n_retire[1L], strategy, id_col)),
+      by = group_cols, .SDcols = sd_cols]
   }
 
-  .pool <- .filter_active_candidate_pool(
-    contract_dt = contract_dt,
-    personnel_dt = personnel_dt,
-    as_of_date = as_of_date,
-    column_spec_args = column_spec_args,
-    policy_params = policy_params
-  )
-  working_dt <- .pool$personnel_dt
+  # 5. The retirees' rows from the pool
+  retirees <- pool[get(id_col) %in% picked$id, c(id_col, "age", "tenure_years"), with = FALSE]
+  retirees[, retire_reason := "status_quo"]
+  retirees
+}
 
-  # The result is keyed by the caller's ID column; no candidates, no rows
-  if (nrow(working_dt) == 0L) {
-    empty <- working_dt[0L, personnel_id_col, with = FALSE]
-    return(empty[, age := numeric(0)])
+#' Estimate Each Retiree's Pension as a Share of Their Last Salary
+#'
+#' @description
+#' For everyone the panel shows retiring, compares their first pension with
+#' their last salary. This is the replacement rate a status-quo pension can be
+#' built from: what retirement has paid in the past, as a share of pay.
+#'
+#' A retirement is a person who is a pensioner at some snapshot and active at
+#' an earlier one:
+#' * **first pension**: their pay at the first snapshot where they are a
+#'   pensioner;
+#' * **last salary**: their pay at the latest snapshot before that where they
+#'   are active, however many periods earlier (a pension can start some
+#'   periods after the last salary).
+#'
+#' Pay is the total on all their contracts at that snapshot, as
+#' [prepare_retiree_data()] counts it. People seen only as pensioners (retired
+#' before the panel starts) have no salary to compare, and are left out.
+#'
+#' `periods_apart` says how many snapshots separate the two. Over a long gap,
+#' pay growth makes the rate look higher, and a very long gap may be someone
+#' who left and later drew a pension rather than a retirement; the step that
+#' turns these into rates by group can leave such cases out.
+#'
+#' This function belongs with the data measures of the **govhr** package and is
+#' meant to move there.
+#'
+#' @param contract_dt data.table. The contract panel: every snapshot.
+#' @param personnel_dt data.table. The personnel panel: every snapshot, with
+#'   each person's status.
+#' @param group_cols Character or `NULL`. Columns to describe each retiree by,
+#'   as they stood at their **last active snapshot** (the job they retired
+#'   from, since pension rows say little about it). A column on
+#'   `personnel_dt` (e.g. `"gender"`) comes from the person's row; a column on
+#'   `contract_dt` only (e.g. `"est_id"`, `"occupation"`) comes from their main
+#'   contract, the one [prepare_retiree_data()] uses, so someone with two
+#'   contracts is counted in one group. Values are returned as they are: to
+#'   group by whole years of age, cut the age column afterwards. Default
+#'   `NULL`: no groups.
+#' @param column_spec_args Column names, from [define_column_spec()]. Keys read:
+#'   `personnel_id_col`, `ref_date_col`, `status_col`, `salary_col`; with a
+#'   contract column in `group_cols`, also `contract_id_col` and
+#'   `start_date_col` (to find the main contract).
+#'
+#' @return A data.table with one row per retirement: the person ID, the
+#'   `group_cols`, `last_date`, `pension_date`, `periods_apart`, `last_salary`,
+#'   `first_pension` and `replacement_rate` (`first_pension / last_salary`;
+#'   blank when either pay is missing or 0).
+#'
+#' @examples
+#' \dontrun{
+#' rates <- estimate_replacement_rates(bra_hrmis_contract, bra_hrmis_personnel,
+#'                                     group_cols = "est_id")
+#' rates[periods_apart == 1L, .(median_rate = median(replacement_rate, na.rm = TRUE)),
+#'       by = est_id]
+#' }
+#'
+#' @export
+estimate_replacement_rates <- function(contract_dt,
+                                       personnel_dt,
+                                       group_cols = NULL,
+                                       column_spec_args = define_column_spec()) {
+  .check_column_spec(column_spec_args)
+  cols <- column_spec_args
+  validate_datatable(contract_dt, "contract_dt")
+  validate_datatable(personnel_dt, "personnel_dt")
+  .check_spec_columns(contract_dt, personnel_dt, cols, required = list(
+    contract_dt  = c("personnel_id_col", "ref_date_col", "salary_col"),
+    personnel_dt = c("personnel_id_col", "ref_date_col", "status_col")
+  ))
+
+  # Each person's status at each snapshot, under short fixed names: only the
+  # three columns needed, so the copy stays small
+  status <- personnel_dt[, .(id     = get(cols$personnel_id_col),
+                             date   = get(cols$ref_date_col),
+                             status = get(cols$status_col))]
+
+  # 1. Each pensioner's first pension date
+  retirees <- status[status %in% "pensioner", .(pension_date = min(date)), by = id]
+
+  # 2. Their last active date before it. A rolling join (roll = TRUE) takes,
+  #    for each pensioner, the latest active snapshot on or before the pension
+  #    date, however far back. It cannot be the pension date itself: the person
+  #    is a pensioner then.
+  active <- status[status %in% "active"]
+  retirees[, last_date := active[retirees, on = .(id, date = pension_date), roll = TRUE, x.date]]
+  retirees <- retirees[!is.na(last_date)]  # seen only as pensioners: no salary to compare
+
+  snapshots <- sort(unique(status$date))
+  retirees[, periods_apart := match(pension_date, snapshots) - match(last_date, snapshots)]
+
+  # 3. The groups they retired from, as at their last active snapshot: a
+  #    personnel column from their own row, a contract column from their main
+  #    contract (so someone with two contracts is counted once)
+  people_cols   <- intersect(group_cols, names(personnel_dt))
+  contract_cols <- setdiff(group_cols, people_cols)
+  if (length(people_cols) > 0L) {
+    retirees[personnel_dt, (people_cols) := mget(paste0("i.", people_cols)),
+             on = c(id = cols$personnel_id_col, last_date = cols$ref_date_col)]
+  }
+  if (length(contract_cols) > 0L) {
+    validate_columns_exist(contract_dt, contract_cols, "contract_dt or personnel_dt")
+    at_last <- contract_dt[.(retirees$id, retirees$last_date),
+                           on = c(cols$personnel_id_col, cols$ref_date_col), nomatch = NULL]
+    main <- get_primary_contract(at_last, cols$personnel_id_col, cols$contract_id_col,
+                                 cols$start_date_col, cols$salary_col)
+    retirees[main, (contract_cols) := mget(paste0("i.", contract_cols)),
+             on = c(id = cols$personnel_id_col)]
   }
 
-  # Age -- same precedence identify_eligibility() uses: prefer pre-computed
-  # age_col, else compute_age().
-  if (!is.null(age_col) && age_col %in% names(working_dt) &&
-      !all(is.na(working_dt[[age_col]]))) {
-    if (age_col != "age") working_dt[, age := get(age_col)]
-  } else {
-    age_dt <- compute_age(
-      personnel_dt = working_dt,
-      as_of_date = as_of_date,
-      birth_date_col = birth_date_col,
-      personnel_id_col = personnel_id_col
-    )
-    working_dt[age_dt, age := i.age, on = personnel_id_col]
+  # 4. Pay on all contracts, added up only for these people at these dates
+  pay_on <- function(dates) {
+    contract_dt[.(retirees$id, dates), on = c(cols$personnel_id_col, cols$ref_date_col),
+                sum(get(cols$salary_col), na.rm = TRUE), by = .EACHI]$V1
   }
-  working_dt[, age_yr_int := as.integer(age)]
+  retirees[, `:=`(last_salary = pay_on(last_date), first_pension = pay_on(pension_date))]
 
-  # Enrich both group_cols (for the hazard_rate join) and, when
-  # retire_strategy names a column, that column too -- working_dt originates
-  # from personnel_dt via .filter_active_candidate_pool(), which typically
-  # lacks contract-level columns (e.g. salary). Without this, a
-  # retire_strategy naming a contract-level column would silently find no
-  # matching column in .select_personnel_subset() and fall back to random
-  # selection with no warning.
-  .strategy_col <- if (!identical(retire_strategy, "random")) retire_strategy else character(0)
-  .enrich_working_table(
-    working_dt = working_dt,
-    needed_cols = union(setdiff(group_cols, "age_yr_int"), .strategy_col),
-    contract_dt = contract_dt,
-    personnel_dt = personnel_dt,
-    as_of_date = as_of_date,
-    column_spec_args = column_spec_args
-  )
+  # 5. The pension as a share of the last salary. A 0 means no pay was found,
+  #    so the rate is left blank rather than 0 or infinite.
+  retirees[last_salary > 0 & first_pension > 0, replacement_rate := first_pension / last_salary]
 
-  # Mandatory-age ceiling, resolved BEFORE grouping so forced retirees aren't
-  # double-counted against a group's n_retire budget.
-  .resolved_ceiling <- resolve_policy_table(policy_params, working_dt, "min_age")
-  working_dt[, min_age := .resolved_ceiling$min_age %||% NA_real_]
-  # !is.na(age) matters here, not just !is.na(min_age): a candidate with NA
-  # age (e.g. a new hire from a prior simulated period whose age was never
-  # populated) makes `age >= min_age` evaluate to NA rather than FALSE, and
-  # indexing working_dt[[personnel_id_col]][forced_mask] with an NA in the
-  # logical mask injects a literal NA personnel_id into forced_ids --
-  # identify_eligibility()'s own fcase() branches guard the same way.
-  forced_mask <- !is.na(working_dt$age) & !is.na(working_dt$min_age) &
-    working_dt$age >= working_dt$min_age
-  forced_ids  <- unique(working_dt[[personnel_id_col]][forced_mask])
-
-  # Age lookup carried through to the return value: working_dt already has
-  # age computed for every candidate (forced or not), so returning it here
-  # lets simulate_retirement()'s dispatch glue avoid recomputing age from
-  # birth_date downstream -- which matters when birth_date_col isn't even
-  # available on personnel_dt (age was pre-computed and passed in directly).
-  .age_lookup <- working_dt[, c(personnel_id_col, "age"), with = FALSE]
-
-  # The selected IDs, in selection order, under the caller's ID column, with age
-  .ids_with_age <- function(ids) {
-    out <- data.table::data.table(id = ids)
-    data.table::setnames(out, "id", personnel_id_col)
-    out[.age_lookup, age := i.age, on = personnel_id_col]
-  }
-
-  remaining_dt <- working_dt[!forced_mask]
-  if (nrow(remaining_dt) == 0L) {
-    return(.ids_with_age(forced_ids))
-  }
-
-  # Group-count-then-select, mirroring compute_status_quo_exits()'s grouped path.
-  groups_dt <- remaining_dt[, .(
-    n_active = data.table::uniqueN(get(personnel_id_col)),
-    pool_ids = list(unique(get(personnel_id_col)))
-  ), by = group_cols]
-
-  # Force a hazard_rate default of 0 onto the policy before resolving:
-  # resolve_policy_table() only silently NA-fills *partially* unmatched
-  # groups -- when every group in a call is unmatched (e.g. simulating a
-  # young workforce against a hazard table that only covers older ages) it
-  # hard-errors instead of returning NA. Guaranteeing a default here keeps
-  # "unmatched cells retire at rate 0" true regardless of how many groups
-  # are unmatched, without weakening resolve_policy_table()'s error for
-  # every *other* caller that relies on it to catch incomplete policies.
-  .hazard_policy_params <- policy_params
-  .hazard_policy_params$defaults$hazard_rate <- .defaults$hazard_rate %||% 0
-  resolved_g <- resolve_policy_table(.hazard_policy_params, groups_dt, "hazard_rate")
-  groups_dt[, hazard_rate := resolved_g$hazard_rate %||% rep(0, .N)]
-  groups_dt[is.na(hazard_rate), hazard_rate := 0]        # defensive belt-and-braces
-
-  if (is.null(.defaults$hazard_rate)) {
-    .apply_oldest_age_rate(groups_dt, policy_params$policy_table, group_cols)
-  }
-
-  groups_dt[, n_retire := pmin(stochastic_round(n_active * hazard_rate), n_active)]
-
-  selected_ids <- unlist(
-    mapply(
-      function(pool, n_retire) {
-        if (n_retire <= 0L || length(pool) == 0L) return(character(0))
-        .select_personnel_subset(pool, remaining_dt, n_retire, retire_strategy, personnel_id_col)
-      },
-      groups_dt$pool_ids, groups_dt$n_retire, SIMPLIFY = FALSE
-    ),
-    use.names = FALSE
-  )
-
-  .ids_with_age(unique(c(forced_ids, selected_ids)))
+  data.table::setnames(retirees, "id", cols$personnel_id_col)
+  data.table::setcolorder(retirees, c(cols$personnel_id_col, group_cols, "last_date", "pension_date"))
+  retirees[]
 }

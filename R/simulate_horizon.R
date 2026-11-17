@@ -130,7 +130,8 @@
 #'     \item{personnel_dt}{Updated personnel snapshot.}
 #'     \item{salary_scale_dt}{Updated pay table (post-COLA).}
 #'     \item{pensioner_register}{Accumulated pensioner ledger including new
-#'       retirees from this period.}
+#'       retirees from this period, with why each retired
+#'       (\code{retire_reason}).}
 #'     \item{allowance_dt}{Accumulated allowance ledger including this
 #'       period's rows, or unchanged/\code{NULL} when \code{allowance_policy}
 #'       is \code{NULL}.}
@@ -178,22 +179,22 @@
 #'
 #' @export
 simulate_scenario <- function(contract_dt,
-                               personnel_dt,
-                               salary_scale_dt,
-                               period_date,
-                               pensioner_register      = NULL,
-                               retirement_policy       = NULL,
-                               exit_policy             = NULL,
-                               movement_policy         = NULL,
-                               hiring_policy           = NULL,
-                               allowance_policy        = NULL,
-                               allowance_dt            = NULL,
-                               salary_growth_rate  = 0,
-                               pension_cola_rate   = 0,
-                               allowance_growth_rate = 0,
-                               column_spec_args    = define_column_spec(),
-                               period_fraction     = 1,
-                               seed                = NULL) {
+                              personnel_dt,
+                              salary_scale_dt,
+                              period_date,
+                              pensioner_register      = NULL,
+                              retirement_policy       = NULL,
+                              exit_policy             = NULL,
+                              movement_policy         = NULL,
+                              hiring_policy           = NULL,
+                              allowance_policy        = NULL,
+                              allowance_dt            = NULL,
+                              salary_growth_rate      = 0,
+                              pension_cola_rate       = 0,
+                              allowance_growth_rate   = 0,
+                              column_spec_args        = define_column_spec(),
+                              period_fraction         = 1,
+                              seed                    = NULL) {
 
   # ------------------------------------------------------------------
   # 0. Initialise / validate
@@ -243,7 +244,7 @@ simulate_scenario <- function(contract_dt,
     by = personnel_id_col
   )
   wage_bill_start <- .active_wage_bill(
-    contract_dt, contract_type_col, salary_col, personnel_id_col
+    contract_dt, contract_type_col, salary_col
   )
 
   # ------------------------------------------------------------------
@@ -282,6 +283,7 @@ simulate_scenario <- function(contract_dt,
                                        retirees_dt$tenure_years else NA_real_,
         age_at_retirement          = if ("age" %in% names(retirees_dt))
                                        retirees_dt$age else NA_real_,
+        retire_reason              = retirees_dt$retire_reason %||% NA_character_,
         period_date                = period_date
       )
       data.table::setnames(new_reg, ".id", personnel_id_col)
@@ -423,12 +425,14 @@ simulate_scenario <- function(contract_dt,
   # ------------------------------------------------------------------
   # STEP 5: AGING
   # ------------------------------------------------------------------
+  # Staff age a year: status "active", or blank (missing data counts as staff,
+  # as in select_retirees()). %in% keeps the blanks, which == "active" would drop.
   if (!is.null(age_col) && age_col %in% names(personnel_dt)) {
-    personnel_dt[get(status_col) == "active",
+    personnel_dt[get(status_col) %in% c("active", NA),
                  (age_col) := get(age_col) + period_fraction]
   }
   if (!is.null(tenure_col) && tenure_col %in% names(personnel_dt)) {
-    personnel_dt[get(status_col) == "active",
+    personnel_dt[get(status_col) %in% c("active", NA),
                  (tenure_col) := get(tenure_col) + period_fraction]
   }
 
@@ -439,7 +443,7 @@ simulate_scenario <- function(contract_dt,
 
   # COLA applies only to pay on the payroll; pension rows are already 0
   pre_cola_wage_bill <- .active_wage_bill(
-    contract_dt, contract_type_col, salary_col, personnel_id_col
+    contract_dt, contract_type_col, salary_col
   )
   inflation_effect   <- compute_inflation_effect(pre_cola_wage_bill, growth)
 
@@ -510,7 +514,7 @@ simulate_scenario <- function(contract_dt,
     by = personnel_id_col
   )
   wage_bill_end <- .active_wage_bill(
-    contract_dt, contract_type_col, salary_col, personnel_id_col
+    contract_dt, contract_type_col, salary_col
   )
 
   # ------------------------------------------------------------------
@@ -598,7 +602,7 @@ simulate_scenario <- function(contract_dt,
 #'
 #' | Module | Argument | Status quo (from history) | Reform / your own assumptions |
 #' |:-------|:---------|:--------------------------|:------------------------------|
-#' | Retirement | \code{retirement_policy} | \code{\link{design_retirement_policy_status_quo}} (default) | \code{\link{design_retirement_policy_age}}, \code{\link{design_retirement_policy_tenure}}, \code{\link{design_retirement_policy_age_tenure}}, or \code{\link{design_retirement_policy}} for any \code{eligibility_*()} + \code{pension_*()} combination |
+#' | Retirement | \code{retirement_policy} | \code{\link{design_retirement_policy_status_quo}} (default) | \code{\link{design_retirement_policy_eligibility}} (everyone who meets a \code{retirement_rule_*()} retires) or \code{\link{design_retirement_policy_mandatory}} (a rule on top of the historical rates), each with a \code{pension_*()} |
 #' | Other exits | \code{exit_policy} | \code{\link{design_exit_policy_status_quo}} | \code{\link{design_exit_policy_flat}}, \code{\link{design_exit_policy_adjustment}} |
 #' | Promotions / transfers | \code{movement_policy} | \code{\link{design_movement_policy_status_quo}} | \code{\link{design_movement_policy_adjustment}} (start from \code{\link{movement_policy_template}}) |
 #' | Hiring | \code{hiring_policy} | \code{\link{design_hiring_policy_status_quo}} | \code{\link{design_hiring_policy_adjustment}}, \code{\link{design_hiring_policy_flow}}, \code{\link{design_hiring_policy_stock}} |
@@ -732,8 +736,9 @@ simulate_scenario <- function(contract_dt,
 #'   above the oldest age with a rate take that age's rate.  They get a
 #'   defined-benefit pension of 2% of \code{salary_col} (on all their contracts) per year of
 #'   service, counting at most 35 years and paying at most 80% of salary.
-#'   There is no mandatory retirement age -- pass your own policy with
-#'   \code{mandatory_age} to add one.  Needs at least two snapshots.
+#'   There is no mandatory retirement age -- use
+#'   \code{\link{design_retirement_policy_mandatory}()} to add one.  Needs at
+#'   least two snapshots.
 #'
 #'   \code{NULL} means nobody retires.
 #' @param exit_policy List or \code{NULL}.  Non-retirement exits:
@@ -859,7 +864,10 @@ simulate_scenario <- function(contract_dt,
 #'       small groups.  Also \code{scenario_name} and \code{is_baseline}.}
 #'     \item{\code{$pensioner_register}}{data.table, one row per retiree per
 #'       year: the person ID (under your name for that column),
-#'       \code{pension_amount}, \code{period_date} and details at retirement.  Always present
+#'       \code{pension_amount}, \code{period_date} and details at retirement,
+#'       including \code{retire_reason}: \code{"rule"} (met the policy's rule),
+#'       \code{"status_quo"} (drawn at the historical rate), or blank for
+#'       people already retired at the start.  Always present
 #'       (zero rows when nobody retired).  Nobody leaves the register: deaths are
 #'       not modelled, so long projections overstate pension costs.  To chain several runs, combine
 #'       their registers with \code{data.table::rbindlist()}.  This is
@@ -908,8 +916,8 @@ simulate_scenario <- function(contract_dt,
 #'   salary_scale_dt   = salary_scale,
 #'   n_periods         = 3L,
 #'   baseline_date          = sim_start,
-#'   retirement_policy = design_retirement_policy_status_quo(
-#'     pension = pension, mandatory_age = 75
+#'   retirement_policy = design_retirement_policy_mandatory(
+#'     rule = retirement_rule_age(75), pension = pension
 #'   ),
 #'   exit_policy       = design_exit_policy_status_quo(group_cols = "est_id"),
 #'   movement_policy   = design_movement_policy_status_quo(
@@ -936,8 +944,9 @@ simulate_scenario <- function(contract_dt,
 #'   salary_scale_dt   = salary_scale,
 #'   n_periods         = 3L,
 #'   baseline_date          = sim_start,
-#'   retirement_policy = design_retirement_policy_age_tenure(
-#'     min_age = 65, min_tenure = 10, pension = pension
+#'   retirement_policy = design_retirement_policy_eligibility(
+#'     rule = retirement_rule_age_tenure(min_age = 65, min_tenure = 10),
+#'     pension = pension
 #'   ),
 #'   exit_policy       = design_exit_policy_status_quo(group_cols = "est_id"),
 #'   hiring_policy     = design_hiring_policy_flow(replacement_rate = 0.5,

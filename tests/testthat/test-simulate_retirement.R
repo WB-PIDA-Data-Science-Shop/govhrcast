@@ -27,26 +27,25 @@ create_integration_test_data <- function() {
     employment_status = c("active", "active", "active", "active")
   )
 
+  # Age and tenure at 2025-01-01, the date the tests retire on. Retirement reads
+  # them; simulate_horizon() fills them in the same way (age from birth date,
+  # tenure from contract history).
+  ref <- as.Date("2025-01-01")
+  personnel_dt[, age := as.numeric(ref - birth_date) / 365.25]
+  personnel_dt[compute_tenure(contract_dt, ref), personnel_tenure := i.tenure_years,
+               on = "personnel_id"]
+
   list(contract_dt = contract_dt, personnel_dt = personnel_dt)
 }
 
 # =============================================================================
-# simulate_retirement() - age_only eligibility
+# simulate_retirement() - age rule
 # =============================================================================
 
-test_that("simulate_retirement works with age_only eligibility", {
+test_that("simulate_retirement works with an age rule", {
   test_data <- create_integration_test_data()
 
-  policy_params <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "age_only",
-      pension_type     = "flat",
-      min_age          = 60,
-      flat_amount      = 15000
-    )
-  )
+  policy_params <- design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(15000))
 
   ref_date <- as.Date("2025-01-01")
 
@@ -84,22 +83,13 @@ test_that("simulate_retirement works with age_only eligibility", {
 })
 
 # =============================================================================
-# simulate_retirement() - tenure_only eligibility
+# simulate_retirement() - tenure rule
 # =============================================================================
 
-test_that("simulate_retirement works with tenure_only eligibility", {
+test_that("simulate_retirement works with a tenure rule", {
   test_data <- create_integration_test_data()
 
-  policy_params <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "tenure_only",
-      pension_type     = "flat",
-      min_tenure       = 25,
-      flat_amount      = 12000
-    )
-  )
+  policy_params <- design_retirement_policy_eligibility(retirement_rule_tenure(25), pension_flat(12000))
 
   ref_date <- as.Date("2025-01-01")
 
@@ -116,23 +106,14 @@ test_that("simulate_retirement works with tenure_only eligibility", {
 })
 
 # =============================================================================
-# simulate_retirement() - age_and_tenure eligibility
+# simulate_retirement() - age and tenure rule
 # =============================================================================
 
-test_that("simulate_retirement works with age_and_tenure eligibility", {
+test_that("simulate_retirement works with an age and tenure rule", {
   test_data <- create_integration_test_data()
 
-  policy_params <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "age_and_tenure",
-      pension_type     = "flat",
-      min_age          = 60,
-      min_tenure       = 20,
-      flat_amount      = 10000
-    )
-  )
+  policy_params <- design_retirement_policy_eligibility(retirement_rule_age_tenure(60, 20),
+                                                        pension_flat(10000))
 
   ref_date <- as.Date("2025-01-01")
 
@@ -155,17 +136,9 @@ test_that("simulate_retirement works with age_and_tenure eligibility", {
 test_that("simulate_retirement works with DB pension", {
   test_data <- create_integration_test_data()
 
-  policy_params <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "tenure_only",
-      pension_type     = "db",
-      min_tenure       = 20,
-      accrual_rate     = 0.02,
-      max_years        = 30,
-      replacement_cap  = 0.70
-    )
+  policy_params <- design_retirement_policy_eligibility(
+    retirement_rule_tenure(20),
+    pension_db(accrual_rate = 0.02, max_years = 30, replacement_cap = 0.70)
   )
 
   ref_date <- as.Date("2025-01-01")
@@ -197,16 +170,9 @@ test_that("simulate_retirement works with DC pension", {
   test_data <- create_integration_test_data()
   test_data$contract_dt[, account_balance := c(600000, 500000, 400000, 450000, 300000)]
 
-  policy_params <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "age_only",
-      pension_type     = "dc",
-      min_age          = 60,
-      balance_col      = "account_balance",
-      annuity_factor   = 20
-    )
+  policy_params <- design_retirement_policy_eligibility(
+    retirement_rule_age(60),
+    pension_dc(balance_col = "account_balance", annuity_factor = 20)
   )
 
   ref_date <- as.Date("2025-01-01")
@@ -233,20 +199,10 @@ test_that("simulate_retirement works with hybrid pension", {
   test_data <- create_integration_test_data()
   test_data$contract_dt[, account_balance := c(400000, 350000, 300000, 320000, 250000)]
 
-  policy_params <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "age_and_tenure",
-      pension_type     = "hybrid",
-      min_age          = 60,
-      min_tenure       = 20,
-      # DB component
-      accrual_rate     = 0.01,
-      # DC component
-      balance_col      = "account_balance",
-      annuity_factor   = 25
-    )
+  policy_params <- design_retirement_policy_eligibility(
+    retirement_rule_age_tenure(60, 20),
+    pension_hybrid(db = pension_db(accrual_rate = 0.01),
+                   dc = pension_dc(balance_col = "account_balance", annuity_factor = 25))
   )
 
   ref_date <- as.Date("2025-01-01")
@@ -276,16 +232,8 @@ test_that("simulate_retirement works with hybrid pension", {
 test_that("simulate_retirement handles no eligible retirees", {
   test_data <- create_integration_test_data()
 
-  policy_params <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "age_only",
-      pension_type     = "flat",
-      min_age          = 70,  # No one is 70 yet
-      flat_amount      = 15000
-    )
-  )
+  # No one is 70 yet
+  policy_params <- design_retirement_policy_eligibility(retirement_rule_age(70), pension_flat(15000))
 
   ref_date <- as.Date("2025-01-01")
 
@@ -307,16 +255,7 @@ test_that("simulate_retirement handles no eligible retirees", {
 test_that("simulate_retirement handles retiree with multiple contracts", {
   test_data <- create_integration_test_data()
 
-  policy_params <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "tenure_only",
-      pension_type     = "flat",
-      min_tenure       = 20,
-      flat_amount      = 10000
-    )
-  )
+  policy_params <- design_retirement_policy_eligibility(retirement_rule_tenure(20), pension_flat(10000))
 
   ref_date <- as.Date("2025-01-01")
 
@@ -337,16 +276,7 @@ test_that("simulate_retirement does not modify original data", {
   original_contract_dt  <- copy(test_data$contract_dt)
   original_personnel_dt <- copy(test_data$personnel_dt)
 
-  policy_params <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "age_only",
-      pension_type     = "flat",
-      min_age          = 60,
-      flat_amount      = 15000
-    )
-  )
+  policy_params <- design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(15000))
 
   ref_date <- as.Date("2025-01-01")
 
@@ -364,17 +294,9 @@ test_that("simulate_retirement does not modify original data", {
 test_that("simulate_retirement validates inputs correctly", {
   test_data <- create_integration_test_data()
 
-  # min_age intentionally omitted — validation should catch it
-  policy_params <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "age_only",
-      # min_age deliberately missing
-      pension_type = "flat",
-      flat_amount  = 15000
-    )
-  )
+  # min_age intentionally omitted from a hand-written rule -- validation should catch it
+  policy_params <- list(type = "eligibility", rule = list(defaults = list(kind = "age")),
+                        pension = pension_flat(15000))
 
   ref_date <- as.Date("2025-01-01")
 
@@ -385,24 +307,15 @@ test_that("simulate_retirement validates inputs correctly", {
       as_of_date     = ref_date,
       policy_params = policy_params
     ),
-    "min_age is required"
+    "retirement rule needs min_age"
   )
 })
 
-test_that("simulate_retirement handles missing birth dates gracefully", {
+test_that("simulate_retirement handles missing ages gracefully", {
   test_data <- create_integration_test_data()
-  test_data$personnel_dt[personnel_id == "P001", birth_date := NA]
+  test_data$personnel_dt[personnel_id == "P001", c("birth_date", "age") := list(NA, NA_real_)]
 
-  policy_params <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "age_only",
-      pension_type     = "flat",
-      min_age          = 60,
-      flat_amount      = 15000
-    )
-  )
+  policy_params <- design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(15000))
 
   ref_date <- as.Date("2025-01-01")
 
@@ -413,7 +326,7 @@ test_that("simulate_retirement handles missing birth dates gracefully", {
     policy_params = policy_params
   )
 
-  # Only P002 should retire (P001 has NA birth_date)
+  # Only P002 should retire (P001 has no age)
   expect_equal(result$summary$n_retired, 1)
   expect_equal(result$retirees_dt$personnel_id, "P002")
 })
@@ -423,17 +336,9 @@ test_that("simulate_retirement works with package data", {
   data(bra_hrmis_contract, package = "govhrcast")
   data(bra_hrmis_personnel, package = "govhrcast")
 
-  policy_params <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "tenure_only",
-      pension_type     = "db",
-      min_tenure       = 20,
-      accrual_rate     = 0.02,
-      max_years        = 35,
-      replacement_cap  = 0.80
-    )
+  policy_params <- design_retirement_policy_eligibility(
+    retirement_rule_tenure(20),
+    pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80)
   )
 
   ref_date <- as.Date("2020-01-01")
@@ -468,23 +373,17 @@ test_that("simulate_retirement: group-level accrual_rate via policy_table produc
   personnel_dt <- data.table::data.table(
     personnel_id = c("P001", "P002"),
     birth_date   = as.Date(c("1955-01-01", "1955-01-01")),  # both age 70
+    age          = 70,
     employment_status = "active"
   )
   accrual_tbl <- data.table::data.table(
     grade        = c("A", "B"),
     accrual_rate = c(0.02, 0.03)
   )
-  policy_params <- list(
-    group_cols   = "grade",
-    policy_table = accrual_tbl,
-    defaults = list(
-      eligibility_type = "age_only",
-      pension_type     = "db",
-      min_age          = 60,
-      accrual_rate     = 0.02,
-      replacement_cap  = 1.0
-    )
-  )
+  pension <- pension_db(accrual_rate = 0.02, replacement_cap = 1.0)
+  pension$group_cols   <- "grade"
+  pension$policy_table <- accrual_tbl
+  policy_params <- design_retirement_policy_eligibility(retirement_rule_age(60), pension)
   result <- simulate_retirement(
     contract_dt  = contract_dt,
     personnel_dt = personnel_dt,
@@ -499,10 +398,10 @@ test_that("simulate_retirement: group-level accrual_rate via policy_table produc
 })
 
 # =============================================================================
-# simulate_retirement() - hazard_rate eligibility
+# simulate_retirement() - status-quo rates, with and without a mandatory rule
 # =============================================================================
 
-test_that("simulate_retirement works with hazard_rate eligibility end-to-end", {
+test_that("simulate_retirement works with a mandatory rule on top of the rates end-to-end", {
   ref_date <- as.Date("2024-01-01")
   contract_dt <- data.table::data.table(
     personnel_id      = paste0("p", 1:10),
@@ -519,34 +418,25 @@ test_that("simulate_retirement works with hazard_rate eligibility end-to-end", {
     age               = c(58, 60, 60, 61, 61, 65, 70, 71, 45, 50),
     employment_status = "active"
   )
-  policy_params <- list(
-    group_cols   = "age_yr_int",
-    policy_table = data.table::data.table(
-      age_yr_int  = 58:71,
-      hazard_rate = c(0, .5, .5, .5, .5, .2, .1, 0, 0, 0, 0, 0, 0, 1)
-    ),
-    defaults = list(
-      eligibility_type = "hazard_rate",
-      min_age          = 70,
-      retire_strategy  = "random",
-      pension_type     = "rate",
-      pension_rate     = 0.15
-    )
-  )
+  rates <- retirement_rates_status_quo(hazard_table = data.table::data.table(
+    age_yr_int  = 58:71,
+    hazard_rate = c(0, .5, .5, .5, .5, .2, .1, 0, 0, 0, 0, 0, 0, 1)
+  ))
+  policy_params <- design_retirement_policy_mandatory(retirement_rule_age(70), pension_rate(0.15), rates)
 
   result <- simulate_retirement(
     contract_dt = contract_dt, personnel_dt = personnel_dt,
     as_of_date = ref_date, policy_params = policy_params
   )
 
-  # p7 (age 70) and p8 (age 71) are forced by min_age; age 60/61 groups each
-  # contribute exactly 1 (round(2 * 0.5) = 1).
+  # p7 (age 70) and p8 (age 71) are forced by the rule; age 60/61 groups each
+  # contribute exactly 1 (2 * 0.5 = 1, nothing to round).
   expect_true(all(c("p7", "p8") %in% result$retirees_dt$personnel_id))
   expect_equal(sum(result$retirees_dt$personnel_id %in% c("p2", "p3")), 1L)
   expect_equal(sum(result$retirees_dt$personnel_id %in% c("p4", "p5")), 1L)
   expect_equal(result$summary$n_retired, 4L)
 
-  # age is carried through from compute_status_quo_retirements() -- not NA.
+  # age is carried through from select_retirees() -- not NA.
   expect_false(anyNA(result$retirees_dt$age))
   expect_equal(result$retirees_dt[personnel_id == "p7"]$age, 70)
 
@@ -564,7 +454,7 @@ test_that("simulate_retirement works with hazard_rate eligibility end-to-end", {
   ))
 })
 
-test_that("simulate_retirement hazard_rate works when age must be computed from birth_date", {
+test_that("simulate_retirement status quo reads whole-year age from the age column", {
   ref_date <- as.Date("2024-01-01")
   contract_dt <- data.table::data.table(
     personnel_id      = c("p1", "p2"),
@@ -578,20 +468,13 @@ test_that("simulate_retirement hazard_rate works when age must be computed from 
   personnel_dt <- data.table::data.table(
     personnel_id      = c("p1", "p2"),
     ref_date          = ref_date,
-    # Mid-year birth dates -- see test-retirement_core.R for why exact
-    # calendar-anniversary birth dates are fragile under the 365.25-day-year
-    # truncation compute_age()/as.integer(age) uses.
-    birth_date        = as.Date(c("1963-06-15", "1990-06-15")), # ~60.5, ~33.5
+    # Age at ref_date: 1963-06-15 to 2024-01-01 = 22,115 days (~60.5); ~33.5
+    age               = c(22115 / 365.25, 33.5),
     employment_status = "active"
   )
-  policy_params <- list(
-    group_cols   = "age_yr_int",
-    policy_table = data.table::data.table(age_yr_int = 60, hazard_rate = 1),
-    defaults = list(
-      eligibility_type = "hazard_rate",
-      pension_type     = "flat",
-      flat_amount      = 500
-    )
+  policy_params <- design_retirement_policy_status_quo(
+    pension_flat(500),
+    retirement_rates_status_quo(hazard_table = data.table::data.table(age_yr_int = 60L, hazard_rate = 1))
   )
 
   result <- simulate_retirement(
@@ -600,16 +483,15 @@ test_that("simulate_retirement hazard_rate works when age must be computed from 
   )
 
   expect_equal(result$retirees_dt$personnel_id, "p1")
-  # Age at ref_date: 1963-06-15 to 2024-01-01 = 22,115 days
   expect_equal(result$retirees_dt$age, 22115 / 365.25)
 })
 
-test_that("simulate_retirement hazard_rate validates group_cols includes age_yr_int", {
+test_that("simulate_retirement status quo validates the rates vary by age or tenure", {
   test_data <- create_integration_test_data()
   policy_params <- list(
-    group_cols   = "grade",
-    policy_table = data.table::data.table(grade = "A", hazard_rate = 1),
-    defaults = list(eligibility_type = "hazard_rate", pension_type = "flat", flat_amount = 100)
+    type    = "status_quo",
+    rates   = list(group_cols = "grade", policy_table = data.table::data.table(grade = "A", hazard_rate = 1)),
+    pension = pension_flat(100)
   )
 
   expect_error(
@@ -617,16 +499,17 @@ test_that("simulate_retirement hazard_rate validates group_cols includes age_yr_
       contract_dt = test_data$contract_dt, personnel_dt = test_data$personnel_dt,
       as_of_date = as.Date("2025-01-01"), policy_params = policy_params
     ),
-    regexp = "age_yr_int"
+    regexp = "age or tenure"
   )
 })
 
-test_that("simulate_retirement hazard_rate validates policy_table has a hazard_rate column", {
+test_that("simulate_retirement status quo validates the rate table has a hazard_rate column", {
   test_data <- create_integration_test_data()
   policy_params <- list(
-    group_cols   = "age_yr_int",
-    policy_table = data.table::data.table(age_yr_int = 60, exit_rate = 1), # wrong column name
-    defaults = list(eligibility_type = "hazard_rate", pension_type = "flat", flat_amount = 100)
+    type    = "status_quo",
+    rates   = list(group_cols = "age_yr_int",
+                   policy_table = data.table::data.table(age_yr_int = 60, exit_rate = 1)), # wrong column name
+    pension = pension_flat(100)
   )
 
   expect_error(
@@ -671,13 +554,13 @@ pen_flat <- pension_flat(flat_amount = 100)
 test_that("simulate_retirement: the default tenure_col is personnel_tenure, used as supplied", {
   # Contract history alone gives ~2 years, so nobody would qualify; the
   # supplied personnel_tenure must be used instead.
-  expect_equal(retired_ids(design_retirement_policy_tenure(min_tenure = 25, pension = pen_flat)), "P1")
-  expect_equal(retired_ids(design_retirement_policy_tenure(min_tenure = 15, pension = pen_flat)), c("P1", "P2"))
+  expect_equal(retired_ids(design_retirement_policy_eligibility(retirement_rule_tenure(25), pen_flat)), "P1")
+  expect_equal(retired_ids(design_retirement_policy_eligibility(retirement_rule_tenure(15), pen_flat)), c("P1", "P2"))
 })
 
 test_that("simulate_retirement: custom rules can use tenure_years or the tenure column's own name", {
-  by_internal <- design_retirement_policy(eligibility_custom("tenure_years >= 15"), pen_flat)
-  by_column   <- design_retirement_policy(eligibility_custom("personnel_tenure >= 15"), pen_flat)
+  by_internal <- design_retirement_policy_eligibility(retirement_rule_custom("tenure_years >= 15"), pen_flat)
+  by_column   <- design_retirement_policy_eligibility(retirement_rule_custom("personnel_tenure >= 15"), pen_flat)
   expect_equal(retired_ids(by_internal), c("P1", "P2"))
   expect_equal(retired_ids(by_column),   c("P1", "P2"))
 })

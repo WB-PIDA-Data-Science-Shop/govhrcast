@@ -1,17 +1,18 @@
 # characterisation A: base salary as pay, hiring scale derived automatically
 
     list(comparison = structure(list(is_baseline = c(FALSE, FALSE, 
-    FALSE, FALSE, FALSE), period_date = c("2012-09-01", "2013-09-01", 
-    "2014-09-01", "2015-09-01", "2016-09-01"), n_headcount_start = c(935L, 
+    FALSE, FALSE, FALSE), period = 1:5, period_start_date = c("2012-09-01", 
+    "2013-09-01", "2014-09-01", "2015-09-01", "2016-09-01"), period_end_date = c("2013-09-01", 
+    "2014-09-01", "2015-09-01", "2016-09-01", "2017-09-01"), n_headcount_start = c(935L, 
     916L, 898L, 892L, 897L), wage_bill_start = c(2004864.43, 2068812.36343729, 
     2127342.75030196, 2216082.54149542, 2355736.83920493), n_exits = c(26L, 
     32L, 31L, 26L, 28L), exit_savings = c(46126.53, 62745.249, 72136.11195, 
     42686.7041475, 80085.1243539375), n_non_ret_exits = c(21L, 21L, 
     21L, 25L, 22L), non_ret_exit_savings = c(44508.6, 53242.2975, 
     48578.6367407547, 55914.6338902266, 52901.3226735984), pension_cost_new = c(20561.998755373, 
-    29918.7329229979, 35274.9388135441, 22661.9797322749, 45452.1880338454
-    ), pension_cost_total = c(21590.0986931417, 54084.2731969466, 
-    93827.1726110153, 122313.609960455, 176154.087894015), n_promotions = c(0L, 
+    29919.5307183162, 35276.7733029117, 22663.455735527, 45452.1601549075
+    ), pension_cost_total = c(21590.0986931417, 54085.1108820308, 
+    93829.9783941896, 122318.105836202, 176158.779290666), n_promotions = c(0L, 
     0L, 0L, 0L, 0L), n_transfers = c(9L, 14L, 9L, 9L, 11L), promotion_effect = c(0, 
     0, 0, 0, 0), transfer_effect = c(0, 0, 0, 0, 0), n_hires = c(28L, 
     35L, 46L, 56L, 75L), hiring_effect = c(56068.1889878986, 73215.8976359971, 
@@ -35,23 +36,24 @@
     2525768.19921245, 2552042.15698883, 2627477.95656714, 2738656.931964
     ), total_wage_bill_end = c(2525768.19921245, 2552042.15698883, 
     2627477.95656714, 2738656.931964, 2902955.43860313)), row.names = c(NA, 
-    -5L), class = "data.frame"), register = list(rows = 422L, pension_total = 176154.087894015, 
+    -5L), class = "data.frame"), register = list(rows = 422L, pension_total = 176158.779290666, 
         final_salary_total = 303779.719451438))
 
 # characterisation B: default names throughout, gross salary as pay
 
     list(comparison = structure(list(is_baseline = c(FALSE, FALSE, 
-    FALSE, FALSE, FALSE), period_date = c("2012-09-01", "2013-09-01", 
-    "2014-09-01", "2015-09-01", "2016-09-01"), n_headcount_start = c(935L, 
+    FALSE, FALSE, FALSE), period = 1:5, period_start_date = c("2012-09-01", 
+    "2013-09-01", "2014-09-01", "2015-09-01", "2016-09-01"), period_end_date = c("2013-09-01", 
+    "2014-09-01", "2015-09-01", "2016-09-01", "2017-09-01"), n_headcount_start = c(935L, 
     920L, 897L, 894L, 899L), wage_bill_start = c(2478234.16, 2561196.08379479, 
     2593650.17532242, 2668287.28275264, 2789901.37498265), n_exits = c(26L, 
     37L, 26L, 28L, 32L), exit_savings = c(68276.56, 101475.57, 73570.894425, 
     84068.59127625, 131002.146343688), n_non_ret_exits = c(22L, 18L, 
     19L, 22L, 21L), non_ret_exit_savings = c(60547.39, 69548.367, 
     85928.267145, 73563.3967635, 67023.332251977), pension_cost_new = c(33261.8481166324, 
-    50380.9478967556, 36361.7670886078, 45237.7145024672, 66618.2663548025
-    ), pension_cost_total = c(843308.138522464, 938373.540740181, 
-    1023472.07322023, 1122145.27710883, 1248201.72063681), n_promotions = c(0L, 
+    50382.3280811499, 36363.7813499199, 45240.4865156364, 66618.2663548025
+    ), pension_cost_total = c(843308.138522464, 938374.989933795, 
+    1023475.7098479, 1122152.00618171, 1248208.78616334), n_promotions = c(0L, 
     0L, 0L, 0L, 0L), n_transfers = c(8L, 13L, 10L, 11L, 10L), promotion_effect = c(0, 
     0, 0, 0, 0), transfer_effect = c(0, 0, 0, 0, 0), n_hires = c(33L, 
     32L, 42L, 55L, 75L), hiring_effect = c(89824.1555188449, 79970.8773218029, 
@@ -75,6 +77,6 @@
     3023292.75507479, 3024404.18007336, 3082816.38940681, 3196209.14122292
     ), total_wage_bill_end = c(3023292.75507479, 3024404.18007336, 
     3082816.38940681, 3196209.14122292, 3331290.08111461)), row.names = c(NA, 
-    -5L), class = "data.frame"), register = list(rows = 428L, pension_total = 1248201.72063681, 
+    -5L), class = "data.frame"), register = list(rows = 428L, pension_total = 1248208.78616334, 
         final_salary_total = 1228282.52204494))
 

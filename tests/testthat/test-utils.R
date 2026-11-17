@@ -527,6 +527,67 @@ test_that("dispatch_param: multi-column group_cols join works correctly", {
 })
 
 # =============================================================================
+# resolve_policy_table() -- every parameter of a three-slot policy, one value
+# per row: the group's value from policy_table, else the default.
+# =============================================================================
+
+resolve_fixture <- function() {
+  list(
+    working = data.table::data.table(est = c("A", "B", "C"), grade = c(1L, 2L, 1L)),
+    policy  = list(group_cols   = "est",
+                   policy_table = data.table::data.table(est = c("A", "B"), min_age = c(60L, 55L)),
+                   defaults     = list(min_age = 58, pension_type = "db"))
+  )
+}
+
+test_that("resolve_policy_table: table values by group, defaults elsewhere, in the order asked", {
+  d   <- resolve_fixture()
+  out <- resolve_policy_table(d$policy, d$working, c("pension_type", "min_age", "not_set"))
+  expect_identical(names(out), c("pension_type", "min_age"))
+  expect_equal(out$min_age, c(60, 55, 58))
+  expect_identical(out$pension_type, rep("db", 3L))
+})
+
+test_that("resolve_policy_table: other columns of working_dt do not change the result", {
+  d     <- resolve_fixture()
+  plain <- resolve_policy_table(d$policy, d$working, "min_age")
+  # A column with the parameter's own name must not be read instead of the table's
+  busy  <- data.table::copy(d$working)[, `:=`(min_age = 99L, salary = 1000)]
+  expect_identical(resolve_policy_table(d$policy, busy, "min_age"), plain)
+})
+
+test_that("resolve_policy_table: a table column keeps its type when no row needs the default", {
+  d <- resolve_fixture()
+  d$policy$policy_table <- data.table::data.table(est = c("A", "B", "C"), min_age = c(60L, 55L, 50L))
+  expect_identical(resolve_policy_table(d$policy, d$working, "min_age")$min_age, c(60L, 55L, 50L))
+})
+
+test_that("resolve_policy_table: a character key in the table still joins to an integer key", {
+  d   <- resolve_fixture()
+  pol <- list(group_cols   = "grade",
+              policy_table = data.table::data.table(grade = c("1", "2"), min_age = c(60, 55)),
+              defaults     = list(min_age = 58))
+  expect_equal(resolve_policy_table(pol, d$working, "min_age")$min_age, c(60, 55, 60))
+  # ... without changing the caller's table
+  expect_type(pol$policy_table$grade, "character")
+})
+
+test_that("resolve_policy_table: no rows gives empty vectors, not an error", {
+  d   <- resolve_fixture()
+  out <- resolve_policy_table(d$policy, d$working[0], c("min_age", "pension_type"))
+  expect_length(out$min_age, 0L)
+  expect_length(out$pension_type, 0L)
+})
+
+test_that("resolve_policy_table: no match and no default stops", {
+  d <- resolve_fixture()
+  d$policy$defaults <- list()
+  d$policy$policy_table <- data.table::data.table(est = "Z", min_age = 60)
+  expect_error(resolve_policy_table(d$policy, d$working, "min_age"),
+               "'min_age' has unmatched groups and no default")
+})
+
+# =============================================================================
 # .select_personnel_subset() -- relocated from exit_core.R's .select_exits(),
 # now shared by both compute_status_quo_exits() and
 # compute_status_quo_retirements().
@@ -564,6 +625,12 @@ test_that(".select_personnel_subset returns character(0) when n_select <= 0", {
 
   expect_identical(select_personnel_subset(pool, dt, 0L, "random", "personnel_id"), character(0))
   expect_identical(select_personnel_subset(pool, dt, -1L, "random", "personnel_id"), character(0))
+})
+
+test_that(".select_personnel_subset returns the one person in a group with a numeric ID", {
+  # sample(12345, 1) draws from 1:12345; the one ID in the pool must come back
+  dt <- data.table::data.table(personnel_id = 12345)
+  expect_identical(select_personnel_subset(12345, dt, 1L, "random", "personnel_id"), 12345)
 })
 
 test_that(".select_personnel_subset rank strategy selects lowest values first", {

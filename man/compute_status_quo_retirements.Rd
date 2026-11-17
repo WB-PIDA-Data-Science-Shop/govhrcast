@@ -2,65 +2,47 @@
 % Please edit documentation in R/retirement_core.R
 \name{compute_status_quo_retirements}
 \alias{compute_status_quo_retirements}
-\title{Select Personnel for Hazard-Rate-Based Retirement}
+\title{Retire at the Status-Quo Rates}
 \usage{
-compute_status_quo_retirements(
-  contract_dt,
-  personnel_dt,
-  policy_params,
-  as_of_date,
-  column_spec_args = define_column_spec()
-)
+compute_status_quo_retirements(pool, rates, column_spec_args)
 }
 \arguments{
-\item{contract_dt}{data.table.  Active workforce contracts in govhr format.}
+\item{pool}{data.table. The people who can retire, one row per person, with
+\code{age}, \code{tenure_years} and the rate table's keys (see \code{\link[=select_retirees]{select_retirees()}}).
+Not changed.}
 
-\item{personnel_dt}{data.table.  Personnel register.}
+\item{rates}{List. The rates part of a retirement policy, from
+\code{\link[=retirement_rates_status_quo]{retirement_rates_status_quo()}}: \code{group_cols} (always \code{age_yr_int} or
+\code{tenure_yr_int}, plus any others), \code{policy_table} (a \code{hazard_rate} per
+group) and \code{defaults} (\code{hazard_rate}, \code{retire_strategy}).}
 
-\item{policy_params}{List.  Canonical three-slot retirement policy
-specification (see \code{\link{simulate_retirement}}).  Keys consumed:
-\code{group_cols} (must include \code{"age_yr_int"}), \code{policy_table}
-(with a \code{hazard_rate} column keyed by \code{group_cols}),
-\code{defaults$min_age} (optional mandatory-retirement ceiling — everyone
-at or above it retires with certainty, resolved before the hazard-rate
-draw so forced retirees aren't double-counted against a group's budget),
-and \code{defaults$retire_strategy} (\code{"random"} or a rank-by-column
-name, passed to \code{.select_personnel_subset}; default \code{"random"}).
-A rank-by-column strategy may name either a \code{personnel_dt} or a
-\code{contract_dt} column (e.g. a salary column) — the latter is
-enriched onto the working table automatically, the same way
-\code{group_cols} are.}
-
-\item{as_of_date}{Date.  Reference date for active-contract filtering and age
-computation.}
-
-\item{column_spec_args}{Complete column specification
-(\code{define_column_spec()}), in the caller's column names. Keys read:
-\code{personnel_id_col}, \code{contract_id_col}, \code{birth_date_col},
-\code{start_date_col}, \code{end_date_col}, \code{contract_type_col},
-\code{status_col}, and \code{age_col}: pre-computed age in years on
-\code{personnel_dt}, used when present and non-missing instead of
-\code{\link{compute_age}} — same precedence
-\code{\link{identify_eligibility}} uses.}
+\item{column_spec_args}{Column names, from \code{\link[=define_column_spec]{define_column_spec()}}.}
 }
 \value{
-data.table with the \code{personnel_id_col} and \code{age} columns
-identifying personnel selected to retire this period (forced +
-hazard-rate-selected, deduplicated), with the age already computed
-internally (avoids recomputing from \code{birth_date_col} downstream,
-which matters when age was pre-computed and \code{birth_date_col} isn't
-even available on \code{personnel_dt}).  Empty (0-row) \code{data.table}
-when no one is selected.
+A data.table with one row per retiree: the person ID, \code{age},
+\code{tenure_years} and \code{retire_reason = "status_quo"}. No rows when nobody is
+drawn.
 }
 \description{
-Group-level hazard-rate analog of \code{\link{compute_status_quo_exits}}:
-resolves a mandatory retirement-age ceiling and a per-group
-\code{hazard_rate} from \code{policy_params}, force-retires everyone at or
-above the ceiling, then selects \code{n_active * hazard_rate} individuals
-(rounded up or down at random, see \code{\link{stochastic_round}}) per
-remaining group via the shared \code{\link{.select_personnel_subset}} helper.
-Ages above the oldest age with a rate take that age's rate, worked out for each
-group, unless the policy sets \code{defaults$hazard_rate}.  Other ages with no
-row in the table get a rate of 0.
+In each group of the rate table (e.g. each age, or each age and tenure year),
+the share of people that retired in the past retire now. \code{\link[=select_retirees]{select_retirees()}}
+calls it for a status-quo policy, and \code{\link[=compute_mandatory_retirements]{compute_mandatory_retirements()}} calls
+it after the rule.
+
+For each group:
+\enumerate{
+\item Count the people in it.
+\item Look up its rate in \code{rates$policy_table}. A group with no row gets the
+default rate (0); a group older than the history gets the oldest rate (see
+\code{\link[=.apply_oldest_age_rate]{.apply_oldest_age_rate()}}).
+\item Multiply people by rate, and round up or down at random in proportion to
+the fraction (see \code{\link[=stochastic_round]{stochastic_round()}}): 40 people at 0.0625 is 2.5, so 2
+or 3 retire, each half the time.
+\item Pick that many members with \code{\link[=.select_personnel_subset]{.select_personnel_subset()}}: at random, or
+lowest first on the column named in \code{rates$defaults$retire_strategy}.
+}
+
+The draw is random, so set a seed (e.g. \code{simulate_horizon(seed = )}) for
+results you can reproduce.
 }
 \keyword{internal}

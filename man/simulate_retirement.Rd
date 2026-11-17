@@ -2,379 +2,129 @@
 % Please edit documentation in R/simulate_retirement.R
 \name{simulate_retirement}
 \alias{simulate_retirement}
-\title{Simulate Retirement Events for a Single Projection Period}
+\title{Simulate Retirement for One Year}
 \usage{
 simulate_retirement(
   contract_dt,
   personnel_dt,
   as_of_date,
-  policy_params = list(group_cols = NULL, policy_table = NULL, defaults =
-    list(eligibility_type = "age_and_tenure", pension_type = "db", min_age = 60,
-    min_tenure = 10, accrual_rate = 0.02, max_years = 35, replacement_cap = 0.8)),
+  policy_params = design_retirement_policy_eligibility(retirement_rule_age_tenure(min_age
+    = 60, min_tenure = 10), pension_db(accrual_rate = 0.02, max_years = 35,
+    replacement_cap = 0.8)),
   column_spec_args = define_column_spec()
 )
 }
 \arguments{
-\item{contract_dt}{A \code{data.table} (or object coercible to a
-\code{data.table}) containing the active workforce contract register in
-\strong{govhr} harmonized format.
+\item{contract_dt}{data.table (or data.frame). The contracts, in the \strong{govhr}
+format: one snapshot, or a panel with several \code{ref_date} values.}
 
-At a minimum, this table must contain the columns identified by
-\code{personnel_id_col}, \code{contract_id_col}, \code{start_date_col},
-\code{end_date_col}, \code{contract_type_col}, and \code{salary_col}.
+\item{personnel_dt}{data.table (or data.frame). The people, with an age
+column and a tenure column when the policy uses age or tenure
+(\code{\link[=simulate_horizon]{simulate_horizon()}} works both out for you).}
 
-The table may represent either:
-\itemize{
-\item a single workforce snapshot, or
-\item a longitudinal panel containing multiple \code{ref_date} values.
-}
+\item{as_of_date}{Date. The date people retire on. Retiring contracts end on
+it.}
 
-When multiple snapshots are present, the snapshot nearest (but not later
-than) \code{as_of_date} is selected automatically.}
+\item{policy_params}{List. The retirement policy, from
+\code{\link[=design_retirement_policy_status_quo]{design_retirement_policy_status_quo()}},
+\code{\link[=design_retirement_policy_eligibility]{design_retirement_policy_eligibility()}} or
+\code{\link[=design_retirement_policy_mandatory]{design_retirement_policy_mandatory()}}. It says who retires (see
+\code{\link[=select_retirees]{select_retirees()}}) and what they are paid (a \verb{pension_*()} function, e.g.
+\code{\link[=pension_db]{pension_db()}}; the pension can differ by group, see below).
 
-\item{personnel_dt}{A \code{data.table} (or object coercible to a
-\code{data.table}) containing the personnel register in \strong{govhr}
-harmonized format.
-
-The table must contain at least the personnel identifier and date of
-birth columns specified by \code{personnel_id_col} and \code{birth_date_col}.
-
-If pre-computed age and tenure variables are supplied, they are used
-directly to avoid unnecessary recalculation.}
-
-\item{as_of_date}{A \code{Date} giving the simulation date for the current
-projection period.
-
-This date is used to:
-\itemize{
-\item compute retirement eligibility,
-\item calculate employee age,
-\item calculate years of service,
-\item select the appropriate workforce snapshot, and
-\item stamp retirement dates onto closed contracts.
+\strong{A pension that differs by group.} The pension part is a list with
+\code{group_cols}, \code{policy_table} and \code{defaults}. To pay, say, a different
+accrual rate by paygrade, set \code{group_cols = "paygrade"} and give a
+\code{policy_table} with \code{paygrade} and \code{accrual_rate}; retirees whose paygrade
+is not in the table get the \code{defaults}. The parameters each pension type
+reads:\tabular{lll}{
+   Parameter \tab Pension types \tab What it is \cr
+   \code{pension_type} \tab all \tab \code{"db"}, \code{"dc"}, \code{"rate"}, \code{"flat"}, \code{"hybrid"} or \code{"custom"} \cr
+   \code{accrual_rate} \tab db, hybrid \tab Share of pay earned per year of service \cr
+   \code{max_years} \tab db, hybrid \tab Most years of service counted \cr
+   \code{replacement_cap} \tab db, hybrid \tab Highest pension as a share of pay \cr
+   \code{balance_col} \tab dc, hybrid \tab Column holding each person's account balance \cr
+   \code{annuity_factor} \tab dc, hybrid \tab Balance divided by this gives the yearly pension \cr
+   \code{notional_rate} \tab dc, hybrid \tab Optional yearly interest on the balance \cr
+   \code{flat_amount} \tab flat \tab The same pension for everyone \cr
+   \code{pension_rate} \tab rate \tab Pension as a share of pay \cr
+   \code{pension_formula} \tab custom \tab Your own arithmetic, e.g. \code{"salary * 0.02 * tenure_years"} \cr
 }}
 
-\item{policy_params}{A named list describing the retirement policy.
-
-The list contains three elements:
-
-\strong{group_cols}
-
-Character vector identifying the variables that define policy groups.
-Examples include \code{"paygrade"}, \code{"est_id"},
-or \code{c("paygrade","est_id")}.
-
-Use \code{NULL} when a single retirement policy applies to the entire workforce.
-
-\strong{policy_table}
-
-A \code{data.table} containing group-specific policy overrides.
-
-Each row represents one policy group.
-Columns may contain any retirement eligibility or pension parameter.
-
-Parameters omitted from a row automatically inherit the corresponding value
-from \code{defaults}.
-
-Use \code{NULL} when all employees share the same retirement policy.
-
-\strong{defaults}
-
-Named list containing the default retirement policy.
-
-The following fields are recognized:\tabular{ll}{
-   Parameter \tab Description \cr
-   \code{eligibility_type} \tab \code{"age_only"}, \code{"tenure_only"}, \code{"age_and_tenure"}, \code{"custom"} or \code{"hazard_rate"} \cr
-   \code{min_age} \tab Minimum retirement age.  For \code{"hazard_rate"}, a mandatory ceiling instead (everyone at or above it retires with certainty) rather than a threshold that turns the hazard mechanism on \cr
-   \code{min_tenure} \tab Minimum years of service \cr
-   \code{active_types} \tab Contract types the policy covers: only people on these types can retire, though a retiree leaves every contract they hold. A blank type counts as staff. Default: everyone on the payroll \cr
-   \code{retire_strategy} \tab \code{"hazard_rate"} only: \code{"random"} (default) or a rank-by-column name, used to select which individuals retire within each group once the group's retiree count is determined \cr
-   \code{pension_type} \tab \code{"db"}, \code{"dc"}, \code{"rate"}, \code{"flat"} or \code{"hybrid"} \cr
-   \code{accrual_rate} \tab Annual DB accrual rate \cr
-   \code{max_years} \tab Maximum years counted toward DB accrual \cr
-   \code{replacement_cap} \tab Maximum pension replacement rate \cr
-   \code{balance_col} \tab Defined Contribution account balance column \cr
-   \code{annuity_factor} \tab DC annuity conversion factor \cr
-   \code{notional_rate} \tab Optional DC interest rate \cr
-   \code{flat_amount} \tab Flat pension amount \cr
-   \code{pension_rate} \tab Pension as a proportion of the reference wage \cr
-}
-
-
-When \code{eligibility_type = "hazard_rate"}, retirement is instead driven by a
-group-level rate rather than a fixed threshold: \code{group_cols} must include
-\code{"age_yr_int"}, and \code{policy_table} must supply a \code{hazard_rate} column keyed
-by \code{group_cols} (see \code{\link[=estimate_retirement_hazard_rates]{estimate_retirement_hazard_rates()}} to estimate one
-from historical panel data). Within each group,
-\code{n_active * hazard_rate} individuals (rounded up or down at random, see
-\code{\link[=stochastic_round]{stochastic_round()}}) are selected to retire via
-\code{retire_strategy}, after anyone at or above \code{min_age} (if set) is
-force-retired first.}
-
-\item{column_spec_args}{What your columns are called, from \code{\link[=define_column_spec]{define_column_spec()}},
-so the function can read your data as it is. Change only the names that
-differ from the \strong{govhr} harmonized defaults; for example
-\code{define_column_spec(personnel_id_col = "pid", age_col = "idade")}.
-Your names are used
-throughout, so the returned tables keep them, and you write the same names
-in \code{group_cols}, \code{policy_table}, \code{retire_strategy} and
-inside \code{eligibility_rule} / \code{pension_formula}. The same spec can be passed
-to every \strong{govhrcast} function; columns a function does not use are ignored.
-
-Keys used here (default in brackets):
+\item{column_spec_args}{What your columns are called, from
+\code{\link[=define_column_spec]{define_column_spec()}}. Change only the names that differ from the \strong{govhr}
+defaults, e.g. \code{define_column_spec(personnel_id_col = "pid", age_col = "idade")}.
+The returned tables keep your names. Keys used here (default in brackets):
 \itemize{
-\item \code{personnel_id_col} (\code{"personnel_id"}): person identifier, in both tables.
-\item \code{contract_id_col} (\code{"contract_id"}): contract identifier.
-\item \code{ref_date_col} (\code{"ref_date"}): snapshot date of a panel. When the
-contract table holds several snapshots, the one nearest (but not later
-than) \code{as_of_date} is used.
-\item \code{start_date_col}, \code{end_date_col} (\code{"start_date"}, \code{"end_date"}):
-contract dates, used for tenure and to find active contracts. Open
-contracts have \code{NA} end dates; retiring employees' contracts get
-\code{as_of_date}.
-\item \code{salary_col} (\code{"gross_salary_lcu"}): pay column. Picks each retiree's
-main contract, is set to 0 on contracts that close, and is what
-wage-based pensions are calculated from.
-\item \code{contract_type_col} (\code{"contract_type"}): only types in \code{active_types}
-can retire; closing contracts become \code{"pensioner"}.
+\item \code{personnel_id_col} (\code{"personnel_id"}), \code{contract_id_col} (\code{"contract_id"}).
+\item \code{ref_date_col} (\code{"ref_date"}): the snapshot date of a panel.
+\item \code{start_date_col}, \code{end_date_col} (\code{"start_date"}, \code{"end_date"}): which
+contracts are active; retiring contracts end on \code{as_of_date}.
+\item \code{salary_col} (\code{"gross_salary_lcu"}): pay. Picks each retiree's main
+contract, is what pay-based pensions are worked out from, and is set to
+0 on the contracts that close.
+\item \code{contract_type_col} (\code{"contract_type"}): closing contracts become
+\code{"pensioner"}; \code{active_types} in the policy reads it.
 \item \code{status_col} (\code{"employment_status"}): set to \code{"pensioner"} for retirees.
-\item \code{birth_date_col} (\code{"birth_date"}): used to calculate age when no age
-column is available.
-\item \code{age_col}, \code{tenure_col} (\code{"age"}, \code{"personnel_tenure"}): pre-computed
-age and years of service on \code{personnel_dt}, used when present instead of
-calculating them. Set to \code{NULL} to always calculate. Whichever source is
-used, custom rules and pension formulas can read them as \code{age} and
-\code{tenure_years}.
+\item \code{age_col}, \code{tenure_col} (\code{"age"}, \code{"personnel_tenure"}): age and years of
+service, read when the policy uses them.
 }}
 }
 \value{
-A named list with four elements:
+A list:
 \itemize{
-\item \strong{summary}
-
-A one-row \code{data.table} summarizing retirement outcomes for the
-current simulation period.
-
-The table contains aggregate retirement statistics produced by
-\code{\link[=compute_retirement_summary]{compute_retirement_summary()}}, such as the number of retirees,
-aggregate pension liabilities, and summary measures of retiree
-characteristics.
-\item \strong{contract_dt}
-
-The updated contract register after retirement has been processed.
-
-Contracts belonging to retiring employees are updated in place to
-reflect retirement (for example, contract status, end date and salary,
-where applicable).
-\item \strong{personnel_dt}
-
-The updated personnel register after retirement has been processed.
-
-Employees who retire during the current simulation period get the status
-\code{"pensioner"}.
-\item \strong{retirees_dt}
-
-A \code{data.table} containing one row for every employee retiring during
-the current simulation period. Its \code{salary_col} is their pay on all their
-contracts added up: that is the wage the pension is calculated on, and
-what leaves the wage bill. Their other columns come from their main contract.
-
-This table includes the variables required for pension calculation,
-the resolved retirement policy parameters applied to each retiree,
-and the computed pension benefit.
-
-If no employees are eligible for retirement, this is returned as a
-zero-row \code{data.table}.
+\item \code{summary}: one row, from \code{\link[=compute_retirement_summary]{compute_retirement_summary()}}: how many
+retired, total and average pension, average age and tenure.
+\item \code{contract_dt}: the contracts, with the retirees' contracts closed.
+\item \code{personnel_dt}: the people, with retirees marked \code{"pensioner"}.
+\item \code{retirees_dt}: one row per retiree, with their main contract's columns,
+\code{salary_col} (their pay on all their contracts added up: what the pension
+is worked out from, and what leaves the wage bill), \code{age},
+\code{tenure_years}, the pension parameters applied to them, and \code{pension}.
+No rows when nobody retires.
 }
 }
 \description{
-\code{simulate_retirement()} is the retirement module used throughout
-\strong{govhrcast}. During a single simulation period it:
+Retires people at \code{as_of_date} under a retirement policy, pays their
+pensions, and takes them off the payroll. It:
 \enumerate{
-\item Validates the supplied workforce data and retirement policy.
-\item Selects the appropriate workforce snapshot when panel data are supplied.
-\item Identifies employees who satisfy the retirement eligibility rules.
-\item Computes pension benefits for each retiree.
-\item Removes retirees from the active workforce.
-\item Returns updated workforce tables together with a summary of retirement
-outcomes.
+\item Checks the pension part of the policy.
+\item When the data hold several snapshots, keeps the one nearest \code{as_of_date}
+(but not after it).
+\item Picks who retires, with \code{\link[=select_retirees]{select_retirees()}}.
+\item Works out each retiree's pension, with \code{\link[=compute_pension]{compute_pension()}}.
+\item Closes the retirees' contracts and marks them as pensioners.
+\item Summarises the year's retirements.
 }
 
-The function assumes that \strong{all employees who become eligible retire during
-the current simulation period}. Retirement probabilities or delayed
-retirement behavior are not currently modeled.
-
-This function simulates a \strong{single projection period}. Multi-period
-workforce projections should instead use
-\code{\link[=simulate_horizon]{simulate_horizon()}}, which repeatedly calls
-\code{simulate_retirement()} over successive simulation periods.
-}
-\details{
-Simulates retirements for one projection period by identifying retirement-
-eligible employees, computing pension entitlements, updating the active
-workforce, and returning both the updated workforce and a complete retiree
-ledger.
-\subsection{Retirement workflow}{
-
-Retirement simulation proceeds through the following stages:
-\enumerate{
-\item Validate all inputs.
-\item Select the workforce snapshot nearest (but not later than) \code{as_of_date}
-when historical panel data are supplied.
-\item Determine retirement eligibility using the policy specified in
-\code{policy_params}.
-\item Assemble a retiree dataset containing the variables required for pension
-calculations.
-\item Resolve policy parameters (including any group-specific overrides).
-\item Compute pension entitlements.
-\item Update the contract and personnel registers.
-\item Produce summary statistics describing retirement activity.
-}
-
-Input data are \strong{never modified in place}. Both \code{contract_dt} and
-\code{personnel_dt} are copied internally before any processing occurs.
-}
-
-\subsection{Policy specification}{
-
-Retirement behavior is controlled entirely through \code{policy_params}.
-The policy is intentionally separated from the workforce data so that
-alternative retirement systems can be evaluated without changing the
-underlying administrative records.
-
-Policies may be:
-\itemize{
-\item Uniform across the workforce.
-\item Different by pay grade.
-\item Different by ministry.
-\item Different by establishment.
-\item Different by any combination of grouping variables.
-}
-
-Group-specific rules are implemented through \code{policy_table}, while
-\code{defaults} provide fallback values for employees whose group does not appear
-in the policy table.
-}
-
-\subsection{Pension calculation}{
-
-Five pension formulas are currently supported:
-\itemize{
-\item \code{"db"} — Defined Benefit pension
-\item \code{"dc"} — Defined Contribution pension
-\item \code{"rate"} — Fixed percentage of reference salary
-\item \code{"flat"} — Fixed pension amount
-\item \code{"hybrid"} — Combined Defined Benefit and Defined Contribution pension
-}
-
-The appropriate pension formula is selected automatically for each retiree
-using the value of \code{pension_type}.
-}
-
-\subsection{Group-specific policies}{
-
-When \code{group_cols} is supplied, retirement parameters are resolved
-separately for each employee group by joining \code{policy_table}
-onto the retiree dataset.
-
-Any parameter omitted from \code{policy_table}
-automatically falls back to the value supplied in \code{defaults}.
-}
+It covers one year. For a projection over several years, use
+\code{\link[=simulate_horizon]{simulate_horizon()}}, which calls this function each year. Your input
+tables are never changed: the function works on copies.
 }
 \examples{
 \dontrun{
-
 library(data.table)
-library(govhrcast)
-
 contract_dt  <- copy(bra_hrmis_contract)
 personnel_dt <- copy(bra_hrmis_personnel)
+personnel_dt[, age := as.numeric(as.Date("2016-09-01") - birth_date) / 365.25]
 
-as_of_date <- as.Date("2014-01-01")
+# Everyone aged 60 or over retires, on 15\% of their pay
+policy <- design_retirement_policy_eligibility(retirement_rule_age(60),
+                                               pension_rate(0.15))
+result <- simulate_retirement(contract_dt, personnel_dt, as.Date("2016-09-01"), policy)
+result$summary
 
-############################################################
-## Example 1: Uniform age-based retirement with a
-##            rate-based pension
-############################################################
-
-policy_params <- list(
-  group_cols = NULL,
-  policy_table = NULL,
-  defaults = list(
-    eligibility_type = "age_only",
-    min_age = 60,
-    active_types = c(
-      "permanent",
-      "short-term",
-      "fixed-term"
-    ),
-    pension_type = "rate",
-    pension_rate = 0.15
-  )
-)
-
-results <- simulate_retirement(
-  contract_dt = contract_dt,
-  personnel_dt = personnel_dt,
-  as_of_date = as_of_date,
-  policy_params = policy_params
-)
-
-results$summary
-head(results$retirees_dt)
-
-
-############################################################
-## Example 2: Paygrade-specific defined benefit pension
-############################################################
-
-accrual_tbl <- data.table(
-  paygrade = c("A", "B", "C", "D"),
-  accrual_rate = c(0.018, 0.020, 0.022, 0.025)
-)
-
-policy_params <- list(
-  group_cols = "paygrade",
-  policy_table = accrual_tbl,
-  defaults = list(
-    eligibility_type = "age_and_tenure",
-    min_age = 60,
-    min_tenure = 10,
-    active_types = c("permanent", "fixed-term"),
-    pension_type = "db",
-    accrual_rate = 0.02,
-    max_years = 35,
-    replacement_cap = 0.80
-  )
-)
-
-results <- simulate_retirement(
-  contract_dt = contract_dt,
-  personnel_dt = personnel_dt,
-  as_of_date = as_of_date,
-  policy_params = policy_params
-)
-
-results$summary
-head(results$retirees_dt)
-
+# A defined-benefit pension with a higher accrual rate for paygrade D
+pension <- pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80)
+pension$group_cols   <- "paygrade"
+pension$policy_table <- data.table(paygrade = "D", accrual_rate = 0.025)
+policy <- design_retirement_policy_eligibility(retirement_rule_age(60), pension)
+simulate_retirement(contract_dt, personnel_dt, as.Date("2016-09-01"), policy)$summary
 }
 
 }
 \seealso{
-\code{\link[=simulate_horizon]{simulate_horizon()}} for multi-period workforce simulations.
-
-\code{\link[=identify_eligibility]{identify_eligibility()}} for retirement eligibility determination
-(threshold-based eligibility types).
-
-\code{\link[=estimate_retirement_hazard_rates]{estimate_retirement_hazard_rates()}} and
-\code{\link[=compute_status_quo_retirements]{compute_status_quo_retirements()}} for the \code{"hazard_rate"} eligibility
-type.
-
-\code{\link[=compute_pension]{compute_pension()}} for pension benefit calculations.
-
-\code{\link[=resolve_policy_table]{resolve_policy_table()}} for applying group-specific policy parameters.
-
-\code{\link[=compute_retirement_summary]{compute_retirement_summary()}} for retirement summary statistics.
+\code{\link[=select_retirees]{select_retirees()}} for who retires, \code{\link[=compute_pension]{compute_pension()}} for the
+pension formulas, \code{\link[=simulate_horizon]{simulate_horizon()}} for a projection over several years.
 }
 \concept{retirement simulation}

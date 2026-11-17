@@ -33,7 +33,7 @@ two_units <- function() {
   )
 }
 
-retire_at_60 <- function() design_retirement_policy_age(60, pension_rate(0.5))
+retire_at_60 <- function() design_retirement_policy_eligibility(retirement_rule_age(60), pension_rate(0.5))
 leave_e2 <- function() {
   list(group_cols = "est_id", policy_table = data.table(est_id = "E2", exit_rate = 1 / 3),
        defaults = list(exit_strategy = "random"))
@@ -75,7 +75,7 @@ test_that("flow hiring replaces other exits when nobody retires, and ungrouped t
 test_that("a year when nobody leaves is a year with nothing to replace", {
   d <- two_units()
   # Eligibility would pick someone, but the run has its own record of who left
-  run <- suppressMessages(flow_run(d, retirement = design_retirement_policy_age(90, pension_rate(0.5)),
+  run <- suppressMessages(flow_run(d, retirement = design_retirement_policy_eligibility(retirement_rule_age(90), pension_rate(0.5)),
                                    exits = NULL))
   expect_equal(run$comparison$n_hires, 0L)
   # An empty table passed in says the same

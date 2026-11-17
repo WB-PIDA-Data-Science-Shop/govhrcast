@@ -90,24 +90,21 @@ test_that("simulate_retirement(): renamed columns give the default-name results"
     setnames(data.table(x = c("permanent", "fixed-term", "short-term"),
                         accrual_rate = c(0.02, 0.015, 0.01)), "x", type_col)
   }
-  policy <- function(type_col) list(
-    group_cols   = type_col,
-    policy_table = accrual_by_type(type_col),
-    defaults     = list(eligibility_type = "age_and_tenure", min_age = 60,
-                        min_tenure = 10, pension_type = "db", accrual_rate = 0.02,
-                        max_years = 35, replacement_cap = 0.8)
-  )
+  policy <- function(type_col) {
+    pension <- pension_db(0.02, max_years = 35, replacement_cap = 0.8)
+    pension$group_cols   <- type_col
+    pension$policy_table <- accrual_by_type(type_col)
+    design_retirement_policy_eligibility(retirement_rule_age_tenure(60, 10), pension)
+  }
   runs <- retire_both_ways(policy("contract_type"), policy("tipo"))
   expect_gt(nrow(runs$default$retirees_dt), 0L)
   expect_same_results_in_user_names(runs)
 })
 
 test_that("simulate_retirement(): custom rules and formulas use the caller's names", {
-  policy <- function(rule, formula) list(
-    group_cols = NULL, policy_table = NULL,
-    defaults = list(eligibility_type = "custom", eligibility_rule = rule,
-                    pension_type = "custom", pension_formula = formula)
-  )
+  policy <- function(rule, formula) {
+    design_retirement_policy_eligibility(retirement_rule_custom(rule), pension_custom(formula))
+  }
   # A pension formula sees the retiree's contract columns plus the package's
   # own age and tenure_years (age at ref_date), which keep their names
   default_formula <- "gross_salary_lcu * (age - 40) / 100"
@@ -125,11 +122,9 @@ test_that("simulate_retirement(): custom rules and formulas use the caller's nam
 })
 
 test_that("simulate_retirement(): hazard-rate retirement works on renamed columns", {
-  policy <- list(
-    group_cols   = "age_yr_int",
-    policy_table = data.table(age_yr_int = 55:75, hazard_rate = 0.2),
-    defaults     = list(eligibility_type = "hazard_rate", pension_type = "rate",
-                        pension_rate = 0.5)
+  policy <- design_retirement_policy_status_quo(
+    pension_rate(0.5),
+    retirement_rates_status_quo(hazard_table = data.table(age_yr_int = 55:75, hazard_rate = 0.2))
   )
   runs <- retire_both_ways(policy, policy)
   expect_gt(nrow(runs$default$retirees_dt), 0L)
@@ -143,71 +138,42 @@ test_that("simulate_retirement(): the caller's tables are left unchanged", {
   hp_before <- copy(d$hp_user)
   simulate_retirement(
     d$hc_user, d$hp_user, as_of_date = d$ref_date,
-    policy_params = list(group_cols = NULL, policy_table = NULL,
-                         defaults = list(eligibility_type = "age_only", min_age = 60,
-                                         pension_type = "rate", pension_rate = 0.5)),
+    policy_params = design_retirement_policy_eligibility(retirement_rule_age(60), pension_rate(0.5)),
     column_spec_args = user_spec)
   expect_identical(d$hc_user, hc_before)
   expect_identical(d$hp_user, hp_before)
 })
 
-test_that("simulate_retirement(): age_col = NULL means 'compute age from birth dates'", {
-  # Guard: with age_col and tenure_col set to NULL, precomputed age and
-  # tenure columns are ignored, even when they exist.
+test_that("simulate_retirement(): age_col = NULL means the standard age column", {
+  # As in simulate_horizon(): NULL names the default columns, "age" and
+  # "personnel_tenure", so the run matches the one with the default spec
   d <- renamed_fixture()
-  policy <- list(group_cols = NULL, policy_table = NULL,
-                 defaults = list(eligibility_type = "age_only", min_age = 60,
-                                 pension_type = "rate", pension_rate = 0.5))
-  run <- function(hp) simulate_retirement(
-    d$hc, hp, as_of_date = d$ref_date, policy_params = policy,
-    column_spec_args = define_column_spec(age_col = NULL, tenure_col = NULL))
-  # A precomputed age ten years off: ignored, so the results must not move
-  with_age    <- run(copy(d$hp)[, age := age + 10])
-  without_age <- run(copy(d$hp)[, c("age", "personnel_tenure") := NULL])
-  expect_equal(with_age$retirees_dt, without_age$retirees_dt)
+  policy <- design_retirement_policy_eligibility(retirement_rule_age(60), pension_rate(0.5))
+  run <- function(spec) simulate_retirement(d$hc, d$hp, as_of_date = d$ref_date,
+                                            policy_params = policy, column_spec_args = spec)
+  expect_equal(run(define_column_spec(age_col = NULL, tenure_col = NULL)), run(define_column_spec()))
 })
 
-test_that("simulate_retirement(): age from birth dates works on renamed columns", {
-  # No age column used (age_col = NULL) and tenure-only eligibility: age is
-  # computed from birth dates both for eligibility and for the retiree table
-  policy <- list(
-    group_cols = NULL, policy_table = NULL,
-    defaults = list(eligibility_type = "tenure_only", min_tenure = 25,
-                    pension_type = "rate", pension_rate = 0.5)
-  )
-  d <- renamed_fixture()
-  no_age <- define_column_spec(age_col = NULL)
-  user_no_age <- user_spec
-  user_no_age["age_col"] <- list(NULL)
-  runs <- list(
-    default = simulate_retirement(d$hc, d$hp, as_of_date = d$ref_date,
-                                  policy_params = policy,
-                                  column_spec_args = no_age),
-    user    = simulate_retirement(d$hc_user, d$hp_user, as_of_date = d$ref_date,
-                                  policy_params = policy,
-                                  column_spec_args = user_no_age)
-  )
+test_that("simulate_retirement(): a tenure rule works on renamed columns", {
+  # Tenure-only rule: the retiree table still carries every retiree's age
+  policy <- design_retirement_policy_eligibility(retirement_rule_tenure(25), pension_rate(0.5))
+  runs <- retire_both_ways(policy, policy)
   expect_gt(nrow(runs$default$retirees_dt), 0L)
   expect_false(anyNA(runs$user$retirees_dt$age))
   expect_same_results_in_user_names(runs)
 })
 
-test_that("identify_eligibility(): every person is listed under the caller's ID column", {
-  # People without an active contract are listed with retire = 0 under the
-  # same ID column as everyone else -- callers join on that column.
+test_that("select_retirees(): retirees are listed under the caller's ID column", {
+  # Callers join on that column, so it keeps the caller's name
   d <- renamed_fixture()
   hc <- d$hc_user[snap == d$ref_date]
   hp <- d$hp_user[snap == d$ref_date]
-  hc <- hc[!pid %in% hp$pid[1:5]]   # five people lose their contracts
-  out <- identify_eligibility(
-    hc, hp, as_of_date = d$ref_date,
-    policy_params = list(group_cols = NULL, policy_table = NULL,
-                         defaults = list(eligibility_type = "age_only", min_age = 60)),
-    column_spec_args = user_spec
+  out <- select_retirees(
+    hc, hp, design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(1)),
+    as_of_date = d$ref_date, column_spec_args = user_spec
   )
-  expect_identical(names(out), c("pid", "retire", "age", "tenure_years"))
-  expect_setequal(out$pid, hp$pid)
-  expect_true(all(out[pid %in% hp$pid[1:5], retire] == 0L))
+  expect_identical(names(out), c("pid", "retire", "age", "tenure_years", "retire_reason"))
+  expect_gt(nrow(out), 0L)
 })
 
 
@@ -501,11 +467,9 @@ user_policy <- function(policy) {
 
 # Retirees retiring at the fixture's snapshot, under each run's own names
 retirees_of <- function(hc, hp, ref, spec = define_column_spec()) {
-  simulate_retirement(hc, hp, as_of_date = ref, column_spec_args = spec, policy_params = list(
-    group_cols = NULL, policy_table = NULL,
-    defaults = list(eligibility_type = "age_only", min_age = 60, pension_type = "rate",
-                    pension_rate = 0.5)
-  ))$retirees_dt
+  simulate_retirement(hc, hp, as_of_date = ref, column_spec_args = spec,
+                      policy_params = design_retirement_policy_eligibility(
+                        retirement_rule_age(60), pension_rate(0.5)))$retirees_dt
 }
 
 hire_both_ways <- function(policy, retirees_default = NULL, retirees_user = NULL,
@@ -1048,8 +1012,8 @@ horizon_run <- function(d, spec = define_column_spec(), contract = d$hc,
   suppressMessages(simulate_horizon(
     contract_dt = contract, personnel_dt = personnel, salary_scale_dt = scale,
     n_periods = n_periods, baseline_date = d$ref_date,
-    retirement_policy = design_retirement_policy_status_quo(
-      pension = pension_db(0.02, 35, 0.80), mandatory_age = 75
+    retirement_policy = design_retirement_policy_mandatory(
+      retirement_rule_age(75), pension_db(0.02, 35, 0.80)
     ),
     exit_policy     = design_exit_policy_status_quo(group_cols = "est_id"),
     movement_policy = design_movement_policy_status_quo(
@@ -1187,8 +1151,8 @@ test_that("simulate_scenario(): one period on renamed columns gives the default-
     set.seed(1L)
     simulate_scenario(
       hc, hp, scale, period_date = d$ref_date, pensioner_register = register,
-      retirement_policy = design_retirement_policy_age(
-        min_age = 60, pension = pension_db(0.02, 35, 0.80)
+      retirement_policy = design_retirement_policy_eligibility(
+        retirement_rule_age(60), pension_db(0.02, 35, 0.80)
       ),
       exit_policy = design_exit_policy_flat(exit_rate = 0.02),
       salary_growth_rate = 0.05, pension_cola_rate = 0.03, column_spec_args = spec

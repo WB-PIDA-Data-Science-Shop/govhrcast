@@ -2,7 +2,7 @@
 % Please edit documentation in R/retirement_core.R
 \name{estimate_retirement_hazard_rates}
 \alias{estimate_retirement_hazard_rates}
-\title{Estimate Age-Specific Retirement Hazard Rates from Panel Data}
+\title{Estimate Retirement Rates from Panel Data}
 \usage{
 estimate_retirement_hazard_rates(
   panel_personnel_dt,
@@ -13,56 +13,47 @@ estimate_retirement_hazard_rates(
 )
 }
 \arguments{
-\item{panel_personnel_dt}{data.table.  Full panel of personnel data (all
-snapshots).  Must contain the age, status, person ID and snapshot-date
-columns (see \code{column_spec_args}), and any columns named in
-\code{group_cols} other than \code{"age_yr_int"} (which this function
-derives internally).  \code{govhr::estimate_decrement_rates()}
-works from this table alone, so any contract-level grouping column (e.g.
-\code{est_id}) must already be joined onto \code{panel_personnel_dt}
-before calling.}
+\item{panel_personnel_dt}{data.table. The personnel panel: every snapshot,
+with the person ID, snapshot date and status columns, and every column in
+\code{group_cols}. \code{age_yr_int} and \code{tenure_yr_int} are worked out from the age
+and tenure columns when the panel does not hold them. A group column kept
+on contracts (e.g. \code{est_id}) must already be on the panel;
+\code{\link[=simulate_horizon]{simulate_horizon()}} adds it for you.}
 
-\item{group_cols}{Character vector.  Must include \code{"age_yr_int"} —
-hazard rates are always estimated per integer age.  Additional columns
-(e.g. \code{"est_id"}) further stratify the estimate.  Default \code{NULL}
-is invalid and triggers an error, since \code{"age_yr_int"} is required.}
+\item{group_cols}{Character. What the rates vary by: \code{"age_yr_int"},
+\code{"tenure_yr_int"} or both, plus any other columns (e.g. \code{"est_id"}). The
+\code{group_cols} of \code{\link[=retirement_rates_status_quo]{retirement_rates_status_quo()}}.}
 
-\item{retire_status}{Character.  The value of the status column that marks
-retirement.  Default \code{"pensioner"}.}
+\item{retire_status}{Character. The status that marks a retiree. Default
+\code{"pensioner"}.}
 
-\item{smooth}{Logical.  When \code{TRUE}, pass the full per-age decrement
-table through \code{govhr::smooth_decrement_rates()} (loess graduation,
-falling back to linear interpolation / flat-fill for thin data) before
-extracting the retirement rate.  When \code{FALSE} (default), unmatched
-or thin age/group cells are effectively zero-filled downstream by
-\code{\link{compute_status_quo_retirements}} — meaning "no historical
-retirements observed at this age/group" is taken at face value. This is
-most likely to bite when \code{group_cols} is granular (e.g. per
-establishment): consider \code{smooth = TRUE} whenever a group/age cell
-is likely to have thin exposure in the historical panel.}
+\item{smooth}{Logical. \code{TRUE} smooths the rates along age (or tenure) with
+\code{govhr::smooth_decrement_rates()} before they are returned, which helps
+when groups are small. Default \code{FALSE}: the rates as observed.}
 
-\item{column_spec_args}{Column names, from \code{\link{define_column_spec}()}.  Change only
-the ones that differ from the \code{govhr} defaults, e.g.
-\code{define_column_spec(personnel_id_col = "emp_id")}.  Keys read
-here: \code{age_col} (fractional age; \code{NULL} means \code{"age"}),
-\code{personnel_id_col}, \code{ref_date_col}, \code{status_col}.  See
-\code{\link{define_column_spec}} for the defaults.}
+\item{column_spec_args}{Column names, from \code{\link[=define_column_spec]{define_column_spec()}}. Keys read:
+\code{personnel_id_col}, \code{ref_date_col}, \code{status_col}, and \code{age_col} /
+\code{tenure_col} when \code{age_yr_int} / \code{tenure_yr_int} must be worked out
+(\code{NULL} means the default name, \code{"age"} / \code{"personnel_tenure"}).}
 }
 \value{
-data.table with \code{group_cols} and \code{hazard_rate}.  One row
-per unique combination of \code{group_cols} observed in the panel.
+A data.table with the \code{group_cols} and \code{hazard_rate}: one row per
+group seen in the panel.
 }
 \description{
-Thin adapter over \code{govhr::estimate_decrement_rates()} (and, optionally,
-\code{govhr::smooth_decrement_rates()}): estimates the empirical,
-exposure-weighted probability that an active employee transitions to
-\code{retire_status} (default \code{"pensioner"}) between consecutive panel
-snapshots, stratified by integer age (\code{age_yr_int}) and any additional
-\code{group_cols}. The result is a \code{data.table} directly usable as
-\code{policy_table} for \code{\link{simulate_retirement}} when
-\code{policy_params$defaults$eligibility_type = "hazard_rate"}.
+The share of people who retired between one snapshot and the next, by
+whole-year age, whole-year tenure, or both, and by any other \code{group_cols}.
+Everyone active at a snapshot counts towards their group's total; those who
+are pensioners at the next snapshot count as retiring. The rates are pooled
+over every pair of snapshots, weighted by how many people each pair had. The
+counting is done by \code{govhr::estimate_decrement_rates()}.
+
+The result is the rate table of \code{\link[=retirement_rates_status_quo]{retirement_rates_status_quo()}}:
+\code{\link[=simulate_horizon]{simulate_horizon()}} calls this function for you (through
+\code{precompute_retirement_rates()}) when a status-quo or mandatory policy has no
+rates of its own.
 }
 \seealso{
-\code{\link{compute_status_quo_retirements}} for how this table is applied.
-\code{\link{simulate_retirement}} for the full policy specification.
+\code{\link[=retirement_rates_status_quo]{retirement_rates_status_quo()}} for using the rates,
+\code{\link[=compute_status_quo_retirements]{compute_status_quo_retirements()}} for how they are applied.
 }

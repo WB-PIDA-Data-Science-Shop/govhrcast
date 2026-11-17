@@ -202,7 +202,7 @@ test_that("hires age, and can retire, in later years", {
   targets <- d$c[ref_date == start, .(target_stock = uniqueN(personnel_id) + 2L), by = est_id]
   run <- simulate_horizon(
     d$c, d$p, d$s, n_periods = 3L, baseline_date = start, seed = 1L,
-    retirement_policy = design_retirement_policy_age(60, pension_rate(0.5)),
+    retirement_policy = design_retirement_policy_eligibility(retirement_rule_age(60), pension_rate(0.5)),
     hiring_policy = design_hiring_policy_stock(targets, group_cols = "est_id"),
     output_control_args = define_output_control(return_microdata = TRUE)
   )

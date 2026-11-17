@@ -21,7 +21,7 @@ check_allowance_inputs(
 the expected shape.}
 
 \item{as_of_date}{Date. The reference date for this period -- matches
-\code{check_retirement_inputs()}'s own parameter name.}
+\code{check_retirement_selection_inputs()}'s own parameter name.}
 
 \item{column_spec_args}{Complete column specification from
 \code{define_column_spec()}.}
@@ -32,7 +32,7 @@ otherwise.
 }
 \description{
 Composite validator for \code{\link{simulate_allowances}}, following the
-same pattern as \code{\link{check_retirement_inputs}} /
+same pattern as \code{\link{check_retirement_selection_inputs}} /
 \code{\link{check_hiring_inputs}} / \code{\link{check_movement_inputs}}.
 Not called when \code{policy_params} is \code{NULL} -- that short-circuits
 to a no-op before validation.

@@ -208,7 +208,7 @@ one_person <- function() {
 # The person turns 60 and retires in year 2
 two_years <- function(growth, pay_col = "base_salary_lcu") {
   d <- one_person()
-  policy <- design_retirement_policy_age(min_age = 60, pension = pension_rate(0.1))
+  policy <- design_retirement_policy_eligibility(retirement_rule_age(60), pension_rate(0.1))
   spec <- define_column_spec(salary_col = pay_col)
   year1 <- simulate_scenario(d$ct, d$pt, d$scale, period_date = as.Date("2020-01-01"), retirement_policy = policy,
                              salary_growth_rate = growth, column_spec_args = spec)
@@ -234,19 +234,6 @@ test_that("salary growth grows salary_col, and other columns stay as they were",
   expect_equal(ct$net_salary_lcu, 400)
 })
 
-test_that("a hand-written policy still naming ref_wage_col stops with a clear message", {
-  d <- one_person()
-  message <- "ref_wage_col is no longer used"
-  in_defaults <- list(group_cols = NULL, policy_table = NULL,
-                      defaults = list(eligibility_type = "age_only", min_age = 60, pension_type = "rate",
-                                      pension_rate = 0.1, ref_wage_col = "gross_salary_lcu"))
-  in_table <- list(group_cols = "est_id",
-                   policy_table = data.table(est_id = "E1", ref_wage_col = "gross_salary_lcu"),
-                   defaults = list(eligibility_type = "age_only", min_age = 60, pension_type = "rate",
-                                   pension_rate = 0.1))
-  expect_error(simulate_retirement(d$ct, d$pt, policy_params = in_defaults, as_of_date = as.Date("2020-01-01")), message)
-  expect_error(simulate_retirement(d$ct, d$pt, policy_params = in_table, as_of_date = as.Date("2020-01-01")), message)
-})
 
 default_retirement_run <- function(contract, pay_col, table) {
   suppressMessages(simulate_horizon(

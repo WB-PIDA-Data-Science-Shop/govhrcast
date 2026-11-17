@@ -126,7 +126,8 @@ Named list:
 \item{personnel_dt}{Updated personnel snapshot.}
 \item{salary_scale_dt}{Updated pay table (post-COLA).}
 \item{pensioner_register}{Accumulated pensioner ledger including new
-retirees from this period.}
+retirees from this period, with why each retired
+(\code{retire_reason}).}
 \item{allowance_dt}{Accumulated allowance ledger including this
 period's rows, or unchanged/\code{NULL} when \code{allowance_policy}
 is \code{NULL}.}

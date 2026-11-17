@@ -296,78 +296,126 @@ precompute_movement_rates <- function(movement_policy, contract_dt,
 #'
 #' @description
 #' \code{simulate_horizon()} calls this once, before it cuts the data to the
-#' baseline date. Retirement with \code{eligibility_type = "hazard_rate"} needs
-#' the share of people who retire at each age; this estimates those rates from
-#' the panel, with \code{\link{estimate_retirement_hazard_rates}()}, and puts
-#' them in \code{retirement_policy$policy_table}.
+#' baseline date. A status-quo or mandatory retirement policy needs the share of
+#' people who retire at each age (or tenure, or both); this estimates those
+#' rates from the panel, with \code{\link{estimate_retirement_hazard_rates}()},
+#' and puts them in \code{retirement_policy$rates$policy_table}.
 #'
-#' Nothing is estimated for other eligibility types (age or tenure rules need no
-#' rates), or when the policy already holds a rate table (your own).
-#'
-#' Rates are grouped by age at each snapshot. If the panel has no ages but has
-#' birth dates, the age at each snapshot is worked out on a copy used only
-#' here.
+#' Nothing is estimated when the policy has no rates (an eligibility policy),
+#' or when its rates already hold a table (your own).
 #'
 #' @inheritParams precompute_exit_rates
 #' @param retirement_policy The retirement policy list, or \code{NULL} for no
 #'   retirements.
+#' @param contract_dt data.table. The full contract panel: every snapshot.
 #' @param personnel_dt data.table. The full personnel panel: every snapshot,
 #'   not only the baseline date.
 #'
-#' @return \code{retirement_policy}, with \code{policy_table} filled in if it was
+#' @return \code{retirement_policy}, with its rate table filled in if it was
 #'   estimated, unchanged otherwise. Stops with an error when rates are needed
 #'   but there is no panel.
 #'
 #' @keywords internal
-precompute_retirement_rates <- function(retirement_policy, personnel_dt,
+precompute_retirement_rates <- function(retirement_policy, contract_dt, personnel_dt,
                                         has_panel, column_spec_args) {
-  # Only hazard-rate retirement estimates anything, and only without the user's rates
-  if (is.null(retirement_policy) ||
-      !identical(retirement_policy$defaults$eligibility_type, "hazard_rate") ||
-      !is.null(retirement_policy$policy_table)) {
-    return(retirement_policy)
-  }
+  # Only a policy with rates and no rate table of its own needs estimating
+  rates <- retirement_policy$rates
+  if (is.null(rates) || !is.null(rates$policy_table)) return(retirement_policy)
 
-  # A single snapshot cannot give a stable rate per age, and there is no
-  # sensible default to fall back on
+  # A single snapshot cannot show who retired between snapshots
   if (!has_panel) {
-    stop(
-      "simulate_horizon: eligibility_type = 'hazard_rate' requires panel ",
-      "data (>= 2 ref_date snapshots) to estimate hazard rates from -- a ",
-      "single snapshot cannot estimate a stable per-age retirement rate.",
-      call. = FALSE
-    )
+    stop("simulate_horizon: a ", retirement_policy$type, " retirement policy needs ",
+         "panel data (2 or more snapshots) to estimate its rates from, or your own ",
+         "rates: retirement_rates_status_quo(hazard_table = ).", call. = FALSE)
   }
 
-  # Age at each snapshot's own date, when the panel has birth dates but no ages.
-  # simulate_horizon() fills the age column later, after the panel is cut.
-  age_col        <- column_spec_args$age_col
-  birth_date_col <- column_spec_args$birth_date_col
-  ref_date_col   <- column_spec_args$ref_date_col
-  panel <- personnel_dt
-  age_missing <- !(age_col %in% names(personnel_dt)) || all(is.na(personnel_dt[[age_col]]))
-  if (age_missing && !is.null(birth_date_col) && birth_date_col %in% names(personnel_dt)) {
-    panel <- data.table::copy(personnel_dt)
-    panel[, (age_col) := as.numeric(
-      difftime(get(ref_date_col), get(birth_date_col), units = "days")
-    ) / 365.25]
-  }
-
-  retirement_policy$policy_table <- estimate_retirement_hazard_rates(
+  panel <- .prepare_retirement_panel(contract_dt, personnel_dt, retirement_policy,
+                                     column_spec_args)
+  retirement_policy$rates$policy_table <- estimate_retirement_hazard_rates(
     panel_personnel_dt = panel,
-    group_cols         = retirement_policy$group_cols,
+    group_cols         = rates$group_cols,
     column_spec_args   = column_spec_args
   )
-  if (nrow(retirement_policy$policy_table) == 0L) {
-    message(
-      "simulate_horizon: no retirements observed in the panel, so status-quo ",
-      "retirement will produce none",
-      if (!is.null(retirement_policy$defaults$min_age))
-        paste0(" (apart from the mandatory age of ", retirement_policy$defaults$min_age, ")"),
-      "."
-    )
+  if (nrow(retirement_policy$rates$policy_table) == 0L) {
+    message("simulate_horizon: no retirements observed in the panel, so status-quo ",
+            "retirement produces none",
+            if (identical(retirement_policy$type, "mandatory")) ", apart from the mandatory rule",
+            ".")
   }
   retirement_policy
+}
+
+
+#' Prepare the Personnel Panel for Estimating Retirement Rates
+#'
+#' @description
+#' Builds the panel [estimate_retirement_hazard_rates()] counts from, so the
+#' rates are estimated on the same terms the projection applies them on:
+#' 1. Age at each snapshot's own date, from birth dates, when the panel has
+#'    no ages and the rates use age.
+#' 2. Tenure at each snapshot, from the contracts, when the panel has no
+#'    tenure and the rates use tenure ([compute_tenure_panel()]).
+#' 3. For each snapshot: with `active_types`, people active at that snapshot
+#'    who hold no contract of those types are left out of that snapshot's
+#'    count; then the same [.add_policy_columns()] that [select_retirees()]
+#'    uses adds whole-year age and tenure and any group column kept on
+#'    contracts (e.g. `est_id`), from each person's main contract at that
+#'    snapshot.
+#'
+#' Pensioner rows are never left out: they are how a retirement shows up, as
+#' the next snapshot of someone who was active.
+#'
+#' @param contract_dt,personnel_dt data.table. The full panels.
+#' @param retirement_policy List. The retirement policy (its rates and
+#'   `active_types` are read).
+#' @param column_spec_args Column names, from [define_column_spec()].
+#'
+#' @return The personnel panel, a new table, with the columns the rates are
+#'   keyed by.
+#'
+#' @keywords internal
+.prepare_retirement_panel <- function(contract_dt, personnel_dt, retirement_policy,
+                                      column_spec_args) {
+  cols     <- column_spec_args
+  id_col   <- cols$personnel_id_col
+  date_col <- cols$ref_date_col
+  keys     <- retirement_policy$rates$group_cols
+  panel    <- data.table::copy(personnel_dt)
+
+  # A column the panel lacks, or holds only blanks in, is worked out below
+  .blank <- function(col) all(is.na(panel[[col]]))
+
+  # 1. Age at each snapshot's own date, from birth dates
+  if ("age_yr_int" %in% keys && .blank(cols$age_col) &&
+      isTRUE(cols$birth_date_col %in% names(panel))) {
+    panel[, (cols$age_col) := as.numeric(
+      difftime(get(date_col), get(cols$birth_date_col), units = "days")) / 365.25]
+  }
+
+  # 2. Tenure at each snapshot, from the contracts
+  if ("tenure_yr_int" %in% keys && .blank(cols$tenure_col)) {
+    tenure <- compute_tenure_panel(contract_dt, id_col, date_col, cols$contract_id_col,
+                                   cols$start_date_col, cols$end_date_col,
+                                   cols$contract_type_col)
+    panel[, (cols$tenure_col) := NA_real_]
+    panel[tenure, (cols$tenure_col) := i.tenure_years, on = c(id_col, date_col)]
+  }
+
+  # 3. Snapshot by snapshot: who counts, and the group columns from contracts.
+  #    Each table is split by date once, rather than filtered once per date.
+  contracts_by_date <- split(contract_dt, by = date_col)
+  snapshots <- lapply(split(panel, by = date_col), function(snap) {
+    date   <- snap[[date_col]][1L]
+    active <- get_active_contracts(contracts_by_date[[as.character(date)]] %||% contract_dt[0L],
+                                   date, cols$start_date_col, cols$end_date_col,
+                                   cols$contract_type_col)
+    if (!is.null(retirement_policy$active_types)) {
+      active <- active[get(cols$contract_type_col) %in% c(retirement_policy$active_types, NA)]
+      snap   <- snap[!(get(cols$status_col) %in% "active" & !get(id_col) %in% active[[id_col]])]
+    }
+    .add_policy_columns(snap, active, retirement_policy, cols)
+  })
+  data.table::rbindlist(snapshots, use.names = TRUE, fill = TRUE)
 }
 
 #' Fill In Status-Quo Hiring Rates Before a Projection
@@ -543,11 +591,9 @@ prepare_horizon_inputs <- function(contract_dt,
   .check_column_spec(column_spec_args)
   .check_spec_columns(contract_dt, personnel_dt, column_spec_args)
 
-  # Resolve NULL age_col / tenure_col to standard column names.
-  # NULL means: "compute from source data and store in the default column".
-  # Everything below receives a character scalar.
-  if (is.null(column_spec_args$age_col))    column_spec_args$age_col    <- "age"
-  if (is.null(column_spec_args$tenure_col)) column_spec_args$tenure_col <- "personnel_tenure"
+  # A NULL age_col / tenure_col means the default name; everything below
+  # receives a column name, filled in from the source data where missing
+  column_spec_args <- .fill_age_tenure_col_names(column_spec_args)
 
   # The columns this function reads itself; the modules take the whole spec
   personnel_id_col  <- column_spec_args$personnel_id_col
@@ -613,8 +659,9 @@ prepare_horizon_inputs <- function(contract_dt,
                                              personnel_dt, 
                                              has_panel, 
                                              column_spec_args)
-  retirement_policy <- precompute_retirement_rates(retirement_policy, 
-                                                   personnel_dt, 
+  retirement_policy <- precompute_retirement_rates(retirement_policy,
+                                                   contract_dt,
+                                                   personnel_dt,
                                                    has_panel, 
                                                    column_spec_args)
   hiring_policy     <- precompute_hiring_rates(hiring_policy, 
@@ -667,8 +714,8 @@ prepare_horizon_inputs <- function(contract_dt,
   }
   .report_no_rate("exits", "Nobody exits from them.", exit_policy$policy_table, exit_policy$group_cols)
   .report_no_rate("movement", "Nobody moves out of them.", movement_policy$policy_table, movement_policy$group_cols)
-  .report_no_rate("retirement", "Nobody retires from them before any mandatory age.",
-                  retirement_policy$policy_table, retirement_policy$group_cols)
+  .report_no_rate("retirement", "Nobody retires from them by rate, unless older than the oldest age with one.",
+                  retirement_policy$rates$policy_table, retirement_policy$rates$group_cols)
   .report_no_rate("hiring", "They use the policy's unmatched_rate, 0 unless you set it.",
                   hiring_policy$squorate_dt, hiring_policy$group_cols)
   .report_no_rate("allowances", "They get the policy's default amount.",
@@ -766,6 +813,19 @@ prepare_horizon_inputs <- function(contract_dt,
       }
       personnel_dt[tenure_init, (tenure_col) := i.tenure_years,
                    on = c(personnel_id_col)]
+    }
+  }
+
+  # People with no age cannot be tested against an age rule or rate, so they
+  # never retire. Say so once, rather than leave them on the payroll silently.
+  if (!is.null(retirement_policy)) {
+    on_payroll <- contract_dt[.on_payroll(get(contract_type_col)), unique(get(personnel_id_col))]
+    ages       <- personnel_dt[[age_col]] %||% rep(NA_real_, nrow(personnel_dt))
+    n_no_age   <- sum(is.na(ages) & personnel_dt[[personnel_id_col]] %in% on_payroll)
+    if (n_no_age > 0L) {
+      message("simulate_horizon: retirement: ", n_no_age, " people on the payroll have no ",
+              "age (no age or birth date in the data). A retirement policy by age never ",
+              "retires them.")
     }
   }
 

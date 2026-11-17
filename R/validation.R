@@ -471,312 +471,174 @@ validate_policy_table <- function(policy_params) {
 }
 
 
-#' Check Retirement Module Inputs
+#' Check the Inputs for Selecting Retirees
 #'
 #' @description
-#' Gate-keeper called at the start of \code{\link{simulate_retirement}}.
-#' Validates all inputs — data tables, column names, policy structure, and
-#' eligibility/pension parameter consistency — before any computation begins.
-#' Stops on the first violation with an error message that names the
-#' offending argument.
+#' Called first by [select_retirees()]. Stops, with a message that says what to
+#' fix, when the data or the "who retires" part of a retirement policy cannot
+#' work. The pension part is checked separately, by
+#' `check_retirement_pension_inputs()`.
 #'
-#' @param contract_dt data.table.  Non-empty contract snapshot.
-#' @param personnel_dt data.table.  Non-empty personnel snapshot.
-#' @param policy_params List.  Three-slot policy object.  Validated by
-#'   \code{\link{validate_policy_table}}.  The \code{defaults} sub-list must
-#'   contain:
-#'   \describe{
-#'     \item{\code{eligibility_type}}{One of \code{"age_only"},
-#'       \code{"tenure_only"}, \code{"age_and_tenure"}.}
-#'     \item{\code{pension_type}}{One of \code{"db"}, \code{"dc"},
-#'       \code{"flat"}, \code{"hybrid"}.}
-#'     \item{\code{min_age}}{Required when \code{eligibility_type} involves
-#'       age.  May be omitted if \code{policy_table} carries a \code{min_age}
-#'       column.}
-#'     \item{\code{min_tenure}}{Required when \code{eligibility_type} involves
-#'       tenure.  May be omitted if \code{policy_table} carries a
-#'       \code{min_tenure} column.}
-#'   }
-#' @param as_of_date Date or character convertible to Date.  Reference date for
-#'   the simulation period.
-#' @param column_spec_args Complete column specification from
-#'   \code{define_column_spec()}. Keys read: \code{personnel_id_col} (must exist in
-#'   both tables), \code{contract_id_col}, \code{start_date_col},
-#'   \code{end_date_col}, \code{contract_type_col} (in \code{contract_dt}),
-#'   \code{status_col} (in \code{personnel_dt}) and \code{birth_date_col}
-#'   (in \code{personnel_dt} when eligibility involves age, unless
-#'   \code{NULL}, meaning age is pre-computed).
+#' It checks, in order:
+#' 1. The data: both tables are non-empty data.tables with the columns
+#'    retirement reads, and `as_of_date` is a date.
+#' 2. The policy's `type` (`"status_quo"`, `"eligibility"` or `"mandatory"`)
+#'    and its `active_types`.
+#' 3. The rates, when the type uses them: keyed by age or tenure, with a rate
+#'    table (an empty one is fine: the history showed no retirements).
+#' 4. The rule, when the type uses it: its kind, the thresholds that kind
+#'    needs, and a custom rule's safety.
+#' 5. The columns the policy looks people up by: every group column on one of
+#'    the tables, and the age and tenure columns on `personnel_dt` when the
+#'    policy uses age or tenure (they are read, not computed).
 #'
-#' @return Invisible \code{TRUE}.  Stops with an informative error on the
-#'   first violation found.
+#' @inheritParams select_retirees
 #'
-#' @section Error Conditions:
-#' \describe{
-#'   \item{Empty tables}{\code{contract_dt} or \code{personnel_dt} has 0 rows.}
-#'   \item{Invalid as_of_date}{\code{as_of_date} cannot be parsed as a Date, is NA,
-#'     or is not length 1.}
-#'   \item{Invalid policy structure}{\code{validate_policy_table()} fails — see
-#'     that function for sub-conditions.}
-#'   \item{Missing required defaults}{\code{eligibility_type} or
-#'     \code{pension_type} absent from \code{policy_params$defaults}.}
-#'   \item{Invalid eligibility_type}{Value not in \code{c("age_only",
-#'     "tenure_only", "age_and_tenure")}, either in defaults or in
-#'     \code{policy_table}.}
-#'   \item{Invalid pension_type}{Value not in \code{c("db", "dc", "flat",
-#'     "hybrid")}, either in defaults or in \code{policy_table}.}
-#'   \item{Missing min_age}{\code{eligibility_type} requires age but
-#'     \code{min_age} is absent from both \code{defaults} and
-#'     \code{policy_table}.}
-#'   \item{Missing birth_date_col}{The column named by \code{birth_date_col}
-#'     is absent from \code{personnel_dt} (when \code{birth_date_col} is not
-#'     \code{NULL}).}
-#'   \item{Missing min_tenure}{\code{eligibility_type} requires tenure but
-#'     \code{min_tenure} is absent from both \code{defaults} and
-#'     \code{policy_table}.}
-#'   \item{Missing contract columns}{One or more of \code{contract_id_col},
-#'     \code{personnel_id_col}, \code{start_date_col}, \code{end_date_col},
-#'     \code{contract_type_col} absent from \code{contract_dt}.}
-#'   \item{Missing personnel columns}{\code{personnel_id_col} or
-#'     \code{status_col} absent from \code{personnel_dt}.}
-#' }
+#' @return `TRUE`, invisibly, when everything is usable.
 #'
 #' @keywords internal
-check_retirement_inputs <- function(contract_dt,
-                                    personnel_dt,
-                                    policy_params,
-                                    as_of_date,
-                                    column_spec_args = define_column_spec()) {
-  birth_date_col <- column_spec_args$birth_date_col
+check_retirement_selection_inputs <- function(contract_dt,
+                                              personnel_dt,
+                                              policy_params,
+                                              as_of_date,
+                                              column_spec_args = define_column_spec()) {
+  cols <- column_spec_args
 
-  # Validate data tables
+  # 1. The data and the date
+  .check_column_spec(cols)
   validate_datatable(contract_dt, "contract_dt")
   validate_datatable(personnel_dt, "personnel_dt")
-
-  # Validate as_of_date
   validate_date_format(as_of_date, "as_of_date")
-
-  # Validate top-level structure
-  if (!is.list(policy_params)) {
-    stop("policy_params must be a list", call. = FALSE)
-  }
-  # An old hand-written policy would otherwise be ignored without a word
-  if (!is.null(policy_params$defaults$ref_wage_col) ||
-      "ref_wage_col" %in% names(policy_params$policy_table)) {
-    stop("ref_wage_col is no longer used: pensions are always calculated from ",
-         "salary_col. Remove it from the retirement policy.", call. = FALSE)
-  }
-  # A hazard_rate policy with no rate table (NULL, or 0 rows because the
-  # panel showed no retirements) is valid: every group's rate resolves to 0
-  # in compute_status_quo_retirements(), so only a mandatory age (min_age)
-  # forces anyone out. Validate its structure as a scalar policy instead.
-  .pt <- policy_params$policy_table
-  if (identical(policy_params$defaults$eligibility_type, "hazard_rate") &&
-      (is.null(.pt) || (data.table::is.data.table(.pt) && nrow(.pt) == 0L))) {
-    validate_policy_table(utils::modifyList(policy_params,
-                                            list(group_cols = NULL, policy_table = NULL)))
-  } else {
-    validate_policy_table(policy_params)
-  }
-
-  .defaults <- policy_params$defaults
-
-  # Check required top-level params in defaults
-  required_top <- c("eligibility_type", "pension_type")
-  validate_required_params(.defaults, required_top, "retirement policy")
-
-  # Validate eligibility_type value(s)
-  valid_eligibility <- c(
-    "age_only", "tenure_only", "age_and_tenure", "custom", "hazard_rate"
-  )
-  # Check defaults
-  validate_choice(
-    .defaults$eligibility_type,
-    valid_eligibility,
-    "eligibility_type"
-  )
-  # Also check any values in policy_table if present
-  if (
-    !is.null(policy_params$policy_table) &&
-      "eligibility_type" %in% names(policy_params$policy_table)
-  ) {
-    bad <- setdiff(
-      unique(policy_params$policy_table$eligibility_type),
-      valid_eligibility
-    )
-    if (length(bad) > 0L) {
-      stop(
-        "Invalid eligibility_type in policy_table: '",
-        paste(bad, collapse = "', '"),
-        "'. Valid options: ",
-        paste(valid_eligibility, collapse = ", "),
-        call. = FALSE
-      )
-    }
-  }
-
-  # Validate pension_type value(s)
-  valid_pension <- c("db", "dc", "flat", "hybrid", "rate", "custom")
-  validate_choice(.defaults$pension_type, valid_pension, "pension_type")
-  if (
-    !is.null(policy_params$policy_table) &&
-      "pension_type" %in% names(policy_params$policy_table)
-  ) {
-    bad <- setdiff(
-      unique(policy_params$policy_table$pension_type),
-      valid_pension
-    )
-    if (length(bad) > 0L) {
-      stop(
-        "Invalid pension_type in policy_table: '",
-        paste(bad, collapse = "', '"),
-        "'. Valid options: ",
-        paste(valid_pension, collapse = ", "),
-        call. = FALSE
-      )
-    }
-  }
-
-  # Validate every pension_formula the policy supplies -- in defaults and/or
-  # a policy_table column -- against the formula allow-list, fail-fast,
-  # before any computation starts.
-  .formulas <- .defaults$pension_formula
-  if (
-    !is.null(policy_params$policy_table) &&
-      "pension_formula" %in% names(policy_params$policy_table)
-  ) {
-    .formulas <- c(.formulas, policy_params$policy_table$pension_formula)
-  }
-  for (.formula in unique(.formulas[!is.na(.formulas)])) {
-    validate_pension_formula(.formula)
-  }
-
-  # Validate hazard_rate-specific requirements. min_age/min_tenure-required
-  # checks below are keyed off eligibility_type %in% c("age_only",
-  # "tenure_only", "age_and_tenure") and so already naturally exclude
-  # "hazard_rate" -- min_age is optional (mandatory-ceiling semantics) and
-  # min_tenure is unused by this type.
-  if (identical(.defaults$eligibility_type, "hazard_rate")) {
-    if (!is.null(policy_params$policy_table) &&
-        !"hazard_rate" %in% names(policy_params$policy_table)) {
-      stop(
-        "policy_table must contain a 'hazard_rate' column when ",
-        "eligibility_type = 'hazard_rate'.",
-        call. = FALSE
-      )
-    }
-    if (is.null(policy_params$group_cols) ||
-        !("age_yr_int" %in% policy_params$group_cols)) {
-      stop(
-        "eligibility_type = 'hazard_rate' requires group_cols to include ",
-        "'age_yr_int'.",
-        call. = FALSE
-      )
-    }
-  }
-
-  # Validate eligibility parameters based on effective type
-  .etype_varies <- !is.null(policy_params$policy_table) &&
-    "eligibility_type" %in% names(policy_params$policy_table)
-  .needs_age <- .etype_varies ||
-    .defaults$eligibility_type %in% c("age_only", "age_and_tenure")
-  .needs_tenure <- .etype_varies ||
-    .defaults$eligibility_type %in% c("tenure_only", "age_and_tenure")
-
-  if (.needs_age) {
-    # min_age must be present in defaults or policy_table
-    .age_in_pt <- !is.null(policy_params$policy_table) &&
-      "min_age" %in% names(policy_params$policy_table)
-    if (is.null(.defaults$min_age) && !.age_in_pt) {
-      stop(
-        "min_age is required for eligibility_type '",
-        .defaults$eligibility_type,
-        "'",
-        call. = FALSE
-      )
-    }
-    # birth_date_col is optional: NULL means age was pre-computed by the caller
-    # (e.g. simulate_horizon Phase 1b) and is already present in personnel_dt.
-    if (!is.null(birth_date_col)) {
-      validate_column_exists(personnel_dt, birth_date_col, "personnel_dt")
-    }
-  }
-
-  if (.needs_tenure) {
-    .tenure_in_pt <- !is.null(policy_params$policy_table) &&
-      "min_tenure" %in% names(policy_params$policy_table)
-    if (is.null(.defaults$min_tenure) && !.tenure_in_pt) {
-      stop(
-        "min_tenure is required for eligibility_type '",
-        .defaults$eligibility_type,
-        "'",
-        call. = FALSE
-      )
-    }
-  }
-
-  # Validate eligibility_rule when eligibility_type = "custom" is actually
-  # in play. Unlike .needs_age/.needs_tenure above, this deliberately checks
-  # whether "custom" is among the *actual values used* (defaults and/or the
-  # policy_table column) rather than firing on .etype_varies alone -- a
-  # policy_table that only ever contains "age_only"/"tenure_only" values
-  # shouldn't be forced to also supply an eligibility_rule it will never use.
-  .etype_values <- .defaults$eligibility_type
-  if (
-    !is.null(policy_params$policy_table) &&
-      "eligibility_type" %in% names(policy_params$policy_table)
-  ) {
-    .etype_values <- c(
-      .etype_values,
-      unique(policy_params$policy_table$eligibility_type)
-    )
-  }
-  .needs_rule <- "custom" %in% .etype_values
-
-  if (.needs_rule) {
-    .rule_in_pt <- !is.null(policy_params$policy_table) &&
-      "eligibility_rule" %in% names(policy_params$policy_table)
-    if (is.null(.defaults$eligibility_rule) && !.rule_in_pt) {
-      stop(
-        "eligibility_rule is required when eligibility_type includes ",
-        "'custom'",
-        call. = FALSE
-      )
-    }
-
-    # Validate every unique rule string that could actually apply -- from
-    # defaults and/or every distinct value present in the policy_table
-    # column -- against the real available columns, fail-fast, before any
-    # computation starts.
-    .rules_to_check <- character(0)
-    if (!is.null(.defaults$eligibility_rule)) {
-      .rules_to_check <- c(.rules_to_check, .defaults$eligibility_rule)
-    }
-    if (.rule_in_pt) {
-      .rules_to_check <- c(
-        .rules_to_check,
-        unique(policy_params$policy_table$eligibility_rule)
-      )
-    }
-
-    .available_cols <- c(
-      names(contract_dt),
-      names(personnel_dt),
-      "age",
-      "tenure_years"
-    )
-    for (.rule in unique(.rules_to_check)) {
-      validate_eligibility_rule(.rule, available_cols = .available_cols)
-    }
-  }
-
-  # The columns retirement reads must exist under the caller's names
-  .check_spec_columns(contract_dt, personnel_dt, column_spec_args, required = list(
+  .check_spec_columns(contract_dt, personnel_dt, cols, required = list(
     contract_dt  = c("contract_id_col", "personnel_id_col", "start_date_col",
                      "end_date_col", "contract_type_col"),
     personnel_dt = c("personnel_id_col", "status_col")
   ))
 
-  return(invisible(TRUE))
+  # 2. The kind of policy, and the contract types it covers
+  type <- if (is.list(policy_params)) policy_params$type
+  if (is.null(type)) {
+    stop("The retirement policy has no 'type'. Build it with ",
+         "design_retirement_policy_status_quo(), design_retirement_policy_eligibility() ",
+         "or design_retirement_policy_mandatory().", call. = FALSE)
+  }
+  validate_choice(type, c("status_quo", "eligibility", "mandatory"), "retirement policy type")
+  active_types <- policy_params$active_types
+  if (!is.null(active_types) &&
+      (!is.character(active_types) || length(active_types) == 0L || anyNA(active_types))) {
+    stop("active_types must be contract type values, e.g. \"permanent\", or NULL.", call. = FALSE)
+  }
+
+  # Only the parts this type uses are checked; a part it does not use is ignored
+  rates <- if (type %in% c("status_quo", "mandatory"))  policy_params$rates
+  rule  <- if (type %in% c("eligibility", "mandatory")) policy_params$rule
+  kind  <- rule$defaults$kind %||% "none"
+
+  # 3. The rates
+  if (type != "eligibility") {
+    if (!any(c("age_yr_int", "tenure_yr_int") %in% rates$group_cols)) {
+      stop("The retirement rates must vary by age or tenure: build them with ",
+           "retirement_rates_status_quo().", call. = FALSE)
+    }
+    if (is.null(rates$policy_table)) {
+      stop("The retirement policy has no rates. Estimate them with ",
+           "estimate_retirement_hazard_rates(), or run through simulate_horizon(), ",
+           "which estimates them from your panel data.", call. = FALSE)
+    }
+    missing_cols <- setdiff(c(rates$group_cols, "hazard_rate"), names(rates$policy_table))
+    if (!data.table::is.data.table(rates$policy_table) || length(missing_cols) > 0L) {
+      stop("The retirement rate table must be a data.table with columns ",
+           paste(c(rates$group_cols, "hazard_rate"), collapse = ", "), ".", call. = FALSE)
+    }
+  }
+
+  # 4. The rule
+  rule_vars <- character(0)
+  if (type != "status_quo") {
+    validate_policy_table(rule)
+    validate_choice(kind, c("age", "tenure", "age_tenure", "custom"), "retirement rule kind")
+    needs <- c(if (kind %in% c("age", "age_tenure"))    "min_age",
+               if (kind %in% c("tenure", "age_tenure")) "min_tenure")
+    for (p in needs) {
+      if (is.null(rule$defaults[[p]]) && !p %in% names(rule$policy_table)) {
+        stop("The '", kind, "' retirement rule needs ", p, ".", call. = FALSE)
+      }
+    }
+    # A custom rule: parsed and checked against the allow-list of safe calls
+    if (kind == "custom") {
+      rule_vars <- all.vars(validate_eligibility_rule(rule$defaults$custom_rule))
+    }
+  }
+
+  # 5. The columns the policy looks people up by. Group columns (and a
+  #    retire_strategy column) can be on either table. Age and tenure are read
+  #    from personnel_dt, so they must be there when the policy uses them.
+  strategy   <- rates$defaults$retire_strategy %||% "random"
+  group_cols <- setdiff(c(rates$group_cols, rule$group_cols, strategy),
+                        c("age_yr_int", "tenure_yr_int", "random"))
+  not_found  <- setdiff(group_cols, c(names(personnel_dt), names(contract_dt)))
+  if (length(not_found) > 0L) {
+    stop("The retirement policy uses column(s) that neither personnel_dt nor ",
+         "contract_dt has: ", paste(not_found, collapse = ", "), ".", call. = FALSE)
+  }
+
+  uses_age    <- "age_yr_int" %in% rates$group_cols || kind %in% c("age", "age_tenure") ||
+                 "age" %in% rule_vars
+  uses_tenure <- "tenure_yr_int" %in% rates$group_cols || kind %in% c("tenure", "age_tenure") ||
+                 "tenure_years" %in% rule_vars
+  for (need in c(if (uses_age) "age_col", if (uses_tenure) "tenure_col")) {
+    if (!isTRUE(cols[[need]] %in% names(personnel_dt))) {
+      stop("The retirement policy uses ", sub("_col$", "", need), ", but personnel_dt has ",
+           "no '", cols[[need]], "' column. Add one, or run through simulate_horizon(), ",
+           "which works it out.", call. = FALSE)
+    }
+  }
+
+  invisible(TRUE)
+}
+
+
+#' Check the Pension Part of a Retirement Policy
+#'
+#' @description
+#' Called first by [simulate_retirement()], before anyone is picked to retire,
+#' so a pension that cannot be paid stops the run straight away. Who retires is
+#' checked separately, by [check_retirement_selection_inputs()].
+#'
+#' It checks that the policy has a pension; that the pension has the
+#' three-slot shape (`group_cols`, `policy_table`, `defaults`); that every
+#' `pension_type` it uses, in `defaults` or in the table, is one of `"db"`,
+#' `"dc"`, `"flat"`, `"hybrid"`, `"rate"` or `"custom"`; and that every custom
+#' `pension_formula` uses only allowed arithmetic.
+#'
+#' @param policy_params List. The retirement policy.
+#'
+#' @return `TRUE`, invisibly, when the pension is usable.
+#'
+#' @keywords internal
+check_retirement_pension_inputs <- function(policy_params) {
+  pension <- if (is.list(policy_params)) policy_params$pension
+  if (is.null(pension)) {
+    stop("The retirement policy has no pension. Give one from a pension_*() function, ",
+         "e.g. pension_db(0.02), to design_retirement_policy_*().", call. = FALSE)
+  }
+  validate_policy_table(pension)
+
+  # Every pension type in use: the default and any set by group in the table
+  validate_choice(pension$defaults$pension_type,
+                  c("db", "dc", "flat", "hybrid", "rate", "custom"), "pension_type")
+  bad <- setdiff(pension$policy_table$pension_type,
+                 c("db", "dc", "flat", "hybrid", "rate", "custom"))
+  if (length(bad) > 0L) {
+    stop("Unknown pension_type in the pension table: ", paste(bad, collapse = ", "), ".",
+         call. = FALSE)
+  }
+
+  # Every custom formula, checked against the allow-list of safe arithmetic
+  formulas <- unique(c(pension$defaults$pension_formula, pension$policy_table$pension_formula))
+  for (f in formulas[!is.na(formulas)]) validate_pension_formula(f)
+
+  invisible(TRUE)
 }
 
 
@@ -1075,7 +937,7 @@ check_movement_inputs <- function(
 #'
 #' @description
 #' Composite validator for \code{\link{simulate_allowances}}, following the
-#' same pattern as \code{\link{check_retirement_inputs}} /
+#' same pattern as \code{\link{check_retirement_selection_inputs}} /
 #' \code{\link{check_hiring_inputs}} / \code{\link{check_movement_inputs}}.
 #' Not called when \code{policy_params} is \code{NULL} -- that short-circuits
 #' to a no-op before validation.
@@ -1085,7 +947,7 @@ check_movement_inputs <- function(
 #' @param policy_params List. See \code{\link{resolve_allowance_amounts}} for
 #'   the expected shape.
 #' @param as_of_date Date. The reference date for this period -- matches
-#'   \code{check_retirement_inputs()}'s own parameter name.
+#'   \code{check_retirement_selection_inputs()}'s own parameter name.
 #' @param column_spec_args Complete column specification from
 #'   \code{define_column_spec()}.
 #'
@@ -1202,12 +1064,11 @@ check_allowance_inputs <- function(contract_dt,
 #'   function does not use are ignored.
 #'
 #' @details
-#' `NULL` for `age_col` and `tenure_col` does not mean the same everywhere.
-#' `simulate_retirement()` then ignores any such column and calculates the value
-#' itself. `simulate_horizon()` treats `NULL` as the default name, and
-#' `estimate_retirement_hazard_rates()` does the same for `age_col`, so an `age`
-#' column that is already filled in is still used. `simulate_scenario()` leaves
-#' the value as it is and does not add a year.
+#' `NULL` for `age_col` or `tenure_col` means the default name, `"age"` or
+#' `"personnel_tenure"`, everywhere: `simulate_horizon()` fills that column in
+#' when it is missing or empty, and the retirement functions read it.
+#' `simulate_scenario()` called on its own with `NULL` leaves the value as it is
+#' and does not add a year.
 #'
 #' This function checks the names only, not your data: it cannot tell whether a
 #' column exists. Each function checks the columns it reads when it runs.

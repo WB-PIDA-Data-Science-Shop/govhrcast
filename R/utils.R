@@ -364,6 +364,26 @@ compute_tenure_panel <- function(contract_dt,
 # is staff: a blank contract type is missing data, not a reason to go unpaid.
 .OFF_PAYROLL_TYPES <- c("pensioner", "inactive")
 
+#' Give a NULL Age or Tenure Column Its Default Name
+#'
+#' @description
+#' In [define_column_spec()], `age_col = NULL` or `tenure_col = NULL` means the
+#' default column name: `"age"` and `"personnel_tenure"`. [simulate_horizon()]
+#' fills that column in when it is missing or empty; retirement reads it. Every
+#' function that reads age or tenure calls this first, so `NULL` means the same
+#' everywhere.
+#'
+#' @param column_spec_args Column names, from [define_column_spec()].
+#'
+#' @return `column_spec_args`, with `age_col` and `tenure_col` always named.
+#'
+#' @keywords internal
+.fill_age_tenure_col_names <- function(column_spec_args) {
+  column_spec_args$age_col    <- column_spec_args$age_col    %||% "age"
+  column_spec_args$tenure_col <- column_spec_args$tenure_col %||% "personnel_tenure"
+  column_spec_args
+}
+
 # Which rows are on the payroll, given the contract type column. Works inside
 # data.table brackets: contract_dt[.on_payroll(get(contract_type_col))].
 .on_payroll <- function(contract_type) !contract_type %in% .OFF_PAYROLL_TYPES
@@ -374,22 +394,12 @@ compute_tenure_panel <- function(contract_dt,
   if (all(is.na(pay))) NA_real_ else sum(as.numeric(pay), na.rm = TRUE)
 }
 
-# Internal helper: payroll total.
-# Wage bill definition: sum of the pay on every contract row on the payroll (see
-# .on_payroll()), per person, then across persons.  A person with two contracts
-# contributes both salaries.  Pensions are excluded: their cost is tracked in
-# pensioner_register.
-# Used by simulate_scenario() (wage bill at start, before COLA and at end) and
-# by the allowance module. No roxygen: internal only, not exported.
-.active_wage_bill <- function(contract_dt,
-                              contract_type_col,
-                              salary_col,
-                              personnel_id_col) {
-  contract_dt[
-    .on_payroll(get(contract_type_col)) & !is.na(get(salary_col)),
-    .(salary = sum(get(salary_col), na.rm = TRUE)),
-    by = c(personnel_id_col)
-  ][, sum(salary, na.rm = TRUE)]
+# Wage bill: the pay on every contract row on the payroll (see .on_payroll()), so
+# a person with two contracts contributes both. Pensions are excluded: their cost
+# is tracked in pensioner_register. Used by simulate_scenario() (wage bill at the
+# start, before COLA and at the end).
+.active_wage_bill <- function(contract_dt, contract_type_col, salary_col) {
+  contract_dt[.on_payroll(get(contract_type_col)), sum(get(salary_col), na.rm = TRUE)]
 }
 
 # The contracts a policy covers, from those already known to be active. With no
@@ -864,74 +874,76 @@ dispatch_param <- function(param_spec, working_dt, param_name) {
 #' @keywords internal
 resolve_policy_table <- function(policy_params, working_dt, param_names) {
 
-  defaults     <- if (is.null(policy_params$defaults)) list()
-                  else policy_params$defaults
+  # A default given as NULL counts as no default
+  defaults     <- Filter(Negate(is.null), policy_params$defaults)
   group_cols   <- policy_params$group_cols
   policy_table <- policy_params$policy_table
+  n            <- nrow(working_dt)
 
-  n      <- nrow(working_dt)
-  result <- vector("list", length(param_names))
-  names(result) <- param_names
+  # Which parameters come from the table (only when there are groups to join
+  # on), and which from the defaults alone. A parameter in neither is left out.
+  use_table     <- !is.null(policy_table) && !is.null(group_cols)
+  from_table    <- if (use_table) intersect(param_names, names(policy_table)) else character(0)
+  from_defaults <- intersect(setdiff(param_names, from_table), names(defaults))
 
-  # --- Initialise every requested param from defaults ----------------------
-  for (p in param_names) {
-    val <- defaults[[p]]
-    if (!is.null(val)) result[[p]] <- rep(val, n)
-  }
+  # Default-only parameters: the same value on every row
+  result <- lapply(defaults[from_defaults], rep, n)
 
-  # --- Group-level override via policy_table --------------------------------
-  if (!is.null(policy_table) && !is.null(group_cols)) {
-
+  if (use_table) {
     missing_gc <- setdiff(group_cols, names(working_dt))
     if (length(missing_gc) > 0L)
       stop("resolve_policy_table: group_cols not found in working_dt: ",
            paste(missing_gc, collapse = ", "), call. = FALSE)
+  }
 
-    # Coerce policy_table join keys to match working_dt types.
-    # A type mismatch (e.g. factor vs character) silently produces all-NA
-    # matches in data.table joins, so we coerce before the join.
-    policy_table <- data.table::copy(policy_table)  # avoid modifying caller's table
-    for (.gc in group_cols) {
-      .wclass <- class(working_dt[[.gc]])[1L]
-      .pclass <- class(policy_table[[.gc]])[1L]
-      if (!identical(.wclass, .pclass)) {
+  if (length(from_table) > 0L) {
+    # Only the keys and the wanted parameters, as a new table (so the caller's
+    # table is never changed)
+    lookup <- policy_table[, c(group_cols, from_table), with = FALSE]
+
+    # Give each key the class it has in working_dt: data.table cannot join,
+    # for example, a character key to an integer one
+    for (col in group_cols) {
+      to   <- class(working_dt[[col]])[1L]
+      from <- class(lookup[[col]])[1L]
+      if (!identical(to, from)) {
         tryCatch(
-          data.table::set(policy_table, j = .gc,
-                          value = methods::as(policy_table[[.gc]], .wclass)),
+          data.table::set(lookup, j = col, value = methods::as(lookup[[col]], to)),
           error = function(e)
-            warning("resolve_policy_table: could not coerce policy_table$", .gc,
-                    " from ", .pclass, " to ", .wclass,
+            warning("resolve_policy_table: could not coerce policy_table$", col,
+                    " from ", from, " to ", to,
                     ". Join may produce NA values.", call. = FALSE)
         )
       }
     }
 
-    cols_to_get <- intersect(param_names, names(policy_table))
-    if (length(cols_to_get) > 0L) {
-      lookup_slim <- policy_table[, c(group_cols, cols_to_get), with = FALSE]
-      joined      <- lookup_slim[working_dt, on = group_cols]
-      for (p in cols_to_get) {
-        vals      <- joined[[p]]
-        unmatched <- is.na(vals)
-        if (any(unmatched)) {
-          fallback <- defaults[[p]]
-          if (!is.null(fallback)) {
-            vals[unmatched] <- fallback
-          } else if (all(unmatched)) {
-            stop("resolve_policy_table: '", p,
-                 "' has unmatched groups and no default. ",
-                 "Add a default or make policy_table exhaustive.",
-                 call. = FALSE)
-          }
-          # partial match with no fallback: leave NAs in place
+    # One join, one row per working_dt row, returning only the parameter
+    # columns: none of working_dt's other columns are copied
+    looked_up <- lookup[working_dt, on = group_cols, from_table, with = FALSE]
+
+    # A group the table lacks (or a blank cell) takes the default. With no
+    # default, a column blank on every row stops; a partly blank one keeps
+    # its blanks. Only touched when there are blanks: assigning the default
+    # would otherwise still change the column's type (60 into an integer
+    # column makes it double).
+    for (p in from_table) {
+      v <- looked_up[[p]]
+      if (anyNA(v)) {
+        if (!is.null(defaults[[p]])) {
+          v[is.na(v)] <- defaults[[p]]
+        } else if (all(is.na(v))) {
+          stop("resolve_policy_table: '", p,
+               "' has unmatched groups and no default. ",
+               "Add a default or make policy_table exhaustive.",
+               call. = FALSE)
         }
-        result[[p]] <- vals
       }
+      result[[p]] <- v
     }
   }
 
-  # Drop NULLs (params not in defaults and not in policy_table)
-  Filter(Negate(is.null), result)
+  # In the order the caller asked for
+  result[intersect(param_names, names(result))]
 }
 
 
@@ -970,8 +982,11 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
   n_select <- as.integer(min(n_select, length(pool_ids)))
   if (n_select <= 0L) return(character(0))
 
+  # Random draws index into pool_ids rather than sample(pool_ids): for a single
+  # numeric ID, sample(12345, 1) would draw from 1:12345 instead of returning
+  # 12345. For two or more IDs this draws the same as sample(pool_ids, n).
   if (strategy == "random") {
-    return(sample(pool_ids, size = n_select, replace = FALSE))
+    return(pool_ids[sample.int(length(pool_ids), n_select)])
   }
 
   # Treat strategy as a column name -- rank ascending, lowest values first.
@@ -991,7 +1006,7 @@ resolve_policy_table <- function(policy_params, working_dt, param_names) {
   }
 
   # Fallback to random
-  sample(pool_ids, size = n_select, replace = FALSE)
+  pool_ids[sample.int(length(pool_ids), n_select)]
 }
 
 
@@ -1115,18 +1130,9 @@ make_status_quo_policies <- function(contract_dt,
   # ------------------------------------------------------------------
   # 1. Retirement — fully scalar, no estimation needed
   # ------------------------------------------------------------------
-  retirement <- list(
-    group_cols   = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "age_and_tenure",
-      pension_type     = "db",
-      min_age          = 60,
-      min_tenure       = 10,
-      accrual_rate     = 0.02,
-      max_years        = 35,
-      replacement_cap  = 0.80
-    )
+  retirement <- design_retirement_policy_eligibility(
+    retirement_rule_age_tenure(min_age = 60, min_tenure = 10),
+    pension_db(accrual_rate = 0.02, max_years = 35, replacement_cap = 0.80)
   )
 
   # ------------------------------------------------------------------

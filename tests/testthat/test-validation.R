@@ -341,466 +341,119 @@ test_that("validate_required_params accepts empty required params", {
 })
 
 # =============================================================================
-# check_retirement_inputs()
+# check_retirement_selection_inputs() and check_retirement_pension_inputs()
 # =============================================================================
 
-test_that("check_retirement_inputs accepts valid complete inputs", {
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm"
+# One person aged 70 with 30 years' service, on one permanent teacher contract
+selection_data <- function() {
+  list(
+    c = data.table(contract_id = "C1", personnel_id = "P1", occupation = "teacher",
+                   start_date = as.Date("2000-01-01"), end_date = as.Date(NA),
+                   contract_type = "permanent", gross_salary_lcu = 100),
+    p = data.table(personnel_id = "P1", employment_status = "active", age = 70,
+                   personnel_tenure = 30)
   )
+}
 
-  personnel_dt <- data.table(
-    personnel_id = "P001",
-    employment_status = "active",
-    birth_date = as.Date("1970-01-01")
-  )
+check_selection <- function(policy, d = selection_data(), date = as.Date("2025-01-01")) {
+  check_retirement_selection_inputs(d$c, d$p, policy, date)
+}
 
-  policy_params <- list(
-    group_cols = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "age_and_tenure",
-      pension_type = "db",
-      min_age = 60,
-      min_tenure = 15
-    )
-  )
+age_60 <- design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(1))
 
-  ref_date <- as.Date("2025-01-01")
-
-  expect_invisible(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date)
-  )
+test_that("check_retirement_selection_inputs accepts a usable policy", {
+  expect_invisible(check_selection(age_60))
+  # A rule keyed by a column held on contracts, not on people
+  by_occupation <- retirement_rule_age(75, "occupation", data.table(occupation = "teacher", min_age = 70))
+  expect_invisible(check_selection(design_retirement_policy_eligibility(by_occupation, pension_flat(1))))
+  # An empty rate table is fine: the history showed no retirements
+  no_rates <- retirement_rates_status_quo(
+    hazard_table = data.table(age_yr_int = integer(), hazard_rate = numeric()))
+  expect_invisible(check_selection(design_retirement_policy_status_quo(pension_flat(1), no_rates)))
 })
 
-test_that("check_retirement_inputs validates contract_dt", {
-  personnel_dt <- data.table(
-    personnel_id = "P001",
-    employment_status = "active"
-  )
-  policy_params <- list(
-    group_cols = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "tenure_only",
-      pension_type = "flat",
-      min_tenure = 15
-    )
-  )
-  ref_date <- as.Date("2025-01-01")
-
-  expect_error(
-    check_retirement_inputs(NULL, personnel_dt, policy_params, ref_date),
-    "contract_dt must be a data.table"
-  )
+test_that("check_retirement_selection_inputs checks the data and the date", {
+  d <- selection_data()
+  expect_error(check_retirement_selection_inputs(NULL, d$p, age_60, as.Date("2025-01-01")),
+               "contract_dt must be a data.table")
+  expect_error(check_retirement_selection_inputs(d$c, NULL, age_60, as.Date("2025-01-01")),
+               "personnel_dt must be a data.table")
+  expect_error(check_selection(age_60, date = "not-a-date"), "must be a valid date")
+  expect_no_error(check_selection(age_60, date = "2025-01-01"))
+  d$c[, contract_type := NULL]
+  expect_error(check_selection(age_60, d),
+               "contract_type_col = .contract_type.: column not found in contract_dt")
+  d <- selection_data()
+  d$p[, employment_status := NULL]
+  expect_error(check_selection(age_60, d),
+               "status_col = .employment_status.: column not found in personnel_dt")
 })
 
-test_that("check_retirement_inputs validates personnel_dt", {
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm"
-  )
-  policy_params <- list(
-    group_cols = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "tenure_only",
-      pension_type = "flat",
-      min_tenure = 15
-    )
-  )
-  ref_date <- as.Date("2025-01-01")
-
-  expect_error(
-    check_retirement_inputs(contract_dt, NULL, policy_params, ref_date),
-    "personnel_dt must be a data.table"
-  )
+test_that("check_retirement_selection_inputs stops on a policy with no type", {
+  old_style <- list(defaults = list(eligibility_type = "age_only", min_age = 60))
+  expect_error(check_selection(old_style), "has no 'type'")
+  expect_error(check_selection("age 60"), "has no 'type'")
+  expect_error(check_selection(list(type = "early")), "retirement policy type")
 })
 
-test_that("check_retirement_inputs validates ref_date", {
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm"
-  )
-  personnel_dt <- data.table(
-    personnel_id = "P001",
-    employment_status = "active"
-  )
-  policy_params <- list(
-    group_cols = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "tenure_only",
-      pension_type = "flat",
-      min_tenure = 15
-    )
-  )
-
-  # Invalid date string should error
-  expect_error(
-    check_retirement_inputs(
-      contract_dt,
-      personnel_dt,
-      policy_params,
-      "not-a-date"
-    ),
-    "must be a valid date"
-  )
-
-  # Valid date string should be accepted
-  expect_no_error(
-    check_retirement_inputs(
-      contract_dt,
-      personnel_dt,
-      policy_params,
-      "2025-01-01"
-    )
-  )
+test_that("check_retirement_selection_inputs stops on status-quo rates it cannot use", {
+  expect_error(check_selection(design_retirement_policy_status_quo(pension_flat(1))),
+               "has no rates.*estimate_retirement_hazard_rates")
+  no_age_or_tenure <- list(type = "status_quo",
+                           rates = list(group_cols = "est_id", policy_table = data.table(est_id = "E1", hazard_rate = 0)))
+  expect_error(check_selection(no_age_or_tenure), "must vary by age or tenure")
+  no_rate_column <- list(type = "status_quo",
+                         rates = list(group_cols = "age_yr_int", policy_table = data.table(age_yr_int = 60L)))
+  expect_error(check_selection(no_rate_column), "columns age_yr_int, hazard_rate")
 })
 
-test_that("check_retirement_inputs validates policy_params structure", {
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm"
-  )
-  personnel_dt <- data.table(
-    personnel_id = "P001",
-    employment_status = "active"
-  )
-  ref_date <- as.Date("2025-01-01")
-
-  expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, "not a list", ref_date),
-    "policy_params must be a list"
-  )
+test_that("check_retirement_selection_inputs stops on a rule it cannot use", {
+  expect_error(check_selection(list(type = "eligibility", rule = list(defaults = list(kind = "age")))),
+               "'age' retirement rule needs min_age")
+  expect_error(check_selection(list(type = "eligibility", rule = list(defaults = list(kind = "tenure")))),
+               "'tenure' retirement rule needs min_tenure")
+  expect_error(check_selection(list(type = "eligibility", rule = list(defaults = list(kind = "early")))),
+               "retirement rule kind")
 })
 
-test_that("check_retirement_inputs validates required policy params", {
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm"
-  )
-  personnel_dt <- data.table(
-    personnel_id = "P001",
-    employment_status = "active"
-  )
-  ref_date <- as.Date("2025-01-01")
-
-  # defaults missing pension_type
-  policy_params <- list(
-    group_cols = NULL,
-    policy_table = NULL,
-    defaults = list(eligibility_type = "tenure_only", min_tenure = 15)
-  )
-  expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "Missing required parameters for retirement policy: pension_type"
-  )
+test_that("check_retirement_selection_inputs stops on a column neither table has", {
+  by_grade <- retirement_rule_age(75, "grade", data.table(grade = "A", min_age = 70))
+  expect_error(check_selection(design_retirement_policy_eligibility(by_grade, pension_flat(1))),
+               "neither personnel_dt nor contract_dt has: grade")
 })
 
-test_that("check_retirement_inputs validates eligibility_type value", {
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm"
-  )
-  personnel_dt <- data.table(
-    personnel_id = "P001",
-    employment_status = "active"
-  )
-  ref_date <- as.Date("2025-01-01")
-
-  policy_params <- list(
-    group_cols = NULL,
-    policy_table = NULL,
-    defaults = list(eligibility_type = "invalid_type", pension_type = "flat")
-  )
-
-  expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "Invalid eligibility_type: 'invalid_type'. Valid options: age_only, tenure_only, age_and_tenure"
-  )
+test_that("check_retirement_selection_inputs needs the age or tenure column the policy uses", {
+  d <- selection_data()
+  d$p[, age := NULL]
+  expect_error(check_selection(age_60, d), "uses age, but personnel_dt has no 'age' column")
+  d <- selection_data()
+  d$p[, personnel_tenure := NULL]
+  on_tenure <- design_retirement_policy_eligibility(retirement_rule_custom("tenure_years >= 35"), pension_flat(1))
+  expect_error(check_selection(on_tenure, d), "uses tenure, but personnel_dt has no 'personnel_tenure' column")
+  # A policy by age only does not need the tenure column
+  expect_invisible(check_selection(age_60, d))
 })
 
-test_that("check_retirement_inputs validates pension_type value", {
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm"
-  )
-  personnel_dt <- data.table(
-    personnel_id = "P001",
-    employment_status = "active"
-  )
-  ref_date <- as.Date("2025-01-01")
-
-  policy_params <- list(
-    group_cols = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "tenure_only",
-      pension_type = "invalid_pension",
-      min_tenure = 15
-    )
-  )
-
-  expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "Invalid pension_type: 'invalid_pension'. Valid options: db, dc, flat, hybrid"
-  )
+test_that("check_retirement_pension_inputs accepts a usable pension, by group too", {
+  expect_invisible(check_retirement_pension_inputs(age_60))
+  pension <- pension_db(0.02)
+  pension$group_cols   <- "paygrade"
+  pension$policy_table <- data.table(paygrade = "D", accrual_rate = 0.025)
+  expect_invisible(check_retirement_pension_inputs(
+    design_retirement_policy_eligibility(retirement_rule_age(60), pension)))
 })
 
-test_that("check_retirement_inputs requires min_age for age_only eligibility", {
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm"
-  )
-  personnel_dt <- data.table(
-    personnel_id = "P001",
-    employment_status = "active",
-    birth_date = as.Date("1970-01-01")
-  )
-  ref_date <- as.Date("2025-01-01")
-
-  policy_params <- list(
-    group_cols = NULL,
-    policy_table = NULL,
-    defaults = list(eligibility_type = "age_only", pension_type = "flat")
-    # min_age deliberately missing
-  )
-
-  expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "min_age is required for eligibility_type 'age_only'"
-  )
+test_that("check_retirement_pension_inputs stops on a pension it cannot pay", {
+  expect_error(check_retirement_pension_inputs(list(type = "eligibility")), "has no pension")
+  expect_error(check_retirement_pension_inputs(list(pension = list(defaults = list(pension_type = "gold")))),
+               "pension_type")
+  by_group <- list(pension = list(group_cols = "paygrade",
+                                  policy_table = data.table(paygrade = "A", pension_type = "gold"),
+                                  defaults = list(pension_type = "flat", flat_amount = 1)))
+  expect_error(check_retirement_pension_inputs(by_group), "Unknown pension_type in the pension table: gold")
+  group_cols_without_table <- list(pension = list(group_cols = "paygrade", defaults = list(pension_type = "flat")))
+  expect_error(check_retirement_pension_inputs(group_cols_without_table), "policy_table is NULL")
 })
-
-test_that("check_retirement_inputs requires min_tenure for tenure_only eligibility", {
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm"
-  )
-  personnel_dt <- data.table(
-    personnel_id = "P001",
-    employment_status = "active"
-  )
-  ref_date <- as.Date("2025-01-01")
-
-  policy_params <- list(
-    group_cols = NULL,
-    policy_table = NULL,
-    defaults = list(eligibility_type = "tenure_only", pension_type = "flat")
-    # min_tenure deliberately missing
-  )
-
-  expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "min_tenure is required for eligibility_type 'tenure_only'"
-  )
-})
-
-test_that("check_retirement_inputs accepts hazard_rate eligibility without min_age/min_tenure", {
-  contract_dt <- data.table(
-    contract_id = "C001", personnel_id = "P001",
-    start_date = as.Date("2020-01-01"), end_date = as.Date(NA), contract_type = "perm"
-  )
-  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
-  ref_date <- as.Date("2025-01-01")
-
-  policy_params <- list(
-    group_cols   = "age_yr_int",
-    policy_table = data.table(age_yr_int = 60, hazard_rate = 0.5),
-    defaults = list(eligibility_type = "hazard_rate", pension_type = "flat", flat_amount = 100)
-    # min_age and min_tenure deliberately absent -- optional for hazard_rate
-  )
-
-  expect_invisible(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date)
-  )
-})
-
-test_that("check_retirement_inputs hazard_rate requires group_cols to include age_yr_int", {
-  contract_dt <- data.table(
-    contract_id = "C001", personnel_id = "P001",
-    start_date = as.Date("2020-01-01"), end_date = as.Date(NA), contract_type = "perm"
-  )
-  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
-  ref_date <- as.Date("2025-01-01")
-
-  policy_params <- list(
-    group_cols   = "grade",
-    policy_table = data.table(grade = "A", hazard_rate = 0.5),
-    defaults = list(eligibility_type = "hazard_rate", pension_type = "flat", flat_amount = 100)
-  )
-
-  expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "age_yr_int"
-  )
-})
-
-test_that("check_retirement_inputs hazard_rate requires a hazard_rate column in policy_table", {
-  contract_dt <- data.table(
-    contract_id = "C001", personnel_id = "P001",
-    start_date = as.Date("2020-01-01"), end_date = as.Date(NA), contract_type = "perm"
-  )
-  personnel_dt <- data.table(personnel_id = "P001", employment_status = "active")
-  ref_date <- as.Date("2025-01-01")
-
-  policy_params <- list(
-    group_cols   = "age_yr_int",
-    policy_table = data.table(age_yr_int = 60, exit_rate = 0.5), # wrong column
-    defaults = list(eligibility_type = "hazard_rate", pension_type = "flat", flat_amount = 100)
-  )
-
-  expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "hazard_rate"
-  )
-})
-
-test_that("check_retirement_inputs requires birth_date column for age-based eligibility", {
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm"
-  )
-  # Missing birth_date column
-  personnel_dt <- data.table(
-    personnel_id = "P001",
-    employment_status = "active"
-  )
-  ref_date <- as.Date("2025-01-01")
-
-  policy_params <- list(
-    group_cols = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "age_only",
-      pension_type = "flat",
-      min_age = 60
-    )
-  )
-
-  expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "Column 'birth_date' not found in personnel_dt"
-  )
-})
-
-test_that("check_retirement_inputs validates required contract columns", {
-  # Missing contract_type column
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA)
-  )
-  personnel_dt <- data.table(
-    personnel_id = "P001",
-    employment_status = "active"
-  )
-  ref_date <- as.Date("2025-01-01")
-
-  policy_params <- list(
-    group_cols = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "tenure_only",
-      pension_type = "flat",
-      min_tenure = 15
-    )
-  )
-
-  expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "contract_type_col = .contract_type.: column not found in contract_dt"
-  )
-})
-
-test_that("check_retirement_inputs validates required personnel columns", {
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm"
-  )
-  # Missing status column
-  personnel_dt <- data.table(personnel_id = "P001")
-  ref_date <- as.Date("2025-01-01")
-
-  policy_params <- list(
-    group_cols = NULL,
-    policy_table = NULL,
-    defaults = list(
-      eligibility_type = "tenure_only",
-      pension_type = "flat",
-      min_tenure = 15
-    )
-  )
-
-  expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "status_col = .employment_status.: column not found in personnel_dt"
-  )
-})
-
-test_that("check_retirement_inputs requires defaults list in policy_params", {
-  contract_dt <- data.table(
-    contract_id = "C001",
-    personnel_id = "P001",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm"
-  )
-  personnel_dt <- data.table(
-    personnel_id = "P001",
-    employment_status = "active"
-  )
-  ref_date <- as.Date("2025-01-01")
-
-  policy_params <- list(
-    eligibility_type = "tenure_only",
-    min_tenure = 15,
-    pension_type = "flat"
-    # No 'defaults' wrapper — old format
-  )
-
-  expect_error(
-    check_retirement_inputs(contract_dt, personnel_dt, policy_params, ref_date),
-    "policy_params must contain a 'defaults' list"
-  )
-})
-
 
 # ===========================================================================
 # validate_param_spec()
@@ -910,77 +563,6 @@ test_that("validate_param_spec: negative default raises error", {
       "min_age"
     ),
     "default must be > 0"
-  )
-})
-
-# check_retirement_inputs: policy_table paths
-test_that("check_retirement_inputs: group-level policy_table with valid structure passes", {
-  contract_dt <- data.table::data.table(
-    contract_id = "C1",
-    personnel_id = "P1",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm",
-    gross_salary_lcu = 5000
-  )
-  personnel_dt <- data.table::data.table(
-    personnel_id = "P1",
-    employment_status = "active",
-    birth_date = as.Date("1960-01-01")
-  )
-  tbl <- data.table::data.table(grade = c("A", "B"), min_age = c(60, 55))
-  policy_params <- list(
-    group_cols = "grade",
-    policy_table = tbl,
-    defaults = list(
-      eligibility_type = "age_only",
-      pension_type = "flat",
-      min_age = 58,
-      flat_amount = 10000
-    )
-  )
-  expect_invisible(
-    check_retirement_inputs(
-      contract_dt,
-      personnel_dt,
-      policy_params,
-      as.Date("2025-01-01")
-    )
-  )
-})
-
-test_that("check_retirement_inputs: group_cols without policy_table raises error", {
-  contract_dt <- data.table::data.table(
-    contract_id = "C1",
-    personnel_id = "P1",
-    start_date = as.Date("2020-01-01"),
-    end_date = as.Date(NA),
-    contract_type = "perm",
-    gross_salary_lcu = 5000
-  )
-  personnel_dt <- data.table::data.table(
-    personnel_id = "P1",
-    employment_status = "active",
-    birth_date = as.Date("1960-01-01")
-  )
-  policy_params <- list(
-    group_cols = "grade",
-    policy_table = NULL, # inconsistent — should error
-    defaults = list(
-      eligibility_type = "age_only",
-      pension_type = "flat",
-      min_age = 60,
-      flat_amount = 10000
-    )
-  )
-  expect_error(
-    check_retirement_inputs(
-      contract_dt,
-      personnel_dt,
-      policy_params,
-      as.Date("2025-01-01")
-    ),
-    "group_cols supplied but policy_table is NULL"
   )
 })
 

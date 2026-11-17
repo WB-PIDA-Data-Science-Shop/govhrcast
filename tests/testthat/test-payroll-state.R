@@ -150,8 +150,8 @@ ended_fixture <- function() {
 test_that("someone whose contract end date has passed can still retire", {
   d <- ended_fixture()
   run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, seed = 1L,
-                          retirement_policy = design_retirement_policy_age_tenure(
-                            min_age = 60, min_tenure = 1, pension = pension_flat(100)))
+                          retirement_policy = design_retirement_policy_eligibility(
+                            retirement_rule_age_tenure(min_age = 60, min_tenure = 1), pension_flat(100)))
   expect_equal(run$comparison$n_exits, 1L)
   expect_equal(run$comparison$exit_savings, 1000)
   expect_equal(run$comparison$wage_bill_end, 500)
@@ -257,8 +257,8 @@ test_that("simulated retirees get the status pensioner and stop ageing", {
   d <- ended_fixture()
   d$p[, age := c(70, 30)]
   run <- simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, seed = 1L,
-                          retirement_policy = design_retirement_policy_age_tenure(
-                            min_age = 60, min_tenure = 1, pension = pension_flat(100)),
+                          retirement_policy = design_retirement_policy_eligibility(
+                            retirement_rule_age_tenure(min_age = 60, min_tenure = 1), pension_flat(100)),
                           output_control_args = define_output_control(return_microdata = TRUE))
   expect_equal(projected(run$personnel_dt)[personnel_id == "ended", employment_status], "pensioner")
   expect_equal(projected(run$personnel_dt)[personnel_id == "ended", age], 70)
@@ -274,8 +274,8 @@ test_that("simulate_retirement does not retire someone only because they hold a 
   d$p[, age := c(70, 30)]
   d$p[, personnel_tenure := c(30, 10)]
   res <- simulate_retirement(d$c, d$p, as_of_date = start,
-                             policy_params = design_retirement_policy_age_tenure(
-                               min_age = 60, min_tenure = 1, pension = pension_flat(100)))
+                             policy_params = design_retirement_policy_eligibility(
+                               retirement_rule_age_tenure(min_age = 60, min_tenure = 1), pension_flat(100)))
   expect_equal(res$personnel_dt[personnel_id == "ended", employment_status], "pensioner")
   expect_equal(res$personnel_dt[personnel_id == "open", employment_status], "active")
 })

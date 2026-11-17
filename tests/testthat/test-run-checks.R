@@ -130,7 +130,8 @@ test_that("a baseline_date on a snapshot, or with no snapshot column, runs as be
 test_that("the year's pension total matches the register after pension growth", {
   d <- small_run_data()
   run <- simulate_horizon(d$c, d$p, d$s, n_periods = 2L, baseline_date = start, seed = 1L,
-                          retirement_policy = design_retirement_policy_age(60, pension_flat(500)),
+                          retirement_policy = design_retirement_policy_eligibility(
+                            retirement_rule_age(60), pension_flat(500)),
                           pension_cola_rate = 0.10)
   expect_equal(run$comparison$pension_cost_new, c(2000, 0))
   expect_equal(run$comparison$pension_cost_total, c(2200, 2420))
@@ -141,19 +142,22 @@ test_that("the year's pension total matches the register after pension growth", 
 
 test_that("retirement applies active_types, and a blank type still counts as staff", {
   d <- small_run_data()
-  policy <- design_retirement_policy_age(60, pension_flat(500))
-  policy$defaults$active_types <- "permanent"
+  policy <- design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(500),
+                                                 active_types = "permanent")
   out <- simulate_retirement(d$c, d$p, start, policy)
   expect_setequal(out$retirees_dt$personnel_id, c("P1", "P3", "P4"))
-  hazard <- eligibility_status_quo(hazard_table = data.table(age_yr_int = 70L, hazard_rate = 1))
-  hazard$defaults$active_types <- "fixed-term"
-  picked <- compute_status_quo_retirements(d$c, d$p, hazard, start)
+  hazard <- design_retirement_policy_status_quo(
+    pension_flat(500),
+    retirement_rates_status_quo(hazard_table = data.table(age_yr_int = 70L, hazard_rate = 1)),
+    active_types = "fixed-term")
+  picked <- select_retirees(d$c, d$p, hazard, start)
   expect_setequal(picked$personnel_id, c("P2", "P3"))
 })
 
 test_that("with no active_types, retirement covers everyone on the payroll", {
   d <- small_run_data()
-  out <- simulate_retirement(d$c, d$p, start, design_retirement_policy_age(60, pension_flat(500)))
+  out <- simulate_retirement(d$c, d$p, start,
+                             design_retirement_policy_eligibility(retirement_rule_age(60), pension_flat(500)))
   expect_setequal(out$retirees_dt$personnel_id, paste0("P", 1:4))
 })
 
@@ -230,8 +234,10 @@ test_that("hiring and retirement tables report their missing groups too", {
                        data.table(est_id = "E1", hiring_rate = 0.1), group_cols = "est_id"), seed = 1L),
     "hiring.*1 group.*E2"
   )
-  policy <- design_retirement_policy_status_quo(pension = pension_flat(1), group_cols = "est_id")
-  policy$policy_table <- data.table(age_yr_int = 70L, est_id = "E1", hazard_rate = 0)
+  policy <- design_retirement_policy_status_quo(
+    pension_flat(1),
+    retirement_rates_status_quo(group_cols = "est_id",
+                                hazard_table = data.table(age_yr_int = 70L, est_id = "E1", hazard_rate = 0)))
   expect_message(
     simulate_horizon(d$c, d$p, d$s, n_periods = 1L, baseline_date = start, retirement_policy = policy, seed = 1L),
     "retirement.*1 group.*E2"

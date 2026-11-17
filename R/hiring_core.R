@@ -106,6 +106,10 @@ compute_current_stock <- function(contract_dt,
 #'     \item defaults: Only when \code{leavers_dt} is \code{NULL}: the retirement
 #'       rule to work out who leaves, e.g.
 #'       \code{list(eligibility_type = "age_only", min_age = 60)}.
+#'       \code{eligibility_type} is \code{"age_only"}, \code{"tenure_only"},
+#'       \code{"age_and_tenure"} or \code{"custom"} (with
+#'       \code{eligibility_rule}); it is passed to \code{\link{select_retirees}()},
+#'       which reads age and tenure from \code{personnel_dt}.
 #'   }
 #' @param leavers_dt data.table or \code{NULL}. The people who left, with the
 #'   person ID column, and the group columns if they have them (otherwise these
@@ -139,13 +143,18 @@ compute_flow_demand <- function(contract_dt,
         call. = FALSE
       )
     }
-    leavers_dt <- identify_eligibility(
-      contract_dt = contract_dt,
-      personnel_dt = personnel_dt,
-      policy_params = policy_params,
-      as_of_date = as_of_date,
-      column_spec_args = column_spec_args
-    )[retire == 1]
+    # The hiring policy's own keys, turned into a retirement rule: everyone who
+    # meets it is taken to leave
+    d    <- policy_params$defaults
+    kind <- c(age_only = "age", tenure_only = "tenure",
+              age_and_tenure = "age_tenure", custom = "custom")[[d$eligibility_type]]
+    rule <- list(group_cols = NULL, policy_table = NULL,
+                 defaults = Filter(Negate(is.null), list(
+                   kind = kind, min_age = d$min_age, min_tenure = d$min_tenure,
+                   custom_rule = d$eligibility_rule)))
+    leavers_dt <- select_retirees(contract_dt, personnel_dt,
+                                  list(type = "eligibility", rule = rule),
+                                  as_of_date, column_spec_args)
   }
 
   # Nobody left, so there is nobody to replace

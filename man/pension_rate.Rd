@@ -11,8 +11,8 @@ pension_rate(pension_rate)
 }
 \value{
 A list with a single \code{defaults} element -- pass this as the
-\code{pension} argument to \code{\link{design_retirement_policy}} (or a
-preset).
+\code{pension} argument to a \code{design_retirement_policy_*()}
+function.
 }
 \description{
 Builds the pension half of a retirement policy that pays a fixed
@@ -23,5 +23,5 @@ paying a flat 15\% of final salary). See \code{\link{compute_rate_pension}}.
 pension_rate(pension_rate = 0.15)
 }
 \seealso{
-\code{\link{design_retirement_policy}}, \code{\link{compute_rate_pension}}
+\code{\link{design_retirement_policy_eligibility}}, \code{\link{compute_rate_pension}}
 }

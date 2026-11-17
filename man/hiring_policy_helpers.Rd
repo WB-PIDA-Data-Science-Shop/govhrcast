@@ -10,13 +10,12 @@ hand-writing the mode-specific list directly.  Each constructor validates
 its own inputs immediately (at construction time) rather than deferring to
 a runtime error deep inside the simulation.
 
-Unlike \code{\link{design_retirement_policy}}, hiring has no separate
-"combine two independent things" step: \code{hiring_policy} varies along a
-single axis (which \code{mode}), and each mode's required fields are just
-that mode's fields, not a cross-product of two orthogonal choices.  So
-there is one constructor per mode, each returning the complete policy list
-directly -- closer to \code{\link{design_retirement_policy_age}} and its
-siblings than to \code{eligibility_age()}/\code{pension_flat()}.
+Unlike a retirement policy, which is built from parts (a rule or rates from
+\code{retirement_rule_*()} / \code{\link{retirement_rates_status_quo}}, plus a
+pension from \code{pension_*()}), \code{hiring_policy} varies along a single
+axis (which \code{mode}), and each mode's required fields are just that
+mode's fields.  So there is one constructor per mode, each returning the
+complete policy list directly.
 
 The constructors:
 \itemize{

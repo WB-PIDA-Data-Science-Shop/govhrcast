@@ -15,7 +15,7 @@ pension_hybrid(db, dc)
 A list with a single \code{defaults} element (the union of
 \code{db}'s and \code{dc}'s fields, with \code{pension_type} set to
 \code{"hybrid"}) -- pass this as the \code{pension} argument to
-\code{\link{design_retirement_policy}} (or a preset).
+a \code{design_retirement_policy_*()} function.
 }
 \description{
 Builds the pension half of a retirement policy that pays the sum of a
@@ -29,5 +29,5 @@ pension_hybrid(
 )
 }
 \seealso{
-\code{\link{design_retirement_policy}}, \code{\link{compute_hybrid_pension}}
+\code{\link{design_retirement_policy_eligibility}}, \code{\link{compute_hybrid_pension}}
 }
